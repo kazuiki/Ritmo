@@ -1,6 +1,10 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
   GestureResponderEvent,
   Image,
   ImageBackground,
@@ -11,6 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
@@ -19,10 +24,108 @@ export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [child, setChild] = useState("");
   const [loading, setLoading] = useState(false);
   const [showChildInput, setShowChildInput] = useState(false);
   const [user, setUser] = useState<any>(null); // store logged-in user
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
+  const [paused, setPaused] = useState(false);
+  const reduceMotionRef = useRef(false);
+
+  // bubbles data: positions and animation refs
+  const bubbleCount = 4;
+  const bubbleValues = useRef(
+    new Array(bubbleCount).fill(null).map(() => ({ x: new Animated.Value(0), y: new Animated.Value(0) }))
+  ).current;
+  const bubbleAnims = useRef<Array<Animated.CompositeAnimation | null>>(new Array(bubbleCount).fill(null)).current;
+  const randomBetween = (min: number, max: number) => Math.random() * (max - min) + min;
+
+  // generate base positions/sizes/colors for bubbles once (cover entire screen)
+  const bubbleBase = useRef(
+    (() => {
+      const { width, height } = Dimensions.get("window");
+      const sizeOptions = [220, 160, 120, 90];
+      const colorOptions = ["#CFF6E6", "#E7FFF8", "#DFFCF0", "#EAFDF6"];
+      return new Array(bubbleCount).fill(null).map((_, i) => {
+        const size = sizeOptions[i % sizeOptions.length];
+        const color = colorOptions[i % colorOptions.length];
+        const left = randomBetween(0, Math.max(0, width - size));
+        const top = randomBetween(0, Math.max(0, height - size));
+        return { size, color, top, left };
+      });
+    })()
+  ).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 450, useNativeDriver: true }),
+    ]).start();
+    // check reduce motion
+    AccessibilityInfo.isReduceMotionEnabled().then((r) => {
+      reduceMotionRef.current = !!r;
+      if (!r) startAllBubbles();
+    });
+
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", (r) => {
+      reduceMotionRef.current = !!r;
+      if (r) stopAllBubbles(); else if (!paused) startAllBubbles();
+    });
+
+    return () => {
+      sub.remove();
+      stopAllBubbles();
+    };
+  }, [fadeAnim, slideAnim]);
+
+  const startBubble = (i: number) => {
+    const v = bubbleValues[i];
+    // simple looping motion: move to random positions in a smooth loop
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(v.x, { toValue: randomBetween(-40, 40), duration: 2500 + Math.random() * 2000, useNativeDriver: true }),
+          Animated.timing(v.y, { toValue: randomBetween(-20, 20), duration: 2500 + Math.random() * 2000, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(v.x, { toValue: randomBetween(-40, 40), duration: 2500 + Math.random() * 2000, useNativeDriver: true }),
+          Animated.timing(v.y, { toValue: randomBetween(-20, 20), duration: 2500 + Math.random() * 2000, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    bubbleAnims[i] = anim;
+    anim.start();
+  };
+
+  const startAllBubbles = () => {
+    if (reduceMotionRef.current) return;
+    for (let i = 0; i < bubbleCount; i++) {
+      // if already running, stop then start fresh
+      bubbleAnims[i]?.stop();
+      startBubble(i);
+    }
+  };
+
+  const stopAllBubbles = () => {
+    for (let i = 0; i < bubbleCount; i++) {
+      bubbleAnims[i]?.stop();
+      bubbleAnims[i] = null;
+    }
+  };
+
+  const togglePause = () => {
+    if (paused) {
+      setPaused(false);
+      startAllBubbles();
+    } else {
+      setPaused(true);
+      stopAllBubbles();
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) return alert("Fill all fields");
@@ -66,12 +169,34 @@ export default function Login() {
         style={styles.background}
         resizeMode="cover" // or "contain" if you want
       >
-        <View style={styles.container}>
-          <Image
-            source={require("../../assets/ritmo-logo.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+        <TouchableWithoutFeedback onPress={togglePause}>
+          <View style={styles.container}>
+            {/* render animated bubbles behind the logo */}
+            {bubbleBase.map((b, i) => (
+              <Animated.View
+                key={i}
+                style={{
+                  position: "absolute",
+                  width: b.size,
+                  height: b.size,
+                  borderRadius: b.size / 2,
+                  backgroundColor: b.color,
+                  top: b.top,
+                  left: b.left,
+                  transform: [
+                    { translateX: bubbleValues[i].x },
+                    { translateY: bubbleValues[i].y },
+                  ],
+                  opacity: 0.18,
+                }}
+              />
+            ))}
+
+            <Image
+              source={require("../../assets/ritmo-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           {!showChildInput && (
             <>
               <Text style={styles.label}>Email:</Text>
@@ -85,13 +210,24 @@ export default function Login() {
               />
   
               <Text style={styles.label}>Password:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter password here:"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.inputFlex}
+                  placeholder="Enter password here:"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+
+                <TouchableOpacity
+                  onPress={() => setShowPassword((s) => !s)}
+                  style={styles.eyeButton}
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                >
+                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={22} color="#276a63" />
+                </TouchableOpacity>
+              </View>
   
               <TouchableOpacity
                 style={styles.button}
@@ -137,6 +273,7 @@ export default function Login() {
             </>
           )}
         </View>
+        </TouchableWithoutFeedback>
       </ImageBackground>
     </KeyboardAvoidingView>
   );
@@ -179,6 +316,25 @@ const styles = StyleSheet.create({
     marginTop: 6,
     shadowOpacity: 0.06,
     elevation: 2,
+  },
+  inputRow: {
+    width: "92%",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginTop: 6,
+    shadowOpacity: 0.06,
+    elevation: 2,
+  },
+  inputFlex: {
+    flex: 1,
+    paddingVertical: 12,
+  },
+  eyeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
   },
   background: {
     flex: 1,
