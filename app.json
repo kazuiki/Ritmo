@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "ritmo",
+    "name": "Ritmo",
     "slug": "ritmo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ritmo",
+    "platforms": ["ios", "android", "web"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
