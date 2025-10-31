@@ -204,15 +204,29 @@ export default function Login() {
               from={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 900, duration: 600 }}
+              style={{ width: "100%", alignItems: "center" }}
             >
-              <TouchableOpacity onPress={() => router.push("/auth/signup")}>
-                <Text style={styles.link}>Create Account</Text>
+              {/* Create Account Button */}
+              <TouchableOpacity
+                style={styles.createAccountBtn}
+                onPress={() => router.push("/auth/signup")}
+              >
+                <Text style={styles.createAccountText}>Create Account</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => Linking.openURL("mailto:")}>
-                <Text style={styles.link}>Open Gmail / Email App</Text>
+              {/* Google Icon (Open Gmail / Email App) */}
+              <TouchableOpacity
+                style={styles.gmailIconWrapper}
+                onPress={() => Linking.openURL("mailto:")}
+              >
+                <ImageBackground
+                  source={require("../../assets/Google.png")} // 🟢 make sure this file exists
+                  style={styles.gmailIcon}
+                  resizeMode="contain"
+                />
               </TouchableOpacity>
             </MotiView>
+
           </View>
         </TouchableWithoutFeedback>
       </ImageBackground>
@@ -278,4 +292,34 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
   link: { marginTop: 16, color: "#276a63", textDecorationLine: "underline", textAlign: "center" },
+  createAccountBtn: {
+    marginTop: 18,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2D7778",
+    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    width: "80%",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+  },
+  createAccountText: {
+    color: "#2D7778",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  gmailIconWrapper: {
+    marginTop: 18,
+    backgroundColor: "#fff",
+    borderRadius: 40,
+    padding: 10,
+    elevation: 3,
+  },
+  gmailIcon: {
+    width: 30,
+    height: 30,
+  },
+
 });
