@@ -1,8 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { MotiImage, MotiView } from "moti";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  GestureResponderEvent,
-  Image,
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
   ImageBackground,
   KeyboardAvoidingView,
   Linking,
@@ -11,7 +14,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
@@ -19,61 +23,144 @@ export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [child, setChild] = useState("");
   const [loading, setLoading] = useState(false);
   const [showChildInput, setShowChildInput] = useState(false);
-  const [user, setUser] = useState<any>(null); // store logged-in user
+  const [paused, setPaused] = useState(false);
+  const reduceMotionRef = useRef(false);
+
+  // Bubble animation setup
+  const bubbleCount = 4;
+  const bubbleValues = useRef(
+    new Array(bubbleCount).fill(null).map(() => ({ x: new Animated.Value(0), y: new Animated.Value(0) }))
+  ).current;
+  const bubbleAnims = useRef(new Array(bubbleCount).fill(null));
+  const randomBetween = (min: number, max: number) => Math.random() * (max - min) + min;
+
+  const bubbleBase = useRef(
+    (() => {
+      const { width, height } = Dimensions.get("window");
+      const sizeOptions = [220, 160, 120, 90];
+      const colorOptions = ["#CFF6E6", "#E7FFF8", "#DFFCF0", "#EAFDF6"];
+      return new Array(bubbleCount).fill(null).map((_, i) => {
+        const size = sizeOptions[i % sizeOptions.length];
+        const color = colorOptions[i % colorOptions.length];
+        const left = randomBetween(0, width - size);
+        const top = randomBetween(0, height - size);
+        return { size, color, top, left };
+      });
+    })()
+  ).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then((r) => {
+      reduceMotionRef.current = !!r;
+      if (!r) startAllBubbles();
+    });
+    return stopAllBubbles;
+  }, []);
+
+  const startBubble = (i: number) => {
+    const v = bubbleValues[i];
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(v.x, { toValue: randomBetween(-40, 40), duration: 3000, useNativeDriver: true }),
+          Animated.timing(v.y, { toValue: randomBetween(-20, 20), duration: 3000, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(v.x, { toValue: randomBetween(-40, 40), duration: 3000, useNativeDriver: true }),
+          Animated.timing(v.y, { toValue: randomBetween(-20, 20), duration: 3000, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    bubbleAnims.current[i] = anim;
+    anim.start();
+  };
+
+  const startAllBubbles = () => {
+    if (reduceMotionRef.current) return;
+    for (let i = 0; i < bubbleCount; i++) {
+      bubbleAnims.current[i]?.stop();
+      startBubble(i);
+    }
+  };
+  const stopAllBubbles = () => {
+    for (let i = 0; i < bubbleCount; i++) {
+      bubbleAnims.current[i]?.stop();
+      bubbleAnims.current[i] = null;
+    }
+  };
+  const togglePause = () => {
+    if (paused) {
+      setPaused(false);
+      startAllBubbles();
+    } else {
+      setPaused(true);
+      stopAllBubbles();
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) return alert("Fill all fields");
     setLoading(true);
-  
-    // Sign in
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (signInError) return alert(signInError.message);
-  
-    // Get user metadata
+    if (error) return alert(error.message);
+
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) return alert(userError.message);
-  
+
     const loggedInUser = userData.user;
     const childName = (loggedInUser?.user_metadata as any)?.child_name;
-  
-    if (!childName) {
-      // Navigate to child-nickname screen if child_name is missing
-      router.replace("/auth/child-nickname");
-    } else {
-      // Otherwise, go to greetings/home
-      router.replace("/greetings");
-    }
-  };
-  
 
-  function handleSaveChild(event: GestureResponderEvent): void {
-    throw new Error("Function not implemented.");
-  }
+    if (!childName) router.replace("/auth/child-nickname");
+    else router.replace("/greetings");
+  };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.outer}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.outer}>
       <Stack.Screen options={{ title: "Log in", headerShown: false }} />
-      
-      <ImageBackground
-        source={require("../../assets/background.png")} // your PNG
-        style={styles.background}
-        resizeMode="cover" // or "contain" if you want
-      >
-        <View style={styles.container}>
-          <Image
-            source={require("../../assets/ritmo-logo.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          {!showChildInput && (
-            <>
+      <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
+        <TouchableWithoutFeedback onPress={togglePause}>
+          <View style={styles.container}>
+            {/* Animated bubbles */}
+            {bubbleBase.map((b, i) => (
+              <Animated.View
+                key={i}
+                style={{
+                  position: "absolute",
+                  width: b.size,
+                  height: b.size,
+                  borderRadius: b.size / 2,
+                  backgroundColor: b.color,
+                  top: b.top,
+                  left: b.left,
+                  transform: [{ translateX: bubbleValues[i].x }, { translateY: bubbleValues[i].y }],
+                  opacity: 0.18,
+                }}
+              />
+            ))}
+
+            {/* Moti animations for logo and fields */}
+            <MotiImage
+              from={{ opacity: 0, translateY: -20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: "timing", duration: 800 }}
+              source={require("../../assets/ritmo-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+
+            {/* Animated input group */}
+            <MotiView
+              from={{ opacity: 0, translateY: 30 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 400, duration: 600 }}
+              style={{ width: "100%", alignItems: "center" }}
+            >
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
@@ -83,60 +170,65 @@ export default function Login() {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-  
+
               <Text style={styles.label}>Password:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter password here:"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-  
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.inputFlex}
+                  placeholder="Enter password here:"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#276a63" />
+                </TouchableOpacity>
+              </View>
+            </MotiView>
+
+            {/* Animated login button */}
+            <MotiView
+              from={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 700, type: "spring" }}
+              style={{ width: "100%", alignItems: "center" }}
+            >
+              <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+                <Text style={styles.buttonText}>{loading ? "Logging in..." : "LOGIN"}</Text>
+              </TouchableOpacity>
+            </MotiView>
+
+            {/* Links */}
+            <MotiView
+              from={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 900, duration: 600 }}
+              style={{ width: "100%", alignItems: "center" }}
+            >
+              {/* Create Account Button */}
               <TouchableOpacity
-                style={styles.button}
-                onPress={handleLogin}
-                disabled={loading}
+                style={styles.createAccountBtn}
+                onPress={() => router.push("/auth/signup")}
               >
-                <Text style={styles.buttonText}>
-                  {loading ? "Logging in..." : "LOGIN"}
-                </Text>
+                <Text style={styles.createAccountText}>Create Account</Text>
               </TouchableOpacity>
-  
-              <TouchableOpacity onPress={() => router.push("/auth/signup")}>
-                <Text style={styles.link}>Create Account</Text>
-              </TouchableOpacity>
-  
+
+              {/* Google Icon (Open Gmail / Email App) */}
               <TouchableOpacity
-                style={styles.link}
+                style={styles.gmailIconWrapper}
                 onPress={() => Linking.openURL("mailto:")}
               >
-                <Text style={styles.link}>Open Gmail / Email App</Text>
+                <ImageBackground
+                  source={require("../../assets/Google.png")} // 🟢 make sure this file exists
+                  style={styles.gmailIcon}
+                  resizeMode="contain"
+                />
               </TouchableOpacity>
-            </>
-          )}
-  
-          {showChildInput && (
-            <>
-              <Text style={styles.label}>Child's Nickname:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your child's nickname"
-                value={child}
-                onChangeText={setChild}
-              />
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleSaveChild}
-                disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? "Saving..." : "SAVE & CONTINUE"}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+            </MotiView>
+
+          </View>
+        </TouchableWithoutFeedback>
       </ImageBackground>
     </KeyboardAvoidingView>
   );
@@ -150,57 +242,84 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logo: { 
-    width: 260, 
-    height: 220, 
-    marginBottom: 6 
+  logo: {
+    width: 260,
+    height: 220,
+    marginBottom: 6,
   },
-
-  brand: { 
-    fontSize: 28, 
-    fontWeight: "700", 
-    color: "#276a63", 
-    marginBottom: 20 
+  label: {
+    alignSelf: "flex-start",
+    color: "#276a63",
+    marginTop: 8,
   },
-
-  label: { 
-    alignSelf: "flex-start", 
-    color: "#276a63", 
-    marginLeft: 6, 
-    marginTop: 6 
-  },
-
   input: {
-    width: "92%",
+    width: "100%",
+    maxWidth: 340,
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 5,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginTop: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    fontSize: 15,
+  },
+  inputRow: {
+    width: "100%",
+    maxWidth: 340,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 5,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 6,
-    shadowOpacity: 0.06,
+    marginTop: 10,
     elevation: 2,
   },
-  background: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-  },
+  inputFlex: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  eyeButton: { paddingHorizontal: 4, paddingVertical: 4 },
+  background: { flex: 1, width: "100%", height: "100%" },
   button: {
     marginTop: 22,
-    backgroundColor: "#06C08A",
+    backgroundColor: "#2D7778",
     paddingVertical: 14,
-    width: "60%",
-    borderRadius: 20,
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 5,
     alignItems: "center",
+    elevation: 3,
   },
-  buttonText: { 
-    color: "#fff", 
-    fontWeight: "700"
-   },
+  buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
+  link: { marginTop: 16, color: "#276a63", textDecorationLine: "underline", textAlign: "center" },
+  createAccountBtn: {
+    marginTop: 18,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2D7778",
+    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    width: "80%",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+  },
+  createAccountText: {
+    color: "#2D7778",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  gmailIconWrapper: {
+    marginTop: 18,
+    backgroundColor: "#fff",
+    borderRadius: 40,
+    padding: 10,
+    elevation: 3,
+  },
+  gmailIcon: {
+    width: 30,
+    height: 30,
+  },
 
-  link: { 
-    marginTop: 16, 
-    color: "#276a63", 
-    textDecorationLine: "underline" 
-  },
 });

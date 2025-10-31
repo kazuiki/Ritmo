@@ -1,6 +1,6 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect } from "react";
-import { View, Text, Alert, StyleSheet } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
 export default function ConfirmEmail() {
@@ -10,46 +10,53 @@ export default function ConfirmEmail() {
   useEffect(() => {
     const confirm = async () => {
       try {
-        // Only proceed if email confirmation source is correct
-        if (params.source === "email") {
-          // Refresh session to recognize confirmed email
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) throw sessionError;
+        // Attempt to refresh session and get the current user regardless of incoming params.
+        // Some email providers / deep links may not include a `source=email` param, so
+        // requiring it can cause the page to do nothing and show an "untitled" or empty page.
+        // Refresh session to recognize confirmed email
+        await supabase.auth.getSession();
 
-          // Get the current user
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError) throw userError;
+        // Get the current user
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError; 
 
-          const user = userData.user;
+        const user = userData.user;
 
-          if (!user) {
-            // No logged-in user, just go to sign-in
-            Alert.alert("✅ Email confirmed!", "You can now log in.");
-            router.replace("/auth/login");
-            return;
-          }
-
-          // If user exists, check if email is verified
-          if (user.confirmed_at || user.email_confirmed_at || user.email_confirmed_at) {
-            // Already confirmed
-            Alert.alert("✅ Email confirmed!", "You can now log in.");
-            router.replace("/auth/login");
-            return;
-          }
-
-          // If email not confirmed yet, check for child nickname
-          const childName = (user.user_metadata as any)?.child_name;
-          router.replace(childName ? "/greetings" : "/child-nickname");
-
-          Alert.alert("✅ Email confirmed!", "Proceed to the next step.");
+        // If no user is signed in, inform the user and send them to login
+        if (!user) {
+          Alert.alert("✅ Email confirmed!", "You can now log in.");
+          router.push("/auth/login");
+          return;
         }
+
+        // If user exists, check if email is verified
+        const isConfirmed = !!(
+          (user as any).confirmed_at ||
+          (user as any).email_confirmed_at ||
+          (user as any).email_confirmed
+        );
+
+        if (isConfirmed) {
+          // Email already confirmed — go to next step
+          Alert.alert("✅ Email confirmed!", "You can now continue.");
+          // Check for child nickname and route accordingly
+          const childName = (user.user_metadata as any)?.child_name;
+          router.push(childName ? "/greetings" : "/auth/child-nickname");
+          return;
+        }
+
+        // If email not yet marked confirmed, still try to navigate based on metadata
+        const childName = (user.user_metadata as any)?.child_name;
+        router.push(childName ? "/greetings" : "/auth/child-nickname");
+        Alert.alert("✅ Email confirmed!", "Proceed to the next step.");
       } catch (error: any) {
-        Alert.alert("Error", error.message || "Something went wrong.");
+        console.log("Confirm email error:", error);
+        Alert.alert("Error", error?.message || "Something went wrong while confirming your email.");
       }
     };
 
     confirm();
-  }, []);
+  }, [params]);
 
   return (
     <View style={styles.container}>
