@@ -1,111 +1,238 @@
-// app/(tabs)/_layout.tsx
-import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
-import { StyleSheet, TouchableOpacity } from "react-native";
+import { Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
+
+const { width } = Dimensions.get("window");
+const tabWidth = width / 5; 
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const isAndroid = Platform.OS === "android";
+  const androidBottomInset = isAndroid ? insets.bottom : 0;
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-      }}
-    >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={22} color={color} />
+    <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarBackground: () => (
+            <View style={styles.tabBarContainer}>
+              <Svg width={width} height={62.5} style={styles.svgStyle}>
+                 <Path
+                    d={`
+                      M0 0
+                      H${width / 2 - 65}
+                      Q${width / 2 - 47} 0 ${width / 2 - 40} 15
+                      Q${width / 2 - 25} 43 ${width / 2} 43
+                      Q${width / 2 + 25} 43 ${width / 2 + 40} 15
+                      Q${width / 2 + 47} 0 ${width / 2 + 65} 0
+                      H${width}
+                      V75
+                      H0
+                      Z
+                    `}
+                    fill="#2F7C72"
+                  />
+              </Svg>
+            </View>
           ),
-          tabBarActiveTintColor: "#06C08A",
-          tabBarInactiveTintColor: "#666",
+          tabBarStyle: [
+            styles.tabBar,
+            isAndroid && androidBottomInset > 0
+              ? { height: 70 + androidBottomInset, paddingBottom: androidBottomInset }
+              : null,
+          ],
+          tabBarItemStyle: styles.tabBarItem,
         }}
-      />
-      <Tabs.Screen
-        name="media"
-        options={{
-          title: "Media",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="play-circle" size={22} color={color} />
-          ),
-          tabBarActiveTintColor: "#06C08A",
-          tabBarInactiveTintColor: "#666",
-        }}
-      />
+      >
+        {/* Home */}
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ focused }) => (
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/home.png")}
+                  style={styles.icon}
+                />
+                <Text style={styles.tabLabel}>Home</Text>
+              </View>
+            ),
+            tabBarLabel: () => null,
+          }}
+        />
 
-      {/* Floating center button */}
-      <Tabs.Screen
-  name="addRoutines"
-  options={{
-    title: "Add Routines",
-    tabBarButton: (props) => {
-      // Override null disabled
-      const { disabled, ref, ...rest } = props;
-      return (
-        <TouchableOpacity
-          {...rest}
-          disabled={disabled ?? false} // ensure boolean
-          style={styles.floatingButton}
-        >
-          <Ionicons name="calendar" size={28} color="#fff" />
-        </TouchableOpacity>
-      );
-    },
-  }}
-/>
+        {/* Media */}
+        <Tabs.Screen
+          name="media"
+          options={{
+            title: "Media",
+            tabBarIcon: ({ focused }) => (
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/media.png")}
+                  style={styles.icon}
+                />
+                <Text style={styles.tabLabel}>Media</Text>
+              </View>
+            ),
+            tabBarLabel: () => null,
+          }}
+        />
 
-      <Tabs.Screen
-        name="progress"
-        options={{
-          title: "Progress",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={22} color={color} />
-          ),
-          tabBarActiveTintColor: "#06C08A",
-          tabBarInactiveTintColor: "#666",
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={22} color={color} />
-          ),
-          tabBarActiveTintColor: "#06C08A",
-          tabBarInactiveTintColor: "#666",
-        }}
-      />
-    </Tabs>
+        {/* Center Floating Button */}
+        <Tabs.Screen
+          name="addRoutines"
+          options={{
+            title: "Add",
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.centerWrapper}>
+                <View
+                  style={[
+                    styles.floatingButton,
+                    focused && styles.floatingButtonActive,
+                  ]}
+                >
+                  <Image
+                    source={require("../../assets/images/addRoutines.png")}
+                    style={styles.floatingIcon}
+                  />
+                </View>
+              </View>
+            ),
+            tabBarLabel: () => null,
+          }}
+        />
+
+        {/* Progress */}
+        <Tabs.Screen
+          name="progress"
+          options={{
+            title: "Progress",
+            tabBarIcon: ({ focused }) => (
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/progress.png")}
+                  style={styles.icon}
+                />
+                <Text style={styles.tabLabel}>Progress</Text>
+              </View>
+            ),
+            tabBarLabel: () => null,
+          }}
+        />
+
+        {/* Settings */}
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: "Settings",
+            tabBarIcon: ({ focused }) => (
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/settings.png")}
+                  style={styles.icon}
+                />
+                <Text style={styles.tabLabel}>Settings</Text>
+              </View>
+            ),
+            tabBarLabel: () => null,
+          }}
+        />
+      </Tabs>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    height: 70,
-    paddingBottom: 8,
-    backgroundColor: "#2F7C72", // change to your nav color
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+  tabBarContainer: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    height: 73,
+  },
+  svgStyle: {
+    position: "absolute",
     bottom: 0,
   },
-  floatingButton: {
-    backgroundColor: "#06C08A",
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  tabBar: {
+    backgroundColor: "transparent",
+    position: "absolute",
+    borderTopWidth: 0,
+    elevation: 0,
+  },
+  tabBarItem: {
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 30, // makes it "float"
+  },
+  tabItemWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    top: 23,
+    width: 55,
+    height: 50,
+    borderRadius: 15,
+  },
+  activeTabBackground: {
+    backgroundColor: "#06C08A",
+  },
+  icon: {
+    width: 30,
+    height: 30,
+    tintColor: "#fff",
+    resizeMode: "contain",
+  },
+  tabLabel: {
+    color: "#fff",
+    fontSize: 10,
+    marginTop: 3,
+    fontWeight: "600",
+  },
+  centerWrapper: {
+    position: "absolute",
+    top: -27,
+    alignSelf: "center",
+  },
+  floatingButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 37.5,
+    backgroundColor: "#2F7C72",
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  floatingButtonActive: {
+    backgroundColor: "#06C08A",
+  },
+  floatingIcon: {
+    width: 36,
+    height: 36,
+    tintColor: "#fff",
+    resizeMode: "contain",
   },
 });
