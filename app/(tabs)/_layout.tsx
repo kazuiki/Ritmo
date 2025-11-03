@@ -1,14 +1,15 @@
 import { Tabs } from "expo-router";
-import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 const { width } = Dimensions.get("window");
-const TAB_BAR_HEIGHT = 73;
+const tabWidth = width / 5; 
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  const bottomInset = insets.bottom;
+  const isAndroid = Platform.OS === "android";
+  const androidBottomInset = isAndroid ? insets.bottom : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
@@ -17,28 +18,30 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarBackground: () => (
             <View style={styles.tabBarContainer}>
-              <Svg width={width} height={TAB_BAR_HEIGHT} style={styles.svgStyle}>
-                <Path
-                  d={`
-                    M0 0
-                    H${width / 2 - 65}
-                    Q${width / 2 - 47} 0 ${width / 2 - 40} 15
-                    Q${width / 2 - 25} 43 ${width / 2} 43
-                    Q${width / 2 + 25} 43 ${width / 2 + 40} 15
-                    Q${width / 2 + 47} 0 ${width / 2 + 65} 0
-                    H${width}
-                    V${TAB_BAR_HEIGHT}
-                    H0
-                    Z
-                  `}
-                  fill="#2F7C72"
-                />
+              <Svg width={width} height={138} style={styles.svgStyle}>
+                 <Path
+                    d={`
+                      M0 0
+                      H${width / 2 - 65}
+                      Q${width / 2 - 47} 0 ${width / 2 - 40} 15
+                      Q${width / 2 - 25} 43 ${width / 2} 43
+                      Q${width / 2 + 25} 43 ${width / 2 + 40} 15
+                      Q${width / 2 + 47} 0 ${width / 2 + 65} 0
+                      H${width}
+                      V150
+                      H0
+                      Z
+                    `}
+                    fill="#2F7C72"
+                  />
               </Svg>
             </View>
           ),
           tabBarStyle: [
             styles.tabBar,
-            { height: TAB_BAR_HEIGHT + bottomInset, paddingBottom: bottomInset },
+            isAndroid && androidBottomInset > 0
+              ? { height: 70 + androidBottomInset, paddingBottom: androidBottomInset }
+              : null,
           ],
           tabBarItemStyle: styles.tabBarItem,
         }}
@@ -49,7 +52,12 @@ export default function TabsLayout() {
           options={{
             title: "Home",
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabItemWrapper, focused && styles.activeTabBackground]}>
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
                 <Image
                   source={require("../../assets/images/home.png")}
                   style={styles.icon}
@@ -67,7 +75,12 @@ export default function TabsLayout() {
           options={{
             title: "Media",
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabItemWrapper, focused && styles.activeTabBackground]}>
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
                 <Image
                   source={require("../../assets/images/media.png")}
                   style={styles.icon}
@@ -79,14 +92,19 @@ export default function TabsLayout() {
           }}
         />
 
-        {/* Center Add Button */}
+        {/* Center Floating Button */}
         <Tabs.Screen
           name="addRoutines"
           options={{
             title: "Add",
             tabBarIcon: ({ focused }) => (
               <View style={styles.centerWrapper}>
-                <View style={[styles.floatingButton, focused && styles.floatingButtonActive]}>
+                <View
+                  style={[
+                    styles.floatingButton,
+                    focused && styles.floatingButtonActive,
+                  ]}
+                >
                   <Image
                     source={require("../../assets/images/addRoutines.png")}
                     style={styles.floatingIcon}
@@ -104,7 +122,12 @@ export default function TabsLayout() {
           options={{
             title: "Progress",
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabItemWrapper, focused && styles.activeTabBackground]}>
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
                 <Image
                   source={require("../../assets/images/progress.png")}
                   style={styles.icon}
@@ -122,7 +145,12 @@ export default function TabsLayout() {
           options={{
             title: "Settings",
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabItemWrapper, focused && styles.activeTabBackground]}>
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                ]}
+              >
                 <Image
                   source={require("../../assets/images/settings.png")}
                   style={styles.icon}
@@ -141,9 +169,7 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: "absolute",
-    bottom: 0,
-    width: "100%",
-    height: TAB_BAR_HEIGHT,
+    height: 150,
   },
   svgStyle: {
     position: "absolute",
@@ -151,8 +177,8 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     backgroundColor: "transparent",
-    borderTopWidth: 0,
     position: "absolute",
+    borderTopWidth: 0,
     elevation: 0,
   },
   tabBarItem: {
@@ -182,17 +208,15 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontWeight: "600",
   },
- centerWrapper: {
-  position: "absolute",
-  bottom: TAB_BAR_HEIGHT / -2, // try 1/6th or 1/4th of tab height
-  alignSelf: "center",
-  alignItems: "center",
-  justifyContent: "center",
-},
+  centerWrapper: {
+    position: "absolute",
+    top: -27,
+    alignSelf: "center",
+  },
   floatingButton: {
     width: 70,
     height: 70,
-    borderRadius: 35,
+    borderRadius: 37.5,
     backgroundColor: "#2F7C72",
     alignItems: "center",
     justifyContent: "center",
@@ -200,7 +224,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 1,
   },
   floatingButtonActive: {
     backgroundColor: "#06C08A",
