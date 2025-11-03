@@ -1,0 +1,17 @@
+[33m404d3172[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mtemp-backup[m[33m, [m[1;32malawal[m[33m)[m gifs/png added, modify some designs, and play guide book functionalities
+[33m723534dc[m[33m ([m[1;31morigin/molina[m[33m)[m Merge pull request #5 from kazuiki/deato
+[33mdacd3a55[m Merge pull request #4 from kazuiki/molina
+[33m2cbd7d9f[m[33m ([m[1;31morigin/deato[m[33m)[m forgot password and update password
+[33m47111298[m added media and fix layout
+[33m292bb474[m Create .gitignore to exclude build and env files
+[33m7d18358f[m Merge pull request #3 from kazuiki/ArcasMain
+[33maf92610c[m[33m ([m[1;31morigin/ArcasMain[m[33m)[m combining the part of Awal and Arcas
+[33me4982328[m Fix tsconfig.json - correct expo base config path
+[33m91790c19[m Add missing dependencies: moti, @expo/cli, @types/react
+[33mca76af76[m Merge pull request #1 from kazuiki/molina-branch
+[33m714bf2b0[m updatedLogin
+[33ma72d5cf8[m updated signup
+[33mbe1f7508[m updatedLogin
+[33m4983caea[m eyeIcon
+[33mf48888b9[m Initial commit: Ritmo app with authentication, tabs navigation, and Supabase integration
+[33mb6088948[m Initial commit
