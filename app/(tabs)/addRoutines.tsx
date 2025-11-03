@@ -171,7 +171,14 @@ export default function addRoutines() {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
+        <View style={{ flex: 1 }}>
+            {/* Background Image */}
+            <Image
+                source={require("../../assets/background.png")}
+                style={styles.backgroundImage}
+                resizeMode="cover"
+            />
+            
             {/* Brand logo */}
             <View style={styles.header}>
                 <Image
@@ -193,7 +200,7 @@ export default function addRoutines() {
             </View>
 
         {/* Routines List */}
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
             {routines.filter(r => !r.completed).map((routine) => (
                 <TouchableOpacity 
                     key={routine.id} 
@@ -411,6 +418,11 @@ export default function addRoutines() {
 }
 
 const styles = StyleSheet.create({
+    backgroundImage: {
+        position: "absolute",
+        width: "100%",
+        height: "100%",
+    },
     header: { paddingTop: 50, paddingHorizontal: 16 },
     brandLogo: {
         width: 120,
