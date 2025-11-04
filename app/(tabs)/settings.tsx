@@ -95,7 +95,13 @@ export default function Settings() {
           <View style={styles.row}>
             <Text style={styles.labelInline}>Child Nickname:</Text>
             <View style={styles.valueContainer}>
-              <Text style={styles.valueText}>{childNickname || "—"}</Text>
+              <Text 
+                style={styles.valueText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {childNickname || "—"}
+              </Text>
             </View>
           </View>
         </View>
@@ -105,7 +111,13 @@ export default function Settings() {
           <View style={styles.row}>
             <Text style={styles.labelInline}>Email:</Text>
             <View style={styles.valueContainer}>
-              <Text style={styles.valueText}>{email || "—"}</Text>
+              <Text 
+                style={styles.valueText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {email || "—"}
+              </Text>
             </View>
           </View>
         </View>
@@ -174,14 +186,14 @@ const styles = StyleSheet.create({
   },
   contentView: {
     flex: 1,
-    padding: 20,
-    paddingTop: 20,
+    padding: 16,
+    paddingTop: 16,
   },
   inputContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -191,13 +203,13 @@ const styles = StyleSheet.create({
     borderColor: "#CFF6EB",
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   labelInline: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#333",
   },
@@ -205,7 +217,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
-    paddingVertical: 7,
+    paddingVertical: 4,
   },
   valueContainer: {
     flex: 1,
