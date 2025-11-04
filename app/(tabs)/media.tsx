@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 
@@ -65,12 +65,17 @@ export default function Media() {
 
   return (
     <View style={styles.container}>
-      {/* 🏷️ Logo on top-left */}
+      {/* Background Image */}
+      <Image
+        source={require("../../assets/background.png")}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      
       <View style={styles.header}>
         <Image
-          source={require("@/assets/ritmo-header.png")}
-          style={styles.logo}
-          resizeMode="contain"
+          source={require("../../assets/images/ritmoNameLogo.png")}
+          style={styles.brandLogo}
         />
       </View>
 
@@ -92,7 +97,7 @@ export default function Media() {
       </View>
 
       {/* 📺 Video List */}
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {filteredVideos.map((video) => (
           <View key={video.id} style={styles.videoContainer}>
             {playingId === video.id ? (
@@ -142,20 +147,25 @@ export default function Media() {
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    paddingTop: 40,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 15,
-    marginBottom: 10,
+    paddingTop: 50,
+    paddingHorizontal: 16,
   },
-  logo: {
+  brandLogo: {
     width: 120,
-    height: 40,
+    height: 30,
+    resizeMode: "contain",
+    marginLeft: -22,
+    marginTop: -20,
+    marginBottom: 12,
   },
   searchBar: {
     flexDirection: "row",

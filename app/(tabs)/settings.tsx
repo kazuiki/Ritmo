@@ -4,18 +4,16 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
 export default function Settings() {
   const router = useRouter();
-  const [childNickname, setChildNickname] = useState("Sai");
+  const [childNickname, setChildNickname] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -30,6 +28,8 @@ export default function Settings() {
       } = await supabase.auth.getUser();
       if (user) {
         setEmail(user.email || "");
+        const meta = (user.user_metadata ?? {}) as any;
+        setChildNickname(meta?.child_name ?? "");
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -75,40 +75,51 @@ export default function Settings() {
 
   return (
     <View style={styles.container}>
-      {/* Header with Logo */}
+      {/* Background Image */}
+      <Image
+        source={require("../../assets/background.png")}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      
       <View style={styles.header}>
         <Image
-          source={require("../../assets/ritmo-header.png")}
-          style={styles.logo}
-          resizeMode="contain"
+          source={require("../../assets/images/ritmoNameLogo.png")}
+          style={styles.brandLogo}
         />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.contentView}>
         {/* Child Nickname */}
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Child nickname:</Text>
-          <TextInput
-            style={styles.input}
-            value={childNickname}
-            onChangeText={setChildNickname}
-            placeholder="Enter nickname"
-          />
+          <View style={styles.row}>
+            <Text style={styles.labelInline}>Child Nickname:</Text>
+            <View style={styles.valueContainer}>
+              <Text 
+                style={styles.valueText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {childNickname || "—"}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Email */}
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email:</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            editable={false}
-            placeholder="Email"
-          />
+          <View style={styles.row}>
+            <Text style={styles.labelInline}>Email:</Text>
+            <View style={styles.valueContainer}>
+              <Text 
+                style={styles.valueText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {email || "—"}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Parental Lock */}
@@ -148,38 +159,41 @@ export default function Settings() {
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log out</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#C8E6E2",
   },
   header: {
     paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    backgroundColor: "#C8E6E2",
+    paddingHorizontal: 16,
   },
-  logo: {
-    width: 100,
-    height: 40,
+  brandLogo: {
+    width: 120,
+    height: 30,
+    resizeMode: "contain",
+    marginLeft: -22,
+    marginTop: -20,
   },
-  scrollView: {
+  contentView: {
     flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 10,
+    padding: 16,
+    paddingTop: 16,
   },
   inputContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -189,10 +203,31 @@ const styles = StyleSheet.create({
     borderColor: "#CFF6EB",
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
+    marginBottom: 6,
+  },
+  labelInline: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingVertical: 4,
+  },
+  valueContainer: {
+    flex: 1,
+    alignItems: "center",
+  },
+  valueText: {
+    fontSize: 16,
+    color: "#264D47",
+    fontWeight: "700",
+    textAlign: "center",
   },
   input: {
     fontSize: 15,
@@ -239,7 +274,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginTop: 8,
-    marginBottom: 40,
+    marginBottom: 0,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

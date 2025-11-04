@@ -1,4 +1,4 @@
-import { Slot, Stack, useRouter } from "expo-router";
+import { Slot, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { supabase } from "../src/supabaseClient";
 
@@ -9,6 +9,8 @@ export default function RootLayout() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         router.replace("/auth/login"); // ✅ force login first
+      } else {
+        router.replace("/greetings"); // ✅ logged in → go to greetings first
       }
     });
 
@@ -16,7 +18,7 @@ export default function RootLayout() {
       if (!session) {
         router.replace("/auth/login");
       } else {
-        router.replace("/(tabs)/home"); // ✅ logged in → go home
+        router.replace("/greetings"); // ✅ logged in → go to greetings
       }
     });
 

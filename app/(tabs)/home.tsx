@@ -1,9 +1,10 @@
 // app/(tabs)/home.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getPresetById } from "../../constants/presets";
+import { supabase } from "../../src/supabaseClient";
 
 interface Routine {
   id: number;
@@ -16,14 +17,22 @@ interface Routine {
 export default function Home() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
+  const [playbookModalVisible, setPlaybookModalVisible] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [activeRoutineId, setActiveRoutineId] = useState<number | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioControlIndex, setAudioControlIndex] = useState(0);
+  const [childName, setChildName] = useState("Child");
 
   const loadRoutines = async () => {
     try {
       const stored = await AsyncStorage.getItem("@routines");
       if (stored) {
         const loadedRoutines: Routine[] = JSON.parse(stored);
-        setRoutines(loadedRoutines);
+        // Reset all completed status to false when loading
+        const resetRoutines = loadedRoutines.map(r => ({ ...r, completed: false }));
+        setRoutines(resetRoutines);
       } else {
         setRoutines([]);
       }
@@ -32,6 +41,21 @@ export default function Home() {
     }
   };
 
+  const fetchChildName = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.child_name) {
+        setChildName(user.user_metadata.child_name);
+      }
+    } catch (error) {
+      console.error("Failed to fetch child name:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchChildName();
+  }, []);
+
   useFocusEffect(
     React.useCallback(() => {
       loadRoutines();
@@ -39,49 +63,43 @@ export default function Home() {
   );
 
   const toggleComplete = async (id: number) => {
+    // Update the routine to completed
     const updatedRoutines = routines.map((r) =>
       r.id === id ? { ...r, completed: !r.completed } : r
     );
-    setRoutines(updatedRoutines);
-
-    try {
-      await AsyncStorage.setItem("@routines", JSON.stringify(updatedRoutines));
-    } catch (error) {
-      console.error("Failed to save routines:", error);
-    }
-  };
-
-  const finishTask = async () => {
-    if (!activeRoutineId) return;
-    const updatedRoutines = routines.map((r) =>
-      r.id === activeRoutineId ? { ...r, completed: true } : r
-    );
     
+    // Check if all routines are now completed
     const allCompleted = updatedRoutines.every((r) => r.completed);
     
-    const finalRoutines = allCompleted ? [] : updatedRoutines;
-    
-    setRoutines(finalRoutines);
-    try {
-      await AsyncStorage.setItem("@routines", JSON.stringify(finalRoutines));
-    } catch (error) {
-      console.error("Failed to save routines:", error);
+    if (allCompleted) {
+      // If all routines are completed, clear the list
+      setRoutines([]);
+      try {
+        await AsyncStorage.setItem("@routines", JSON.stringify([]));
+      } catch (error) {
+        console.error("Failed to clear routines:", error);
+      }
+    } else {
+      // Otherwise just update state
+      setRoutines(updatedRoutines);
     }
-    setTaskModalVisible(false);
-    setActiveRoutineId(null);
   };
 
   const incompleteRoutines = routines.filter((r) => !r.completed);
 
   const totalRoutines = routines.length;
   const completedCount = routines.filter((r) => r.completed).length;
-  
-  const displayCompleted = completedCount;
-  const displayTotal = totalRoutines;
   const progressPercentage = totalRoutines > 0 ? (completedCount / totalRoutines) * 100 : 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
+    <View style={{ flex: 1 }}>
+      {/* Background Image */}
+      <Image
+        source={require("../../assets/background.png")}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      
       <View style={styles.header}>
         <Image
           source={require("../../assets/images/ritmoNameLogo.png")}
@@ -89,18 +107,28 @@ export default function Home() {
         />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {/* Daily Progress tracker */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Daily Progress</Text>
-            <Text style={styles.progressCount}>{displayCompleted} of {displayTotal}</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBarFill, { width: `${progressPercentage}%` }]} />
-          </View>
+      {/* Daily Progress tracker - Fixed */}
+      <View style={styles.progressCard}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Daily Progress</Text>
+          <Text style={styles.progressCount}>{completedCount} of {totalRoutines}</Text>
         </View>
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarFill, { width: `${progressPercentage}%` }]} />
+        </View>
+      </View>
 
+      {/* All Done Message - Show when no routines */}
+      {incompleteRoutines.length === 0 && (
+        <View style={styles.allDoneContainer}>
+          <Text style={styles.allDoneText}>All Done</Text>
+          <Text style={styles.congratulationText}>Congratulations</Text>
+          <Text style={styles.childNameDone}>{childName}</Text>
+        </View>
+      )}
+
+      {/* Scrollable Routines List */}
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
         {incompleteRoutines.map((routine, idx) => {
           const isActive = idx === 0;
           const preset = getPresetById(routine.presetId);
@@ -147,6 +175,13 @@ export default function Home() {
         onRequestClose={() => setTaskModalVisible(false)}
       >
         <View style={styles.modalScreen}>
+          {/* Background Image */}
+          <Image
+            source={require("../../assets/background.png")}
+            style={styles.backgroundImage}
+            resizeMode="cover"
+          />
+          
           {/* Header */}
           <View style={styles.taskHeader}>
             <TouchableOpacity onPress={() => setTaskModalVisible(false)}>
@@ -156,19 +191,261 @@ export default function Home() {
 
           {/* Body content - labels only for now */}
           <View style={styles.taskContent}>
-            <View style={styles.taskBlock}>
+            <TouchableOpacity 
+              style={styles.taskItem}
+              onPress={() => {
+                setTaskModalVisible(false);
+                setPlaybookModalVisible(true);
+              }}
+            >
+              <Image 
+                source={require("../../assets/images/media-unscreen.gif")}
+                style={styles.taskImage}
+                resizeMode="contain"
+              />
               <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.taskBlock}>
+            <View style={styles.taskItem}>
+              <Image 
+                source={require("../../assets/images/media-1--unscreen.gif")}
+                style={styles.taskImage}
+                resizeMode="contain"
+              />
               <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
             </View>
           </View>
 
           {/* Footer - Finish Task */}
           <View style={styles.taskFooter}>
-            <TouchableOpacity style={styles.finishButton} onPress={finishTask} activeOpacity={0.9}>
+            <TouchableOpacity 
+              style={styles.finishButton} 
+              onPress={() => {
+                if (activeRoutineId) {
+                  toggleComplete(activeRoutineId);
+                }
+                setTaskModalVisible(false);
+                setActiveRoutineId(null);
+              }} 
+              activeOpacity={0.9}
+            >
               <Text style={styles.finishButtonText}>Finish Task</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Playbook Modal */}
+      <Modal
+        visible={playbookModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          setPlaybookModalVisible(false);
+          setCurrentStep(1);
+          setIsPlaying(false);
+          setAudioControlIndex(0);
+        }}
+      >
+        <View style={styles.playbookScreen}>
+          {/* Background Image */}
+          <Image
+            source={require("../../assets/background.png")}
+            style={styles.backgroundImage}
+            resizeMode="cover"
+          />
+          
+          {/* Back Button - Only show on Step 1 */}
+          <View style={styles.playbookHeader}>
+            {currentStep === 1 && (
+              <TouchableOpacity onPress={() => {
+                setPlaybookModalVisible(false);
+                setCurrentStep(1);
+                setIsPlaying(false);
+                setAudioControlIndex(0);
+              }}>
+                <Text style={styles.backText}>Back</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Routine Title with Stars */}
+          <View style={styles.routineTitleCard}>
+            <Text style={styles.routineTitle}>Brush My Teeth</Text>
+            <View style={styles.starsContainer}>
+                {[1, 2, 3].map((starNumber) => (
+                  <Text key={starNumber} style={styles.star}>
+                    {currentStep > starNumber ? "⭐" : "☆"}
+                </Text>
+              ))}
+            </View>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.playbookContent}>
+            {/* Video/Image Card */}
+            <TouchableOpacity 
+              style={styles.videoCard}
+              activeOpacity={1}
+              onPress={() => setIsPlaying(!isPlaying)}
+            >
+              {isPlaying ? (
+                <Image
+                  source={
+                    currentStep === 1 
+                      ? require("../../assets/images/dance-toothpaste 2.gif")
+                      : currentStep === 2
+                      ? require("../../assets/images/put toothpaste.gif")
+                      : currentStep === 3
+                      ? require("../../assets/images/brush teeth.gif")
+                      : require("../../assets/images/gargle.png")
+                  }
+                  style={styles.videoImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <>
+                  <Image
+                    source={
+                      currentStep === 1
+                        ? require("../../assets/images/brushandpaste.png")
+                        : currentStep === 2
+                        ? require("../../assets/images/puttoothpaste.png")
+                        : currentStep === 3
+                        ? require("../../assets/images/brushingteeth.png")
+                        : require("../../assets/images/gargle.png")
+                    }
+                    style={[styles.videoImage, styles.grayedImage]}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.playButtonOverlay}>
+                    <Image
+                      source={require("../../assets/images/Circled Play Button.png")}
+                      style={styles.playButtonImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Step Label */}
+            <Text style={styles.stepLabel}>Step {currentStep}</Text>
+
+            {/* Audio Controls Card */}
+            <TouchableOpacity 
+              style={styles.audioCard}
+              onPress={() => setAudioControlIndex((prev) => (prev + 1) % 3)}
+            >
+              <Image
+                source={
+                  audioControlIndex === 0
+                    ? require("../../assets/images/Musical Note.png")
+                    : audioControlIndex === 1
+                    ? require("../../assets/images/Pause.png")
+                    : require("../../assets/images/Audio.png")
+                }
+                style={styles.audioIcon}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            {/* Instruction Text */}
+            <Text style={styles.instructionText}>
+              {currentStep === 1 
+                ? "Get your Toothpaste\nand Toothbrush"
+                : currentStep === 2
+                ? "Put some toothpaste\ninto the toothbrush"
+                : currentStep === 3
+                ? "Brush Your Teeth"
+                : "Wash Your Mouth"
+              }
+            </Text>
+          </ScrollView>
+
+          {/* Footer with Back and Next Buttons */}
+          <View style={styles.playbookFooter}>
+            {currentStep > 1 && (
+              <TouchableOpacity 
+                style={styles.backButtonBottom}
+                onPress={() => {
+                  if (currentStep > 1) {
+                    setCurrentStep(currentStep - 1);
+                    setIsPlaying(false);
+                    setAudioControlIndex(0);
+                  }
+                }}
+              >
+                <Text style={styles.backButtonText}>BACK</Text>
+              </TouchableOpacity>
+            )}
+            {currentStep > 1 && <View style={styles.buttonSpacer} />}
+            <TouchableOpacity 
+              style={styles.nextButton}
+              onPress={() => {
+                if (currentStep < 4) {
+                  setCurrentStep(currentStep + 1);
+                  setIsPlaying(false);
+                  setAudioControlIndex(0);
+                } else {
+                  // Step 4 - Finish button action - Show success modal
+                  setPlaybookModalVisible(false);
+                  setSuccessModalVisible(true);
+                  setCurrentStep(1);
+                  setIsPlaying(false);
+                  setAudioControlIndex(0);
+                }
+              }}
+            >
+              <Text style={styles.nextButtonText}>
+                {currentStep === 4 ? "FINISH" : "NEXT"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={successModalVisible}
+        animationType="fade"
+        transparent={false}
+        onRequestClose={() => {
+          setSuccessModalVisible(false);
+        }}
+      >
+        <View style={styles.successScreen}>
+          {/* Background Image */}
+          <Image
+            source={require("../../assets/Success.png")}
+            style={styles.successBackground}
+            resizeMode="cover"
+          />
+
+          {/* Content Overlay */}
+          <View style={styles.successContent}>
+            {/* Three Stars - Middle one elevated */}
+            <View style={styles.starsSuccessContainer}>
+              <Text style={styles.starSuccess}>⭐</Text>
+              <Text style={[styles.starSuccess, styles.starElevated]}>⭐</Text>
+              <Text style={styles.starSuccess}>⭐</Text>
+            </View>
+
+            {/* Good Job Text */}
+            <Text style={styles.goodJobText}>Good Job</Text>
+            <Text style={styles.childNameText}>"{childName}"</Text>
+
+            {/* Next Button */}
+            <TouchableOpacity
+              style={styles.successNextButton}
+              onPress={() => {
+                if (activeRoutineId) {
+                  toggleComplete(activeRoutineId);
+                }
+                setSuccessModalVisible(false);
+                setActiveRoutineId(null);
+              }}
+            >
+              <Text style={styles.successNextButtonText}>Next</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -178,14 +455,20 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
   header: { paddingTop: 50, paddingHorizontal: 16 },
   brand: { fontSize: 20, color: "#276a63", fontWeight: "700" },
-  brandLogo: { width: 120, height: 30, resizeMode: "contain", marginLeft: -22, marginTop: -20 },
+  brandLogo: { width: 120, height: 30, resizeMode: "contain", marginLeft: -22, marginTop: -20, marginBottom: 12 },
   progressCard: {
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
-    marginBottom: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
     borderWidth: 2,
     borderColor: "#B8E6D9",
   },
@@ -220,7 +503,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 2 },  
     shadowRadius: 4,
     elevation: 2,
     position: "relative",
@@ -268,8 +551,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 35,
-    gap: 24,
-    marginTop: -50,
+    paddingVertical: 100,
+    gap: 20,
+    marginTop: -100,
   },
   taskBlock: {
     width: "100%",
@@ -287,13 +571,24 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  taskItem: {
+    width: "100%",
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  taskImage: {
+    width: 250,
+    height: 250,
+    marginBottom: -50,
+  },
   taskBlockLabel: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 28,
-    fontFamily: "Courier",
+    lineHeight: 25,
+    fontFamily: "Comic Sans MS",
   },
   taskFooter: {
     paddingHorizontal: 20,
@@ -324,5 +619,225 @@ const styles = StyleSheet.create({
     left: 0,
     backgroundColor: "rgba(0,0,0,0.06)",
     borderRadius: 16,
+  },
+  // Playbook Modal Styles
+  playbookScreen: {
+    flex: 1,
+    backgroundColor: "#C8E6E2",
+  },
+  playbookHeader: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    minHeight: 48,
+  },
+  routineTitleCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 20,
+    marginTop: 0,
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: "#2F7C72",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  routineTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#244D4A",
+    fontFamily: "Comic Sans MS",
+  },
+  starsContainer: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  star: {
+    fontSize: 20,
+  },
+  playbookContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 80,
+    alignItems: "center",
+  },
+  videoCard: {
+    width: "100%",
+    height: 230,
+    backgroundColor: "#5B2C91",
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 30,
+    position: "relative",
+  },
+  videoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  grayedImage: {
+    opacity: 0.6,
+  },
+  playButtonOverlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -35 }, { translateY: -35 }],
+  },
+  playButtonImage: {
+    width: 70,
+    height: 70,
+  },
+  stepLabel: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#244D4A",
+    marginBottom: 12,
+    fontFamily: "Comic Sans MS",
+  },
+  audioCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: "#2F7C72",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 100,
+    height: 100,
+  },
+  audioIcon: {
+    width: 50,
+    height: 50,
+  },
+  instructionText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#244D4A",
+    textAlign: "center",
+    lineHeight: 24,
+    fontFamily: "Comic Sans MS",
+  },
+  playbookFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  backButtonBottom: {
+    width: "48%",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    alignItems: "center",
+    borderColor: "#244D4A",
+  },
+  backButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#244D4A",
+  },
+  buttonSpacer: {
+    width: "4%",
+  },
+  nextButton: {
+    width: "48%",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    alignItems: "center",
+    borderColor: "#244D4A",
+  },
+  nextButtonFull: {
+    width: "48%",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    alignItems: "center",
+    borderColor: "#244D4A",
+  },
+  nextButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#244D4A",
+  },
+  // Success Modal Styles
+  successScreen: {
+    flex: 1,
+    position: "relative",
+  },
+  successBackground: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
+  successContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  starsSuccessContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 30,
+    gap: 15,
+  },
+  starSuccess: {
+    fontSize: 60,
+  },
+  starElevated: {
+    marginBottom: 15,
+  },
+  goodJobText: {
+    fontSize: 40,
+    fontWeight: "800",
+    color: "#244D4A",
+    marginBottom: 4,
+    letterSpacing: 1,
+  },
+  childNameText: {
+    fontSize: 30,
+    fontWeight: "600",
+    color: "#244D4A",
+    marginBottom: 60,
+    fontStyle: "italic",
+  },
+  successNextButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 40,
+  },
+  successNextButtonText: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#244D4A",
+    textDecorationLine: "underline",
+    letterSpacing: 0.5,
+  },
+  // All Done Message Styles
+  allDoneContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 130,
+  },
+  allDoneText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#244D4A",
+    letterSpacing: 1,
+  },
+  congratulationText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#244D4A",
+    letterSpacing: 1,
+  },
+  childNameDone: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#244D4A",
+    textDecorationLine: "underline",
+    fontStyle: "italic",
   },
 });

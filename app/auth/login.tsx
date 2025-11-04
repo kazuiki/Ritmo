@@ -187,8 +187,11 @@ export default function Login() {
               </View>
 
               {/* Forgot Password Link */}
-              <TouchableOpacity onPress={() => router.push("./forgot-password")}>
-                <Text style={[styles.link, { marginTop: 8 }]}>Forgot Password?</Text>
+              <TouchableOpacity 
+                onPress={() => router.push("./forgot-password")}
+                style={{ alignSelf: "flex-end" }}
+              >
+                <Text style={[styles.link, {marginTop: 8}]}>Forgot Password?</Text>
               </TouchableOpacity>
 
             </MotiView>
@@ -297,7 +300,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
-  link: { marginTop: 16, color: "#276a63", textDecorationLine: "underline", textAlign: "center" },
+  link: { marginTop: 16, color: "#276a63", textDecorationLine: "underline"},
   createAccountBtn: {
     marginTop: 18,
     backgroundColor: "#fff",
