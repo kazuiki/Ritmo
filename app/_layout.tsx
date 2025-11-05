@@ -10,7 +10,7 @@ export default function RootLayout() {
       if (!session) {
         router.replace("/auth/login"); // ✅ force login first
       } else {
-        router.replace("/greetings"); // ✅ logged in → go to greetings first
+        router.replace("/loading?next=/greetings"); // ✅ logged in → show loading then greetings
       }
     });
 
@@ -18,7 +18,7 @@ export default function RootLayout() {
       if (!session) {
         router.replace("/auth/login");
       } else {
-        router.replace("/greetings"); // ✅ logged in → go to greetings
+        router.replace("/loading?next=/greetings"); // ✅ logged in → show loading then greetings
       }
     });
 
