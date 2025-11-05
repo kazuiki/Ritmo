@@ -41,13 +41,13 @@ export default function ConfirmEmail() {
           Alert.alert("✅ Email confirmed!", "You can now continue.");
           // Check for child nickname and route accordingly
           const childName = (user.user_metadata as any)?.child_name;
-          router.push(childName ? "/greetings" : "/auth/child-nickname");
+          router.push(childName ? "/loading?next=/greetings" : "/auth/child-nickname");
           return;
         }
 
         // If email not yet marked confirmed, still try to navigate based on metadata
-        const childName = (user.user_metadata as any)?.child_name;
-        router.push(childName ? "/greetings" : "/auth/child-nickname");
+      const childName = (user.user_metadata as any)?.child_name;
+      router.push(childName ? "/loading?next=/greetings" : "/auth/child-nickname");
         Alert.alert("✅ Email confirmed!", "Proceed to the next step.");
       } catch (error: any) {
         console.log("Confirm email error:", error);
