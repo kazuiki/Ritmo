@@ -117,7 +117,7 @@ export default function Login() {
     const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
     if (!childName) router.replace("/auth/child-nickname");
-    else router.replace("/greetings");
+    else router.replace("/loading?next=/greetings");
   };
 
   return (
