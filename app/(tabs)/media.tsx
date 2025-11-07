@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
   Image,
@@ -10,6 +11,7 @@ import {
   View,
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
+import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 
 type PlayerState =
   | "unstarted"
@@ -22,6 +24,13 @@ type PlayerState =
 export default function Media() {
   const [search, setSearch] = useState("");
   const [playingId, setPlayingId] = useState<number | null>(null);
+
+  // Clear all parental lock authentication when navigating to MEDIA
+  useFocusEffect(
+    React.useCallback(() => {
+      ParentalLockAuthService.onNavigateToPublicTab();
+    }, [])
+  );
 
   const videos = [
     {
