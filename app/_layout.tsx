@@ -1,16 +1,22 @@
-import { Slot, useRouter } from "expo-router";
+
+import { Slot, usePathname, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { supabase } from "../src/supabaseClient";
 
 export default function RootLayout() {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        router.replace("/auth/login"); // ✅ force login first
+        router.replace("/auth/login");
       } else {
-        router.replace("/greetings"); // ✅ logged in → go to greetings first
+        // Only redirect to /greetings if at root path
+        if (pathname === "/" || pathname === undefined) {
+          router.replace("/greetings");
+        }
+        // else, do nothing (let /loading or other routes handle their own flow)
       }
     });
 
@@ -18,12 +24,14 @@ export default function RootLayout() {
       if (!session) {
         router.replace("/auth/login");
       } else {
-        router.replace("/greetings"); // ✅ logged in → go to greetings
+        if (pathname === "/" || pathname === undefined) {
+          router.replace("/greetings");
+        }
       }
     });
 
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [pathname]);
 
   return <Slot />;
 }

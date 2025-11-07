@@ -72,8 +72,13 @@ export default function addRoutines() {
     const loadRoutines = async () => {
         try {
             const stored = await AsyncStorage.getItem("@routines");
+            console.log("AddRoutines - Loading routines from storage:", stored);
             if (stored) {
-                setRoutines(JSON.parse(stored));
+                const loadedRoutines = JSON.parse(stored);
+                console.log("AddRoutines - Loaded routines count:", loadedRoutines.length);
+                setRoutines(loadedRoutines);
+            } else {
+                console.log("AddRoutines - No routines found in storage");
             }
         } catch (error) {
             console.error("Failed to load routines:", error);
@@ -82,7 +87,9 @@ export default function addRoutines() {
 
     const saveRoutines = async () => {
         try {
+            console.log("AddRoutines - Saving routines, count:", routines.length);
             await AsyncStorage.setItem("@routines", JSON.stringify(routines));
+            console.log("AddRoutines - Routines saved successfully");
         } catch (error) {
             console.error("Failed to save routines:", error);
         }
