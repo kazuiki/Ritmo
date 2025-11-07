@@ -44,9 +44,9 @@ export default function LoadingPage() {
               }}
               transition={{
                 type: "timing",
-                duration: 800,
+                duration: 1000,
                 loop: true,
-                delay: i * 120, // Slightly longer delays for smoother waves
+                delay: i * 120, // Consistent wave timing
                 repeatReverse: false,
               }}
               style={[

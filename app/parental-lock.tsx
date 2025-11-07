@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ImageBackground,
   Modal,
@@ -11,25 +12,51 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { ParentalLockAuthService } from "../src/parentalLockAuthService";
+import { ParentalLockService } from "../src/parentalLockService";
 
 const backgroundImage = require("../assets/background.png");
 
 export default function ParentalLock() {
   const router = useRouter();
-  const [isEnabled, setIsEnabled] = useState(true);
+  const [isEnabled, setIsEnabled] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
   const [savedPin, setSavedPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
-  const toggleSwitch = () => {
+  // Load parental lock state on mount
+  useEffect(() => {
+    loadParentalLockState();
+  }, []);
+
+  // Handle focus effects to maintain modal state
+  useFocusEffect(
+    React.useCallback(() => {
+      // Reload state when screen is focused
+      loadParentalLockState();
+    }, [])
+  );
+
+  const loadParentalLockState = async () => {
+    const enabled = await ParentalLockService.isEnabled();
+    const savedPinCode = await ParentalLockService.getSavedPin();
+    setIsEnabled(enabled);
+    if (savedPinCode) {
+      setSavedPin(savedPinCode);
+    }
+  };
+
+  const toggleSwitch = async () => {
     if (!isEnabled) {
       // If turning ON, show PIN modal
       setShowPinModal(true);
     } else {
-      // If turning OFF, just disable
+      // If turning OFF, disable and clear authentication
       setIsEnabled(false);
+      await ParentalLockService.setEnabled(false);
+      ParentalLockAuthService.clearAuthentication();
     }
   };
 
@@ -54,10 +81,13 @@ export default function ParentalLock() {
     }
   };
 
-  const savePinAndEnable = () => {
+  const savePinAndEnable = async () => {
     // Check if all PIN digits are filled
     if (pin.every(digit => digit !== '')) {
-      setSavedPin(pin.join('')); // Save the PIN
+      const pinCode = pin.join('');
+      setSavedPin(pinCode); // Save the PIN locally
+      await ParentalLockService.savePin(pinCode); // Save to storage
+      await ParentalLockService.setEnabled(true); // Enable parental lock
       setIsEnabled(true);
       setShowPinModal(false);
       setPin(['', '', '', '']); // Reset PIN input
@@ -137,17 +167,41 @@ export default function ParentalLock() {
                   key={index}
                   ref={pinRefs[index]}
                   style={[styles.pinBox, digit && styles.pinBoxFilled]}
-                  value={digit}
-                  onChangeText={(value) => handlePinInput(index, value)}
+                  value={digit ? '•' : ''}
+                  onChangeText={(value) => {
+                    if (value.length > 0 && /^\d$/.test(value)) {
+                      // If a number is entered, store it and move to next
+                      const newPin = [...pin];
+                      newPin[index] = value;
+                      setPin(newPin);
+                      
+                      // Auto-focus next input
+                      if (index < 3) {
+                        pinRefs[index + 1].current?.focus();
+                      }
+                    } else if (value === '') {
+                      // Handle deletion
+                      const newPin = [...pin];
+                      newPin[index] = '';
+                      setPin(newPin);
+                    }
+                  }}
                   onKeyPress={({ nativeEvent }) => {
                     if (nativeEvent.key === 'Backspace') {
-                      handleBackspace(index, digit);
+                      if (pin[index] === '' && index > 0) {
+                        // If current field is empty and backspace, go to previous field
+                        pinRefs[index - 1].current?.focus();
+                      } else {
+                        // Clear current field
+                        const newPin = [...pin];
+                        newPin[index] = '';
+                        setPin(newPin);
+                      }
                     }
                   }}
                   keyboardType="numeric"
                   maxLength={1}
                   textAlign="center"
-                  secureTextEntry={false}
                   selectTextOnFocus={true}
                 />
               ))}
