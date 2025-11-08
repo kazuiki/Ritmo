@@ -3,19 +3,19 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Linking,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
@@ -116,8 +116,13 @@ export default function Login() {
     const loggedInUser = userData.user;
     const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
+
+  if (!childName) router.replace("/auth/child-nickname");
+  else router.replace("/loading?next=/greetings");
+
     if (!childName) router.replace("/auth/child-nickname");
     else router.replace("/loading?next=/greetings");
+
   };
 
   return (
