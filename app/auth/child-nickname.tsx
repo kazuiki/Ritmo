@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
-import { supabase } from "../../src/supabaseClient";
 import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { supabase } from "../../src/supabaseClient";
 
 export default function ChildNickname() {
   const router = useRouter();
@@ -21,8 +21,8 @@ export default function ChildNickname() {
 
     if (error) return alert(error.message);
 
-    // Navigate to next screen (e.g., greetings or home)
-    router.replace("/greetings");
+  // Navigate to next screen (show loading first, then greetings)
+  router.replace("/loading?next=/greetings");
   };
 
   return (

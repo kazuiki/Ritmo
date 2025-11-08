@@ -3,7 +3,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { MotiView } from "moti";
+import React, { useEffect, useState } from "react";
+import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getPresetById } from "../../constants/presets";
+import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { supabase } from "../../src/supabaseClient";
 
 interface Routine {
@@ -35,6 +39,10 @@ export default function Home() {
   const taskScale = useRef(new Animated.Value(0.9)).current;
   // Playbook modal slide animations
   const playbookSlideX = useRef(new Animated.Value(400)).current;
+
+  const [starAnimations, setStarAnimations] = useState([false, false, false]);
+  const [showRainingStars, setShowRainingStars] = useState(false);
+
 
   const loadRoutines = async () => {
     try {
@@ -97,6 +105,8 @@ export default function Home() {
   useFocusEffect(
     React.useCallback(() => {
       loadRoutines();
+      // Clear all parental lock authentication when navigating to HOME
+      ParentalLockAuthService.onNavigateToPublicTab();
     }, [])
   );
 
@@ -535,9 +545,27 @@ export default function Home() {
             <Text style={styles.routineTitle}>Brush My Teeth</Text>
             <View style={styles.starsContainer}>
                 {[1, 2, 3].map((starNumber) => (
-                  <Text key={starNumber} style={styles.star}>
-                    {currentStep > starNumber ? "⭐" : "☆"}
-                </Text>
+                  <MotiView
+                    key={starNumber}
+                    from={{
+                      scale: 0,
+                      opacity: 0,
+                    }}
+                    animate={{
+                      scale: currentStep > starNumber ? 1.2 : 1,
+                      opacity: 1,
+                    }}
+                    transition={{
+                      type: 'spring',
+                      delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0,
+                      damping: 8,
+                      stiffness: 100,
+                    }}
+                  >
+                    <Text style={styles.star}>
+                      {currentStep > starNumber ? "⭐" : "☆"}
+                    </Text>
+                  </MotiView>
               ))}
             </View>
           </View>
@@ -633,6 +661,7 @@ export default function Home() {
                   // Step 4 - Finish button action - Show success modal
                   setPlaybookModalVisible(false);
                   setSuccessModalVisible(true);
+                  setShowRainingStars(true);
                   setCurrentStep(1);
                   setIsPlaying(false);
                   setAudioControlIndex(0);
@@ -654,6 +683,7 @@ export default function Home() {
         transparent={false}
         onRequestClose={() => {
           setSuccessModalVisible(false);
+          setShowRainingStars(false);
         }}
       >
         <View style={styles.successScreen}>
@@ -666,11 +696,67 @@ export default function Home() {
 
           {/* Content Overlay */}
           <View style={styles.successContent}>
-            {/* Three Stars - Middle one elevated */}
+            {/* Raining Stars Animation */}
+            {showRainingStars && (
+              <View style={styles.rainingStarsContainer} pointerEvents="none">
+                {[...Array(50)].map((_, index) => {
+                  const startX = Math.random() * 400; // Full screen width spread
+                  const endX = startX + (Math.random() * 100 - 50); // Small drift
+                  return (
+                    <MotiView
+                      key={index}
+                      from={{
+                        translateY: -100,
+                        translateX: startX,
+                        opacity: 0,
+                        rotate: '0deg',
+                        scale: 0.8 + Math.random() * 0.4,
+                      }}
+                      animate={{
+                        translateY: 700,
+                        translateX: endX,
+                        opacity: [0, 1, 1, 0],
+                        rotate: '360deg',
+                        scale: 0.8 + Math.random() * 0.4,
+                      }}
+                      transition={{
+                        type: 'timing',
+                        duration: 2000 + Math.random() * 1500,
+                        delay: Math.random() * 500, // Much shorter delay - stars start immediately
+                        repeat: Infinity,
+                      }}
+                      style={styles.rainingStar}
+                    >
+                      <Text style={styles.rainingStarText}>⭐</Text>
+                    </MotiView>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Three Stars - Middle one elevated with pop animation */}
             <View style={styles.starsSuccessContainer}>
-              <Text style={styles.starSuccess}>⭐</Text>
-              <Text style={[styles.starSuccess, styles.starElevated]}>⭐</Text>
-              <Text style={styles.starSuccess}>⭐</Text>
+              {[0, 1, 2].map((index) => (
+                <MotiView
+                  key={index}
+                  from={{
+                    scale: 0,
+                    opacity: 0,
+                  }}
+                  animate={{
+                    scale: index === 1 ? 1.3 : 1.1,
+                    opacity: 1,
+                  }}
+                  transition={{
+                    type: 'spring',
+                    delay: index * 300,
+                    damping: 6,
+                    stiffness: 120,
+                  }}
+                >
+                  <Text style={[styles.starSuccess, index === 1 && styles.starElevated]}>⭐</Text>
+                </MotiView>
+              ))}
             </View>
 
             {/* Good Job Text */}
@@ -685,6 +771,7 @@ export default function Home() {
                   toggleComplete(activeRoutineId);
                 }
                 setSuccessModalVisible(false);
+                setShowRainingStars(false);
                 setActiveRoutineId(null);
               }}
             >
@@ -1161,5 +1248,23 @@ const styles = StyleSheet.create({
     color: "#244D4A",
     textDecorationLine: "underline",
     fontStyle: "italic",
+  },
+  rainingStarsContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  rainingStar: {
+    position: 'absolute',
+    zIndex: 2,
+  },
+  rainingStarText: {
+    fontSize: 20,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
