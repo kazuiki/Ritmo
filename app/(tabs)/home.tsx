@@ -1,6 +1,8 @@
 // app/(tabs)/home.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MotiView } from "moti";
 import React, { useEffect, useState } from "react";
 import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -26,18 +28,58 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioControlIndex, setAudioControlIndex] = useState(0);
   const [childName, setChildName] = useState("Child");
+  const [showAllDone, setShowAllDone] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+  const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
+  // Task modal popup animations
+  const taskOpacity = useRef(new Animated.Value(0)).current;
+  const taskScale = useRef(new Animated.Value(0.9)).current;
+  // Playbook modal slide animations
+  const playbookSlideX = useRef(new Animated.Value(400)).current;
+
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
+
 
   const loadRoutines = async () => {
     try {
       const stored = await AsyncStorage.getItem("@routines");
+      const archivedStored = await AsyncStorage.getItem("@routines_archived");
+      
+      console.log("Home - Loading routines from storage:", stored);
+      console.log("Home - Loading archived routines:", archivedStored);
+      
       if (stored) {
         const loadedRoutines: Routine[] = JSON.parse(stored);
-        // Reset all completed status to false when loading
-        const resetRoutines = loadedRoutines.map(r => ({ ...r, completed: false }));
-        setRoutines(resetRoutines);
+        const archivedIds: number[] = archivedStored ? JSON.parse(archivedStored) : [];
+        
+        console.log("Home - Total routines:", loadedRoutines.length);
+        console.log("Home - Archived routine IDs:", archivedIds);
+        
+        // Filter out archived routines - only show active ones on home page
+        const activeRoutines = loadedRoutines.filter(r => !archivedIds.includes(r.id));
+        
+        console.log("Home - Active routines count:", activeRoutines.length);
+        
+        // All active routines start as not completed
+        const routinesWithStatus = activeRoutines.map(r => ({
+          ...r,
+          completed: false
+        }));
+        
+        setRoutines(routinesWithStatus);
+        
+        // Initialize animations for each routine
+        routinesWithStatus.forEach(routine => {
+          if (!routineAnimations[routine.id]) {
+            routineAnimations[routine.id] = new Animated.Value(1);
+          }
+        });
       } else {
+        console.log("Home - No routines found in storage");
         setRoutines([]);
       }
     } catch (error) {
@@ -69,27 +111,136 @@ export default function Home() {
   );
 
   const toggleComplete = async (id: number) => {
-    // Update the routine to completed
-    const updatedRoutines = routines.map((r) =>
-      r.id === id ? { ...r, completed: !r.completed } : r
-    );
-    
-    // Check if all routines are now completed
-    const allCompleted = updatedRoutines.every((r) => r.completed);
-    
-    if (allCompleted) {
-      // If all routines are completed, clear the list
-      setRoutines([]);
-      try {
-        await AsyncStorage.setItem("@routines", JSON.stringify([]));
-      } catch (error) {
-        console.error("Failed to clear routines:", error);
-      }
-    } else {
-      // Otherwise just update state
-      setRoutines(updatedRoutines);
+    // Animate the routine card sliding out and fading
+    if (routineAnimations[id]) {
+      Animated.parallel([
+        Animated.timing(routineAnimations[id], {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
+    
+    // Wait for animation to complete before updating state
+    setTimeout(async () => {
+      // Update the routine to completed
+      const updatedRoutines = routines.map((r) =>
+        r.id === id ? { ...r, completed: !r.completed } : r
+      );
+      
+      // Check if all routines are now completed
+      const allCompleted = updatedRoutines.every((r) => r.completed);
+      
+      if (allCompleted) {
+        // Update state first
+        setRoutines(updatedRoutines);
+        
+        // Show the all done message with animation
+        setShowAllDone(true);
+        
+        // Trigger smooth celebration animations
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 600,
+              useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+              toValue: 1,
+              friction: 4,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+          // Add a subtle bounce effect
+          Animated.sequence([
+            Animated.timing(bounceAnim, {
+              toValue: 10,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.spring(bounceAnim, {
+              toValue: 0,
+              friction: 3,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
+        
+        // Clear previous timeout if exists
+        if (allDoneTimeoutRef.current) {
+          clearTimeout(allDoneTimeoutRef.current);
+        }
+        
+        // Set timeout to hide after 10 seconds
+        allDoneTimeoutRef.current = setTimeout(() => {
+          // Smooth fade out animation
+          Animated.parallel([
+            Animated.timing(fadeAnim, {
+              toValue: 0,
+              duration: 600,
+              useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+              toValue: 0.8,
+              duration: 600,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setShowAllDone(false);
+            // Reset animations for next time
+            fadeAnim.setValue(0);
+            scaleAnim.setValue(0.5);
+            bounceAnim.setValue(0);
+          });
+        }, 10000);
+        
+        // Archive completed routines (keep in storage, hide from home page)
+        setTimeout(async () => {
+          try {
+            console.log("Home - Archiving completed routines");
+            
+            // Get the IDs of completed routines
+            const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
+            console.log("Home - Completed routine IDs to archive:", completedIds);
+            
+            // Get existing archived IDs
+            const archivedStored = await AsyncStorage.getItem("@routines_archived");
+            const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
+            
+            // Add new completed IDs to archived list
+            const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
+            console.log("Home - Updated archived IDs:", updatedArchived);
+            
+            // Save archived list (routines stay in @routines for addRoutines page)
+            await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
+            
+            // Clear the home page's routine state (they'll reload when page is focused again)
+            setRoutines([]);
+            
+            console.log("Home - Completed routines archived successfully");
+          } catch (error) {
+            console.error("Failed to archive completed routines:", error);
+          }
+        }, 800);
+      } else {
+        // Otherwise just update state
+        setRoutines(updatedRoutines);
+      }
+    }, 400); // Match the animation duration
   };
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (allDoneTimeoutRef.current) {
+        clearTimeout(allDoneTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const incompleteRoutines = routines.filter((r) => !r.completed);
 
@@ -124,84 +275,170 @@ export default function Home() {
         </View>
       </View>
 
-      {/* All Done Message - Show when no routines */}
-      {incompleteRoutines.length === 0 && (
-        <View style={styles.allDoneContainer}>
+      {/* All Done Message - Show only after completing all tasks */}
+      {showAllDone && (
+        <Animated.View 
+          style={[
+            styles.allDoneContainer,
+            {
+              opacity: fadeAnim,
+              transform: [
+                { scale: scaleAnim },
+                { translateY: bounceAnim },
+              ],
+            },
+          ]}
+        >
           <Text style={styles.allDoneText}>All Done</Text>
           <Text style={styles.congratulationText}>Congratulations</Text>
           <Text style={styles.childNameDone}>{childName}</Text>
-        </View>
+        </Animated.View>
       )}
 
       {/* Scrollable Routines List */}
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
         {incompleteRoutines.map((routine, idx) => {
           const isActive = idx === 0;
           const preset = getPresetById(routine.presetId);
+          
+          // Initialize animation value if not exists
+          if (!routineAnimations[routine.id]) {
+            routineAnimations[routine.id] = new Animated.Value(1);
+          }
+          
           return (
-            <TouchableOpacity
+            <Animated.View
               key={routine.id}
-              style={styles.taskCard}
-              activeOpacity={0.8}
-              onPress={() => {
-                if (isActive) {
-                  setActiveRoutineId(routine.id);
-                  setTaskModalVisible(true);
-                }
+              style={{
+                opacity: routineAnimations[routine.id],
+                transform: [
+                  {
+                    translateX: routineAnimations[routine.id].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-300, 0],
+                    }),
+                  },
+                  {
+                    scale: routineAnimations[routine.id].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {preset ? (
-                  <Image
-                    source={preset.image}
-                    style={[styles.presetImageSmall, !isActive && styles.presetImageDim]}
-                    {...(!isActive ? { blurRadius: 1 } : {})}
-                  />
-                ) : (
-                  <View style={[styles.iconPlaceholder, !isActive && styles.iconDim]}>
-                    <Text style={styles.icon}>📋</Text>
-                  </View>
-                )}
-                <View style={{ marginLeft: 16 }}>
-                  <Text style={styles.taskTitle}>{routine.name}</Text>
-                  <Text style={styles.taskTime}>{routine.time}</Text>
+              <TouchableOpacity
+                style={styles.taskCard}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (isActive) {
+                    setActiveRoutineId(routine.id);
+                    // Pop from center - starts small then grows
+                    taskOpacity.setValue(0);
+                    taskScale.setValue(0);
+                    setTaskModalVisible(true);
+                    Animated.parallel([
+                      Animated.timing(taskOpacity, {
+                        toValue: 1,
+                        duration: 250,
+                        easing: Easing.out(Easing.ease),
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(taskScale, {
+                        toValue: 1,
+                        duration: 250,
+                        easing: Easing.out(Easing.back(1.2)),
+                        useNativeDriver: true,
+                      }),
+                    ]).start();
+                  }
+                }}
+              >
+                <View style={styles.taskCardContent}>
+                  {preset ? (
+                    <Image
+                      source={preset.image}
+                      style={[styles.presetImageLarge, !isActive && styles.presetImageDim]}
+                      {...(!isActive ? { blurRadius: 1 } : {})}
+                    />
+                  ) : (
+                    <View style={[styles.iconPlaceholderLarge, !isActive && styles.iconDim]}>
+                      <Text style={styles.iconLarge}>📋</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.taskTitle, styles.taskTitleCentered]}>{routine.name}</Text>
+                  <Text style={[styles.taskTime, styles.taskTimeCentered]}>{routine.time}</Text>
                 </View>
-              </View>
-              {!isActive && <View pointerEvents="none" style={styles.dimOverlay} />}
-            </TouchableOpacity>
+                {!isActive && <View pointerEvents="none" style={styles.dimOverlay} />}
+              </TouchableOpacity>
+            </Animated.View>
           );
         })}
       </ScrollView>
 
-      {/* Full-screen Task Modal for the first routine */}
+      {/* Task Modal - Popup Dialog */}
       <Modal
         visible={taskModalVisible}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setTaskModalVisible(false)}
+        animationType="none"
+        transparent={true}
+        onRequestClose={() => {
+          Animated.parallel([
+            Animated.timing(taskOpacity, {
+              toValue: 0,
+              duration: 200,
+              easing: Easing.in(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(taskScale, {
+              toValue: 0,
+              duration: 200,
+              easing: Easing.in(Easing.back(1.2)),
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setTaskModalVisible(false);
+          });
+        }}
       >
-        <View style={styles.modalScreen}>
-          {/* Background Image */}
-          <Image
-            source={require("../../assets/background.png")}
-            style={styles.backgroundImage}
-            resizeMode="cover"
-          />
-          
-          {/* Header */}
-          <View style={styles.taskHeader}>
-            <TouchableOpacity onPress={() => setTaskModalVisible(false)}>
-              <Text style={styles.backText}>Back</Text>
-            </TouchableOpacity>
-          </View>
+        <Animated.View style={[styles.taskOverlay, { opacity: taskOpacity }]}>
+          <Animated.View style={[styles.taskDialog, { transform: [{ scale: taskScale }] }]}>
+            {/* Header */}
+            <View style={styles.taskDialogHeader}>
+              <TouchableOpacity onPress={() => {
+                Animated.parallel([
+                  Animated.timing(taskOpacity, {
+                    toValue: 0,
+                    duration: 200,
+                    easing: Easing.in(Easing.ease),
+                    useNativeDriver: true,
+                  }),
+                  Animated.timing(taskScale, {
+                    toValue: 0,
+                    duration: 200,
+                    easing: Easing.in(Easing.back(1.2)),
+                    useNativeDriver: true,
+                  }),
+                ]).start(() => {
+                  setTaskModalVisible(false);
+                });
+              }}>
+                <Text style={styles.backText}>Back</Text>
+              </TouchableOpacity>
+            </View>
 
-          {/* Body content - labels only for now */}
-          <View style={styles.taskContent}>
+            {/* Body content */}
+            <View style={styles.taskDialogContent}>
             <TouchableOpacity 
               style={styles.taskItem}
               onPress={() => {
-                setTaskModalVisible(false);
+                // Keep task modal open, just show playbook on top
+                playbookSlideX.setValue(400);
                 setPlaybookModalVisible(true);
+                Animated.timing(playbookSlideX, {
+                  toValue: 0,
+                  duration: 300,
+                  useNativeDriver: true,
+                }).start();
               }}
             >
               <Image 
@@ -220,55 +457,83 @@ export default function Home() {
               />
               <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
             </View>
-          </View>
+            </View>
 
-          {/* Footer - Finish Task */}
-          <View style={styles.taskFooter}>
-            <TouchableOpacity 
-              style={styles.finishButton} 
-              onPress={() => {
-                if (activeRoutineId) {
-                  toggleComplete(activeRoutineId);
-                }
-                setTaskModalVisible(false);
-                setActiveRoutineId(null);
-              }} 
-              activeOpacity={0.9}
-            >
-              <Text style={styles.finishButtonText}>Finish Task</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            {/* Footer - Finish Task */}
+            <View style={styles.taskDialogFooter}>
+              <TouchableOpacity 
+                style={styles.finishButton} 
+                onPress={() => {
+                  if (activeRoutineId) {
+                    toggleComplete(activeRoutineId);
+                  }
+                  Animated.parallel([
+                    Animated.timing(taskOpacity, {
+                      toValue: 0,
+                      duration: 200,
+                      easing: Easing.in(Easing.ease),
+                      useNativeDriver: true,
+                    }),
+                    Animated.timing(taskScale, {
+                      toValue: 0,
+                      duration: 200,
+                      easing: Easing.in(Easing.back(1.2)),
+                      useNativeDriver: true,
+                    }),
+                  ]).start(() => {
+                    setTaskModalVisible(false);
+                    setActiveRoutineId(null);
+                  });
+                }} 
+                activeOpacity={0.9}
+              >
+                <Text style={styles.finishButtonText}>Finish Task</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
 
-      {/* Playbook Modal */}
+      {/* Playbook Modal - Full Screen */}
       <Modal
         visible={playbookModalVisible}
-        animationType="slide"
-        transparent={false}
+        animationType="none"
+        transparent={true}
         onRequestClose={() => {
-          setPlaybookModalVisible(false);
-          setCurrentStep(1);
-          setIsPlaying(false);
-          setAudioControlIndex(0);
+          Animated.timing(playbookSlideX, {
+            toValue: 400,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            setPlaybookModalVisible(false);
+            setCurrentStep(1);
+            setIsPlaying(false);
+            setAudioControlIndex(0);
+          });
         }}
       >
-        <View style={styles.playbookScreen}>
+        <Animated.View style={[styles.playbookScreen, { transform: [{ translateX: playbookSlideX }] }]}>
           {/* Background Image */}
           <Image
             source={require("../../assets/background.png")}
             style={styles.backgroundImage}
             resizeMode="cover"
           />
-          
           {/* Back Button - Only show on Step 1 */}
           <View style={styles.playbookHeader}>
             {currentStep === 1 && (
               <TouchableOpacity onPress={() => {
-                setPlaybookModalVisible(false);
-                setCurrentStep(1);
-                setIsPlaying(false);
-                setAudioControlIndex(0);
+                // Just slide playbook out, task modal is still there
+                Animated.timing(playbookSlideX, {
+                  toValue: 400,
+                  duration: 300,
+                  useNativeDriver: true,
+                }).start(() => {
+                  setPlaybookModalVisible(false);
+                  setCurrentStep(1);
+                  setIsPlaying(false);
+                  setAudioControlIndex(0);
+                });
               }}>
                 <Text style={styles.backText}>Back</Text>
               </TouchableOpacity>
@@ -355,24 +620,6 @@ export default function Home() {
             {/* Step Label */}
             <Text style={styles.stepLabel}>Step {currentStep}</Text>
 
-            {/* Audio Controls Card */}
-            <TouchableOpacity 
-              style={styles.audioCard}
-              onPress={() => setAudioControlIndex((prev) => (prev + 1) % 3)}
-            >
-              <Image
-                source={
-                  audioControlIndex === 0
-                    ? require("../../assets/images/Musical Note.png")
-                    : audioControlIndex === 1
-                    ? require("../../assets/images/Pause.png")
-                    : require("../../assets/images/Audio.png")
-                }
-                style={styles.audioIcon}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
-
             {/* Instruction Text */}
             <Text style={styles.instructionText}>
               {currentStep === 1 
@@ -426,7 +673,7 @@ export default function Home() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </Modal>
 
       {/* Success Modal */}
@@ -576,20 +823,24 @@ const styles = StyleSheet.create({
   },
   taskCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 2,
+    borderRadius: 20,
+    padding: 10,
+    marginBottom: 12,
+    marginHorizontal: 2,
+    borderWidth: 3,
     borderColor: "#B8E6D9",
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },  
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },  
+    shadowRadius: 8,
+    elevation: 4,
     position: "relative",
+    minHeight: 280,
+  },
+  taskCardContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconPlaceholder: {
     width: 80,
@@ -598,6 +849,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8FFFA",
     alignItems: "center",
     justifyContent: "center",
+  },
+  iconPlaceholderLarge: {
+    width: 160,
+    height: 160,
+    borderRadius: 18,
+    backgroundColor: "#E8FFFA",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
   iconDim: {
     opacity: 0.7,
@@ -608,12 +868,76 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     resizeMode: "cover",
   },
+  presetImageLarge: {
+    width: 200,
+    height: 180,
+    borderRadius: 18,
+    resizeMode: "cover",
+    marginBottom: 2,
+  },
   presetImageDim: {
     opacity: 0.7,
   },
   icon: { fontSize: 28 },
-  taskTitle: { fontWeight: "700", color: "#244D4A", fontSize: 18, marginBottom: 4, fontFamily: "Courier" },
+  iconLarge: { fontSize: 70 },
+  taskTitle: { fontWeight: "700", color: "#244D4A", fontSize: 18, marginBottom: 1, fontFamily: "Courier" },
+  taskTitleCentered: { 
+    fontSize: 20, 
+    marginBottom: 1, 
+    textAlign: "center",
+    letterSpacing: 0.3,
+  },
   taskTime: { fontSize: 16, color: "#666" },
+  taskTimeCentered: { 
+    fontSize: 18, 
+    fontWeight: "600",
+    color: "#244D4A",
+    textAlign: "center",
+  },
+  // Task Modal Dialog Styles
+  taskOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  taskDialog: {
+    width: "100%",
+    height: "95%",
+    backgroundColor: "#E8FFFA",
+    borderRadius: 15,
+    borderWidth: 3,
+    borderColor: "#B8E6D9",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  taskDialogHeader: {
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  taskDialogContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    gap: -20,
+    marginTop: -70,
+  },
+  taskDialogFooter: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
   modalScreen: {
     flex: 1,
     backgroundColor: "#E8FFFA",
@@ -656,21 +980,20 @@ const styles = StyleSheet.create({
   },
   taskItem: {
     width: "100%",
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   taskImage: {
     width: 250,
     height: 250,
-    marginBottom: -50,
+    marginBottom: -65,
   },
   taskBlockLabel: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 25,
+    lineHeight: 28,
     fontFamily: "Comic Sans MS",
   },
   taskFooter: {
@@ -680,14 +1003,13 @@ const styles = StyleSheet.create({
   finishButton: {
     backgroundColor: "#2F7D73",
     borderRadius: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: "center",
     shadowColor: "#000",
     shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
     elevation: 4,
-    top: -30,
   },
   finishButtonText: {
     fontSize: 18,
@@ -707,6 +1029,26 @@ const styles = StyleSheet.create({
   playbookScreen: {
     flex: 1,
     backgroundColor: "#C8E6E2",
+  },
+  playbookOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  playbookDialog: {
+    width: "90%",
+    maxHeight: "85%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: "#2F7C72",
+    overflow: "hidden",
   },
   playbookHeader: {
     paddingTop: 16,
@@ -747,11 +1089,11 @@ const styles = StyleSheet.create({
   },
   videoCard: {
     width: "100%",
-    height: 230,
+    height: 400,
     backgroundColor: "#5B2C91",
     borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 30,
+    marginBottom: 20,
     position: "relative",
   },
   videoImage: {
@@ -772,34 +1114,18 @@ const styles = StyleSheet.create({
     height: 70,
   },
   stepLabel: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: "#244D4A",
-    marginBottom: 12,
+    marginBottom: 10,
     fontFamily: "Comic Sans MS",
   },
-  audioCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 3,
-    borderColor: "#2F7C72",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 100,
-    height: 100,
-  },
-  audioIcon: {
-    width: 50,
-    height: 50,
-  },
   instructionText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 22,
     fontFamily: "Comic Sans MS",
   },
   playbookFooter: {
