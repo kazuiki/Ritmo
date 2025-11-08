@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -7,21 +8,25 @@ import {
   Image,
   ImageBackground,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { supabase } from "../../src/supabaseClient";
 
 export default function Settings() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const [childNickname, setChildNickname] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("••••••••");
+  const [password, setPassword] = useState("********");
   const [loading, setLoading] = useState(true);
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('settings'));
@@ -83,7 +88,7 @@ export default function Settings() {
         setChildNickname(meta?.child_name ?? "");
         // For security, we can't retrieve the actual password from Supabase
         // So we show a masked version - user can change it if needed
-        setPassword("••••••••");
+        setPassword("********");
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -255,7 +260,14 @@ export default function Settings() {
         />
       </View>
 
-      <View style={styles.contentView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.contentView,
+          { paddingBottom: tabBarHeight + 20 }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Child Nickname */}
         <View style={styles.inputContainer}>
           <View style={styles.row}>
@@ -274,7 +286,7 @@ export default function Settings() {
                     returnKeyType="done"
                   />
                   <TouchableOpacity style={styles.editButton} onPress={() => setIsEditingNickname(false)}>
-                    <Ionicons name="pencil" size={20} color="#666" />
+                    <Ionicons name="pencil" size={16} color="#666" />
                   </TouchableOpacity>
                 </>
               ) : (
@@ -287,7 +299,7 @@ export default function Settings() {
                     {childNickname || "—"}
                   </Text>
                   <TouchableOpacity style={styles.editButton} onPress={startEditingNickname}>
-                    <Ionicons name="pencil" size={20} color="#666" />
+                    <Ionicons name="pencil" size={16} color="#666" />
                   </TouchableOpacity>
                 </>
               )}
@@ -324,7 +336,7 @@ export default function Settings() {
                 {password}
               </Text>
               <TouchableOpacity style={styles.editButton} onPress={handleChangePassword}>
-                <Ionicons name="pencil" size={20} color="#666" />
+                <Ionicons name="pencil" size={16} color="#666" />
               </TouchableOpacity>
             </View>
           </View>
@@ -345,6 +357,7 @@ export default function Settings() {
           onPress={handleInstruction}
         >
           <Text style={styles.menuButtonText}>Instruction</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
 
         {/* Terms and Conditions */}
@@ -353,6 +366,7 @@ export default function Settings() {
           onPress={handleTermsAndConditions}
         >
           <Text style={styles.menuButtonText}>Terms and Conditions</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
 
         {/* Privacy Policy */}
@@ -361,13 +375,14 @@ export default function Settings() {
           onPress={handlePrivacyPolicy}
         >
           <Text style={styles.menuButtonText}>Privacy Policy</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
 
         {/* Log out Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log out</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       {/* Parental Lock Modal */}
       <Modal
@@ -550,8 +565,10 @@ const styles = StyleSheet.create({
     marginLeft: -22,
     marginTop: -20,
   },
-  contentView: {
+  scrollView: {
     flex: 1,
+  },
+  contentView: {
     padding: 16,
     paddingTop: 16,
   },
@@ -567,6 +584,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 2,
     borderColor: "#CFF6EB",
+    minHeight: 60,
   },
   label: {
     fontSize: 15,
@@ -619,9 +637,9 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -632,6 +650,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 2,
     borderColor: "#CFF6EB",
+    minHeight: 60,
   },
   menuButtonText: {
     fontSize: 16,
@@ -640,11 +659,12 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     backgroundColor: "#FF6B6B",
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 16,
+    padding: 16,
     marginTop: 8,
     marginBottom: 0,
     alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -652,6 +672,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 2,
     borderColor: "#FF0000",
+    minHeight: 60,
   },
   logoutButtonText: {
     fontSize: 16,
@@ -797,8 +818,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   editButton: {
-    padding: 8,
-    marginLeft: 16,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    marginLeft: 8,
   },
   directEditInput: {
     flex: 1,

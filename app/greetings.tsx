@@ -55,6 +55,9 @@ export default function Greeting() {
   const scale = useRef(new Animated.Value(0.3)).current;
   const fadeText = useRef(new Animated.Value(0)).current;
   const fadeOut = useRef(new Animated.Value(1)).current;
+  // Refs to control frame timers to avoid flicker and ensure proper cleanup
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const frameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Falling icons for Good Day
   const fallingIconsAnimations = useRef(
@@ -119,13 +122,13 @@ export default function Greeting() {
     Animated.parallel([
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 1200, 
+        duration: 2000, 
         easing: Easing.bezier(0.22, 1, 0.36, 1), 
         useNativeDriver: true,
       }),
       Animated.timing(scale, {
         toValue: 1.5,
-        duration: 1200,
+        duration: 2000,
         easing: Easing.out(Easing.exp),
         useNativeDriver: true,
       }),
@@ -133,19 +136,39 @@ export default function Greeting() {
   }, []);
 
   useEffect(() => {
-    const currentImages = isEvening ? moonImages : sunImages;
-    const interval = setInterval(() => {
-      setCelestialIndex((prev) => {
-        const nextIndex = (prev + 1) % currentImages.length;
-        return nextIndex;
-      });
-    }, 500);
-    return () => clearInterval(interval);
-  }, [isEvening]);
+    // Clear any existing timers when switching between day/evening
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+    if (frameTimeoutRef.current) {
+      clearTimeout(frameTimeoutRef.current);
+      frameTimeoutRef.current = null;
+    }
 
-  // Reset celestial index when switching between day/evening
-  useEffect(() => {
+    // Ensure starting frame is consistent without extra re-render later
     setCelestialIndex(0);
+
+    const currentImages = isEvening ? moonImages : sunImages;
+
+    // Start the looping frames after the initial rise animation completes
+    frameTimeoutRef.current = setTimeout(() => {
+      frameIntervalRef.current = setInterval(() => {
+        setCelestialIndex((prev) => (prev + 1) % currentImages.length);
+      }, 500);
+    }, 2000);
+
+    // Cleanup on dependency change or unmount
+    return () => {
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current);
+        frameIntervalRef.current = null;
+      }
+      if (frameTimeoutRef.current) {
+        clearTimeout(frameTimeoutRef.current);
+        frameTimeoutRef.current = null;
+      }
+    };
   }, [isEvening]);
 
   // Falling icons animation for Good Day
@@ -376,7 +399,7 @@ const styles = StyleSheet.create({
   sparklingStar: { position: "absolute" },
   shootingStar: { position: "absolute" },
   shootingStarText: { fontSize: 16, opacity: 0.8 },
-  sun: { width: 300, height: 300 },
+  sun: { width: 300, height: 300, zIndex: 10 },
   greetingText: { 
     fontFamily: "Fredoka_600SemiBold", 
     fontSize: 34, 

@@ -1,8 +1,4 @@
-
-
-import { Slot, usePathname, useRouter } from "expo-router";
-
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 
 import { useEffect } from "react";
 import { supabase } from "../src/supabaseClient";
@@ -58,5 +54,42 @@ export default function RootLayout() {
     return () => listener.subscription.unsubscribe();
   }, [pathname]);
 
-  return <Slot />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Smooth, platform-standard transitions
+        animation: 'slide_from_right',
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        // Prevent white flash during transitions by keeping bg consistent
+        contentStyle: { backgroundColor: '#E8FFFA' },
+      }}
+    >
+      {/* Allow tabs group to manage its own header */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      {/* History list and weekly detail use the same smooth card push */}
+      <Stack.Screen
+        name="history"
+        options={{
+          headerShown: false,
+          animation: 'none', // we handle custom slide animation inside the screen
+          gestureEnabled: false,
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      <Stack.Screen
+        name="history/[week]"
+        options={{
+          headerShown: false,
+          animation: 'none', // custom animation handled internally
+          gestureEnabled: false,
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      {/* Auth and other routes inherit defaults */}
+    </Stack>
+  );
 }
