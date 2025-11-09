@@ -1,12 +1,18 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "target": "es2017",
+    "module": "esnext",
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
     "strict": false,
     "noImplicitAny": false,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"],
+    "esModuleInterop": true,
+    "types": [
+      "node"
+    ],
     "paths": {
       "@/*": [
         "./*"
