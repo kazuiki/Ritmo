@@ -279,7 +279,7 @@ export default function Progress() {
 
 			{/* Parental Lock Modal */}
 			<Modal
-				animationType="fade"
+				animationType="none"
 				transparent={true}
 				visible={showParentalLockModal}
 				onRequestClose={cancelAccess}
@@ -332,7 +332,12 @@ export default function Progress() {
 									))}
 								</View>
 
-								<TouchableOpacity style={styles.forgotPin}>
+								<TouchableOpacity 
+									style={styles.forgotPin}
+									onPress={() => {
+										router.push('/parental-lock-new-pin');
+									}}
+								>
 									<Text style={styles.forgotPinText}>Forgot PIN?</Text>
 								</TouchableOpacity>
 								
