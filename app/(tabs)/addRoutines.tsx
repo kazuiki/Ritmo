@@ -511,7 +511,7 @@ export default function addRoutines() {
 
             {/* Parental Lock Modal */}
             <Modal
-                animationType="fade"
+                animationType="none"
                 transparent={true}
                 visible={showParentalLockModal}
                 onRequestClose={cancelAccess}
@@ -564,7 +564,12 @@ export default function addRoutines() {
                                     ))}
                                 </View>
 
-                                <TouchableOpacity style={styles.parentalLockForgotPin}>
+                                <TouchableOpacity 
+                                    style={styles.parentalLockForgotPin}
+                                    onPress={() => {
+                                        router.push('/parental-lock-new-pin');
+                                    }}
+                                >
                                     <Text style={styles.parentalLockForgotPinText}>Forgot PIN?</Text>
                                 </TouchableOpacity>
                                 
