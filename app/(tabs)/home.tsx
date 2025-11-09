@@ -1,10 +1,12 @@
 // @ts-nocheck
 // app/(tabs)/home.tsx
+import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { MotiView } from "moti";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById } from "../../constants/presets";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { supabase } from "../../src/supabaseClient";
@@ -18,6 +20,14 @@ interface Routine {
 }
 
 export default function Home() {
+  // Load child-friendly fonts
+  const [fontsLoaded] = useFonts({
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
+
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [playbookModalVisible, setPlaybookModalVisible] = useState(false);
@@ -41,6 +51,11 @@ export default function Home() {
 
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
+  // Derive the active routine and its playbook
+  const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
+  const activePreset = useMemo(() => getPresetById(activeRoutine?.presetId), [activeRoutine?.presetId]);
+  const playbook = useMemo(() => getPlaybookForPreset(activeRoutine?.presetId), [activeRoutine?.presetId]);
+
 
 
   const loadRoutines = async () => {
@@ -441,7 +456,7 @@ export default function Home() {
               }}
             >
               <Image 
-                source={require("../../assets/images/media-unscreen.gif")}
+                source={require("../../assets/gifs/media-unscreen.gif")}
                 style={styles.taskImage}
                 resizeMode="contain"
               />
@@ -450,7 +465,7 @@ export default function Home() {
 
             <View style={styles.taskItem}>
               <Image 
-                source={require("../../assets/images/media-1--unscreen.gif")}
+                source={require("../../assets/gifs/media-1--unscreen.gif")}
                 style={styles.taskImage}
                 resizeMode="contain"
               />
@@ -541,94 +556,44 @@ export default function Home() {
 
           {/* Routine Title with Stars */}
           <View style={styles.routineTitleCard}>
-            <Text style={styles.routineTitle}>Brush My Teeth</Text>
+            <Text style={styles.routineTitle}>{activePreset?.name ?? 'Playbook'}</Text>
             <View style={styles.starsContainer}>
-                {[1, 2, 3].map((starNumber) => (
-                  <MotiView
-                    key={starNumber}
-                    from={{
-                      scale: 0,
-                      opacity: 0,
-                    }}
-                    animate={{
-                      scale: currentStep > starNumber ? 1.2 : 1,
-                      opacity: 1,
-                    }}
-                    transition={{
-                      type: 'spring',
-                      delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0,
-                      damping: 8,
-                      stiffness: 100,
-                    }}
-                  >
-                    <Text style={styles.star}>
-                      {currentStep > starNumber ? "⭐" : "☆"}
-                    </Text>
-                  </MotiView>
+              {[1, 2, 3].map((starNumber) => (
+                <MotiView
+                  key={starNumber}
+                  from={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: currentStep > starNumber ? 1.2 : 1, opacity: 1 }}
+                  transition={{ type: 'spring', delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0, damping: 8, stiffness: 100 }}
+                >
+                  <Text style={styles.star}>
+                    {currentStep > starNumber ? "⭐" : "☆"}
+                  </Text>
+                </MotiView>
               ))}
             </View>
           </View>
 
           <ScrollView contentContainerStyle={styles.playbookContent}>
             {/* Video/Image Card */}
-            <TouchableOpacity 
-              style={styles.videoCard}
-              activeOpacity={1}
-              onPress={() => setIsPlaying(!isPlaying)}
-            >
-              {isPlaying ? (
-                <Image
-                  source={
-                    currentStep === 1 
-                      ? require("../../assets/images/dance-toothpaste 2.gif")
-                      : currentStep === 2
-                      ? require("../../assets/images/put toothpaste.gif")
-                      : currentStep === 3
-                      ? require("../../assets/images/brush teeth.gif")
-                      : require("../../assets/images/gargle.png")
-                  }
-                  style={styles.videoImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <>
-                  <Image
-                    source={
-                      currentStep === 1
-                        ? require("../../assets/images/brushandpaste.png")
-                        : currentStep === 2
-                        ? require("../../assets/images/puttoothpaste.png")
-                        : currentStep === 3
-                        ? require("../../assets/images/brushingteeth.png")
-                        : require("../../assets/images/gargle.png")
-                    }
-                    style={[styles.videoImage, styles.grayedImage]}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.playButtonOverlay}>
-                    <Image
-                      source={require("../../assets/images/Circled Play Button.png")}
-                      style={styles.playButtonImage}
-                      resizeMode="contain"
-                    />
-                  </View>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={styles.videoCard}>
+              <View style={styles.videoInner}>
+                {(() => {
+                  const stepIndex = Math.max(0, Math.min(3, currentStep - 1));
+                  const step = playbook?.steps[stepIndex];
+                  const src = step?.gif;
+                  if (!src) return null;
+                  return <Image source={src} style={styles.videoImage} resizeMode="contain" />;
+                })()}
+              </View>
+            </View>
 
             {/* Step Label */}
             <Text style={styles.stepLabel}>Step {currentStep}</Text>
-
-            {/* Instruction Text */}
             <Text style={styles.instructionText}>
-              {currentStep === 1 
-                ? "Get your Toothpaste\nand Toothbrush"
-                : currentStep === 2
-                ? "Put some toothpaste\ninto the toothbrush"
-                : currentStep === 3
-                ? "Brush Your Teeth"
-                : "Wash Your Mouth"
-              }
+              {(() => {
+                const stepIndex = Math.max(0, Math.min(3, currentStep - 1));
+                return playbook?.steps[stepIndex]?.label ?? '';
+              })()}
             </Text>
           </ScrollView>
 
@@ -771,11 +736,8 @@ export default function Home() {
                 if (activeRoutineId) {
                   toggleComplete(activeRoutineId);
                 }
-                // Ensure all overlays are closed so we return to the Home screen unobstructed
                 setSuccessModalVisible(false);
                 setShowRainingStars(false);
-                setPlaybookModalVisible(false);
-                setTaskModalVisible(false);
                 setActiveRoutineId(null);
               }}
             >
@@ -795,7 +757,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   header: { paddingTop: 50, paddingHorizontal: 16 },
-  brand: { fontSize: 20, color: "#276a63", fontWeight: "700" },
+  brand: { fontSize: 22, color: "#276a63", fontWeight: "700", fontFamily: "Fredoka_700Bold" },
   brandLogo: { width: 120, height: 30, resizeMode: "contain", marginLeft: -22, marginTop: -20, marginBottom: 12 },
   progressCard: {
     backgroundColor: "#fff",
@@ -803,7 +765,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 16,
     marginBottom: 8,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "#B8E6D9",
   },
   progressHeader: {
@@ -812,8 +774,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  progressTitle: { fontWeight: "700", fontSize: 16, color: "#244D4A", fontFamily: "Courier" },
-  progressCount: { color: "#06C08A", fontSize: 16, fontWeight: "600" },
+  progressTitle: { fontWeight: "700", fontSize: 18, color: "#244D4A", fontFamily: "Fredoka_700Bold" },
+  progressCount: { color: "#06C08A", fontSize: 18, fontWeight: "600", fontFamily: "Fredoka_600SemiBold" },
   progressBarContainer: {
     height: 8,
     backgroundColor: "#E0E0E0",
@@ -884,16 +846,16 @@ const styles = StyleSheet.create({
   },
   icon: { fontSize: 28 },
   iconLarge: { fontSize: 70 },
-  taskTitle: { fontWeight: "700", color: "#244D4A", fontSize: 18, marginBottom: 1, fontFamily: "Courier" },
+  taskTitle: { fontWeight: "700", color: "#244D4A", fontSize: 20, marginBottom: 1, fontFamily: "Fredoka_700Bold" },
   taskTitleCentered: { 
-    fontSize: 20, 
+    fontSize: 22, 
     marginBottom: 1, 
     textAlign: "center",
     letterSpacing: 0.3,
   },
-  taskTime: { fontSize: 16, color: "#666" },
+  taskTime: { fontSize: 18, color: "#666", fontFamily: "Fredoka_500Medium" },
   taskTimeCentered: { 
-    fontSize: 18, 
+    fontSize: 20, 
     fontWeight: "600",
     color: "#244D4A",
     textAlign: "center",
@@ -952,10 +914,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backText: {
-    fontSize: 18,
+    fontSize: 20,
     color: "#244D4A",
     textDecorationLine: "underline",
     fontWeight: "700",
+    fontFamily: "Fredoka_700Bold",
   },
   taskContent: {
     flex: 1,
@@ -993,12 +956,12 @@ const styles = StyleSheet.create({
     marginBottom: -65,
   },
   taskBlockLabel: {
-    fontSize: 22,
-    fontWeight: "900",
+    fontSize: 24,
+    fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 28,
-    fontFamily: "Comic Sans MS",
+    lineHeight: 32,
+    fontFamily: "Fredoka_700Bold",
   },
   taskFooter: {
     paddingHorizontal: 20,
@@ -1016,9 +979,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   finishButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#fff",
+    fontFamily: "Fredoka_700Bold",
   },
   dimOverlay: {
     position: "absolute",
@@ -1074,17 +1038,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   routineTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#244D4A",
-    fontFamily: "Comic Sans MS",
+    fontFamily: "Fredoka_700Bold",
   },
   starsContainer: {
     flexDirection: "row",
-    gap: 6,
+    gap: 25,
   },
   star: {
-    fontSize: 20,
+    fontSize: 30,
   },
   playbookContent: {
     paddingHorizontal: 20,
@@ -1094,43 +1058,40 @@ const styles = StyleSheet.create({
   videoCard: {
     width: "100%",
     height: 400,
-    backgroundColor: "#5B2C91",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 3,
+    borderColor: "#2F7C72",
     borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 20,
+    marginBottom: 30,
     position: "relative",
+  },
+  videoInner: {
+    flex: 1,
+    padding: 8,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   videoImage: {
     width: "100%",
     height: "100%",
-  },
-  grayedImage: {
-    opacity: 0.6,
-  },
-  playButtonOverlay: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: [{ translateX: -35 }, { translateY: -35 }],
-  },
-  playButtonImage: {
-    width: 70,
-    height: 70,
+    backgroundColor: 'transparent',
   },
   stepLabel: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "700",
     color: "#244D4A",
     marginBottom: 10,
-    fontFamily: "Comic Sans MS",
+    fontFamily: "Fredoka_700Bold",
   },
   instructionText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 22,
-    fontFamily: "Comic Sans MS",
+    lineHeight: 28,
+    fontFamily: "Fredoka_700Bold",
   },
   playbookFooter: {
     position: "absolute",
@@ -1148,9 +1109,10 @@ const styles = StyleSheet.create({
     borderColor: "#244D4A",
   },
   backButtonText: {
-    fontSize: 18,
+      fontSize: 20,
     fontWeight: "700",
     color: "#244D4A",
+      fontFamily: "Fredoka_700Bold",
   },
   buttonSpacer: {
     width: "4%",
@@ -1170,9 +1132,10 @@ const styles = StyleSheet.create({
     borderColor: "#244D4A",
   },
   nextButtonText: {
-    fontSize: 18,
+      fontSize: 20,
     fontWeight: "700",
     color: "#244D4A",
+      fontFamily: "Fredoka_700Bold",
   },
   // Success Modal Styles
   successScreen: {
@@ -1203,29 +1166,32 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   goodJobText: {
-    fontSize: 40,
+      fontSize: 44,
     fontWeight: "800",
     color: "#244D4A",
     marginBottom: 4,
     letterSpacing: 1,
+      fontFamily: "Fredoka_700Bold",
   },
   childNameText: {
-    fontSize: 30,
+      fontSize: 32,
     fontWeight: "600",
     color: "#244D4A",
     marginBottom: 60,
     fontStyle: "italic",
+      fontFamily: "Fredoka_600SemiBold",
   },
   successNextButton: {
     paddingVertical: 8,
     paddingHorizontal: 40,
   },
   successNextButtonText: {
-    fontSize: 24,
+      fontSize: 26,
     fontWeight: "700",
     color: "#244D4A",
     textDecorationLine: "underline",
     letterSpacing: 0.5,
+      fontFamily: "Fredoka_700Bold",
   },
   // All Done Message Styles
   allDoneContainer: {
@@ -1235,23 +1201,26 @@ const styles = StyleSheet.create({
     marginTop: 130,
   },
   allDoneText: {
-    fontSize: 14,
+      fontSize: 16,
     fontWeight: "600",
     color: "#244D4A",
     letterSpacing: 1,
+      fontFamily: "Fredoka_600SemiBold",
   },
   congratulationText: {
-    fontSize: 18,
+      fontSize: 20,
     fontWeight: "800",
     color: "#244D4A",
     letterSpacing: 1,
+      fontFamily: "Fredoka_700Bold",
   },
   childNameDone: {
-    fontSize: 18,
+      fontSize: 20,
     fontWeight: "700",
     color: "#244D4A",
     textDecorationLine: "underline",
     fontStyle: "italic",
+      fontFamily: "Fredoka_700Bold",
   },
   rainingStarsContainer: {
     position: 'absolute',
@@ -1266,7 +1235,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   rainingStarText: {
-    fontSize: 20,
+      fontSize: 22,
     textShadowColor: 'rgba(255, 255, 255, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,

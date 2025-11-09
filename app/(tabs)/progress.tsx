@@ -1,4 +1,4 @@
-import { Fredoka_600SemiBold, useFonts } from "@expo-google-fonts/fredoka";
+import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
@@ -27,7 +27,12 @@ export default function Progress() {
 	const router = useRouter();
 	const insets = useSafeAreaInsets();
 	const tabBarHeight = useBottomTabBarHeight();
-	const [fontsLoaded] = useFonts({ Fredoka_600SemiBold });
+	const [fontsLoaded] = useFonts({
+		Fredoka_400Regular,
+		Fredoka_500Medium,
+		Fredoka_600SemiBold,
+		Fredoka_700Bold,
+	});
 	const [showParentalLockModal, setShowParentalLockModal] = useState(false);
 	const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('progress'));
 	const [pin, setPin] = useState(['', '', '', '']);
@@ -398,32 +403,36 @@ const styles = StyleSheet.create({
 		elevation: 3,
 	},
 	cardTitle: {
-		fontSize: 18,
+			fontSize: 20,
 		fontWeight: '700',
 		color: '#2A3B4D',
 		marginBottom: 8,
 		alignSelf: 'center',
+			fontFamily: 'Fredoka_700Bold',
 	},
 	rowBetween: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
 	},
-	subtleText: {
+		subtleText: {
 		color: '#2A3B4D',
-		fontSize: 14,
+			fontSize: 16,
+			fontFamily: 'Fredoka_400Regular',
 	},
 	boldText: {
 		fontWeight: '700',
+			fontFamily: 'Fredoka_700Bold',
 	},
 	weekRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		marginTop: 8,
 	},
-	weekRangeText: {
+		weekRangeText: {
 		color: '#2A3B4D',
-		fontSize: 13,
+			fontSize: 15,
+			fontFamily: 'Fredoka_500Medium',
 	},
 	weekInlineIcon: {
 		width: 16,
@@ -455,13 +464,15 @@ const styles = StyleSheet.create({
 	},
 	metricTitle: {
 		color: '#2A3B4D',
-		fontSize: 12,
+		fontSize: 14,
 		marginBottom: 4,
+		fontFamily: 'Fredoka_500Medium',
 	},
 	metricValue: {
 		color: '#2A3B4D',
 		fontWeight: '700',
-		fontSize: 20,
+		fontSize: 22,
+		fontFamily: 'Fredoka_700Bold',
 	},
 	gridRow: {
 		flexDirection: 'row',
@@ -478,10 +489,12 @@ const styles = StyleSheet.create({
 	gridHeaderText: {
 		fontWeight: '700',
 		color: '#2A3B4D',
+		fontFamily: 'Fredoka_700Bold',
 	},
 	gridCellTask: {
 		flex: 2,
 		color: '#2A3B4D',
+		fontFamily: 'Fredoka_500Medium',
 	},
 	gridCellDay: {
 		flex: 0.6,
@@ -494,6 +507,7 @@ const styles = StyleSheet.create({
 		textAlign: 'center',
 		color: '#2A3B4D',
 		fontWeight: '700',
+		fontFamily: 'Fredoka_700Bold',
 	},
 	indicatorCell: {
 		height: 24,
@@ -601,7 +615,7 @@ const styles = StyleSheet.create({
 	modalTitle: {
 		fontSize: 28,
 		fontWeight: "700",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_700Bold",
 		color: "#333",
 		marginBottom: 8,
 		textAlign: "center",
@@ -609,7 +623,7 @@ const styles = StyleSheet.create({
 	modalSubtitle: {
 		fontSize: 16,
 		fontWeight: "400",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_400Regular",
 		color: "#666",
 		textAlign: "center",
 		marginBottom: 25,
@@ -618,7 +632,7 @@ const styles = StyleSheet.create({
 	modalContentTitle: {
 		fontSize: 14,
 		fontWeight: "600",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_600SemiBold",
 		color: "#555",
 		marginBottom: 25,
 		textAlign: "center",
@@ -641,7 +655,7 @@ const styles = StyleSheet.create({
 		fontSize: 24,
 		fontWeight: "600",
 		color: "#333",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_500Medium",
 	},
 	pinInputFilled: {
 		backgroundColor: "#E8F5E8",
@@ -655,7 +669,7 @@ const styles = StyleSheet.create({
 		fontWeight: "500",
 		color: "#007AFF",
 		textDecorationLine: "underline",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_700Bold",
 	},
 	buttonContainer: {
 		width: "100%",
@@ -677,7 +691,7 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: "700",
 		color: "#FFFFFF",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_600SemiBold",
 	},
 	cancelButton: {
 		backgroundColor: "transparent",
@@ -692,6 +706,6 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: "600",
 		color: "#666",
-		fontFamily: "ITIM",
+		fontFamily: "Fredoka_600SemiBold",
 	},
 });
