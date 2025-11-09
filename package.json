@@ -12,6 +12,7 @@
     "setup-and-start": "npm install && npm install -g npm@latest && npm install expo && npx expo start"
   },
   "dependencies": {
+    "@expo-google-fonts/comic-neue": "^0.4.1",
     "@expo-google-fonts/fredoka": "^0.4.1",
     "@expo/cli": "^54.0.14",
     "@expo/vector-icons": "^15.0.3",
@@ -57,7 +58,7 @@
     "react-native-youtube-iframe": "^2.4.1"
   },
   "devDependencies": {
-    "@types/node": "^24.10.0",
+    "@types/node": "^20.19.24",
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",

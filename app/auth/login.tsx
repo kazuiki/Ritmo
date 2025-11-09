@@ -1,21 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
@@ -117,11 +117,12 @@ export default function Login() {
     const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
 
-  if (!childName) router.replace("/auth/child-nickname");
-  else router.replace("/loading?next=/greetings");
-
-    if (!childName) router.replace("/auth/child-nickname");
-    else router.replace("/loading?next=/greetings");
+    if (!childName) {
+      router.replace("/auth/child-nickname");
+    } else {
+      // Single replace to loading with next param – avoids sequential replaces
+      router.replace("/loading?next=/greetings");
+    }
 
   };
 
@@ -209,7 +210,7 @@ export default function Login() {
               style={{ width: "100%", alignItems: "center" }}
             >
               <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-                <Text style={styles.buttonText}>{loading ? "Logging in..." : "LOGIN"}</Text>
+                <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
               </TouchableOpacity>
             </MotiView>
 
@@ -220,13 +221,16 @@ export default function Login() {
               transition={{ delay: 900, duration: 600 }}
               style={{ width: "100%", alignItems: "center" }}
             >
-              {/* Create Account Button */}
+              {/* Sign up Button (same as Login style, different color) */}
               <TouchableOpacity
-                style={styles.createAccountBtn}
+                style={[styles.button, styles.signUpButton]}
                 onPress={() => router.push("/auth/signup")}
               >
-                <Text style={styles.createAccountText}>Create Account</Text>
+                <Text style={styles.buttonText}>Sign Up</Text>
               </TouchableOpacity>
+
+              {/* Divider text */}
+              <Text style={styles.orText}>Or sign in with</Text>
 
               {/* Google Icon (Open Gmail / Email App) */}
               <TouchableOpacity
@@ -234,7 +238,7 @@ export default function Login() {
                 onPress={() => Linking.openURL("mailto:")}
               >
                 <ImageBackground
-                  source={require("../../assets/Google.png")} // 🟢 make sure this file exists
+                  source={require("../../assets/Google.png")} // 🟢 transparent background expected
                   style={styles.gmailIcon}
                   resizeMode="contain"
                 />
@@ -297,15 +301,24 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 22,
     backgroundColor: "#2D7778",
-    paddingVertical: 14,
-    width: "100%",
+    paddingVertical: 10,
+    width: "60%",
     maxWidth: 340,
-    borderRadius: 5,
+    borderRadius: 20,
     alignItems: "center",
     elevation: 3,
   },
+  signUpButton: {
+    marginTop: 5,
+    backgroundColor: "#5BDFC9",
+  },
   buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
   link: { marginTop: 16, color: "#276a63", textDecorationLine: "underline"},
+  orText: {
+    marginTop: 16,
+    color: "#244D4A",
+    fontWeight: "500",
+  },
   createAccountBtn: {
     marginTop: 18,
     backgroundColor: "#fff",
@@ -313,8 +326,8 @@ const styles = StyleSheet.create({
     borderColor: "#2D7778",
     borderRadius: 5,
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    width: "80%",
+    paddingHorizontal: 10,
+    width: "50%",
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
@@ -325,15 +338,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   gmailIconWrapper: {
-    marginTop: 18,
-    backgroundColor: "#fff",
-    borderRadius: 40,
-    padding: 10,
-    elevation: 3,
+    marginTop: 10,
+    backgroundColor: "transparent",
+    padding: 0,
   },
   gmailIcon: {
     width: 30,
     height: 30,
+    backgroundColor: "transparent",
   },
 
 });

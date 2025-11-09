@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../src/supabaseClient";
 
@@ -148,7 +148,7 @@ export default function History() {
           <TouchableOpacity
             key={`${w.start.toISOString()}-${idx}`}
             activeOpacity={0.9}
-            onPress={() => router.push({ pathname: "/history/[week]", params: { start: w.start.toISOString() } })}
+            onPress={() => router.push({ pathname: "/history/[week]", params: { week: w.start.toISOString(), start: w.start.toISOString() } })}
             style={styles.card}
           >
             <View style={styles.cardLine}>
