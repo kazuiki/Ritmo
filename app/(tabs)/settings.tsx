@@ -388,7 +388,7 @@ export default function Settings() {
       <Modal
         visible={showParentalLockModal}
         transparent={true}
-        animationType="fade"
+        animationType="none"
         statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
@@ -438,7 +438,12 @@ export default function Settings() {
                   ))}
                 </View>
 
-                <TouchableOpacity style={styles.forgotPin}>
+                <TouchableOpacity 
+                  style={styles.forgotPin}
+                  onPress={() => {
+                    router.push('/parental-lock-new-pin');
+                  }}
+                >
                   <Text style={styles.forgotPinText}>Forgot PIN?</Text>
                 </TouchableOpacity>
 

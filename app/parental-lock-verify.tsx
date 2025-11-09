@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-    Alert,
-    ImageBackground,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
 const backgroundImage = require("../assets/background.png");
