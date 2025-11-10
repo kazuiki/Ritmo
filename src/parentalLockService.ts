@@ -1,14 +1,16 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const PARENTAL_LOCK_KEY = 'parental_lock_enabled';
-const PARENTAL_PIN_KEY = 'parental_pin';
+import { supabase } from './supabaseClient';
 
 export const ParentalLockService = {
   // Check if parental lock is enabled
   async isEnabled(): Promise<boolean> {
     try {
-      const value = await AsyncStorage.getItem(PARENTAL_LOCK_KEY);
-      return value === 'true';
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        console.error('Error getting user:', error);
+        return false;
+      }
+      // Check if parental_lock_enabled is set to true in user metadata
+      return user.user_metadata?.parental_lock_enabled === true;
     } catch (error) {
       console.error('Error checking parental lock status:', error);
       return false;
@@ -18,25 +20,40 @@ export const ParentalLockService = {
   // Set parental lock status
   async setEnabled(enabled: boolean): Promise<void> {
     try {
-      await AsyncStorage.setItem(PARENTAL_LOCK_KEY, enabled.toString());
+      const { error } = await supabase.auth.updateUser({
+        data: { parental_lock_enabled: enabled }
+      });
+      if (error) {
+        console.error('Error setting parental lock status:', error);
+      }
     } catch (error) {
       console.error('Error setting parental lock status:', error);
     }
   },
 
-  // Save PIN
+  // Save PIN to user metadata
   async savePin(pin: string): Promise<void> {
     try {
-      await AsyncStorage.setItem(PARENTAL_PIN_KEY, pin);
+      const { error } = await supabase.auth.updateUser({
+        data: { parental_pin: pin }
+      });
+      if (error) {
+        console.error('Error saving PIN:', error);
+      }
     } catch (error) {
       console.error('Error saving PIN:', error);
     }
   },
 
-  // Get saved PIN
+  // Get saved PIN from user metadata
   async getSavedPin(): Promise<string | null> {
     try {
-      return await AsyncStorage.getItem(PARENTAL_PIN_KEY);
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        console.error('Error getting user:', error);
+        return null;
+      }
+      return user.user_metadata?.parental_pin || null;
     } catch (error) {
       console.error('Error getting saved PIN:', error);
       return null;
