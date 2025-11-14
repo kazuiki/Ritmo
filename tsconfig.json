@@ -3,7 +3,7 @@
     "target": "es2017",
     "module": "esnext",
     "jsx": "react-jsx",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strict": false,
     "noImplicitAny": false,
     "skipLibCheck": true,
@@ -24,5 +24,6 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }
