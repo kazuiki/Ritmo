@@ -16,6 +16,7 @@ import {
     View
 } from "react-native";
 import { getPresetById, Preset, PRESETS } from "../../constants/presets";
+import NotificationService from "../../src/notificationService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 
@@ -25,6 +26,7 @@ interface Routine {
     time: string;
     presetId?: number;
     completed?: boolean;
+    ringtone?: string;
 }
 
 export default function addRoutines() {
@@ -38,6 +40,8 @@ export default function addRoutines() {
     const [editingRoutineId, setEditingRoutineId] = useState<number | null>(null);
     const [presetModalVisible, setPresetModalVisible] = useState(false);
     const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
+    const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
+    const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     
     // Parental lock modal state
     const [showParentalLockModal, setShowParentalLockModal] = useState(false);
@@ -51,6 +55,14 @@ export default function addRoutines() {
 
     // Check parental lock on component mount and when focused
     useEffect(() => {
+        // Initialize notification service and refresh notifications
+        const initNotifications = async () => {
+            await NotificationService.initialize();
+            // Auto-refresh notifications if running low
+            await NotificationService.refreshAllRoutineNotifications();
+        };
+        initNotifications();
+        
         checkParentalLock();
         
         // Listen to authentication changes
@@ -190,7 +202,8 @@ export default function addRoutines() {
         setMinute("00");
         setPeriod("AM");
         setRoutineName("");
-    setSelectedPresetId(null);
+        setSelectedPresetId(null);
+        setSelectedRingtone(undefined);
         setTimeout(() => {
             hourRef.current?.scrollTo({ y: 0, animated: false });
             minuteRef.current?.scrollTo({ y: 0, animated: false });
@@ -201,6 +214,7 @@ export default function addRoutines() {
     const openEditModal = (routine: Routine) => {
         setEditingRoutineId(routine.id);
         setRoutineName(routine.name);
+        setSelectedRingtone(routine.ringtone);
         setSelectedPresetId(routine.presetId ?? null);
         
         const timeParts = routine.time.split(" ");
@@ -228,21 +242,43 @@ export default function addRoutines() {
 
     const handleDone = () => {
         if (routineName.trim()) {
+            const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
+            
             if (editingRoutineId) {
                 const updatedRoutines = routines.map((r) =>
                     r.id === editingRoutineId
-                        ? { ...r, name: routineName, time: `${hour}:${minute} ${period.toLowerCase()}`, presetId: selectedPresetId ?? r.presetId }
+                        ? { ...r, name: routineName, time: routineTime, presetId: selectedPresetId ?? r.presetId, ringtone: selectedRingtone }
                         : r
                 );
                 setRoutines(updatedRoutines);
+                
+                // Schedule notification for updated routine (async in background)
+                const updatedRoutine = updatedRoutines.find(r => r.id === editingRoutineId);
+                if (updatedRoutine) {
+                    NotificationService.scheduleRoutineNotification({
+                        routineId: updatedRoutine.id,
+                        routineName: updatedRoutine.name,
+                        time: updatedRoutine.time,
+                        ringtone: updatedRoutine.ringtone || 'rooster',
+                    }).catch(err => console.error('Error scheduling notification:', err));
+                }
             } else {
                 const newRoutine: Routine = {
                     id: Date.now(),
                     name: routineName,
-                    time: `${hour}:${minute} ${period.toLowerCase()}`,
+                    time: routineTime,
                     presetId: selectedPresetId ?? undefined,
+                    ringtone: selectedRingtone,
                 };
                 setRoutines([...routines, newRoutine]);
+                
+                // Schedule notification for new routine (async in background)
+                NotificationService.scheduleRoutineNotification({
+                    routineId: newRoutine.id,
+                    routineName: newRoutine.name,
+                    time: newRoutine.time,
+                    ringtone: newRoutine.ringtone || 'rooster',
+                }).catch(err => console.error('Error scheduling notification:', err));
             }
         }
         closeModal();
@@ -250,6 +286,10 @@ export default function addRoutines() {
 
     const handleDelete = () => {
         if (editingRoutineId) {
+            // Cancel notification before deleting (async in background)
+            NotificationService.cancelRoutineNotification(editingRoutineId)
+                .catch(err => console.error('Error cancelling notification:', err));
+            
             const updatedRoutines = routines.filter((r) => r.id !== editingRoutineId);
             setRoutines(updatedRoutines);
         }
@@ -263,6 +303,21 @@ export default function addRoutines() {
         setRoutineName(preset.name);
         setSelectedPresetId(preset.id);
         closePresetModal();
+    };
+
+    const openRingtoneModal = () => setRingtoneModalVisible(true);
+    const closeRingtoneModal = () => {
+        NotificationService.stopRingtone();
+        setRingtoneModalVisible(false);
+    };
+
+    const selectRingtone = (ringtoneName: string) => {
+        setSelectedRingtone(ringtoneName);
+        closeRingtoneModal();
+    };
+
+    const previewRingtone = async (ringtoneName: string) => {
+        await NotificationService.playRingtone(ringtoneName);
     };
 
     return (
@@ -460,8 +515,10 @@ export default function addRoutines() {
                                 />
 
                                 {/* Ringtone Selector */}
-                                <TouchableOpacity style={styles.ringtoneSelector}>
-                                    <Text style={styles.ringtoneText}>Ringtone</Text>
+                                <TouchableOpacity style={styles.ringtoneSelector} onPress={openRingtoneModal}>
+                                    <Text style={styles.ringtoneText}>
+                                        Ringtone: {selectedRingtone ? (selectedRingtone === 'rooster' ? '🐓 Rooster' : selectedRingtone) : ''}
+                                    </Text>
                                     <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
 
@@ -506,6 +563,57 @@ export default function addRoutines() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
+                </View>
+            </Modal>
+
+            {/* Ringtone Selection Modal */}
+            <Modal
+                visible={ringtoneModalVisible}
+                animationType="slide"
+                transparent={false}
+                onRequestClose={closeRingtoneModal}
+            >
+                <View style={{ flex: 1 }}>
+                    {/* Background Image */}
+                    <Image
+                        source={require("../../assets/background.png")}
+                        style={styles.backgroundImage}
+                        resizeMode="cover"
+                    />
+                    
+                    <View style={styles.presetScreen}>
+                        {/* Header with Back button */}
+                        <View style={styles.presetHeader}>
+                            <TouchableOpacity onPress={closeRingtoneModal}>
+                                <Text style={styles.backText}>Back</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Title */}
+                        <Text style={styles.presetTitleCentered}>Select Ringtone</Text>
+
+                        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+                            {/* Rooster Ringtone */}
+                            <TouchableOpacity 
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'rooster' && styles.selectedRingtoneItem
+                                ]} 
+                                onPress={() => selectRingtone('rooster')}
+                            >
+                                <Text style={styles.ringtoneItemTitle}>Rooster</Text>
+                                <TouchableOpacity 
+                                    style={styles.previewButton}
+                                    onPress={(e) => {
+                                        e.stopPropagation();
+                                        previewRingtone('rooster');
+                                    }}
+                                >
+                                    <Text style={styles.previewButtonText}>▶ Preview</Text>
+                                </TouchableOpacity>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
                 </View>
             </Modal>
 
@@ -780,12 +888,67 @@ const styles = StyleSheet.create({
     },
     ringtoneText: {
         fontSize: 16,
-        color: "#999",
+        color: "#244D4A",
+        fontWeight: "600",
     },
     chevron: {
         fontSize: 24,
         color: "#5DD4B4",
         fontWeight: "300",
+    },
+    ringtoneItem: {
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        padding: 10,
+        marginBottom: 16,
+        borderWidth: 2,
+        borderColor: "#B8E6D9",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    selectedRingtoneItem: {
+        borderColor: "#5DD4B4",
+        borderWidth: 3,
+        backgroundColor: "#F0FFF9",
+    },
+    ringtoneInfo: {
+        flexDirection: "row",
+        alignItems: "center",
+        flex: 1,
+    },
+    ringtoneIcon: {
+        fontSize: 48,
+        marginRight: 16,
+    },
+    ringtoneTextContainer: {
+        flex: 1,
+    },
+    ringtoneItemTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: "#244D4A",
+        marginBottom: 4,
+    },
+    ringtoneItemSubtitle: {
+        fontSize: 14,
+        color: "#666",
+    },
+    previewButton: {
+        backgroundColor: "#5DD4B4",
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+    },
+    previewButtonText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#fff",
     },
     deleteButton: {
         backgroundColor: "#FF6B6B",
@@ -801,7 +964,7 @@ const styles = StyleSheet.create({
     },
     presetScreen: {
         flex: 1,
-        backgroundColor: "#E8FFFA",
+        backgroundColor: "transparent",
     },
     presetHeader: {
         flexDirection: "row",

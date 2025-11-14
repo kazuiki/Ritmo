@@ -187,19 +187,26 @@ export default function Progress() {
 					<View style={styles.card}>
 						<Text style={styles.cardTitle}>Weekly Performance Summary</Text>
 
-						{/* For: child name (placeholder: Sai) */}
+						{/* For: child name (placeholder: child_name) */}
 						<View style={styles.rowBetween}>
 							<Text style={styles.subtleText}>For: <Text style={styles.boldText}>{childName}</Text></Text>
 						</View>
 
-						{/* Week of (pressable text + inline icon) */}
-						<Pressable style={styles.weekRow} onPress={() => router.push("/history")}>
-							<Text style={styles.subtleText}>Week of: </Text>
+					{/* Week of (pressable text + inline icon) */}
+					<View style={styles.weekRow}>
+						<Text style={styles.subtleText}>Week of: </Text>
+						<Pressable 
+							style={({ pressed }) => [
+								styles.weekDateButton,
+								pressed && styles.weekDateButtonPressed
+							]}
+							onPress={() => router.push("/history")}
+						>
 							<Text style={styles.weekRangeText}>{weekInfo.rangeText}</Text>
 							<Image source={require("../../assets/images/history.png")} style={styles.weekInlineIcon} />
 						</Pressable>
-
-						{/* Metric mini-cards */}
+					</View>						
+					{/* Metric mini-cards */}
 						<View style={styles.metricsRow}>
 							<View style={styles.metricCard}>
 								<Text style={styles.metricTitle}>Total Task</Text>
@@ -429,10 +436,37 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		marginTop: 8,
 	},
-		weekRangeText: {
+	weekDateButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		borderWidth: 1,
+		borderColor: '#5BDFC9',
+		borderRadius: 8,
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		backgroundColor: '#FFFFFF',
+		flex: 1,
+		maxWidth: '100%',
+		flexWrap: 'wrap',
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 5 },
+		shadowOpacity: 0.25,
+		shadowRadius: 6,
+		elevation: 5,
+	},
+	weekDateButtonPressed: {
+		backgroundColor: '#F9F9F9',
+		transform: [{ scale: 1 }],
+		shadowOpacity: 0.12,
+		elevation: 2,
+	},
+	weekRangeText: {
 		color: '#2A3B4D',
-			fontSize: 15,
-			fontFamily: 'Fredoka_500Medium',
+		fontSize: 12,
+		fontFamily: 'Fredoka_500Medium',
+		flexShrink: 1,
+		paddingHorizontal: 6,
+		paddingVertical: 1,
 	},
 	weekInlineIcon: {
 		width: 16,
