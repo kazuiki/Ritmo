@@ -29,6 +29,10 @@ export default function LoadingPage() {
           require("../assets/gifs/bathStep2.gif"),
           require("../assets/gifs/bathStep3.gif"),
           require("../assets/gifs/bathStep4.gif"),
+          require("../assets/gifs/schoolStep1.gif"),
+          require("../assets/gifs/schoolStep2.gif"),
+          require("../assets/gifs/schoolStep3.gif"),
+          require("../assets/gifs/schoolStep4.gif"),
           require("../assets/gifs/media-unscreen.gif"),
           require("../assets/gifs/media-1--unscreen.gif"),
         ]);

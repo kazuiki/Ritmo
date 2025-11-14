@@ -37,6 +37,15 @@ export const PLAYBOOKS: Record<number, Playbook> = {
       { label: 'Put Clothes', gif: require('../assets/gifs/bathStep4.gif') },
     ],
   },
+  5: {
+    title: 'Go to School',
+    steps: [
+      { label: 'Get dressed and freshen up', gif: require('../assets/gifs/schoolStep1.gif') },
+      { label: 'Check your bag', gif: require('../assets/gifs/schoolStep2.gif') },
+      { label: 'Pack your food and water', gif: require('../assets/gifs/schoolStep3.gif') },
+      { label: 'Ready to go', gif: require('../assets/gifs/schoolStep4.gif') },
+    ],
+  },
 };
 
 export function getPlaybookForPreset(presetId?: number | null): Playbook | undefined {
