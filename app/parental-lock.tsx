@@ -10,7 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { ParentalLockAuthService } from "../src/parentalLockAuthService";
 import { ParentalLockService } from "../src/parentalLockService";
@@ -24,6 +24,8 @@ export default function ParentalLock() {
   const [pin, setPin] = useState(['', '', '', '']);
   const [savedPin, setSavedPin] = useState('');
   const [showPin, setShowPin] = useState(false);
+  const [isVerifyingToDisable, setIsVerifyingToDisable] = useState(false);
+  const [pinError, setPinError] = useState('');
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
   // Load parental lock state on mount
@@ -49,14 +51,15 @@ export default function ParentalLock() {
   };
 
   const toggleSwitch = async () => {
+    setPinError(''); // Clear any previous errors
     if (!isEnabled) {
-      // If turning ON, show PIN modal
+      // If turning ON, show PIN modal to set new PIN
+      setIsVerifyingToDisable(false);
       setShowPinModal(true);
     } else {
-      // If turning OFF, disable and clear authentication
-      setIsEnabled(false);
-      await ParentalLockService.setEnabled(false);
-      ParentalLockAuthService.clearAuthentication();
+      // If turning OFF, show PIN modal to verify existing PIN
+      setIsVerifyingToDisable(true);
+      setShowPinModal(true);
     }
   };
 
@@ -85,51 +88,72 @@ export default function ParentalLock() {
     // Check if all PIN digits are filled
     if (pin.every(digit => digit !== '')) {
       const pinCode = pin.join('');
-      setSavedPin(pinCode); // Save the PIN locally
-      await ParentalLockService.savePin(pinCode); // Save to storage
-      await ParentalLockService.setEnabled(true); // Enable parental lock
-      setIsEnabled(true);
-      setShowPinModal(false);
-      setPin(['', '', '', '']); // Reset PIN input
+      
+      if (isVerifyingToDisable) {
+        // Verify PIN to disable parental lock
+        if (pinCode === savedPin) {
+          // PIN is correct, disable parental lock
+          setIsEnabled(false);
+          await ParentalLockService.setEnabled(false);
+          ParentalLockAuthService.clearAuthentication();
+          setShowPinModal(false);
+          setPin(['', '', '', '']); // Reset PIN input
+          setIsVerifyingToDisable(false);
+        } else {
+          // PIN is incorrect, show error message
+          setPinError('PIN Incorrect');
+          setPin(['', '', '', '']); // Reset PIN input for retry
+        }
+      } else {
+        // Setting new PIN to enable parental lock
+        setSavedPin(pinCode); // Save the PIN locally
+        await ParentalLockService.savePin(pinCode); // Save to storage
+        await ParentalLockService.setEnabled(true); // Enable parental lock
+        setIsEnabled(true);
+        setShowPinModal(false);
+        setPin(['', '', '', '']); // Reset PIN input
+      }
     }
   };
 
   const cancelPin = () => {
     setShowPinModal(false);
     setPin(['', '', '', '']); // Reset PIN
+    setIsVerifyingToDisable(false); // Reset verification state
+    setPinError(''); // Clear error message
   };
 
   return (
     <ImageBackground
       source={backgroundImage}
-      style={styles.bg}
+      style={styles.bg as any}
       resizeMode="cover"
     >
-      <View style={styles.container}>
+      <View style={styles.container as any}>
         {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.backButtonText}>Back</Text>
+        <TouchableOpacity style={styles.backButton as any} onPress={() => router.push("/(tabs)/settings")}>
+          <Text style={styles.backButtonText as any}>Back</Text>
         </TouchableOpacity>
 
         {/* Parental Lock Card */}
-        <View style={styles.card}>
-          <Text style={styles.title}>Parental Lock</Text>
+        <View style={styles.card as any}>
+          <Text style={styles.title as any}>Parental Lock</Text>
           <Switch
             trackColor={{ false: "#FF6B6B", true: "#4CAF50" }}
             thumbColor="#FFFFFF"
             ios_backgroundColor="#FF6B6B"
             onValueChange={toggleSwitch}
             value={isEnabled}
-            style={styles.switch}
+            style={styles.switch as any}
           />
         </View>
 
         {/* PIN Display Card - Only show when PIN is set and parental lock is enabled */}
         {savedPin && isEnabled && (
-          <View style={styles.pinCard}>
-            <Text style={styles.pinLabel}>PIN :</Text>
-            <View style={styles.pinDisplayContainer}>
-              <Text style={styles.pinDisplay}>
+          <View style={styles.pinCard as any}>
+            <Text style={styles.pinLabel as any}>PIN :</Text>
+            <View style={styles.pinDisplayContainer as any}>
+              <Text style={styles.pinDisplay as any}>
                 {showPin ? savedPin : '****'}
               </Text>
               <TouchableOpacity onPress={() => setShowPin(!showPin)}>
@@ -144,7 +168,7 @@ export default function ParentalLock() {
         )}
 
         {/* Description */}
-        <Text style={styles.description}>
+        <Text style={styles.description as any}>
           Parental Lock - Allows parents or guardians to restrict access to
           settings and sensitive content. A passcode is required to make changes,
           ensuring a safe and controlled experience for children.
@@ -157,19 +181,23 @@ export default function ParentalLock() {
         transparent={true}
         animationType="fade"
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set a 4-digit PIN code</Text>
+        <View style={styles.modalOverlay as any}>
+          <View style={styles.modalContent as any}>
+            <Text style={styles.modalTitle as any}>
+              {isVerifyingToDisable ? 'Enter PIN to disable' : 'Set a 4-digit PIN code'}
+            </Text>
             
-            <View style={styles.pinContainer}>
+            <View style={styles.pinContainer as any}>
               {pin.map((digit, index) => (
                 <TextInput
                   key={index}
                   ref={pinRefs[index]}
-                  style={[styles.pinBox, digit && styles.pinBoxFilled]}
+                  style={[styles.pinBox, digit && styles.pinBoxFilled] as any}
                   value={digit ? '•' : ''}
                   onChangeText={(value) => {
                     if (value.length > 0 && /^\d$/.test(value)) {
+                      // Clear error when user starts typing
+                      setPinError('');
                       // If a number is entered, store it and move to next
                       const newPin = [...pin];
                       newPin[index] = value;
@@ -207,12 +235,19 @@ export default function ParentalLock() {
               ))}
             </View>
 
-            <TouchableOpacity style={styles.savePinButton} onPress={savePinAndEnable}>
-              <Text style={styles.savePinText}>Save Pin</Text>
+            {/* Error Message */}
+            {pinError ? (
+              <Text style={styles.errorText as any}>{pinError}</Text>
+            ) : null}
+
+            <TouchableOpacity style={styles.savePinButton as any} onPress={savePinAndEnable}>
+              <Text style={styles.savePinText as any}>
+                {isVerifyingToDisable ? 'Verify PIN' : 'Save Pin'}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cancelButton} onPress={cancelPin}>
-              <Text style={styles.cancelText}>Cancel</Text>
+            <TouchableOpacity style={styles.cancelButton as any} onPress={cancelPin}>
+              <Text style={styles.cancelText as any}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -386,5 +421,13 @@ const styles = StyleSheet.create({
   eyeIcon: {
     fontSize: 16,
     color: "#5A8F8A",
+  },
+  errorText: {
+    color: "#FF6B6B",
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    textAlign: "center",
+    marginBottom: 15,
   },
 });
