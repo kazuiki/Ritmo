@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +14,8 @@ import {
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
+import type { YouTubeVideo } from "../../src/youtubeKidsService";
+import { YouTubeKidsService } from "../../src/youtubeKidsService";
 
 type PlayerState =
   | "unstarted"
@@ -23,7 +27,12 @@ type PlayerState =
 
 export default function Media() {
   const [search, setSearch] = useState("");
-  const [playingId, setPlayingId] = useState<number | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<number | null>(null);
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -32,45 +41,73 @@ export default function Media() {
     }, [])
   );
 
-  const videos = [
-    {
-      id: 1,
-      title: "Baby Learning With Ms Rachel - First Words, Songs",
-      channel: "Ms Rachel - Toddler Learning",
-      views: "3.2M views",
-      time: "2 weeks ago",
-      youtubeId: "hTqtGJwsJVE",
-      thumbnail: "https://i.ytimg.com/vi/hTqtGJwsJVE/hqdefault.jpg",
-      channelIcon:
-        "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-    },
-    {
-      id: 2,
-      title: "Baby's First Words with Ms Rachel - Videos for Babies",
-      channel: "Ms Rachel - Toddler Learning",
-      views: "2.1M views",
-      time: "1 month ago",
-      youtubeId: "zwL2o4jZxbc",
-      thumbnail: "https://i.ytimg.com/vi/zwL2o4jZxbc/hqdefault.jpg",
-      channelIcon:
-        "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-    },
-    {
-      id: 3,
-      title: "Baby Sign Language Basics and Baby First Words - Ms Rachel",
-      channel: "Ms Rachel - Toddler Learning",
-      views: "1.8M views",
-      time: "2 months ago",
-      youtubeId: "glDJI7UKfbw",
-      thumbnail: "https://i.ytimg.com/vi/glDJI7UKfbw/hqdefault.jpg",
-      channelIcon:
-        "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-    },
-  ];
+  // Load initial videos
+  useEffect(() => {
+    loadVideos();
+  }, []);
 
-  const filteredVideos = videos.filter((v) =>
-    v.title.toLowerCase().includes(search.toLowerCase())
-  );
+  // Handle search with debounce
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      if (search.trim()) {
+        searchVideos(search.trim());
+      } else {
+        loadVideos();
+      }
+    }, 500); // 500ms debounce
+
+    setSearchTimeout(timeout);
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [search]);
+
+  const loadVideos = async () => {
+    console.log('=== loadVideos called ===');
+    try {
+      setError(null);
+      console.log('Calling YouTubeKidsService.getRandomKidsVideos...');
+      const fetchedVideos = await YouTubeKidsService.getRandomKidsVideos(20);
+      console.log('Fetched videos:', fetchedVideos);
+      console.log('Number of videos:', fetchedVideos.length);
+      setVideos(fetchedVideos);
+      console.log('Videos set in state');
+    } catch (err) {
+      console.error('Error in loadVideos:', err);
+      setError('Failed to load videos. Please check your internet connection.');
+    } finally {
+      setLoading(false);
+      console.log('Loading set to false');
+    }
+  };
+
+  const searchVideos = async (query: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const searchResults = await YouTubeKidsService.searchKidsVideos(query, 15);
+      setVideos(searchResults);
+    } catch (err) {
+      setError('Failed to search videos. Please try again.');
+      console.error('Error searching videos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setSearch(""); // Clear search when refreshing
+    await loadVideos();
+    setRefreshing(false);
+  };
+
+  const filteredVideos = videos;
 
   return (
     <View style={styles.container}>
@@ -106,8 +143,35 @@ export default function Media() {
       </View>
 
       {/* 📺 Video List */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {filteredVideos.map((video) => (
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#5A8F8A" />
+            <Text style={styles.loadingText}>Loading videos...</Text>
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={48} color="#FF6B6B" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadVideos}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {(() => {
+          console.log('Render check:', { loading, error: !!error, videosLength: filteredVideos.length, videos: filteredVideos });
+          return null;
+        })()}
+        {!loading && !error && filteredVideos.map((video) => (
           <View key={video.id} style={styles.videoContainer}>
             {playingId === video.id ? (
               <YoutubePlayer
@@ -139,7 +203,7 @@ export default function Media() {
                   {video.title}
                 </Text>
                 <Text style={styles.videoMeta}>
-                  {video.channel} • {video.views} • {video.time}
+                  {video.channel} • {video.views} • {video.publishedAt}
                 </Text>
               </View>
               <Ionicons name="ellipsis-vertical" size={18} color="#666" />
@@ -147,7 +211,7 @@ export default function Media() {
           </View>
         ))}
 
-        {filteredVideos.length === 0 && (
+        {!loading && !error && filteredVideos.length === 0 && (
           <Text style={styles.noResults}>No videos found.</Text>
         )}
       </ScrollView>
@@ -242,5 +306,44 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 20,
     fontSize: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 50,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
+    fontFamily: "ITIM",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 50,
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    fontFamily: "ITIM",
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: "#5A8F8A",
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    fontFamily: "ITIM",
   },
 });
