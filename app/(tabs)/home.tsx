@@ -17,6 +17,7 @@ interface Routine {
   time: string;
   presetId?: number;
   completed?: boolean;
+  days?: number[];
 }
 
 export default function Home() {
@@ -43,6 +44,8 @@ export default function Home() {
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
+  const [completedOrder, setCompletedOrder] = useState<number[]>([]);
+  const [completedModalVisible, setCompletedModalVisible] = useState(false);
   // Task modal popup animations
   const taskOpacity = useRef(new Animated.Value(0)).current;
   const taskScale = useRef(new Animated.Value(0.9)).current;
@@ -78,10 +81,10 @@ export default function Home() {
         
         console.log("Home - Active routines count:", activeRoutines.length);
         
-        // All active routines start as not completed
+        // Preserve completion status if stored; default to false when absent
         const routinesWithStatus = activeRoutines.map(r => ({
           ...r,
-          completed: false
+          completed: r.completed ?? false
         }));
         
         setRoutines(routinesWithStatus);
@@ -92,6 +95,23 @@ export default function Home() {
             routineAnimations[routine.id] = new Animated.Value(1);
           }
         });
+
+        // Load and reconcile completed order
+        try {
+          const orderStr = await AsyncStorage.getItem('@routines_completed_order');
+          const completedSet = new Set(routinesWithStatus.filter(r => r.completed).map(r => r.id));
+          let order: number[] = orderStr ? JSON.parse(orderStr) : [];
+          // keep only ids that still exist and are completed
+          order = order.filter(id => completedSet.has(id));
+          // append any completed ids missing from order (stable by id)
+          const missing = Array.from(completedSet).filter(id => !order.includes(id)).sort((a,b)=>a-b);
+          const reconciled = [...order, ...missing];
+          setCompletedOrder(reconciled);
+        } catch (e) {
+          // fallback to simple completed-by-id order
+          const fallback = routinesWithStatus.filter(r=>r.completed).map(r=>r.id).sort((a,b)=>a-b);
+          setCompletedOrder(fallback);
+        }
       } else {
         console.log("Home - No routines found in storage");
         setRoutines([]);
@@ -125,6 +145,7 @@ export default function Home() {
   );
 
   const toggleComplete = async (id: number) => {
+    const wasCompleted = routines.find(r => r.id === id)?.completed ?? false;
     // Animate the routine card sliding out and fading
     if (routineAnimations[id]) {
       Animated.parallel([
@@ -142,6 +163,27 @@ export default function Home() {
       const updatedRoutines = routines.map((r) =>
         r.id === id ? { ...r, completed: !r.completed } : r
       );
+
+      // Persist updated routines completion status
+      try {
+        await AsyncStorage.setItem('@routines', JSON.stringify(updatedRoutines));
+      } catch (e) {
+        console.error('Failed to persist routine completion status', e);
+      }
+
+      // Track and persist completion order
+      let newOrder = completedOrder;
+      if (!wasCompleted) {
+        if (!newOrder.includes(id)) newOrder = [...newOrder, id];
+      } else {
+        newOrder = newOrder.filter(x => x !== id);
+      }
+      setCompletedOrder(newOrder);
+      try {
+        await AsyncStorage.setItem('@routines_completed_order', JSON.stringify(newOrder));
+      } catch (e) {
+        console.error('Failed to persist completed order', e);
+      }
       
       // Check if all routines are now completed
       const allCompleted = updatedRoutines.every((r) => r.completed);
@@ -256,7 +298,13 @@ export default function Home() {
     };
   }, []);
 
-  const incompleteRoutines = routines.filter((r) => !r.completed);
+  // Build ordered incomplete routines (creation order by id ascending)
+  const incompleteRoutinesRaw = routines.filter((r) => !r.completed).sort((a,b)=>a.id-b.id);
+  const incompleteRoutines = incompleteRoutinesRaw; // can extend later if custom order needed
+  const activeIncompleteId = incompleteRoutines.length > 0 ? incompleteRoutines[0].id : null;
+  const completedRoutinesOrdered = completedOrder
+    .map(id => routines.find(r => r.id === id))
+    .filter(Boolean) as Routine[];
 
   const totalRoutines = routines.length;
   const completedCount = routines.filter((r) => r.completed).length;
@@ -309,10 +357,55 @@ export default function Home() {
         </Animated.View>
       )}
 
+      {/* Completed Task strip (up to 4 newest, newest at left) */}
+      {!showAllDone && completedRoutinesOrdered.length > 0 && (() => {
+        const displayed = completedRoutinesOrdered.slice(-4).reverse(); // newest first (left to right)
+        const olderCount = completedRoutinesOrdered.length - displayed.length;
+        return (
+          <View style={styles.completedSection}>
+            <View style={styles.completedHeaderRow}>
+              <Text style={styles.completedTitle}>Completed Task</Text>
+              {olderCount > 0 && (
+                <TouchableOpacity onPress={() => setCompletedModalVisible(true)}>
+                  <Text style={styles.seeAllLink}>See all</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.completedRow}>
+              {displayed.map(routine => {
+                const preset = getPresetById(routine.presetId);
+                return (
+                  <View key={routine.id} style={styles.completedItem}>
+                    <View style={styles.completedStripStars}>
+                      <Text style={styles.completedStripStar}>⭐</Text>
+                      <Text style={styles.completedStripStar}>⭐</Text>
+                      <Text style={styles.completedStripStar}>⭐</Text>
+                    </View>
+                    {preset ? (
+                      <Image source={preset.image} style={styles.completedImage} />
+                    ) : (
+                      <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })()}
+
+      {/* Remaining Task Label (fixed) */}
+      {!showAllDone && incompleteRoutines.length > 0 && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <Text style={styles.remainingTitle}>Remaining Task</Text>
+        </View>
+      )}
+
       {/* Scrollable Routines List */}
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
-        {incompleteRoutines.map((routine, idx) => {
-          const isActive = idx === 0;
+      {!showAllDone && (
+        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}>
+          {incompleteRoutines.map((routine, idx) => {
+          const isActive = routine.id === activeIncompleteId;
           const preset = getPresetById(routine.presetId);
           
           // Initialize animation value if not exists
@@ -383,12 +476,14 @@ export default function Home() {
                   <Text style={[styles.taskTitle, styles.taskTitleCentered]}>{routine.name}</Text>
                   <Text style={[styles.taskTime, styles.taskTimeCentered]}>{routine.time}</Text>
                 </View>
-                {!isActive && <View pointerEvents="none" style={styles.dimOverlay} />}
+                {/* Dim overlay only if there is more than one remaining and this is not active */}
+                {(!isActive && incompleteRoutines.length > 1) && <View pointerEvents="none" style={styles.dimOverlay} />}
               </TouchableOpacity>
             </Animated.View>
           );
         })}
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {/* Task Modal - Popup Dialog */}
       <Modal
@@ -506,6 +601,49 @@ export default function Home() {
             </View>
           </Animated.View>
         </Animated.View>
+      </Modal>
+
+      {/* Completed Tasks - See All Modal */}
+      <Modal
+        visible={completedModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setCompletedModalVisible(false)}
+      >
+        <View style={{ flex: 1 }}>
+          <Image
+            source={require("../../assets/background.png")}
+            style={styles.backgroundImage}
+            resizeMode="cover"
+          />
+          <View style={styles.completedModalHeader}>
+            <TouchableOpacity onPress={() => setCompletedModalVisible(false)}>
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.completedModalTitle}>Completed Task</Text>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
+            {completedRoutinesOrdered.slice(0, Math.max(0, completedRoutinesOrdered.length - Math.min(4, completedRoutinesOrdered.length))).map((routine) => {
+              const preset = getPresetById(routine.presetId);
+              return (
+                <View key={routine.id} style={styles.completedModalCard}>
+                  <View style={styles.completedModalStars}>
+                    <Text style={styles.completedStar}>⭐</Text>
+                    <Text style={styles.completedStar}>⭐</Text>
+                    <Text style={styles.completedStar}>⭐</Text>
+                  </View>
+                  {preset ? (
+                    <Image source={preset.image} style={styles.presetImageLarge} />
+                  ) : (
+                    <View style={styles.iconPlaceholderLarge}><Text style={styles.iconLarge}>📋</Text></View>
+                  )}
+                  <Text style={[styles.taskTitle, styles.taskTitleCentered]}>{routine.name}</Text>
+                  <Text style={[styles.taskTime, styles.taskTimeCentered]}>{routine.time}</Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
       </Modal>
 
       {/* Playbook Modal - Full Screen */}
@@ -750,6 +888,15 @@ export default function Home() {
   );
 }
 
+// Helper to format selected days (0=Sun...6=Sat)
+function formatDays(days: number[]) {
+  const full = ['Sun','Mon','Tue','Wed','Thur','Fri','Sat'];
+  if (!days) return 'Everyday';
+  if (days.length === 7) return 'Everyday';
+  if (days.length === 0) return '';
+  return days.map(d => full[d]).join(', ');
+}
+
 const styles = StyleSheet.create({
   backgroundImage: {
     position: "absolute",
@@ -774,8 +921,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  progressTitle: { fontWeight: "700", fontSize: 18, color: "#244D4A", fontFamily: "Fredoka_700Bold" },
-  progressCount: { color: "#06C08A", fontSize: 18, fontWeight: "600", fontFamily: "Fredoka_600SemiBold" },
+  progressTitle: { fontWeight: "700", fontSize: 16, color: "#244D4A", fontFamily: "Fredoka_700Bold" },
+  progressCount: { color: "#06C08A", fontSize: 16, fontWeight: "600", fontFamily: "Fredoka_600SemiBold" },
   progressBarContainer: {
     height: 8,
     backgroundColor: "#E0E0E0",
@@ -786,6 +933,76 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#06C08A",
     borderRadius: 4,
+  },
+  completedSection: {
+    paddingHorizontal: 16,
+  },
+  completedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  completedTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#244D4A',
+    fontFamily: 'Fredoka_700Bold',
+    paddingLeft: 2,
+  },
+  seeAllLink: {
+    color: '#06C08A',
+    fontSize: 18,
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  completedRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  completedItem: {
+    width: 73,
+    height: 72,
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: '#B8E6D9',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  completedImage: {
+    width: '80%',
+    height: '80%',
+    resizeMode: 'cover',
+    marginTop: 15,
+  },
+  completedPlaceholder: {
+    width: '85%',
+    height: '85%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8FFFA',
+  },
+  completedStripStars: {
+    position: 'absolute',
+    top: 1,
+    left: '50%',
+    transform: [{ translateX: -24 }],
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+  completedStripStar: {
+    fontSize: 16,
+    verticalAlign: 'center',
+  },
+  remainingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#244D4A',
+    marginBottom: 2,
+    fontFamily: 'Fredoka_700Bold',
+    paddingLeft: 2,
   },
   taskCard: {
     backgroundColor: "#fff",
@@ -860,6 +1077,13 @@ const styles = StyleSheet.create({
     color: "#244D4A",
     textAlign: "center",
   },
+  taskDays: {
+    fontSize: 14,
+    color: '#244D4A',
+    textAlign: 'center',
+    marginTop: 2,
+    fontFamily: "Fredoka_500Medium",
+  },
   // Task Modal Dialog Styles
   taskOverlay: {
     position: "absolute",
@@ -890,6 +1114,39 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 20,
     paddingBottom: 12,
+  },
+  completedModalHeader: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
+  },
+  completedModalTitle: {
+    fontSize: 22,
+    textAlign: 'center',
+    color: '#244D4A',
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 8,
+    fontFamily: 'Fredoka_700Bold',
+  },
+  completedModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 4,
+    borderColor: '#B8E6D9',
+    padding: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  completedModalStars: {
+    position: 'absolute',
+    top: 10,
+    right: 14,
+    flexDirection: 'row',
+  },
+  completedStar: {
+    fontSize: 20,
+    marginLeft: 6,
   },
   taskDialogContent: {
     flex: 1,
@@ -1195,10 +1452,11 @@ const styles = StyleSheet.create({
   },
   // All Done Message Styles
   allDoneContainer: {
-    flex: 1,
-    justifyContent: "center",
+    position: 'absolute',
+    top: '35%',
+    left: 0,
+    right: 0,
     alignItems: "center",
-    marginTop: 130,
   },
   allDoneText: {
       fontSize: 16,
