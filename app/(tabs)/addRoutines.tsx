@@ -27,6 +27,7 @@ interface Routine {
     presetId?: number;
     completed?: boolean;
     ringtone?: string;
+    days?: number[]; // 0=Sun..6=Sat
 }
 
 export default function addRoutines() {
@@ -42,6 +43,9 @@ export default function addRoutines() {
     const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
+    const ALL_DAYS = [0,1,2,3,4,5,6];
+    const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    const [formScrollEnabled, setFormScrollEnabled] = useState(true);
     
     // Parental lock modal state
     const [showParentalLockModal, setShowParentalLockModal] = useState(false);
@@ -204,6 +208,7 @@ export default function addRoutines() {
         setRoutineName("");
         setSelectedPresetId(null);
         setSelectedRingtone(undefined);
+        setSelectedDays([]);
         setTimeout(() => {
             hourRef.current?.scrollTo({ y: 0, animated: false });
             minuteRef.current?.scrollTo({ y: 0, animated: false });
@@ -216,6 +221,7 @@ export default function addRoutines() {
         setRoutineName(routine.name);
         setSelectedRingtone(routine.ringtone);
         setSelectedPresetId(routine.presetId ?? null);
+        setSelectedDays(routine.days ?? ALL_DAYS);
         
         const timeParts = routine.time.split(" ");
         const [h, m] = timeParts[0].split(":");
@@ -242,12 +248,16 @@ export default function addRoutines() {
 
     const handleDone = () => {
         if (routineName.trim()) {
+            if (selectedDays.length === 0) {
+                Alert.alert("Select days", "Please pick at least one day for this routine.");
+                return;
+            }
             const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
             
             if (editingRoutineId) {
                 const updatedRoutines = routines.map((r) =>
                     r.id === editingRoutineId
-                        ? { ...r, name: routineName, time: routineTime, presetId: selectedPresetId ?? r.presetId, ringtone: selectedRingtone }
+                        ? { ...r, name: routineName, time: routineTime, presetId: selectedPresetId ?? r.presetId, ringtone: selectedRingtone, days: selectedDays }
                         : r
                 );
                 setRoutines(updatedRoutines);
@@ -260,6 +270,7 @@ export default function addRoutines() {
                         routineName: updatedRoutine.name,
                         time: updatedRoutine.time,
                         ringtone: updatedRoutine.ringtone || 'rooster',
+                        days: updatedRoutine.days,
                     }).catch(err => console.error('Error scheduling notification:', err));
                 }
             } else {
@@ -269,6 +280,7 @@ export default function addRoutines() {
                     time: routineTime,
                     presetId: selectedPresetId ?? undefined,
                     ringtone: selectedRingtone,
+                    days: selectedDays,
                 };
                 setRoutines([...routines, newRoutine]);
                 
@@ -278,6 +290,7 @@ export default function addRoutines() {
                     routineName: newRoutine.name,
                     time: newRoutine.time,
                     ringtone: newRoutine.ringtone || 'rooster',
+                    days: newRoutine.days,
                 }).catch(err => console.error('Error scheduling notification:', err));
             }
         }
@@ -351,7 +364,7 @@ export default function addRoutines() {
 
         {/* Routines List */}
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
-            {routines.filter(r => !r.completed).map((routine) => (
+            {routines.map((routine) => (
                 <TouchableOpacity 
                     key={routine.id} 
                     style={styles.routineCard}
@@ -368,6 +381,7 @@ export default function addRoutines() {
                     <View style={styles.routineInfo}>
                         <Text style={styles.routineTitle}>{routine.name}</Text>
                         <Text style={styles.routineTime}>{routine.time}</Text>
+                        <Text style={styles.routineDays}>{formatDays(routine.days)}</Text>
                     </View>
                     </TouchableOpacity>
                 ))}
@@ -382,20 +396,20 @@ export default function addRoutines() {
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
-                        {/* Header */}
+                        {/* Header (Back only) */}
                         <View style={styles.modalHeader}>
                             <TouchableOpacity onPress={closeModal}>
                                 <Text style={styles.backText}>Back</Text>
                             </TouchableOpacity>
-                            <Text style={styles.modalTitle}>
-                                {editingRoutineId ? "Edit Routine" : "Add Routine"}
-                            </Text>
-                            <TouchableOpacity onPress={handleDone}>
-                                <Text style={styles.doneText}>Done</Text>
-                            </TouchableOpacity>
+                            <View />
                         </View>
 
-                    <ScrollView contentContainerStyle={{ padding: 16 }}>
+                    <ScrollView
+                        contentContainerStyle={{ padding: 16 }}
+                        nestedScrollEnabled
+                        scrollEnabled={formScrollEnabled}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         {/* Time Picker Section */}
                         <View style={styles.timePickerCard}>
                             <View style={styles.pickerContainer}>
@@ -407,11 +421,16 @@ export default function addRoutines() {
                                         snapToInterval={48}
                                         decelerationRate="fast"
                                         contentContainerStyle={{ paddingVertical: 48 }}
+                                        nestedScrollEnabled
+                                        onScrollBeginDrag={() => setFormScrollEnabled(false)}
+                                        onScrollEndDrag={() => setFormScrollEnabled(true)}
+                                        onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
                                             const clamped = Math.max(0, Math.min(11, idx));
                                             setHour((clamped + 1).toString().padStart(2, "0"));
+                                            setFormScrollEnabled(true);
                                         }}
                                     >
                                         {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
@@ -438,11 +457,16 @@ export default function addRoutines() {
                                         snapToInterval={48}
                                         decelerationRate="fast"
                                         contentContainerStyle={{ paddingVertical: 48 }}
+                                        nestedScrollEnabled
+                                        onScrollBeginDrag={() => setFormScrollEnabled(false)}
+                                        onScrollEndDrag={() => setFormScrollEnabled(true)}
+                                        onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
                                             const clamped = Math.max(0, Math.min(59, idx));
                                             setMinute(clamped.toString().padStart(2, "0"));
+                                            setFormScrollEnabled(true);
                                         }}
                                     >
                                         {Array.from({ length: 60 }, (_, i) => i).map((m) => (
@@ -469,12 +493,17 @@ export default function addRoutines() {
                                         snapToInterval={48}
                                         decelerationRate="fast"
                                         contentContainerStyle={{ paddingVertical: 48 }}
+                                        nestedScrollEnabled
+                                        onScrollBeginDrag={() => setFormScrollEnabled(false)}
+                                        onScrollEndDrag={() => setFormScrollEnabled(true)}
+                                        onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
                                             const clamped = Math.max(0, Math.min(1, idx));
                                             const p = clamped === 0 ? "AM" : "PM";
                                             setPeriod(p);
+                                            setFormScrollEnabled(true);
                                         }}
                                     >
                                         {["AM", "PM"].map((p) => (
@@ -498,26 +527,55 @@ export default function addRoutines() {
                         </View>
                             {/* Form Section */}
                             <View style={styles.formCard}>
-                                {/* Choose Routine Preset Button */}
-                                <TouchableOpacity style={styles.presetButton} onPress={openPresetModal}>
-                                    <Text style={styles.presetButtonText}>
-                                        Choose Routine preset
-                                    </Text>
+                                {/* Day of Week Selector */}
+                                <View style={styles.daysRow}>
+                                    {[
+                                        { idx: 0, label: 'S' },
+                                        { idx: 1, label: 'M' },
+                                        { idx: 2, label: 'T' },
+                                        { idx: 3, label: 'W' },
+                                        { idx: 4, label: 'Th' },
+                                        { idx: 5, label: 'F' },
+                                        { idx: 6, label: 'St' },
+                                    ].map(d => {
+                                        const selected = selectedDays.includes(d.idx);
+                                        return (
+                                            <TouchableOpacity
+                                                key={d.idx}
+                                                style={[styles.dayChip, selected && styles.dayChipSelected]}
+                                                onPress={() => {
+                                                    setSelectedDays(prev => {
+                                                        const has = prev.includes(d.idx);
+                                                        if (has) return prev.filter(x => x !== d.idx);
+                                                        return [...prev, d.idx].sort((a,b)=>a-b);
+                                                    });
+                                                }}
+                                            >
+                                                <Text style={[styles.dayChipText, selected && styles.dayChipTextSelected]}>{d.label}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                {/* Choose Routine Preset - white bordered selector with chevron (same for Add/Edit) */}
+                                <TouchableOpacity style={[styles.ringtoneSelector, { backgroundColor: '#FFFFFF', marginBottom: 16 }]} onPress={openPresetModal}>
+                                    <Text style={styles.ringtoneText}>Choose Routine Preset</Text>
+                                    <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
 
-                                {/* Routine Name Input */}
+                                {/* Routine Name Input - non-editable if preset selected */}
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Routine name"
                                     placeholderTextColor="#999"
                                     value={routineName}
                                     onChangeText={setRoutineName}
+                                    editable={!selectedPresetId}
                                 />
 
                                 {/* Ringtone Selector */}
                                 <TouchableOpacity style={styles.ringtoneSelector} onPress={openRingtoneModal}>
                                     <Text style={styles.ringtoneText}>
-                                        Ringtone: {selectedRingtone ? (selectedRingtone === 'rooster' ? '🐓 Rooster' : selectedRingtone) : ''}
+                                        Ringtone: {selectedRingtone ? (selectedRingtone === 'rooster' ? 'Rooster' : selectedRingtone) : ''}
                                     </Text>
                                     <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
@@ -532,6 +590,11 @@ export default function addRoutines() {
                                     </TouchableOpacity>
                                 )}
                             </View>
+
+                            {/* Primary action button (outside the card) */}
+                            <TouchableOpacity style={[styles.presetButton, { marginTop: 30 }]} onPress={handleDone}>
+                                <Text style={styles.presetButtonText}>{editingRoutineId ? 'Edit Routine' : 'Add Routine'}</Text>
+                            </TouchableOpacity>
                         </ScrollView>
                     </View>
                 </View>
@@ -544,7 +607,14 @@ export default function addRoutines() {
                 transparent={false}
                 onRequestClose={closePresetModal}
             >
-            <View style={styles.presetScreen}>
+            <View style={{ flex: 1 }}>
+                {/* Background Image */}
+                <Image
+                    source={require("../../assets/background.png")}
+                    style={styles.backgroundImage}
+                    resizeMode="cover"
+                />
+                <View style={styles.presetScreen}>
                 {/* Header with Back button in upper-left */}
                 <View style={styles.presetHeader}>
                     <TouchableOpacity onPress={closePresetModal}>
@@ -564,6 +634,7 @@ export default function addRoutines() {
                         ))}
                     </ScrollView>
                 </View>
+            </View>
             </Modal>
 
             {/* Ringtone Selection Modal */}
@@ -696,6 +767,16 @@ export default function addRoutines() {
             </Modal>
         </View>
     );
+}
+
+// Helper to format selected days
+function formatDays(days?: number[]) {
+    const full = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    // Legacy routines without days -> assume everyday
+    if (!days) return 'Everyday';
+    if (days.length === 7) return 'Everyday';
+    if (days.length === 0) return '';
+    return days.map(d => full[d]).join(', ');
 }
 
 const styles = StyleSheet.create({
@@ -876,7 +957,7 @@ const styles = StyleSheet.create({
         borderColor: "#B8E6D9",
     },
     ringtoneSelector: {
-        backgroundColor: "#F5F5F5",
+        backgroundColor: "#FFFFFF",
         borderRadius: 12,
         paddingVertical: 14,
         paddingHorizontal: 16,
@@ -890,6 +971,36 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: "#244D4A",
         fontWeight: "600",
+    },
+    daysRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    dayChip: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#B8E6D9',
+        borderRadius: 12,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    dayChipSelected: {
+        backgroundColor: '#5DD4B4',
+        borderColor: '#5DD4B4',
+    },
+    dayChipText: {
+        fontSize: 14,
+        color: '#244D4A',
+        fontWeight: '700',
+    },
+    dayChipTextSelected: {
+        color: '#FFFFFF',
     },
     chevron: {
         fontSize: 24,
@@ -1061,6 +1172,11 @@ const styles = StyleSheet.create({
     routineTime: {
         fontSize: 16,
         color: "#666",
+    },
+    routineDays: {
+        fontSize: 14,
+        color: '#244D4A',
+        marginTop: 2,
     },
     // Parental Lock Modal Styles
     parentalLockModalOverlay: {
