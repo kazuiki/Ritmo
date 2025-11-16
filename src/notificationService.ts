@@ -17,6 +17,7 @@ export interface RoutineNotification {
   routineName: string;
   time: string; // format: "08:00 am"
   ringtone: string; // path to ringtone
+  days?: number[]; // 0=Sun ... 6=Sat
 }
 
 class NotificationService {
@@ -120,54 +121,55 @@ class NotificationService {
       // Cancel existing notification for this routine if any
       await this.cancelRoutineNotification(routine.routineId);
 
-      // Calculate the target time for today
       const now = new Date();
-      const scheduledTime = new Date();
-      scheduledTime.setHours(hour, minute, 0, 0);
 
-      // If the time has passed today, start from tomorrow
-      if (scheduledTime.getTime() <= now.getTime()) {
-        scheduledTime.setDate(scheduledTime.getDate() + 1);
-      }
+      // Determine selected days
+      // - If 'days' is undefined (old routines), default to all days
+      // - If it's an empty array, treat as no days selected (schedule nothing)
+      const selectedDays = Array.isArray(routine.days)
+        ? routine.days
+        : [0, 1, 2, 3, 4, 5, 6];
 
-      // Schedule notifications for the next 3 days only (Android has 500 alarm limit)
-      // App will auto-refresh these when user opens app
+      // Collect up to 3 upcoming matching days within next 14 days
       const notificationIds: string[] = [];
-      const daysToSchedule = 3; // 3 days only to avoid hitting limit
-      
-      for (let day = 0; day < daysToSchedule; day++) {
-        const triggerDate = new Date(scheduledTime);
-        triggerDate.setDate(scheduledTime.getDate() + day);
-        
-        const secondsUntilTrigger = Math.floor((triggerDate.getTime() - now.getTime()) / 1000);
+      const maxToSchedule = 3;
 
-        const notificationId = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '⏰ Routine Time!',
-            body: `Time for: ${routine.routineName}`,
-            sound: 'rooster.mp3',
-            data: { 
-              routineId: routine.routineId,
-              routineName: routine.routineName,
-              ringtone: routine.ringtone,
-              day: day,
+      for (let offset = 0; offset < 14 && notificationIds.length < maxToSchedule; offset++) {
+        const triggerDate = new Date(now);
+        triggerDate.setDate(now.getDate() + offset);
+        triggerDate.setHours(hour, minute, 0, 0);
+
+        // Must be in the future and match selected weekdays
+        if (triggerDate.getTime() > now.getTime() && selectedDays.includes(triggerDate.getDay())) {
+          const secondsUntilTrigger = Math.floor((triggerDate.getTime() - now.getTime()) / 1000);
+
+          const notificationId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '⏰ Routine Time!',
+              body: `Time for: ${routine.routineName}`,
+              sound: 'rooster.mp3',
+              data: {
+                routineId: routine.routineId,
+                routineName: routine.routineName,
+                ringtone: routine.ringtone,
+              },
+              priority: Notifications.AndroidNotificationPriority.MAX,
             },
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: secondsUntilTrigger,
-            repeats: false,
-          },
-        });
-        
-        notificationIds.push(notificationId);
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+              seconds: secondsUntilTrigger,
+              repeats: false,
+            },
+          });
+
+          notificationIds.push(notificationId);
+        }
       }
 
       // Store all notification IDs for this routine
       await this.storeNotificationIds(routine.routineId, notificationIds);
 
-      console.log(`✅ Scheduled ${daysToSchedule} daily notifications for ${routine.routineName} at ${hour}:${minute}`);
+      console.log(`✅ Scheduled ${notificationIds.length} notifications for ${routine.routineName} at ${hour}:${minute} on selected days`);
       return notificationIds[0];
     } catch (error) {
       console.error('❌ Error scheduling notification:', error);
@@ -197,6 +199,7 @@ class NotificationService {
             routineName: routine.name,
             time: routine.time,
             ringtone: routine.ringtone || 'rooster',
+            days: routine.days,
           });
         }
       }
