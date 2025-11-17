@@ -7,8 +7,9 @@ import { MotiView } from "moti";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getPlaybookForPreset } from "../../constants/playbooks";
-import { getPresetById } from "../../constants/presets";
+import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
+import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 
 interface Routine {
@@ -16,6 +17,7 @@ interface Routine {
   name: string;
   time: string;
   presetId?: number;
+  imageUrl?: string | null;
   completed?: boolean;
   days?: number[];
 }
@@ -56,68 +58,64 @@ export default function Home() {
   const [showRainingStars, setShowRainingStars] = useState(false);
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
-  const activePreset = useMemo(() => getPresetById(activeRoutine?.presetId), [activeRoutine?.presetId]);
-  const playbook = useMemo(() => getPlaybookForPreset(activeRoutine?.presetId), [activeRoutine?.presetId]);
+  const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
+  const playbook = useMemo(() => {
+    if (!activePreset) return undefined;
+    return getPlaybookForPreset(activePreset.id);
+  }, [activePreset?.id]);
 
 
 
   const loadRoutines = async () => {
     try {
-      const stored = await AsyncStorage.getItem("@routines");
-      const archivedStored = await AsyncStorage.getItem("@routines_archived");
+      const routinesFromDb = await getRoutinesForCurrentUser();
       
-      console.log("Home - Loading routines from storage:", stored);
-      console.log("Home - Loading archived routines:", archivedStored);
-      
-      if (stored) {
-        const loadedRoutines: Routine[] = JSON.parse(stored);
-        const archivedIds: number[] = archivedStored ? JSON.parse(archivedStored) : [];
-        
-        console.log("Home - Total routines:", loadedRoutines.length);
-        console.log("Home - Archived routine IDs:", archivedIds);
-        
-        // Filter out archived routines - only show active ones on home page
-        const activeRoutines = loadedRoutines.filter(r => !archivedIds.includes(r.id));
-        
-        console.log("Home - Active routines count:", activeRoutines.length);
-        
-        // Preserve completion status if stored; default to false when absent
-        const routinesWithStatus = activeRoutines.map(r => ({
-          ...r,
-          completed: r.completed ?? false
-        }));
-        
-        setRoutines(routinesWithStatus);
-        
-        // Initialize animations for each routine
-        routinesWithStatus.forEach(routine => {
-          if (!routineAnimations[routine.id]) {
-            routineAnimations[routine.id] = new Animated.Value(1);
-          }
-        });
-
-        // Load and reconcile completed order
-        try {
-          const orderStr = await AsyncStorage.getItem('@routines_completed_order');
-          const completedSet = new Set(routinesWithStatus.filter(r => r.completed).map(r => r.id));
-          let order: number[] = orderStr ? JSON.parse(orderStr) : [];
-          // keep only ids that still exist and are completed
-          order = order.filter(id => completedSet.has(id));
-          // append any completed ids missing from order (stable by id)
-          const missing = Array.from(completedSet).filter(id => !order.includes(id)).sort((a,b)=>a-b);
-          const reconciled = [...order, ...missing];
-          setCompletedOrder(reconciled);
-        } catch (e) {
-          // fallback to simple completed-by-id order
-          const fallback = routinesWithStatus.filter(r=>r.completed).map(r=>r.id).sort((a,b)=>a-b);
-          setCompletedOrder(fallback);
-        }
-      } else {
-        console.log("Home - No routines found in storage");
+      if (routinesFromDb.length === 0) {
         setRoutines([]);
+        setCompletedOrder([]);
+        return;
       }
+      
+      // Fetch today's progress for all routines
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const progressData = await getUserProgressForRange({
+        from: todayStr,
+        to: todayStr,
+      });
+      
+      // Create a map of routine_id -> progress for quick lookup
+      const progressMap = new Map(
+        progressData.map(p => [p.routine_id, p])
+      );
+      
+      // Merge routines with their progress data
+      // If no progress exists for today, default to not completed
+      const routinesWithProgress = routinesFromDb.map(routine => {
+        const progress = progressMap.get(routine.id);
+        return {
+          ...routine,
+          completed: progress?.completed ?? false,
+        };
+      });
+      
+      setRoutines(routinesWithProgress);
+      
+      // Initialize animations for each routine
+      routinesWithProgress.forEach(routine => {
+        if (!routineAnimations[routine.id]) {
+          routineAnimations[routine.id] = new Animated.Value(1);
+        }
+      });
+      
+      // Build completed order from today's completed routines
+      const completedToday = routinesWithProgress
+        .filter(r => r.completed)
+        .map(r => r.id);
+      setCompletedOrder(completedToday);
     } catch (error) {
-      console.error("Failed to load routines:", error);
+      console.error("Failed to load routines for user:", error);
+      setRoutines([]);
     }
   };
 
@@ -146,6 +144,8 @@ export default function Home() {
 
   const toggleComplete = async (id: number) => {
     const wasCompleted = routines.find(r => r.id === id)?.completed ?? false;
+    const newCompletedStatus = !wasCompleted;
+    
     // Animate the routine card sliding out and fading
     if (routineAnimations[id]) {
       Animated.parallel([
@@ -159,31 +159,34 @@ export default function Home() {
     
     // Wait for animation to complete before updating state
     setTimeout(async () => {
-      // Update the routine to completed
+      try {
+        // Update database - this will set completed and completed_at
+        // This will create a progress row for today if it doesn't exist
+        await setRoutineCompleted({
+          routineId: id,
+          completed: newCompletedStatus,
+          dayDate: new Date(), // Explicitly pass today's date
+        });
+        console.log(`Successfully updated routine ${id} completion status to ${newCompletedStatus}`);
+      } catch (error) {
+        console.error('Failed to update routine completion in database:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        // Continue with UI update even if database update fails
+      }
+      
+      // Update local state
       const updatedRoutines = routines.map((r) =>
-        r.id === id ? { ...r, completed: !r.completed } : r
+        r.id === id ? { ...r, completed: newCompletedStatus } : r
       );
 
-      // Persist updated routines completion status
-      try {
-        await AsyncStorage.setItem('@routines', JSON.stringify(updatedRoutines));
-      } catch (e) {
-        console.error('Failed to persist routine completion status', e);
-      }
-
-      // Track and persist completion order
+      // Track completion order
       let newOrder = completedOrder;
-      if (!wasCompleted) {
+      if (newCompletedStatus) {
         if (!newOrder.includes(id)) newOrder = [...newOrder, id];
       } else {
         newOrder = newOrder.filter(x => x !== id);
       }
       setCompletedOrder(newOrder);
-      try {
-        await AsyncStorage.setItem('@routines_completed_order', JSON.stringify(newOrder));
-      } catch (e) {
-        console.error('Failed to persist completed order', e);
-      }
       
       // Check if all routines are now completed
       const allCompleted = updatedRoutines.every((r) => r.completed);
@@ -373,7 +376,7 @@ export default function Home() {
             </View>
             <View style={styles.completedRow}>
               {displayed.map(routine => {
-                const preset = getPresetById(routine.presetId);
+                const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
                 return (
                   <View key={routine.id} style={styles.completedItem}>
                     <View style={styles.completedStripStars}>
@@ -406,7 +409,7 @@ export default function Home() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}>
           {incompleteRoutines.map((routine, idx) => {
           const isActive = routine.id === activeIncompleteId;
-          const preset = getPresetById(routine.presetId);
+          const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
           
           // Initialize animation value if not exists
           if (!routineAnimations[routine.id]) {
@@ -624,7 +627,7 @@ export default function Home() {
           <Text style={styles.completedModalTitle}>Completed Task</Text>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
             {completedRoutinesOrdered.slice(0, Math.max(0, completedRoutinesOrdered.length - Math.min(4, completedRoutinesOrdered.length))).map((routine) => {
-              const preset = getPresetById(routine.presetId);
+              const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
               return (
                 <View key={routine.id} style={styles.completedModalCard}>
                   <View style={styles.completedModalStars}>

@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -15,16 +14,18 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import { getPresetById, Preset, PRESETS } from "../../constants/presets";
+import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
 import NotificationService from "../../src/notificationService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
+import { createRoutineForCurrentUser, getRoutinesForCurrentUser, unlinkRoutineForCurrentUser, updateRoutine } from "../../src/routinesService";
 
 interface Routine {
     id: number;
     name: string;
     time: string;
     presetId?: number;
+    imageUrl?: string | null;
     completed?: boolean;
     ringtone?: string;
     days?: number[]; // 0=Sun..6=Sat
@@ -165,37 +166,22 @@ export default function addRoutines() {
 
     useFocusEffect(
         React.useCallback(() => {
-            loadRoutines();
+            loadRoutinesFromDb();
         }, [])
     );
 
-    useEffect(() => {
-        saveRoutines();
-    }, [routines]);
-
-    const loadRoutines = async () => {
+    const loadRoutinesFromDb = async () => {
         try {
-            const stored = await AsyncStorage.getItem("@routines");
-            console.log("AddRoutines - Loading routines from storage:", stored);
-            if (stored) {
-                const loadedRoutines = JSON.parse(stored);
-                console.log("AddRoutines - Loaded routines count:", loadedRoutines.length);
-                setRoutines(loadedRoutines);
-            } else {
-                console.log("AddRoutines - No routines found in storage");
-            }
+            const dbRoutines = await getRoutinesForCurrentUser();
+            const uiRoutines: Routine[] = (dbRoutines || []).map(r => ({
+                id: r.id,
+                name: r.name,
+                time: r.time,
+                imageUrl: r.imageUrl,
+            }));
+            setRoutines(uiRoutines);
         } catch (error) {
-            console.error("Failed to load routines:", error);
-        }
-    };
-
-    const saveRoutines = async () => {
-        try {
-            console.log("AddRoutines - Saving routines, count:", routines.length);
-            await AsyncStorage.setItem("@routines", JSON.stringify(routines));
-            console.log("AddRoutines - Routines saved successfully");
-        } catch (error) {
-            console.error("Failed to save routines:", error);
+            console.error("Failed to load routines from Supabase:", error);
         }
     };
 
@@ -220,7 +206,9 @@ export default function addRoutines() {
         setEditingRoutineId(routine.id);
         setRoutineName(routine.name);
         setSelectedRingtone(routine.ringtone);
-        setSelectedPresetId(routine.presetId ?? null);
+        // Get presetId from imageUrl stored in database, or fallback to presetId field
+        const preset = getPresetByImageUrl(routine.imageUrl);
+        setSelectedPresetId(preset?.id ?? routine.presetId ?? null);
         setSelectedDays(routine.days ?? ALL_DAYS);
         
         const timeParts = routine.time.split(" ");
@@ -255,43 +243,49 @@ export default function addRoutines() {
             const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
             
             if (editingRoutineId) {
-                const updatedRoutines = routines.map((r) =>
-                    r.id === editingRoutineId
-                        ? { ...r, name: routineName, time: routineTime, presetId: selectedPresetId ?? r.presetId, ringtone: selectedRingtone, days: selectedDays }
-                        : r
-                );
-                setRoutines(updatedRoutines);
-                
-                // Schedule notification for updated routine (async in background)
-                const updatedRoutine = updatedRoutines.find(r => r.id === editingRoutineId);
-                if (updatedRoutine) {
-                    NotificationService.scheduleRoutineNotification({
-                        routineId: updatedRoutine.id,
-                        routineName: updatedRoutine.name,
-                        time: updatedRoutine.time,
-                        ringtone: updatedRoutine.ringtone || 'rooster',
-                        days: updatedRoutine.days,
-                    }).catch(err => console.error('Error scheduling notification:', err));
-                }
-            } else {
-                const newRoutine: Routine = {
-                    id: Date.now(),
+                // Determine imageUrl to save: use newly selected preset if any; otherwise keep existing
+                const selectedPreset = getPresetById(selectedPresetId);
+                const current = routines.find(r => r.id === editingRoutineId);
+                const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
+
+                updateRoutine(editingRoutineId, {
                     name: routineName,
                     time: routineTime,
-                    presetId: selectedPresetId ?? undefined,
-                    ringtone: selectedRingtone,
-                    days: selectedDays,
-                };
-                setRoutines([...routines, newRoutine]);
-                
-                // Schedule notification for new routine (async in background)
+                    imageUrl: imageUrlToSave,
+                })
+                .then(() => loadRoutinesFromDb())
+                .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
+
                 NotificationService.scheduleRoutineNotification({
-                    routineId: newRoutine.id,
-                    routineName: newRoutine.name,
-                    time: newRoutine.time,
-                    ringtone: newRoutine.ringtone || 'rooster',
-                    days: newRoutine.days,
+                    routineId: editingRoutineId,
+                    routineName: routineName,
+                    time: routineTime,
+                    ringtone: selectedRingtone || 'rooster',
+                    days: selectedDays,
                 }).catch(err => console.error('Error scheduling notification:', err));
+            } else {
+                // Get imageUrl from selected preset
+                const selectedPreset = getPresetById(selectedPresetId);
+                const imageUrlToSave = selectedPreset?.imageUrl || null;
+                
+                createRoutineForCurrentUser({
+                    name: routineName,
+                    description: null,
+                    is_active: true,
+                    time: routineTime,
+                    imageUrl: imageUrlToSave,
+                })
+                .then((created) => {
+                    NotificationService.scheduleRoutineNotification({
+                        routineId: created.id,
+                        routineName: routineName,
+                        time: routineTime,
+                        ringtone: selectedRingtone || 'rooster',
+                        days: selectedDays,
+                    }).catch(err => console.error('Error scheduling notification:', err));
+                    return loadRoutinesFromDb();
+                })
+                .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
             }
         }
         closeModal();
@@ -299,12 +293,12 @@ export default function addRoutines() {
 
     const handleDelete = () => {
         if (editingRoutineId) {
-            // Cancel notification before deleting (async in background)
             NotificationService.cancelRoutineNotification(editingRoutineId)
                 .catch(err => console.error('Error cancelling notification:', err));
-            
-            const updatedRoutines = routines.filter((r) => r.id !== editingRoutineId);
-            setRoutines(updatedRoutines);
+
+            unlinkRoutineForCurrentUser(editingRoutineId)
+                .then(() => loadRoutinesFromDb())
+                .catch(err => console.error('Supabase unlinkRoutine error:', err?.message || err));
         }
         closeModal();
     };
@@ -364,28 +358,32 @@ export default function addRoutines() {
 
         {/* Routines List */}
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
-            {routines.map((routine) => (
-                <TouchableOpacity 
-                    key={routine.id} 
-                    style={styles.routineCard}
-                    onPress={() => openEditModal(routine)}
-                    activeOpacity={0.7}
-                >
-                    {getPresetById(routine.presetId) ? (
-                        <Image source={getPresetById(routine.presetId)!.image} style={styles.routineImage} />
-                    ) : (
-                        <View style={styles.routineIconPlaceholder}>
-                            <Text style={styles.routineIcon}>📋</Text>
+            {routines.map((routine) => {
+                // Get preset from database imageUrl or fallback to presetId
+                const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+                return (
+                    <TouchableOpacity 
+                        key={routine.id} 
+                        style={styles.routineCard}
+                        onPress={() => openEditModal(routine)}
+                        activeOpacity={0.7}
+                    >
+                        {preset ? (
+                            <Image source={preset.image} style={styles.routineImage} />
+                        ) : (
+                            <View style={styles.routineIconPlaceholder}>
+                                <Text style={styles.routineIcon}>📋</Text>
+                            </View>
+                        )}
+                        <View style={styles.routineInfo}>
+                            <Text style={styles.routineTitle}>{routine.name}</Text>
+                            <Text style={styles.routineTime}>{routine.time}</Text>
+                            <Text style={styles.routineDays}>{formatDays(routine.days)}</Text>
                         </View>
-                    )}
-                    <View style={styles.routineInfo}>
-                        <Text style={styles.routineTitle}>{routine.name}</Text>
-                        <Text style={styles.routineTime}>{routine.time}</Text>
-                        <Text style={styles.routineDays}>{formatDays(routine.days)}</Text>
-                    </View>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+                );
+            })}
+        </ScrollView>
 
             {/* Modal that slides from bottom */}
             <Modal
