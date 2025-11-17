@@ -4,8 +4,9 @@ import {
   Fredoka_600SemiBold,
   useFonts,
 } from "@expo-google-fonts/fredoka";
+import { Audio } from 'expo-av';
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -102,6 +103,46 @@ export default function Greeting() {
     Fredoka_400Regular,
     Fredoka_600SemiBold,
   });
+
+  useEffect(() => {
+    let sound: Audio.Sound | null = null;
+    let autoExitTimer: number | null = null;
+
+    const playGreetingSound = async () => {
+      try {
+        const result = await Audio.Sound.createAsync(
+          require("../assets/ringtone/Greetings (TEMPORARY).mp3"),
+          { shouldPlay: true }
+        );
+        sound = result.sound;
+
+        // Get audio duration and auto-exit after it finishes
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded && status.durationMillis) {
+          const duration = status.durationMillis;
+          autoExitTimer = setTimeout(() => {
+            handleExit();
+          }, duration) as unknown as number;
+        }
+      } catch (e) {
+        console.log('Greeting sound load error:', e);
+      }
+    };
+
+    playGreetingSound();
+
+    return () => {
+      if (autoExitTimer) clearTimeout(autoExitTimer);
+      (async () => {
+        try {
+          if (sound) {
+            await sound.stopAsync();
+            await sound.unloadAsync();
+          }
+        } catch {}
+      })();
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -263,12 +304,7 @@ export default function Greeting() {
     return () => animations.forEach((anim) => anim.stop());
   }, [isEvening]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      handleExit();
-    }, 15000); 
-    return () => clearTimeout(timer);
-  }, []);
+  // Removed: old 15-second auto-exit timer (now controlled by audio duration)
 
   const handleExit = () => {
     if (isExiting) return; 
