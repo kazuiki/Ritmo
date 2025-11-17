@@ -5,6 +5,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { MotiView } from "moti";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+
+import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
@@ -561,14 +563,17 @@ export default function Home() {
               <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
             </TouchableOpacity>
 
-            <View style={styles.taskItem}>
+            <TouchableOpacity
+              style={styles.taskItem}
+              onPress={() => router.push("../../game1/BrushTeethGame")}
+            >
               <Image 
                 source={require("../../assets/gifs/media-1--unscreen.gif")}
                 style={styles.taskImage}
                 resizeMode="contain"
               />
               <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
-            </View>
+            </TouchableOpacity>
             </View>
 
             {/* Footer - Finish Task */}
