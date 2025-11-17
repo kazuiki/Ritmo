@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -79,6 +80,8 @@ export default function addRoutines() {
         
         return () => {
             ParentalLockAuthService.removeListener(authListener);
+            // CLEANUP: Stop any playing sounds when component unmounts
+            NotificationService.stopRingtone().catch(console.error);
         };
     }, []);
 
@@ -172,16 +175,39 @@ export default function addRoutines() {
 
     const loadRoutinesFromDb = async () => {
         try {
+            // Load from AsyncStorage first (has days/ringtone)
+            const stored = await AsyncStorage.getItem('@routines');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                setRoutines(parsed);
+            }
+
+            // Then sync with Supabase in background
             const dbRoutines = await getRoutinesForCurrentUser();
-            const uiRoutines: Routine[] = (dbRoutines || []).map(r => ({
-                id: r.id,
-                name: r.name,
-                time: r.time,
-                imageUrl: r.imageUrl,
-            }));
-            setRoutines(uiRoutines);
-        } catch (error) {
-            console.error("Failed to load routines from Supabase:", error);
+            
+            // Only keep DB routines that exist in storage (user hasn't deleted)
+            const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [r.id, r]));
+            const merged: Routine[] = dbRoutines
+                .filter(dbR => storedMap.has(dbR.id)) // Don't re-add deleted routines
+                .map(dbR => {
+                    const existing = storedMap.get(dbR.id) as Routine;
+                    return {
+                        id: dbR.id,
+                        name: dbR.name,
+                        time: dbR.time,
+                        imageUrl: dbR.imageUrl,
+                        ringtone: existing?.ringtone || 'alarm1',
+                        days: existing?.days || [0,1,2,3,4,5,6],
+                    };
+                });
+            
+            setRoutines(merged);
+            await AsyncStorage.setItem('@routines', JSON.stringify(merged));
+        } catch (error: any) {
+            // Silently handle authentication errors - user may not be logged in yet
+            if (error?.message !== 'Not authenticated') {
+                console.error("Failed to load routines from Supabase:", error);
+            }
         }
     };
 
@@ -253,14 +279,31 @@ export default function addRoutines() {
                     time: routineTime,
                     imageUrl: imageUrlToSave,
                 })
-                .then(() => loadRoutinesFromDb())
+                .then(async () => {
+                    // Update in local storage with days/ringtone
+                    const stored = await AsyncStorage.getItem('@routines');
+                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                    const idx = existing.findIndex(r => r.id === editingRoutineId);
+                    if (idx >= 0) {
+                        existing[idx] = {
+                            ...existing[idx],
+                            name: routineName,
+                            time: routineTime,
+                            imageUrl: imageUrlToSave,
+                            ringtone: selectedRingtone || 'alarm1',
+                            days: selectedDays,
+                        };
+                        await AsyncStorage.setItem('@routines', JSON.stringify(existing));
+                    }
+                    return loadRoutinesFromDb();
+                })
                 .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
 
                 NotificationService.scheduleRoutineNotification({
                     routineId: editingRoutineId,
                     routineName: routineName,
                     time: routineTime,
-                    ringtone: selectedRingtone || 'rooster',
+                    ringtone: selectedRingtone || 'alarm1',
                     days: selectedDays,
                 }).catch(err => console.error('Error scheduling notification:', err));
             } else {
@@ -275,12 +318,26 @@ export default function addRoutines() {
                     time: routineTime,
                     imageUrl: imageUrlToSave,
                 })
-                .then((created) => {
+                .then(async (created) => {
+                    // Add to local storage with days/ringtone
+                    const stored = await AsyncStorage.getItem('@routines');
+                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                    const newRoutine: Routine = {
+                        id: created.id,
+                        name: routineName,
+                        time: routineTime,
+                        imageUrl: imageUrlToSave,
+                        ringtone: selectedRingtone || 'alarm1',
+                        days: selectedDays,
+                    };
+                    existing.push(newRoutine);
+                    await AsyncStorage.setItem('@routines', JSON.stringify(existing));
+                    
                     NotificationService.scheduleRoutineNotification({
                         routineId: created.id,
                         routineName: routineName,
                         time: routineTime,
-                        ringtone: selectedRingtone || 'rooster',
+                        ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     }).catch(err => console.error('Error scheduling notification:', err));
                     return loadRoutinesFromDb();
@@ -297,7 +354,16 @@ export default function addRoutines() {
                 .catch(err => console.error('Error cancelling notification:', err));
 
             unlinkRoutineForCurrentUser(editingRoutineId)
-                .then(() => loadRoutinesFromDb())
+                .then(async () => {
+                    // Remove from local storage
+                    const stored = await AsyncStorage.getItem('@routines');
+                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                    const filtered = existing.filter(r => r.id !== editingRoutineId);
+                    await AsyncStorage.setItem('@routines', JSON.stringify(filtered));
+                    
+                    // Update UI immediately (don't reload from DB)
+                    setRoutines(filtered);
+                })
                 .catch(err => console.error('Supabase unlinkRoutine error:', err?.message || err));
         }
         closeModal();
@@ -313,8 +379,8 @@ export default function addRoutines() {
     };
 
     const openRingtoneModal = () => setRingtoneModalVisible(true);
-    const closeRingtoneModal = () => {
-        NotificationService.stopRingtone();
+    const closeRingtoneModal = async () => {
+        await NotificationService.stopRingtone(); // Ensure sound stops when modal closes
         setRingtoneModalVisible(false);
     };
 
@@ -324,7 +390,13 @@ export default function addRoutines() {
     };
 
     const previewRingtone = async (ringtoneName: string) => {
+        await NotificationService.stopRingtone(); // Stop any playing sound first
         await NotificationService.playRingtone(ringtoneName);
+        
+        // Auto-stop after 5 seconds for preview
+        setTimeout(async () => {
+            await NotificationService.stopRingtone();
+        }, 5000);
     };
 
     return (
@@ -573,7 +645,7 @@ export default function addRoutines() {
                                 {/* Ringtone Selector */}
                                 <TouchableOpacity style={styles.ringtoneSelector} onPress={openRingtoneModal}>
                                     <Text style={styles.ringtoneText}>
-                                        Ringtone: {selectedRingtone ? (selectedRingtone === 'rooster' ? 'Rooster' : selectedRingtone) : ''}
+                                        Ringtone: {selectedRingtone ? (selectedRingtone === 'alarm1' ? 'Morning Bell' : selectedRingtone === 'alarm2' ? 'Gentle Wake' : selectedRingtone === 'alarm3' ? 'Classic Chime' : selectedRingtone) : ''}
                                     </Text>
                                     <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
@@ -662,20 +734,63 @@ export default function addRoutines() {
                         <Text style={styles.presetTitleCentered}>Select Ringtone</Text>
 
                         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
-                            {/* Rooster Ringtone */}
+                            {/* Morning Bell */}
                             <TouchableOpacity 
                                 style={[
                                     styles.ringtoneItem,
-                                    selectedRingtone === 'rooster' && styles.selectedRingtoneItem
+                                    selectedRingtone === 'alarm1' && styles.selectedRingtoneItem
                                 ]} 
-                                onPress={() => selectRingtone('rooster')}
+                                onPress={() => selectRingtone('alarm1')}
                             >
-                                <Text style={styles.ringtoneItemTitle}>Rooster</Text>
+                                <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
                                 <TouchableOpacity 
                                     style={styles.previewButton}
-                                    onPress={(e) => {
+                                    onPress={async (e) => {
                                         e.stopPropagation();
-                                        previewRingtone('rooster');
+                                        await NotificationService.stopRingtone(); // Stop first
+                                        await previewRingtone('alarm1');
+                                    }}
+                                >
+                                    <Text style={styles.previewButtonText}>▶ Preview</Text>
+                                </TouchableOpacity>
+                            </TouchableOpacity>
+
+                            {/* Gentle Wake */}
+                            <TouchableOpacity 
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm2' && styles.selectedRingtoneItem
+                                ]} 
+                                onPress={() => selectRingtone('alarm2')}
+                            >
+                                <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
+                                <TouchableOpacity 
+                                    style={styles.previewButton}
+                                    onPress={async (e) => {
+                                        e.stopPropagation();
+                                        await NotificationService.stopRingtone(); // Stop first
+                                        await previewRingtone('alarm2');
+                                    }}
+                                >
+                                    <Text style={styles.previewButtonText}>▶ Preview</Text>
+                                </TouchableOpacity>
+                            </TouchableOpacity>
+
+                            {/* Classic Chime */}
+                            <TouchableOpacity 
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm3' && styles.selectedRingtoneItem
+                                ]} 
+                                onPress={() => selectRingtone('alarm3')}
+                            >
+                                <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
+                                <TouchableOpacity 
+                                    style={styles.previewButton}
+                                    onPress={async (e) => {
+                                        e.stopPropagation();
+                                        await NotificationService.stopRingtone(); // Stop first
+                                        await previewRingtone('alarm3');
                                     }}
                                 >
                                     <Text style={styles.previewButtonText}>▶ Preview</Text>
