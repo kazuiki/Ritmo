@@ -6,12 +6,14 @@ import { useFocusEffect } from "@react-navigation/native";
 import { MotiView } from "moti";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import { Audio } from "expo-av";
 import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
+import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
 import { supabase } from "../../src/supabaseClient";
 
 interface Routine {
@@ -58,6 +60,8 @@ export default function Home() {
 
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
+  const [successSound, setSuccessSound] = useState<Audio.Sound | null>(null);
+  const [allDoneSound, setAllDoneSound] = useState<Audio.Sound | null>(null);
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
   const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
@@ -70,6 +74,21 @@ export default function Home() {
 
   const loadRoutines = async () => {
     try {
+      // If user is not authenticated, skip DB calls silently
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setRoutines([]);
+        setCompletedOrder([]);
+        return;
+      }
+
+      // Show cached data immediately (if available)
+      try {
+        const cached = await loadCachedRoutines(user.id);
+        if (cached.routines) setRoutines(cached.routines as any);
+        if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
+      } catch {}
+
       const routinesFromDb = await getRoutinesForCurrentUser();
       
       if (routinesFromDb.length === 0) {
@@ -115,8 +134,19 @@ export default function Home() {
         .filter(r => r.completed)
         .map(r => r.id);
       setCompletedOrder(completedToday);
-    } catch (error) {
-      console.error("Failed to load routines for user:", error);
+
+      // Persist fresh data to cache for instant future loads
+      try {
+        await saveCachedRoutines(user.id, {
+          routines: routinesWithProgress as any,
+          completedOrder: completedToday,
+        });
+      } catch {}
+    } catch (error: any) {
+      // Suppress noisy unauthenticated errors; log other issues
+      if (error?.message !== 'Not authenticated') {
+        console.error("Failed to load routines for user:", error);
+      }
       setRoutines([]);
     }
   };
@@ -231,34 +261,6 @@ export default function Home() {
           ]),
         ]).start();
         
-        // Clear previous timeout if exists
-        if (allDoneTimeoutRef.current) {
-          clearTimeout(allDoneTimeoutRef.current);
-        }
-        
-        // Set timeout to hide after 10 seconds
-        allDoneTimeoutRef.current = setTimeout(() => {
-          // Smooth fade out animation
-          Animated.parallel([
-            Animated.timing(fadeAnim, {
-              toValue: 0,
-              duration: 600,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scaleAnim, {
-              toValue: 0.8,
-              duration: 600,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            setShowAllDone(false);
-            // Reset animations for next time
-            fadeAnim.setValue(0);
-            scaleAnim.setValue(0.5);
-            bounceAnim.setValue(0);
-          });
-        }, 10000);
-        
         // Archive completed routines (keep in storage, hide from home page)
         setTimeout(async () => {
           try {
@@ -302,6 +304,100 @@ export default function Home() {
       }
     };
   }, []);
+
+  // Play success audio when modal opens
+  useEffect(() => {
+    const playSuccessAudio = async () => {
+      if (successModalVisible) {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require("../../assets/ringtone/STARS.mp3"),
+            { shouldPlay: true }
+          );
+          setSuccessSound(sound);
+        } catch (error) {
+          console.error("Failed to play success audio:", error);
+        }
+      } else {
+        // Stop and unload sound when modal closes
+        if (successSound) {
+          try {
+            await successSound.stopAsync();
+            await successSound.unloadAsync();
+          } catch (error) {
+            console.error("Failed to stop success audio:", error);
+          }
+          setSuccessSound(null);
+        }
+      }
+    };
+
+    playSuccessAudio();
+  }, [successModalVisible]);
+
+  // Play all done audio when message appears
+  useEffect(() => {
+    const playAllDoneAudio = async () => {
+      if (showAllDone) {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require("../../assets/ringtone/Every completed routines.mp3"),
+            { shouldPlay: true }
+          );
+          setAllDoneSound(sound);
+          
+          // Get audio duration and set timeout to match
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.durationMillis) {
+            const duration = status.durationMillis;
+            
+            // Clear previous timeout if exists
+            if (allDoneTimeoutRef.current) {
+              clearTimeout(allDoneTimeoutRef.current);
+            }
+            
+            // Set timeout to hide after audio duration
+            allDoneTimeoutRef.current = setTimeout(() => {
+              // Smooth fade out animation
+              Animated.parallel([
+                Animated.timing(fadeAnim, {
+                  toValue: 0,
+                  duration: 600,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                  toValue: 0.8,
+                  duration: 600,
+                  useNativeDriver: true,
+                }),
+              ]).start(() => {
+                setShowAllDone(false);
+                // Reset animations for next time
+                fadeAnim.setValue(0);
+                scaleAnim.setValue(0.5);
+                bounceAnim.setValue(0);
+              });
+            }, duration);
+          }
+        } catch (error) {
+          console.error("Failed to play all done audio:", error);
+        }
+      } else {
+        // Stop and unload sound when message hides
+        if (allDoneSound) {
+          try {
+            await allDoneSound.stopAsync();
+            await allDoneSound.unloadAsync();
+          } catch (error) {
+            console.error("Failed to stop all done audio:", error);
+          }
+          setAllDoneSound(null);
+        }
+      }
+    };
+
+    playAllDoneAudio();
+  }, [showAllDone]);
 
   // Build ordered incomplete routines (creation order by id ascending)
   const incompleteRoutinesRaw = routines.filter((r) => !r.completed).sort((a,b)=>a.id-b.id);
