@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: true,
+    shouldPlaySound: false, // Disabled: custom alarm handler plays sound instead
     shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
@@ -22,6 +22,11 @@ export interface RoutineNotification {
 
 class NotificationService {
   private sound: Audio.Sound | null = null;
+  private alarmSound: Audio.Sound | null = null;
+  private notificationListener: Notifications.Subscription | null = null;
+  private isPlayingAlarm: boolean = false;
+  private previewTimeout: ReturnType<typeof setTimeout> | null = null;
+  private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
 
   async initialize() {
     try {
@@ -41,6 +46,18 @@ class NotificationService {
 
       // Clean up old/expired notifications to avoid hitting 500 limit
       await this.cleanupExpiredNotifications();
+
+      // Remove existing listener to prevent duplicates
+      if (this.notificationListener) {
+        this.notificationListener.remove();
+        this.notificationListener = null;
+      }
+
+      // Setup notification received listener (only one active at a time)
+      this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
+        const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
+        await this.playAlarmSound(ringtone);
+      });
 
       // Configure audio for notifications
       await Audio.setAudioModeAsync({
@@ -84,7 +101,7 @@ class NotificationService {
       for (const notification of scheduled) {
         // Cancel notifications that have already passed
         if (notification.trigger && 'date' in notification.trigger) {
-          const triggerDate = new Date(notification.trigger.date as any).getTime();
+          const triggerDate = new Date(notification.trigger.date as number).getTime();
           if (triggerDate < now) {
             await Notifications.cancelScheduledNotificationAsync(notification.identifier);
             canceledCount++;
@@ -147,7 +164,6 @@ class NotificationService {
             content: {
               title: '⏰ Routine Time!',
               body: `Time for: ${routine.routineName}`,
-              sound: 'rooster.mp3',
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
@@ -198,7 +214,7 @@ class NotificationService {
             routineId: routine.id,
             routineName: routine.name,
             time: routine.time,
-            ringtone: routine.ringtone || 'rooster',
+            ringtone: routine.ringtone || 'alarm1',
             days: routine.days,
           });
         }
@@ -236,52 +252,135 @@ class NotificationService {
     }
   }
 
-  // Play ringtone (for preview)
-  async playRingtone(ringtonePath: string = 'rooster') {
+  // Play alarm sound for actual notification (12 seconds with auto-stop)
+  async playAlarmSound(ringtonePath: string = 'alarm1') {
     try {
-      // Stop any currently playing sound
-      await this.stopRingtone();
+      // Prevent multiple simultaneous alarms
+      if (this.isPlayingAlarm) {
+        console.log('⚠️ Alarm already playing, skipping duplicate');
+        return;
+      }
 
-      // Load the sound
-      const { sound, status } = await Audio.Sound.createAsync(
-        require('../assets/ringtone/rooster.mp3'),
-        { shouldPlay: false } // Don't play yet, check duration first
+      this.isPlayingAlarm = true;
+
+      // Stop ALL sounds (preview + alarm) before playing alarm
+      await this.stopAllSounds();
+
+      // Map ringtone names to actual files
+      const ringtoneMap: { [key: string]: any } = {
+        'alarm1': require('../assets/ringtone/ALARM 1.mp3'),
+        'alarm2': require('../assets/ringtone/ALARM 2.mp3'),
+        'alarm3': require('../assets/ringtone/ALARM 3.mp3'),
+      };
+
+      const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
+
+      // Load the sound WITHOUT looping (we'll handle duration with timeout)
+      const { sound } = await Audio.Sound.createAsync(
+        soundFile,
+        { 
+          shouldPlay: true, 
+          isLooping: false, // IMPORTANT: No looping for alarms
+          volume: 1.0
+        }
+      );
+      
+      this.alarmSound = sound;
+
+      // Force stop after exactly 12 seconds
+      this.alarmTimeout = setTimeout(async () => {
+        await this.stopAlarmSound();
+        this.isPlayingAlarm = false;
+      }, 12000);
+
+      console.log('⏰ Playing alarm sound (12 seconds, no loop)');
+    } catch (error) {
+      console.error('Error playing alarm sound:', error);
+      this.isPlayingAlarm = false;
+    }
+  }
+
+  // Play ringtone (for preview in modal - 5 seconds only)
+  async playRingtone(ringtonePath: string = 'alarm1') {
+    try {
+      // Stop any currently playing sound first
+      await this.stopAllSounds();
+
+      // Clear any existing preview timeout
+      if (this.previewTimeout) {
+        clearTimeout(this.previewTimeout);
+        this.previewTimeout = null;
+      }
+
+      // Map ringtone names to actual files
+      const ringtoneMap: { [key: string]: any } = {
+        'alarm1': require('../assets/ringtone/ALARM 1.mp3'),
+        'alarm2': require('../assets/ringtone/ALARM 2.mp3'),
+        'alarm3': require('../assets/ringtone/ALARM 3.mp3'),
+      };
+
+      const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
+
+      // Load and play the sound immediately WITHOUT LOOPING
+      const { sound } = await Audio.Sound.createAsync(
+        soundFile,
+        { 
+          shouldPlay: true, 
+          isLooping: false, // IMPORTANT: No looping for preview
+          volume: 1.0
+        }
       );
       
       this.sound = sound;
 
-      // Get the duration of the sound
-      const duration = status.isLoaded ? status.durationMillis || 0 : 0;
-      const targetDuration = 12000; // 12 seconds target
-      
-      // Calculate how many times to loop
-      let loopCount = 1;
-      if (duration > 0 && duration < targetDuration) {
-        loopCount = Math.ceil(targetDuration / duration);
-      }
-
-      console.log(`🔊 Ringtone duration: ${duration}ms, will loop ${loopCount} times to reach 12 seconds`);
-
-      // Set looping
-      await sound.setIsLoopingAsync(loopCount > 1);
-      
-      // Play the sound
-      await sound.playAsync();
-
-      // Auto-stop after 12 seconds
-      setTimeout(async () => {
+      // Auto-stop after 5 seconds for preview
+      this.previewTimeout = setTimeout(async () => {
         await this.stopRingtone();
-      }, targetDuration);
+      }, 5000);
 
-      console.log('Playing ringtone preview');
+      console.log('🔊 Playing ringtone preview (5 seconds, no loop)');
     } catch (error) {
       console.error('Error playing ringtone:', error);
     }
   }
 
-  // Stop ringtone
+  // Stop alarm sound
+  async stopAlarmSound() {
+    try {
+      // Clear alarm timeout
+      if (this.alarmTimeout) {
+        clearTimeout(this.alarmTimeout);
+        this.alarmTimeout = null;
+      }
+
+      if (this.alarmSound) {
+        const status = await this.alarmSound.getStatusAsync();
+        if (status.isLoaded) {
+          await this.alarmSound.stopAsync();
+          await this.alarmSound.unloadAsync();
+        }
+        this.alarmSound = null;
+        this.isPlayingAlarm = false;
+        console.log('Alarm sound stopped');
+      }
+    } catch (error) {
+      // Silently handle error - sound might already be stopped
+      if (this.alarmSound) {
+        this.alarmSound = null;
+        this.isPlayingAlarm = false;
+      }
+    }
+  }
+
+  // Stop ringtone (preview)
   async stopRingtone() {
     try {
+      // Clear preview timeout
+      if (this.previewTimeout) {
+        clearTimeout(this.previewTimeout);
+        this.previewTimeout = null;
+      }
+
       if (this.sound) {
         const status = await this.sound.getStatusAsync();
         if (status.isLoaded) {
@@ -289,7 +388,7 @@ class NotificationService {
           await this.sound.unloadAsync();
         }
         this.sound = null;
-        console.log('Ringtone stopped');
+        console.log('Ringtone preview stopped');
       }
     } catch (error) {
       // Silently handle error - sound might already be stopped
@@ -297,6 +396,12 @@ class NotificationService {
         this.sound = null;
       }
     }
+  }
+
+  // Stop ALL sounds (both preview and alarm)
+  async stopAllSounds() {
+    await this.stopRingtone();
+    await this.stopAlarmSound();
   }
 
   // Store notification ID for a routine
@@ -378,6 +483,15 @@ class NotificationService {
     } catch (error) {
       console.error('Error getting scheduled notifications:', error);
       return [];
+    }
+  }
+
+  // Cleanup when service is destroyed
+  async destroy() {
+    await this.stopAllSounds();
+    if (this.notificationListener) {
+      this.notificationListener.remove();
+      this.notificationListener = null;
     }
   }
 }
