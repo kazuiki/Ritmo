@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
+import { getRoutinesForCurrentUser, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
 
@@ -39,15 +40,8 @@ export default function Progress() {
 	const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 	const printableRef = useRef<View>(null);
 	const [childName, setChildName] = useState<string>("Kid");
-
-	// Demo data: replace with real routines/tasks data integration
-	const tasks = useMemo(() => [
-		{ name: 'BRUSH TEETH', statuses: [true, true, false, false, false, true, true] },
-		{ name: 'EAT FOOD', statuses: [true, false, true, false, true, false, true] },
-		{ name: 'WASH BODY', statuses: [true, false, true, false, true, false, false] },
-		{ name: 'CHANGE CLOTHES', statuses: [false, true, false, true, false, true, false] },
-		{ name: 'GO TO SCHOOL', statuses: [false, false, true, false, true, false, true] },
-	], []);
+	const [routines, setRoutines] = useState<Routine[]>([]);
+	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
 
 	// Week range (Monday to Sunday)
 	const weekInfo = useMemo(() => {
@@ -66,15 +60,44 @@ export default function Progress() {
 		const fmt = (d: Date) => `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
 		const rangeText = `${fmt(monday)} - ${fmt(sunday)}`;
 
-		return { monday, sunday, rangeText };
+		// Generate array of dates for the week (Mon-Sun)
+		const weekDates: string[] = [];
+		for (let i = 0; i < 7; i++) {
+			const date = new Date(monday);
+			date.setDate(monday.getDate() + i);
+			weekDates.push(date.toISOString().slice(0, 10)); // YYYY-MM-DD
+		}
+
+		return { monday, sunday, rangeText, weekDates };
 	}, []);
+
+	// Build tasks data structure from routines and progress
+	const tasks = useMemo(() => {
+		if (!routines || routines.length === 0) return [];
+		
+		return routines.map(routine => {
+			// For each day of the week, check if there's a progress entry
+			const statuses = weekInfo.weekDates.map(dateStr => {
+				const progress = progressData.find(
+					p => p.routine_id === routine.id && p.day_date === dateStr
+				);
+				// If progress exists, return completed status; otherwise null (no data)
+				return progress ? progress.completed : null;
+			});
+			return {
+				name: (routine.name || '').toUpperCase(),
+				statuses,
+				routineId: routine.id
+			};
+		});
+	}, [routines, progressData, weekInfo.weekDates]);
 
 	// Metrics
 	const totals = useMemo(() => {
 		const totalTasks = tasks.length * 7;
-		const completed = tasks.reduce((acc, t) => acc + t.statuses.filter(Boolean).length, 0);
+		const completed = tasks.reduce((acc, t) => acc + t.statuses.filter(s => s === true).length, 0);
 		const rate = totalTasks > 0 ? Math.floor((completed / totalTasks) * 100) : 0;
-		const perTaskDone = tasks.map(t => t.statuses.filter(Boolean).length);
+		const perTaskDone = tasks.map(t => t.statuses.filter(s => s === true).length);
 		return { totalTasks, completed, rate, perTaskDone };
 	}, [tasks]);
 
@@ -99,7 +122,30 @@ export default function Progress() {
 			// Update authentication state and check parental lock when focusing on this tab
 			setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('progress'));
 			checkParentalLock();
-		}, [])
+			
+			// Reload data when tab is focused to ensure fresh data
+			const refreshData = async () => {
+				try {
+					const { data: { user } } = await supabase.auth.getUser();
+					if (!user) return;
+
+					const [routinesData, progressForWeek] = await Promise.all([
+						getRoutinesForCurrentUser(),
+						getUserProgressForRange({
+							from: weekInfo.monday,
+							to: weekInfo.sunday,
+						})
+					]);
+					
+					setRoutines(routinesData);
+					setProgressData(progressForWeek);
+				} catch (error) {
+					console.error('Failed to refresh data on focus:', error);
+				}
+			};
+			
+			refreshData();
+		}, [weekInfo.monday, weekInfo.sunday])
 	);
 
 	// Load child name from auth profile
@@ -110,6 +156,110 @@ export default function Progress() {
 			setChildName(meta?.child_name ?? "Kid");
 		})();
 	}, []);
+
+	// Load routines and progress data with real-time subscription
+	useEffect(() => {
+		let progressSubscription: any = null;
+		let routinesSubscription: any = null;
+
+		const loadData = async () => {
+			try {
+				const { data: { user } } = await supabase.auth.getUser();
+				if (!user) return;
+
+				// Fetch routines
+				const routinesData = await getRoutinesForCurrentUser();
+				setRoutines(routinesData);
+
+				// Fetch progress for the current week
+				const progressForWeek = await getUserProgressForRange({
+					from: weekInfo.monday,
+					to: weekInfo.sunday,
+				});
+				setProgressData(progressForWeek);
+
+				// Subscribe to real-time changes in user_routine_progress table
+				progressSubscription = supabase
+					.channel('progress_changes')
+					.on(
+						'postgres_changes',
+						{
+							event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+							schema: 'public',
+							table: 'user_routine_progress',
+							filter: `user_id=eq.${user.id}`
+						},
+						async (payload) => {
+							console.log('Progress change detected:', payload);
+							
+							// Immediate optimistic update for faster UI response
+							if (payload.eventType === 'INSERT' && payload.new) {
+								const newProgress = payload.new as RoutineProgress;
+								setProgressData(prev => [...prev, newProgress]);
+							} else if (payload.eventType === 'UPDATE' && payload.new) {
+								const updatedProgress = payload.new as RoutineProgress;
+								setProgressData(prev => 
+									prev.map(p => p.id === updatedProgress.id ? updatedProgress : p)
+								);
+							} else if (payload.eventType === 'DELETE' && payload.old) {
+								const deletedId = (payload.old as any).id;
+								setProgressData(prev => prev.filter(p => p.id !== deletedId));
+							}
+							
+							// Also refetch to ensure data consistency
+							try {
+								const updatedProgress = await getUserProgressForRange({
+									from: weekInfo.monday,
+									to: weekInfo.sunday,
+								});
+								setProgressData(updatedProgress);
+							} catch (error) {
+								console.error('Failed to refresh progress data:', error);
+							}
+						}
+					)
+					.subscribe();
+
+				// Subscribe to real-time changes in routines table
+				routinesSubscription = supabase
+					.channel('routines_changes')
+					.on(
+						'postgres_changes',
+						{
+							event: '*', // Listen to all events
+							schema: 'public',
+							table: 'routines'
+						},
+						async (payload) => {
+							console.log('Routine change detected:', payload);
+							// Refetch routines when any change occurs
+							try {
+								const updatedRoutines = await getRoutinesForCurrentUser();
+								setRoutines(updatedRoutines);
+							} catch (error) {
+								console.error('Failed to refresh routines:', error);
+							}
+						}
+					)
+					.subscribe();
+
+			} catch (error) {
+				console.error('Failed to load progress data:', error);
+			}
+		};
+
+		loadData();
+
+		// Cleanup subscriptions on unmount
+		return () => {
+			if (progressSubscription) {
+				supabase.removeChannel(progressSubscription);
+			}
+			if (routinesSubscription) {
+				supabase.removeChannel(routinesSubscription);
+			}
+		};
+	}, [weekInfo.monday, weekInfo.sunday]);
 
 	const checkParentalLock = async () => {
 		const isEnabled = await ParentalLockService.isEnabled();
@@ -236,19 +386,22 @@ export default function Progress() {
 							<Text style={[styles.gridCellDone, styles.gridHeaderText]}>Done</Text>
 						</View>
 
-						{/* Rows */}
-						{tasks.map((task, idx) => (
-							<View key={task.name} style={styles.gridRow}>
-								<Text style={styles.gridCellTask}>{task.name}</Text>
-								{task.statuses.map((status, i) => (
-									<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
+					{/* Rows */}
+					{tasks.map((task, idx) => (
+						<View key={task.routineId} style={styles.gridRow}>
+							<Text style={styles.gridCellTask}>{task.name}</Text>
+							{task.statuses.map((status, i) => (
+								<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
+									{status === null ? (
+										<View style={[styles.indicatorSquare, styles.indicatorGray]} />
+									) : (
 										<View style={[styles.indicatorSquare, status ? styles.indicatorGreen : styles.indicatorRed]} />
-									</View>
-								))}
-								<Text style={styles.gridCellDone}>{totals.perTaskDone[idx]}</Text>
-							</View>
-						))}
-
+									)}
+								</View>
+							))}
+							<Text style={styles.gridCellDone}>{totals.perTaskDone[idx] || 0}</Text>
+						</View>
+					))}
 						{/* Legend */}
 						<View style={styles.legendRow}>
 							<View style={styles.legendItem}>
@@ -557,6 +710,7 @@ const styles = StyleSheet.create({
 	},
 	indicatorGreen: { backgroundColor: '#1EBE69', borderColor: '#18A65B' },
 	indicatorRed: { backgroundColor: '#F56A6A', borderColor: '#E05A5A' },
+	indicatorGray: { backgroundColor: '#E0E0E0', borderColor: '#CCCCCC' },
 	legendRow: {
 		flexDirection: 'row',
 		gap: 20,
