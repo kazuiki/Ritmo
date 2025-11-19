@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { MotiView } from "moti";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
 import { router } from "expo-router";
@@ -660,16 +661,27 @@ export default function Home() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.taskItem}
-              onPress={() => router.push("../../game1/BrushTeethGame")}
-            >
-              <Image 
-                source={require("../../assets/gifs/media-1--unscreen.gif")}
-                style={styles.taskImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
-            </TouchableOpacity>
+            style={styles.taskItem}
+            onPress={() => {
+              if (!activePreset) return;
+            
+              const path = miniGames[activePreset.id];
+            
+              if (!path) {
+                console.warn("No minigame found for preset", activePreset.id);
+                return;
+              }
+            
+              router.push(path);
+            }}
+          >
+            <Image 
+              source={require("../../assets/gifs/media-1--unscreen.gif")}
+              style={styles.taskImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
+          </TouchableOpacity>
             </View>
 
             {/* Footer - Finish Task */}
