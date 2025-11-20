@@ -303,3 +303,25 @@ export async function unlinkRoutineForCurrentUser(routineId: number): Promise<nu
   if (error) throw error;
   return count ?? 0;
 }
+
+// Delete a routine completely from the database (both routine and progress records)
+export async function deleteRoutine(routineId: number): Promise<void> {
+  const userId = await getCurrentUserId();
+  
+  // First, delete all progress records for this routine for this user
+  const { error: progressError } = await supabase
+    .from("user_routine_progress")
+    .delete()
+    .eq("user_id", userId)
+    .eq("routine_id", routineId);
+  
+  if (progressError) throw progressError;
+  
+  // Then, delete the routine itself
+  const { error: routineError } = await supabase
+    .from("routines")
+    .delete()
+    .eq("id", routineId);
+  
+  if (routineError) throw routineError;
+}
