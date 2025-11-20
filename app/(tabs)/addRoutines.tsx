@@ -19,7 +19,7 @@ import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../const
 import NotificationService from "../../src/notificationService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
-import { createRoutineForCurrentUser, getRoutinesForCurrentUser, unlinkRoutineForCurrentUser, updateRoutine } from "../../src/routinesService";
+import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 
 interface Routine {
     id: number;
@@ -269,43 +269,61 @@ export default function addRoutines() {
             const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
             
             if (editingRoutineId) {
-                // Determine imageUrl to save: use newly selected preset if any; otherwise keep existing
-                const selectedPreset = getPresetById(selectedPresetId);
-                const current = routines.find(r => r.id === editingRoutineId);
-                const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
+                // Show confirmation dialog for editing
+                Alert.alert(
+                    "Save Changes",
+                    "Do you want to save the changes to this routine?",
+                    [
+                        {
+                            text: "Cancel",
+                            style: "cancel"
+                        },
+                        {
+                            text: "Save",
+                            onPress: () => {
+                                // Determine imageUrl to save: use newly selected preset if any; otherwise keep existing
+                                const selectedPreset = getPresetById(selectedPresetId);
+                                const current = routines.find(r => r.id === editingRoutineId);
+                                const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
 
-                updateRoutine(editingRoutineId, {
-                    name: routineName,
-                    time: routineTime,
-                    imageUrl: imageUrlToSave,
-                })
-                .then(async () => {
-                    // Update in local storage with days/ringtone
-                    const stored = await AsyncStorage.getItem('@routines');
-                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                    const idx = existing.findIndex(r => r.id === editingRoutineId);
-                    if (idx >= 0) {
-                        existing[idx] = {
-                            ...existing[idx],
-                            name: routineName,
-                            time: routineTime,
-                            imageUrl: imageUrlToSave,
-                            ringtone: selectedRingtone || 'alarm1',
-                            days: selectedDays,
-                        };
-                        await AsyncStorage.setItem('@routines', JSON.stringify(existing));
-                    }
-                    return loadRoutinesFromDb();
-                })
-                .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
+                                updateRoutine(editingRoutineId, {
+                                    name: routineName,
+                                    time: routineTime,
+                                    imageUrl: imageUrlToSave,
+                                })
+                                .then(async () => {
+                                    // Update in local storage with days/ringtone
+                                    const stored = await AsyncStorage.getItem('@routines');
+                                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                                    const idx = existing.findIndex(r => r.id === editingRoutineId);
+                                    if (idx >= 0) {
+                                        existing[idx] = {
+                                            ...existing[idx],
+                                            name: routineName,
+                                            time: routineTime,
+                                            imageUrl: imageUrlToSave,
+                                            ringtone: selectedRingtone || 'alarm1',
+                                            days: selectedDays,
+                                        };
+                                        await AsyncStorage.setItem('@routines', JSON.stringify(existing));
+                                    }
+                                    return loadRoutinesFromDb();
+                                })
+                                .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
 
-                NotificationService.scheduleRoutineNotification({
-                    routineId: editingRoutineId,
-                    routineName: routineName,
-                    time: routineTime,
-                    ringtone: selectedRingtone || 'alarm1',
-                    days: selectedDays,
-                }).catch(err => console.error('Error scheduling notification:', err));
+                                NotificationService.scheduleRoutineNotification({
+                                    routineId: editingRoutineId,
+                                    routineName: routineName,
+                                    time: routineTime,
+                                    ringtone: selectedRingtone || 'alarm1',
+                                    days: selectedDays,
+                                }).catch(err => console.error('Error scheduling notification:', err));
+                                
+                                closeModal();
+                            }
+                        }
+                    ]
+                );
             } else {
                 // Get imageUrl from selected preset
                 const selectedPreset = getPresetById(selectedPresetId);
@@ -343,30 +361,56 @@ export default function addRoutines() {
                     return loadRoutinesFromDb();
                 })
                 .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
+                
+                closeModal();
             }
+        } else if (!editingRoutineId) {
+            // Only close modal for Add (no editing), Edit has its own close in confirmation
+            closeModal();
         }
-        closeModal();
     };
 
     const handleDelete = () => {
         if (editingRoutineId) {
-            NotificationService.cancelRoutineNotification(editingRoutineId)
-                .catch(err => console.error('Error cancelling notification:', err));
-
-            unlinkRoutineForCurrentUser(editingRoutineId)
-                .then(async () => {
-                    // Remove from local storage
-                    const stored = await AsyncStorage.getItem('@routines');
-                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                    const filtered = existing.filter(r => r.id !== editingRoutineId);
-                    await AsyncStorage.setItem('@routines', JSON.stringify(filtered));
-                    
-                    // Update UI immediately (don't reload from DB)
-                    setRoutines(filtered);
-                })
-                .catch(err => console.error('Supabase unlinkRoutine error:', err?.message || err));
+            Alert.alert(
+                "Delete Routine",
+                "Are you sure you want to delete this routine? This action cannot be undone.",
+                [
+                    {
+                        text: "Cancel",
+                        style: "cancel"
+                    },
+                    {
+                        text: "Delete",
+                        style: "destructive",
+                        onPress: async () => {
+                            try {
+                                // Cancel notification
+                                await NotificationService.cancelRoutineNotification(editingRoutineId);
+                                
+                                // Delete from database (both routine and progress records)
+                                await deleteRoutine(editingRoutineId);
+                                
+                                // Remove from local storage
+                                const stored = await AsyncStorage.getItem('@routines');
+                                const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                                const filtered = existing.filter(r => r.id !== editingRoutineId);
+                                await AsyncStorage.setItem('@routines', JSON.stringify(filtered));
+                                
+                                // Update UI immediately
+                                setRoutines(filtered);
+                                closeModal();
+                                
+                                Alert.alert('Success', 'Routine deleted successfully');
+                            } catch (err: any) {
+                                console.error('Error deleting routine:', err?.message || err);
+                                Alert.alert('Error', 'Failed to delete routine. Please try again.');
+                            }
+                        }
+                    }
+                ]
+            );
         }
-        closeModal();
     };
 
     const openPresetModal = () => setPresetModalVisible(true);
