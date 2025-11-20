@@ -70,9 +70,8 @@ export default function Home() {
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
 
-
-
-  const loadRoutines = async () => {
+  const loadRoutines = async (options = {}) => {
+    const { useCache = true } = options as any;
     try {
       // If user is not authenticated, skip DB calls silently
       const { data: { user } } = await supabase.auth.getUser();
@@ -83,11 +82,13 @@ export default function Home() {
       }
 
       // Show cached data immediately (if available)
-      try {
-        const cached = await loadCachedRoutines(user.id);
-        if (cached.routines) setRoutines(cached.routines as any);
-        if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
-      } catch {}
+      if (useCache) {
+        try {
+          const cached = await loadCachedRoutines(user.id);
+          if (cached.routines) setRoutines(cached.routines as any);
+          if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
+        } catch {}
+      }
 
       const routinesFromDb = await getRoutinesForCurrentUser();
       
@@ -261,34 +262,63 @@ export default function Home() {
           ]),
         ]).start();
         
-        // Archive completed routines (keep in storage, hide from home page)
+        // Show celebration for a few seconds, then archive and refresh
         setTimeout(async () => {
           try {
-            console.log("Home - Archiving completed routines");
-            
-            // Get the IDs of completed routines
-            const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
-            console.log("Home - Completed routine IDs to archive:", completedIds);
-            
-            // Get existing archived IDs
-            const archivedStored = await AsyncStorage.getItem("@routines_archived");
-            const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
-            
-            // Add new completed IDs to archived list
-            const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
-            console.log("Home - Updated archived IDs:", updatedArchived);
-            
-            // Save archived list (routines stay in @routines for addRoutines page)
-            await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
-            
-            // Clear the home page's routine state (they'll reload when page is focused again)
-            setRoutines([]);
-            
-            console.log("Home - Completed routines archived successfully");
+            // Fade out the "All Done" message
+            Animated.parallel([
+              Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+              Animated.timing(scaleAnim, {
+                toValue: 0.8,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+            ]).start(async () => {
+              // After fade out animation completes
+              setShowAllDone(false);
+              
+              // Reset animations for next time
+              fadeAnim.setValue(0);
+              scaleAnim.setValue(0.5);
+              bounceAnim.setValue(0);
+              
+              // Archive completed routines
+              console.log("Home - Archiving completed routines");
+              
+              const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
+              console.log("Home - Completed routine IDs to archive:", completedIds);
+              
+              // Get existing archived IDs
+              const archivedStored = await AsyncStorage.getItem("@routines_archived");
+              const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
+              
+              // Add new completed IDs to archived list
+              const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
+              console.log("Home - Updated archived IDs:", updatedArchived);
+              
+              // Save archived list
+              await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
+              
+              console.log("Home - Completed routines archived successfully");
+              
+              // Auto-refresh to load fresh routines from database (skip cache to avoid flicker)
+              console.log("Home - Auto-refreshing routines...");
+              await loadRoutines({ useCache: false });
+            });
           } catch (error) {
-            console.error("Failed to archive completed routines:", error);
+            console.error("Failed to archive and refresh:", error);
+            // Even if archiving fails, try to refresh
+            try {
+              await loadRoutines({ useCache: false });
+            } catch (refreshError) {
+              console.error("Failed to refresh routines:", refreshError);
+            }
           }
-        }, 800);
+        }, 3000); // Show "All Done" for 3 seconds before refreshing
       } else {
         // Otherwise just update state
         setRoutines(updatedRoutines);
