@@ -1,21 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
-  Alert,
   Animated,
   Dimensions,
+  Image,
   ImageBackground,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
@@ -28,7 +29,24 @@ export default function SignUp() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false); // ✅ new toggle
   const [loading, setLoading] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [confirmEmailModalVisible, setConfirmEmailModalVisible] = useState(false);
+  const [fillFieldsModalVisible, setFillFieldsModalVisible] = useState(false);
+  const [passwordMismatchModalVisible, setPasswordMismatchModalVisible] = useState(false);
+  const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
+  const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
+  const [emailErrorMessage, setEmailErrorMessage] = useState("");
   const reduceMotionRef = useRef(false);
+
+  // Cleanup all modals on unmount to prevent delayed pop-ups
+  useEffect(() => {
+    return () => {
+      setConfirmEmailModalVisible(false);
+      setFillFieldsModalVisible(false);
+      setPasswordMismatchModalVisible(false);
+      setPasswordLengthModalVisible(false);
+      setEmailErrorModalVisible(false);
+    };
+  }, []);
 
   // === Bubble animation setup ===
   const bubbleCount = 4;
@@ -125,24 +143,33 @@ export default function SignUp() {
 
   // === SignUp Function ===
   const handleSignUp = async () => {
-    if (!email || !password || !confirmPassword)
-      return alert("Fill all fields");
+    if (!email || !password || !confirmPassword) {
+      setFillFieldsModalVisible(true);
+      return;
+    }
 
-    if (password !== confirmPassword)
-      return alert("Passwords do not match!");
+    if (password.length < 6) {
+      setPasswordLengthModalVisible(true);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordMismatchModalVisible(true);
+      return;
+    }
 
     setLoading(true);
 
     const { data, error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
 
-    if (error) return alert(error.message);
+    if (error) {
+      setEmailErrorMessage(error.message);
+      setEmailErrorModalVisible(true);
+      return;
+    }
 
-    Alert.alert(
-      "Check your email!",
-      "Please confirm your email before logging in."
-    );
-    router.replace("/components/confirm-email-check");
+    setConfirmEmailModalVisible(true);
   };
 
   return (
@@ -286,6 +313,162 @@ export default function SignUp() {
           </View>
         </TouchableWithoutFeedback>
       </ImageBackground>
+
+      {/* Email Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={confirmEmailModalVisible}
+        onRequestClose={() => {
+          setConfirmEmailModalVisible(false);
+          router.replace("/components/confirm-email-check");
+        }}
+      >
+        <View style={styles.confirmEmailModalOverlay}>
+          <View style={styles.confirmEmailModalContainer}>
+            <View style={styles.confirmEmailIconCircle}>
+              <Image
+                source={require("../../assets/images/Mail.png")}
+                style={styles.confirmEmailIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.confirmEmailModalTitle}>Check Your Email!</Text>
+            <Text style={styles.confirmEmailModalMessage}>
+              Please confirm your email before logging in.
+            </Text>
+            <TouchableOpacity
+              style={styles.confirmEmailOkButton}
+              onPress={() => {
+                setConfirmEmailModalVisible(false);
+                router.replace("/components/confirm-email-check");
+              }}
+            >
+              <Text style={styles.confirmEmailOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Fill All Fields Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={fillFieldsModalVisible}
+        onRequestClose={() => setFillFieldsModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Pencil.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Fill All Fields</Text>
+            <Text style={styles.errorModalMessage}>
+              Please fill in all required fields
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setFillFieldsModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Mismatch Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={passwordMismatchModalVisible}
+        onRequestClose={() => setPasswordMismatchModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Passwords Don't Match</Text>
+            <Text style={styles.errorModalMessage}>
+              Please make sure both passwords are the same
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setPasswordMismatchModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Length Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={passwordLengthModalVisible}
+        onRequestClose={() => setPasswordLengthModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Password Too Short</Text>
+            <Text style={styles.errorModalMessage}>
+              Password should be at least 6 characters
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setPasswordLengthModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Email Error Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={emailErrorModalVisible}
+        onRequestClose={() => setEmailErrorModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Error</Text>
+            <Text style={styles.errorModalMessage}>
+              {emailErrorMessage}
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setEmailErrorModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -352,5 +535,113 @@ const styles = StyleSheet.create({
     color: "#276a63",
     textDecorationLine: "underline",
     textAlign: "center",
+  },
+  confirmEmailModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmEmailModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    width: "80%",
+    borderWidth: 2,
+    borderColor: "#9FD19E",
+  },
+  confirmEmailIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  confirmEmailIcon: {
+    width: 40,
+    height: 40,
+  },
+  confirmEmailModalTitle: {
+    fontSize: 18,
+    fontFamily: "Fredoka_700Bold",
+    color: "#000",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  confirmEmailModalMessage: {
+    fontSize: 14,
+    fontFamily: "Fredoka_400Regular",
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  confirmEmailOkButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 10,
+    paddingHorizontal: 40,
+    borderRadius: 20,
+  },
+  confirmEmailOkButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  
+  // Error Modal Styles (pink theme)
+  errorModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFB3BA",
+  },
+  errorIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE1E4",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  errorIcon: {
+    width: 40,
+    height: 40,
+  },
+  errorModalTitle: {
+    fontSize: 18,
+    fontFamily: "Fredoka_700Bold",
+    color: "#000",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorModalMessage: {
+    fontSize: 14,
+    fontFamily: "Fredoka_400Regular",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  errorOkButton: {
+    backgroundColor: "#FF6F79",
+    paddingVertical: 10,
+    paddingHorizontal: 40,
+    borderRadius: 20,
+  },
+  errorOkButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Fredoka_600SemiBold",
   },
 });
