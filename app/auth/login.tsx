@@ -6,9 +6,11 @@ import {
   AccessibilityInfo,
   Animated,
   Dimensions,
+  Image,
   ImageBackground,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -28,7 +30,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showChildInput, setShowChildInput] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [alertModalVisible, setAlertModalVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
   const reduceMotionRef = useRef(false);
+
+  // Cleanup all modals on unmount to prevent delayed pop-ups
+  useEffect(() => {
+    return () => {
+      setAlertModalVisible(false);
+    };
+  }, []);
 
   // Bubble animation setup
   const bubbleCount = 4;
@@ -103,15 +114,27 @@ export default function Login() {
   };
 
   const handleLogin = async () => {
-    if (!email || !password) return alert("Fill all fields");
+    if (!email || !password) {
+      setAlertMessage("Fill all fields");
+      setAlertModalVisible(true);
+      return;
+    }
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (error) return alert(error.message);
+    if (error) {
+      setAlertMessage(error.message);
+      setAlertModalVisible(true);
+      return;
+    }
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError) return alert(userError.message);
+    if (userError) {
+      setAlertMessage(userError.message);
+      setAlertModalVisible(true);
+      return;
+    }
 
     const loggedInUser = userData.user;
     const childName = (loggedInUser?.user_metadata as any)?.child_name;
@@ -248,6 +271,35 @@ export default function Login() {
           </View>
         </TouchableWithoutFeedback>
       </ImageBackground>
+
+      {/* Alert Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={alertModalVisible}
+        onRequestClose={() => setAlertModalVisible(false)}
+      >
+        <View style={styles.alertModalOverlay}>
+          <View style={styles.alertModalContainer}>
+            <View style={styles.alertIconCircle}>
+              <Image
+                source={require("../../assets/images/Pencil.png")}
+                style={styles.alertIcon}
+              />
+            </View>
+            
+            <Text style={styles.alertModalTitle}>Alert!</Text>
+            <Text style={styles.alertModalMessage}>{alertMessage}</Text>
+            
+            <TouchableOpacity
+              style={styles.alertOkButton}
+              onPress={() => setAlertModalVisible(false)}
+            >
+              <Text style={styles.alertOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -346,6 +398,75 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     backgroundColor: "transparent",
+  },
+  
+  // Alert Modal Styles
+  alertModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "75%",
+    maxWidth: 340,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  alertIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  alertIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  alertModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  alertModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  alertOkButton: {
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 12,
+    paddingHorizontal: 50,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  alertOkButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
   },
 
 });

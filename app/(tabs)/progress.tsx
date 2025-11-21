@@ -153,8 +153,33 @@ export default function Progress() {
 				const dayOfWeek = weekInfo.weekDays[index];
 				return getTaskStatus(routine, dateStr, dayOfWeek);
 			});
+			
+			// Format timestamp (date and time when routine was created)
+			let timestamp = '';
+			if (routine.created_at && routine.time) {
+				const createdDate = new Date(routine.created_at);
+				const month = String(createdDate.getMonth() + 1).padStart(2, '0');
+				const day = String(createdDate.getDate()).padStart(2, '0');
+				const year = createdDate.getFullYear();
+				const formattedDate = `${month}-${day}-${year}`;
+				
+				// Format time from routine.time (e.g., "01:00 am" -> "1:00am")
+				const timeStr = routine.time.toLowerCase().replace(/\s+/g, '');
+				timestamp = `${formattedDate}/${timeStr}`;
+			} else {
+				// Fallback: if no created_at, use current date with routine time
+				const now = new Date();
+				const month = String(now.getMonth() + 1).padStart(2, '0');
+				const day = String(now.getDate()).padStart(2, '0');
+				const year = now.getFullYear();
+				const formattedDate = `${month}-${day}-${year}`;
+				const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
+				timestamp = `${formattedDate}/${timeStr}`;
+			}
+			
 			return {
 				name: (routine.name || '').toUpperCase(),
+				timestamp,
 				statuses,
 				routineId: routine.id,
 				days: routine.days || [0,1,2,3,4,5,6]
@@ -515,7 +540,10 @@ export default function Progress() {
 					{/* Rows */}
 					{tasks.map((task, idx) => (
 						<View key={task.routineId} style={styles.gridRow}>
-							<Text style={styles.gridCellTask}>{task.name}</Text>
+							<View style={styles.gridCellTask}>
+								<Text style={styles.taskNameText}>{task.name}</Text>
+								<Text style={styles.taskTimestampText}>{task.timestamp}</Text>
+							</View>
 							{task.statuses.map((status, i) => (
 								<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
 									{status === undefined ? (
@@ -814,12 +842,25 @@ const styles = StyleSheet.create({
 		fontFamily: 'Fredoka_700Bold',
 	},
 	gridCellTask: {
-		flex: 2,
+		// Slightly reduced width & padding to lessen gap before Monday column
+		flex: 2.5,
+		paddingRight: 1,
+	},
+	taskNameText: {
 		color: '#2A3B4D',
 		fontFamily: 'Fredoka_500Medium',
+		fontSize: 15,
+		lineHeight: 16,
+	},
+	taskTimestampText: {
+		color: '#6B8E7E',
+		fontFamily: 'Fredoka_400Regular',
+		fontSize: 12,
+		lineHeight: 12,
+		marginTop: 2,
 	},
 	gridCellDay: {
-		flex: 0.6,
+		flex: 0.5,
 		textAlign: 'center',
 		alignItems: 'center',
 		justifyContent: 'center',
