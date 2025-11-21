@@ -342,10 +342,27 @@ export default function Home() {
       if (successModalVisible) {
         try {
           const { sound } = await Audio.Sound.createAsync(
-            require("../../assets/ringtone/STARS.mp3"),
+            require("../../assets/ringtone/Stars.mp3"),
             { shouldPlay: true }
           );
           setSuccessSound(sound);
+          
+          // Play GoodJob.mp3 immediately after Stars.mp3 finishes (no delay)
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.durationMillis) {
+            setTimeout(async () => {
+              try {
+                const { sound: goodJobSound } = await Audio.Sound.createAsync(
+                  require("../../assets/ringtone/GoodJob.mp3"),
+                  { shouldPlay: true }
+                );
+                await sound.unloadAsync();
+                setSuccessSound(goodJobSound);
+              } catch (error) {
+                console.error("Failed to play GoodJob audio:", error);
+              }
+            }, status.durationMillis);
+          }
         } catch (error) {
           console.error("Failed to play success audio:", error);
         }
@@ -371,23 +388,38 @@ export default function Home() {
     const playAllDoneAudio = async () => {
       if (showAllDone) {
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            require("../../assets/ringtone/Every completed routines.mp3"),
+          // Play both Completed.mp3 and Congratulations.mp3 simultaneously
+          const { sound: completedSound } = await Audio.Sound.createAsync(
+            require("../../assets/ringtone/Completed.mp3"),
             { shouldPlay: true }
           );
-          setAllDoneSound(sound);
           
-          // Get audio duration and set timeout to match
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded && status.durationMillis) {
-            const duration = status.durationMillis;
-            
+          const { sound: congratsSound } = await Audio.Sound.createAsync(
+            require("../../assets/ringtone/Congratulations.mp3"),
+            { shouldPlay: true }
+          );
+          
+          setAllDoneSound(completedSound);
+          
+          // Get longest audio duration for timeout
+          const completedStatus = await completedSound.getStatusAsync();
+          const congratsStatus = await congratsSound.getStatusAsync();
+          
+          let maxDuration = 0;
+          if (completedStatus.isLoaded && completedStatus.durationMillis) {
+            maxDuration = Math.max(maxDuration, completedStatus.durationMillis);
+          }
+          if (congratsStatus.isLoaded && congratsStatus.durationMillis) {
+            maxDuration = Math.max(maxDuration, congratsStatus.durationMillis);
+          }
+          
+          if (maxDuration > 0) {
             // Clear previous timeout if exists
             if (allDoneTimeoutRef.current) {
               clearTimeout(allDoneTimeoutRef.current);
             }
             
-            // Set timeout to hide after audio duration
+            // Set timeout to hide after longest audio duration
             allDoneTimeoutRef.current = setTimeout(() => {
               // Smooth fade out animation
               Animated.parallel([
@@ -408,7 +440,7 @@ export default function Home() {
                 scaleAnim.setValue(0.5);
                 bounceAnim.setValue(0);
               });
-            }, duration);
+            }, maxDuration);
           }
         } catch (error) {
           console.error("Failed to play all done audio:", error);
@@ -1393,7 +1425,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(0,0,0,0.06)",
+    // Slightly darkened from 0.06 to 0.12 for better visibility
+    backgroundColor: "rgba(0,0,0,0.15)",
     borderRadius: 16,
   },
   // Playbook Modal Styles

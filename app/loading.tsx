@@ -20,7 +20,7 @@ export default function LoadingPage() {
     const playLogoSound = async () => {
       try {
         const result = await Audio.Sound.createAsync(
-          require("../assets/ringtone/LOGO BG SOUND.mp3"),
+          require("../assets/ringtone/LogoSound.mp3"),
           { shouldPlay: true, positionMillis: 500 }
         );
         sound = result.sound;

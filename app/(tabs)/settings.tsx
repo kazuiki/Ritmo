@@ -38,6 +38,16 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+  
+  // Password error modals
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [errorType, setErrorType] = useState<"error" | "pencil">("error"); // "error" for Error.png, "pencil" for Pencil.png
+  
+  // Password success modal
+  const [passwordSuccessVisible, setPasswordSuccessVisible] = useState(false);
+  
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
   // Check parental lock on component mount and when focused
@@ -53,6 +63,11 @@ export default function Settings() {
     
     return () => {
       ParentalLockAuthService.removeListener(authListener);
+      // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
+      setLogoutConfirmVisible(false);
+      setErrorModalVisible(false);
+      setPasswordSuccessVisible(false);
+      setShowChangePasswordModal(false);
     };
   }, []);
 
@@ -166,17 +181,23 @@ export default function Settings() {
 
   const handleSavePassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in both password fields");
+      setErrorType("pencil");
+      setErrorMessage("Please fill in both password fields");
+      setErrorModalVisible(true);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      setErrorType("error");
+      setErrorMessage("Passwords do not match");
+      setErrorModalVisible(true);
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long");
+      setErrorType("error");
+      setErrorMessage("Password must be at least 6 characters long");
+      setErrorModalVisible(true);
       return;
     }
 
@@ -190,14 +211,24 @@ export default function Settings() {
       // Clear parental lock authentication after password change
       ParentalLockAuthService.setAuthenticated(false);
       
-      Alert.alert("Success", "Password updated successfully!");
+      // Show success modal
       setShowChangePasswordModal(false);
+      setPasswordSuccessVisible(true);
       setNewPassword("");
       setConfirmPassword("");
       setShowNewPassword(false);
       setShowConfirmPassword(false);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to update password");
+      // Check if error is about new password being same as old password
+      if (error.message && error.message.toLowerCase().includes("same")) {
+        setErrorType("error");
+        setErrorMessage("New password should be different from the old password");
+        setErrorModalVisible(true);
+      } else {
+        setErrorType("error");
+        setErrorMessage(error.message || "Failed to update password");
+        setErrorModalVisible(true);
+      }
     }
   };
 
@@ -210,19 +241,12 @@ export default function Settings() {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Log out", "Are you sure you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Log out",
-        style: "destructive",
-        onPress: async () => {
-          await supabase.auth.signOut();
-        },
-      },
-    ]);
+    setLogoutConfirmVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    setLogoutConfirmVisible(false);
+    await supabase.auth.signOut();
   };
 
   const handleParentalLock = () => {
@@ -380,7 +404,7 @@ export default function Settings() {
 
         {/* Log out Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Log out</Text>
+          <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -544,6 +568,110 @@ export default function Settings() {
               </View>
             </View>
           </ImageBackground>
+        </View>
+      </Modal>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={logoutConfirmVisible}
+        onRequestClose={() => setLogoutConfirmVisible(false)}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <View style={styles.logoutModalContainer}>
+            <View style={styles.logoutIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.logoutIcon}
+              />
+            </View>
+            
+            <Text style={styles.logoutModalTitle}>Logout?</Text>
+            <Text style={styles.logoutModalMessage}>
+              Are you sure you want to logout?
+            </Text>
+            
+            <View style={styles.logoutModalButtons}>
+              <TouchableOpacity
+                style={styles.logoutCancelButton}
+                onPress={() => setLogoutConfirmVisible(false)}
+              >
+                <Text style={styles.logoutCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.logoutConfirmButton}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.logoutConfirmButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Error Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorModalVisible}
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={
+                  errorType === "pencil"
+                    ? require("../../assets/images/Pencil.png")
+                    : require("../../assets/images/Error.png")
+                }
+                style={styles.errorIcon}
+              />
+            </View>
+            
+            <Text style={styles.errorModalTitle}>Error{errorType === "pencil" ? "!" : ""}</Text>
+            <Text style={styles.errorModalMessage}>{errorMessage}</Text>
+            
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={passwordSuccessVisible}
+        onRequestClose={() => setPasswordSuccessVisible(false)}
+      >
+        <View style={styles.successPasswordModalOverlay}>
+          <View style={styles.successPasswordModalContainer}>
+            <View style={styles.successPasswordIconCircle}>
+              <Image
+                source={require("../../assets/images/Checkmark.png")}
+                style={styles.successPasswordIcon}
+              />
+            </View>
+            
+            <Text style={styles.successPasswordModalTitle}>Success!</Text>
+            <Text style={styles.successPasswordModalMessage}>
+              Password updated successfully!
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.successPasswordOkButton}
+              onPress={() => setPasswordSuccessVisible(false)}
+            >
+              <Text style={styles.successPasswordOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
@@ -905,5 +1033,228 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  
+  // Logout Confirmation Modal Styles
+  logoutModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logoutModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    maxWidth: 360,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  logoutIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  logoutIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  logoutModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  logoutModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  logoutModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  logoutCancelButton: {
+    flex: 1,
+    backgroundColor: "#D3D3D3",
+    paddingVertical: 12,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutCancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  logoutConfirmButton: {
+    flex: 1,
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 12,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  
+  // Password Error Modal Styles
+  errorModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "75%",
+    maxWidth: 340,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  errorIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  errorIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  errorModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  errorModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  errorOkButton: {
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 12,
+    paddingHorizontal: 50,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  errorOkButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  
+  // Password Success Modal Styles
+  successPasswordModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  successPasswordModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "70%",
+    maxWidth: 320,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  successPasswordIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  successPasswordIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  successPasswordModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  successPasswordModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    marginBottom: 18,
+    fontFamily: "Fredoka_400Regular",
+    flexWrap: "wrap",
+  },
+  successPasswordOkButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  successPasswordOkButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
   },
 });
