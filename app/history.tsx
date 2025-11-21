@@ -76,26 +76,57 @@ export default function History() {
     load();
   }, []);
 
-  // Compute week ranges
+  const [userCreatedAt, setUserCreatedAt] = useState<Date | null>(null);
+
+  // Fetch user creation date - always use account creation as the base
+  useEffect(() => {
+    const fetchUserCreationDate = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user?.created_at) {
+          // Always use account creation date to show all history since account was created
+          setUserCreatedAt(new Date(user.created_at));
+        }
+      } catch (e) {
+        console.error('Failed to fetch user creation date:', e);
+      }
+    };
+    fetchUserCreationDate();
+  }, []);
+
+  // Compute week ranges from user creation date to current week
   const weeks = useMemo(() => {
+    if (!userCreatedAt) return [];
+    
     const result: { start: Date; end: Date }[] = [];
-    // Start from current date's week (Mon-Sun)
     const today = new Date();
     const current = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const day = current.getDay(); // 0 Sun .. 6 Sat
-    // Compute Monday as start (if Sunday, go back 6 days)
+    // Compute Monday of current week
     const diffToMonday = day === 0 ? -6 : 1 - day;
-    const monday = new Date(current);
-    monday.setDate(current.getDate() + diffToMonday);
-    for (let i = 0; i < 12; i++) { // show 12 weeks
-      const start = new Date(monday);
-      start.setDate(monday.getDate() - i * 7);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
+    const currentMonday = new Date(current);
+    currentMonday.setDate(current.getDate() + diffToMonday);
+    
+    // Compute Monday of the week when user was created
+    const createdDate = new Date(userCreatedAt.getFullYear(), userCreatedAt.getMonth(), userCreatedAt.getDate());
+    const createdDay = createdDate.getDay();
+    const diffToCreatedMonday = createdDay === 0 ? -6 : 1 - createdDay;
+    const firstMonday = new Date(createdDate);
+    firstMonday.setDate(createdDate.getDate() + diffToCreatedMonday);
+    
+    // Generate all weeks from first Monday to current Monday
+    let weekMonday = new Date(firstMonday);
+    while (weekMonday <= currentMonday) {
+      const start = new Date(weekMonday);
+      const end = new Date(weekMonday);
+      end.setDate(weekMonday.getDate() + 6);
       result.push({ start, end });
+      weekMonday.setDate(weekMonday.getDate() + 7);
     }
+    
     return result;
-  }, []);
+  }, [userCreatedAt]);
 
   const sortedWeeks = useMemo(() => {
     const copy = [...weeks];
@@ -144,13 +175,20 @@ export default function History() {
       </View>
 
       <ScrollView contentContainerStyle={styles.listContainer} showsVerticalScrollIndicator={false}>
-        {sortedWeeks.map((w, idx) => (
-          <TouchableOpacity
-            key={`${w.start.toISOString()}-${idx}`}
-            activeOpacity={0.9}
-            onPress={() => router.push({ pathname: "/history/[week]", params: { week: w.start.toISOString(), start: w.start.toISOString() } })}
-            style={styles.card}
-          >
+        {sortedWeeks.map((w, idx) => {
+          // Format as YYYY-MM-DD to avoid timezone issues
+          const year = w.start.getFullYear();
+          const month = String(w.start.getMonth() + 1).padStart(2, '0');
+          const day = String(w.start.getDate()).padStart(2, '0');
+          const dateStr = `${year}-${month}-${day}`;
+          
+          return (
+            <TouchableOpacity
+              key={`${dateStr}-${idx}`}
+              activeOpacity={0.9}
+              onPress={() => router.push({ pathname: "/history/[week]", params: { week: dateStr, start: dateStr } })}
+              style={styles.card}
+            >
             <View style={styles.cardLine}>
               <Text style={styles.cardLabelInline}>For:</Text>
               <Text style={styles.cardValueInline}>{childName || "—"}</Text>
@@ -160,7 +198,8 @@ export default function History() {
               <Text style={styles.cardValueInline}>{`${formatDate(w.start)} - ${formatDate(w.end)}`}</Text>
             </View>
           </TouchableOpacity>
-        ))}
+          );
+        })}
       </ScrollView>
 
       {/* Sort button and dropdown overlay positioned above the list */}
