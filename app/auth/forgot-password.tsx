@@ -1,20 +1,21 @@
 import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Alert,
-    Animated,
-    Dimensions,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
@@ -23,7 +24,20 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [emailSentModalVisible, setEmailSentModalVisible] = useState(false);
+  const [emptyEmailModalVisible, setEmptyEmailModalVisible] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const reduceMotionRef = useRef(false);
+
+  // Cleanup all modals on unmount to prevent delayed pop-ups
+  useEffect(() => {
+    return () => {
+      setEmailSentModalVisible(false);
+      setEmptyEmailModalVisible(false);
+      setErrorModalVisible(false);
+    };
+  }, []);
 
   // Bubble animation setup
   const bubbleCount = 4;
@@ -116,7 +130,10 @@ export default function ForgotPassword() {
   };
 
   const handleResetPassword = async () => {
-    if (!email) return alert("Please enter your email address");
+    if (!email) {
+      setEmptyEmailModalVisible(true);
+      return;
+    }
 
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -125,20 +142,12 @@ export default function ForgotPassword() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      setErrorMessage(error.message);
+      setErrorModalVisible(true);
       return;
     }
 
-    Alert.alert(
-      'Check your email',
-      'We have sent a password reset link to your email address.',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/auth/login')
-        }
-      ]
-    );
+    setEmailSentModalVisible(true);
   };
 
   return (
@@ -249,6 +258,103 @@ export default function ForgotPassword() {
           </View>
         </TouchableWithoutFeedback>
       </ImageBackground>
+
+      {/* Email Sent Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={emailSentModalVisible}
+        onRequestClose={() => {
+          setEmailSentModalVisible(false);
+          router.replace('/auth/login');
+        }}
+      >
+        <View style={styles.emailModalOverlay}>
+          <View style={styles.emailModalContainer}>
+            <View style={styles.emailIconCircle}>
+              <Image
+                source={require("../../assets/images/Mail.png")}
+                style={styles.emailIcon}
+              />
+            </View>
+            
+            <Text style={styles.emailModalTitle}>Check Your Email</Text>
+            <Text style={styles.emailModalMessage}>
+              We have sent a password reset link to your email address
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.emailOkButton}
+              onPress={() => {
+                setEmailSentModalVisible(false);
+                router.replace('/auth/login');
+              }}
+            >
+              <Text style={styles.emailOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Empty Email Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={emptyEmailModalVisible}
+        onRequestClose={() => setEmptyEmailModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Pencil.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Email Required</Text>
+            <Text style={styles.errorModalMessage}>
+              Please enter your email address
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setEmptyEmailModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Error Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorModalVisible}
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Error</Text>
+            <Text style={styles.errorModalMessage}>
+              {errorMessage}
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -319,5 +425,129 @@ const styles = StyleSheet.create({
     color: "#276a63",
     textDecorationLine: "underline",
     textAlign: "center",
+  },
+  
+  // Email Sent Modal Styles
+  emailModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emailModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    maxWidth: 360,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  emailIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emailIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  emailModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  emailModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  emailOkButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
+    paddingHorizontal: 50,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 140,
+  },
+  emailOkButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  
+  // Error Modal Styles (pink theme)
+  errorModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFB3BA",
+  },
+  errorIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE1E4",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  errorIcon: {
+    width: 40,
+    height: 40,
+  },
+  errorModalTitle: {
+    fontSize: 18,
+    fontFamily: "Fredoka_700Bold",
+    color: "#000",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorModalMessage: {
+    fontSize: 14,
+    fontFamily: "Fredoka_400Regular",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  errorOkButton: {
+    backgroundColor: "#FF6F79",
+    paddingVertical: 10,
+    paddingHorizontal: 40,
+    borderRadius: 20,
+  },
+  errorOkButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Fredoka_600SemiBold",
   },
 });

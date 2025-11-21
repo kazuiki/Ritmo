@@ -22,20 +22,14 @@ import { supabase } from "../src/supabaseClient";
 export default function Greeting() {
   const [name, setName] = useState<string>("Kid");
   const [isExiting, setIsExiting] = useState(false);
-  const [isEvening, setIsEvening] = useState(false);
-
-  // Check time: 6 AM - 5:59 PM = Good Day, 6 PM - 5:59 AM = Good Evening
-  useEffect(() => {
-    const checkTime = () => {
-      const hour = new Date().getHours();
-      const evening = hour >= 18 || hour < 6;
-      console.log(`Current hour: ${hour}, Is Evening: ${evening}`);
-      setIsEvening(evening);
-    };
-    checkTime();
-    const interval = setInterval(checkTime, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, []);
+  
+  // Determine time of day ONCE on mount and don't change it
+  const [isEvening] = useState(() => {
+    const hour = new Date().getHours();
+    const evening = hour >= 18 || hour < 6;
+    console.log(`Current hour: ${hour}, Is Evening: ${evening}`);
+    return evening;
+  });
 
   const sunImages = [
     require("../assets/images/sun1.png"),
@@ -105,25 +99,45 @@ export default function Greeting() {
   });
 
   useEffect(() => {
-    let sound: Audio.Sound | null = null;
+    let greetingSound: Audio.Sound | null = null;
+    let mainSound: Audio.Sound | null = null;
+    let mainSoundTimer: number | null = null;
     let autoExitTimer: number | null = null;
 
     const playGreetingSound = async () => {
       try {
+        // Play Greetings.mp3 during rising animation
         const result = await Audio.Sound.createAsync(
-          require("../assets/ringtone/Greetings (TEMPORARY).mp3"),
+          require("../assets/ringtone/Greetings.mp3"),
           { shouldPlay: true }
         );
-        sound = result.sound;
+        greetingSound = result.sound;
 
-        // Get audio duration and auto-exit after it finishes
-        const status = await sound.getStatusAsync();
-        if (status.isLoaded && status.durationMillis) {
-          const duration = status.durationMillis;
-          autoExitTimer = setTimeout(() => {
-            handleExit();
-          }, duration) as unknown as number;
-        }
+        // After 2 seconds (when sun/moon reaches top), play GoodDay/GoodEvening
+        mainSoundTimer = setTimeout(async () => {
+          try {
+            const soundFile = isEvening 
+              ? require("../assets/ringtone/GoodEvening.mp3")
+              : require("../assets/ringtone/GoodDay.mp3");
+            
+            const mainResult = await Audio.Sound.createAsync(
+              soundFile,
+              { shouldPlay: true }
+            );
+            mainSound = mainResult.sound;
+
+            // Get audio duration and wait 2 more seconds after it finishes
+            const status = await mainSound.getStatusAsync();
+            if (status.isLoaded && status.durationMillis) {
+              const duration = status.durationMillis;
+              autoExitTimer = setTimeout(() => {
+                handleExit();
+              }, duration + 1000) as unknown as number; // +2 seconds after audio ends
+            }
+          } catch (e) {
+            console.log('Main sound load error:', e);
+          }
+        }, 2000) as unknown as number; // Wait 2 seconds for rising animation
       } catch (e) {
         console.log('Greeting sound load error:', e);
       }
@@ -132,17 +146,22 @@ export default function Greeting() {
     playGreetingSound();
 
     return () => {
+      if (mainSoundTimer) clearTimeout(mainSoundTimer);
       if (autoExitTimer) clearTimeout(autoExitTimer);
       (async () => {
         try {
-          if (sound) {
-            await sound.stopAsync();
-            await sound.unloadAsync();
+          if (greetingSound) {
+            await greetingSound.stopAsync();
+            await greetingSound.unloadAsync();
+          }
+          if (mainSound) {
+            await mainSound.stopAsync();
+            await mainSound.unloadAsync();
           }
         } catch {}
       })();
     };
-  }, []);
+  }, []); // Run only once on mount
 
   useEffect(() => {
     (async () => {
