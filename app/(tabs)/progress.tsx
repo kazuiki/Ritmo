@@ -1,5 +1,6 @@
 import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -24,6 +25,10 @@ import { getRoutinesForCurrentUser, getUserProgressForRange, type Routine, type 
 import { supabase } from "../../src/supabaseClient";
 import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
 
+interface RoutineWithDays extends Routine {
+	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+}
+
 export default function Progress() {
 	const router = useRouter();
 	const insets = useSafeAreaInsets();
@@ -40,8 +45,9 @@ export default function Progress() {
 	const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 	const printableRef = useRef<View>(null);
 	const [childName, setChildName] = useState<string>("Kid");
-	const [routines, setRoutines] = useState<Routine[]>([]);
+	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
+	const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
 	// Week range (Monday to Sunday)
 	const weekInfo = useMemo(() => {
@@ -62,39 +68,106 @@ export default function Progress() {
 
 		// Generate array of dates for the week (Mon-Sun)
 		const weekDates: string[] = [];
+		const weekDays: number[] = []; // Day of week indices (0=Sun, 1=Mon, etc.)
 		for (let i = 0; i < 7; i++) {
 			const date = new Date(monday);
 			date.setDate(monday.getDate() + i);
 			weekDates.push(date.toISOString().slice(0, 10)); // YYYY-MM-DD
+			weekDays.push(date.getDay()); // 0-6 (Sun-Sat)
 		}
 
-		return { monday, sunday, rangeText, weekDates };
+		return { monday, sunday, rangeText, weekDates, weekDays };
 	}, []);
 
 	// Build tasks data structure from routines and progress
 	const tasks = useMemo(() => {
 		if (!routines || routines.length === 0) return [];
 		
+		// Helper function to parse time string (e.g., "01:00 am") and create Date object for a given date
+		const parseRoutineTime = (dateStr: string, timeStr: string): Date => {
+			const [time, period] = timeStr.toLowerCase().split(' ');
+			let [hours, minutes] = time.split(':').map(Number);
+			
+			if (period === 'pm' && hours !== 12) {
+				hours += 12;
+			} else if (period === 'am' && hours === 12) {
+				hours = 0;
+			}
+			
+			const date = new Date(dateStr);
+			date.setHours(hours, minutes, 0, 0);
+			return date;
+		};
+
+		// Helper function to determine task status
+		const getTaskStatus = (routine: RoutineWithDays, dateStr: string, dayOfWeek: number): boolean | null | undefined => {
+			// Check if this routine is scheduled for this day of week
+			const routineDays = routine.days || [0,1,2,3,4,5,6]; // Default to all days if not set
+			if (!routineDays.includes(dayOfWeek)) {
+				return undefined; // Not scheduled for this day - don't show any indicator
+			}
+			
+			// Check if the routine was created before or on this date
+			// Only show as missed if the routine existed on that date
+			if (routine.created_at) {
+				const routineCreationDate = new Date(routine.created_at);
+				const checkDate = new Date(dateStr);
+				
+				// Reset time portion to compare dates only
+				routineCreationDate.setHours(0, 0, 0, 0);
+				checkDate.setHours(0, 0, 0, 0);
+				
+				// If the routine was created after this date, don't show indicator
+				if (routineCreationDate > checkDate) {
+					return undefined;
+				}
+			}
+			
+			const progress = progressData.find(
+				p => p.routine_id === routine.id && p.day_date === dateStr
+			);
+			
+			// If completed, always show green
+			if (progress?.completed) {
+				return true;
+			}
+			
+			// Check if the task is missed (after end of day)
+			const taskDate = new Date(dateStr);
+			// Set deadline to end of day (11:59:59.999 PM)
+			const missedDeadline = new Date(taskDate);
+			missedDeadline.setHours(23, 59, 59, 999);
+			
+			// If current time is past the end of the day and task isn't completed, it's missed
+			if (currentTime > missedDeadline) {
+				return false; // Missed (red)
+			}
+			
+			// If we're still within the day, show as pending (orange)
+			return null;
+		};
+		
 		return routines.map(routine => {
-			// For each day of the week, check if there's a progress entry
-			const statuses = weekInfo.weekDates.map(dateStr => {
-				const progress = progressData.find(
-					p => p.routine_id === routine.id && p.day_date === dateStr
-				);
-				// If progress exists, return completed status; otherwise null (no data)
-				return progress ? progress.completed : null;
+			// For each day of the week, determine the status
+			const statuses = weekInfo.weekDates.map((dateStr, index) => {
+				const dayOfWeek = weekInfo.weekDays[index];
+				return getTaskStatus(routine, dateStr, dayOfWeek);
 			});
 			return {
 				name: (routine.name || '').toUpperCase(),
 				statuses,
-				routineId: routine.id
+				routineId: routine.id,
+				days: routine.days || [0,1,2,3,4,5,6]
 			};
 		});
-	}, [routines, progressData, weekInfo.weekDates]);
+	}, [routines, progressData, weekInfo.weekDates, weekInfo.weekDays, currentTime]);
 
 	// Metrics
 	const totals = useMemo(() => {
-		const totalTasks = tasks.length * 7;
+		// Count only the days that are scheduled (undefined means not scheduled)
+		const totalTasks = tasks.reduce((acc, t) => {
+			return acc + t.statuses.filter(s => s !== undefined).length;
+		}, 0);
 		const completed = tasks.reduce((acc, t) => acc + t.statuses.filter(s => s === true).length, 0);
 		const rate = totalTasks > 0 ? Math.floor((completed / totalTasks) * 100) : 0;
 		const perTaskDone = tasks.map(t => t.statuses.filter(s => s === true).length);
@@ -137,7 +210,21 @@ export default function Progress() {
 						})
 					]);
 					
-					setRoutines(routinesData);
+					// Load days info from AsyncStorage
+					const stored = await AsyncStorage.getItem('@routines');
+					const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+					const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
+					
+					// Merge days info with routines data
+					const routinesWithDays: RoutineWithDays[] = routinesData.map(routine => {
+						const storedRoutine = storedMap.get(routine.id);
+						return {
+							...routine,
+							days: storedRoutine?.days || [0,1,2,3,4,5,6]
+						};
+					});
+					
+					setRoutines(routinesWithDays);
 					setProgressData(progressForWeek);
 				} catch (error) {
 					console.error('Failed to refresh data on focus:', error);
@@ -157,6 +244,15 @@ export default function Progress() {
 		})();
 	}, []);
 
+	// Update current time every minute to refresh status
+	useEffect(() => {
+		const interval = setInterval(() => {
+			setCurrentTime(new Date());
+		}, 60000); // Update every minute
+
+		return () => clearInterval(interval);
+	}, []);
+
 	// Load routines and progress data with real-time subscription
 	useEffect(() => {
 		let progressSubscription: any = null;
@@ -167,9 +263,24 @@ export default function Progress() {
 				const { data: { user } } = await supabase.auth.getUser();
 				if (!user) return;
 
-				// Fetch routines
+				// Fetch routines from Supabase
 				const routinesData = await getRoutinesForCurrentUser();
-				setRoutines(routinesData);
+				
+				// Load days info from AsyncStorage
+				const stored = await AsyncStorage.getItem('@routines');
+				const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+				const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
+				
+				// Merge days info with routines data
+				const routinesWithDays: RoutineWithDays[] = routinesData.map(routine => {
+					const storedRoutine = storedMap.get(routine.id);
+					return {
+						...routine,
+						days: storedRoutine?.days || [0,1,2,3,4,5,6] // Default to all days if not set
+					};
+				});
+				
+				setRoutines(routinesWithDays);
 
 				// Fetch progress for the current week
 				const progressForWeek = await getUserProgressForRange({
@@ -235,7 +346,22 @@ export default function Progress() {
 							// Refetch routines when any change occurs
 							try {
 								const updatedRoutines = await getRoutinesForCurrentUser();
-								setRoutines(updatedRoutines);
+								
+								// Load days info from AsyncStorage
+								const stored = await AsyncStorage.getItem('@routines');
+								const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+								const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
+								
+								// Merge days info with routines data
+								const routinesWithDays: RoutineWithDays[] = updatedRoutines.map(routine => {
+									const storedRoutine = storedMap.get(routine.id);
+									return {
+										...routine,
+										days: storedRoutine?.days || [0,1,2,3,4,5,6]
+									};
+								});
+								
+								setRoutines(routinesWithDays);
 							} catch (error) {
 								console.error('Failed to refresh routines:', error);
 							}
@@ -392,9 +518,14 @@ export default function Progress() {
 							<Text style={styles.gridCellTask}>{task.name}</Text>
 							{task.statuses.map((status, i) => (
 								<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
-									{status === null ? (
+									{status === undefined ? (
+										// Not scheduled - gray
 										<View style={[styles.indicatorSquare, styles.indicatorGray]} />
+									) : status === null ? (
+										// Pending - orange
+										<View style={[styles.indicatorSquare, styles.indicatorOrange]} />
 									) : (
+										// Completed or missed
 										<View style={[styles.indicatorSquare, status ? styles.indicatorGreen : styles.indicatorRed]} />
 									)}
 								</View>
@@ -411,6 +542,10 @@ export default function Progress() {
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendRed]} />
 								<Text style={styles.legendText}>Missed</Text>
+							</View>
+							<View style={styles.legendItem}>
+								<View style={[styles.legendDot, styles.legendOrange]} />
+								<Text style={styles.legendText}>Pending</Text>
 							</View>
 						</View>
 					</View>
@@ -710,7 +845,13 @@ const styles = StyleSheet.create({
 	},
 	indicatorGreen: { backgroundColor: '#1EBE69', borderColor: '#18A65B' },
 	indicatorRed: { backgroundColor: '#F56A6A', borderColor: '#E05A5A' },
-	indicatorGray: { backgroundColor: '#E0E0E0', borderColor: '#CCCCCC' },
+	indicatorGray: { backgroundColor: '#E0E0E0', borderColor: '#CCCCCC' }, // Not scheduled
+	indicatorOrange: { backgroundColor: '#FFA500', borderColor: '#E69500' }, // Pending
+	indicatorDarkGray: { backgroundColor: '#555555', borderColor: '#444444' },
+	emptyIndicator: {
+		width: 16,
+		height: 16,
+	},
 	legendRow: {
 		flexDirection: 'row',
 		gap: 20,
@@ -729,6 +870,8 @@ const styles = StyleSheet.create({
 	},
 	legendGreen: { backgroundColor: '#1EBE69' },
 	legendRed: { backgroundColor: '#F56A6A' },
+	legendGray: { backgroundColor: '#E0E0E0' }, // Not scheduled (no legend item yet)
+	legendOrange: { backgroundColor: '#FFA500' },
 	legendText: {
 		color: '#2A3B4D',
 		fontSize: 12,

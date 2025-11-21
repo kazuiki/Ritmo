@@ -325,3 +325,21 @@ export async function deleteRoutine(routineId: number): Promise<void> {
   
   if (routineError) throw routineError;
 }
+
+// Get the earliest date when the user started tracking routines
+// Returns null if no progress data exists
+export async function getUserFirstProgressDate(): Promise<Date | null> {
+  const userId = await getCurrentUserId();
+  
+  const { data, error } = await supabase
+    .from("user_routine_progress")
+    .select("day_date")
+    .eq("user_id", userId)
+    .order("day_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  
+  if (error || !data) return null;
+  
+  return new Date(data.day_date);
+}
