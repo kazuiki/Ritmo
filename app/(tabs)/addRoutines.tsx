@@ -69,6 +69,17 @@ export default function addRoutines() {
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
     const periodRef = useRef<ScrollView | null>(null);
+    
+    // For infinite scroll - track if we're programmatically scrolling
+    const isScrollingProgrammatically = useRef(false);
+    const hourScrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const minuteScrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    
+    // Create infinite scroll arrays (3 repetitions each)
+    const HOURS_REPETITIONS = 3;
+    const MINUTES_REPETITIONS = 3;
+    const infiniteHours = Array.from({ length: 12 * HOURS_REPETITIONS }, (_, i) => ((i % 12) + 1));
+    const infiniteMinutes = Array.from({ length: 60 * MINUTES_REPETITIONS }, (_, i) => i % 60);
 
     // Check parental lock on component mount and when focused
     useEffect(() => {
@@ -169,13 +180,21 @@ export default function addRoutines() {
     const onPressHour = (h: number) => {
         const val = h.toString().padStart(2, "0");
         setHour(val);
-        scrollToIndex(hourRef, h - 1);
+        // Scroll to middle repetition
+        const middleIndex = 12 + (h - 1);
+        isScrollingProgrammatically.current = true;
+        scrollToIndex(hourRef, middleIndex);
+        setTimeout(() => { isScrollingProgrammatically.current = false; }, 300);
     };
 
     const onPressMinute = (m: number) => {
         const val = m.toString().padStart(2, "0");
         setMinute(val);
-        scrollToIndex(minuteRef, m);
+        // Scroll to middle repetition
+        const middleIndex = 60 + m;
+        isScrollingProgrammatically.current = true;
+        scrollToIndex(minuteRef, middleIndex);
+        setTimeout(() => { isScrollingProgrammatically.current = false; }, 300);
     };
 
     const onPressPeriod = (p: "AM" | "PM") => {
@@ -238,9 +257,12 @@ export default function addRoutines() {
         setSelectedRingtone(undefined);
         setSelectedDays([]);
         setTimeout(() => {
-            hourRef.current?.scrollTo({ y: 0, animated: false });
-            minuteRef.current?.scrollTo({ y: 0, animated: false });
+            // Start at middle repetition (01:00 AM)
+            isScrollingProgrammatically.current = true;
+            hourRef.current?.scrollTo({ y: 12 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (hour 1)
+            minuteRef.current?.scrollTo({ y: 60 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (minute 0)
             periodRef.current?.scrollTo({ y: 0, animated: false });
+            setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
         }, 0);
     };
 
@@ -265,9 +287,12 @@ export default function addRoutines() {
         setTimeout(() => {
             const hIndex = parseInt(h, 10) - 1;
             const mIndex = parseInt(m, 10);
-            hourRef.current?.scrollTo({ y: hIndex * ITEM_HEIGHT, animated: false });
-            minuteRef.current?.scrollTo({ y: mIndex * ITEM_HEIGHT, animated: false });
+            // Scroll to middle repetition
+            isScrollingProgrammatically.current = true;
+            hourRef.current?.scrollTo({ y: (12 + hIndex) * ITEM_HEIGHT, animated: false });
+            minuteRef.current?.scrollTo({ y: (60 + mIndex) * ITEM_HEIGHT, animated: false });
             periodRef.current?.scrollTo({ y: (p === "AM" ? 0 : 1) * ITEM_HEIGHT, animated: false });
+            setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
         }, 0);
     };
 
@@ -545,16 +570,30 @@ export default function addRoutines() {
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
                                         onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
+                                            if (isScrollingProgrammatically.current) return;
+                                            
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
-                                            const clamped = Math.max(0, Math.min(11, idx));
-                                            setHour((clamped + 1).toString().padStart(2, "0"));
+                                            const actualHour = infiniteHours[idx];
+                                            setHour(actualHour.toString().padStart(2, "0"));
                                             setFormScrollEnabled(true);
+                                            
+                                            // Check if near edges and reset to middle if needed
+                                            const totalItems = infiniteHours.length;
+                                            if (idx < 6 || idx >= totalItems - 6) {
+                                                if (hourScrollTimeout.current) clearTimeout(hourScrollTimeout.current);
+                                                hourScrollTimeout.current = setTimeout(() => {
+                                                    isScrollingProgrammatically.current = true;
+                                                    const middleIdx = 12 + (actualHour - 1); // Middle repetition
+                                                    hourRef.current?.scrollTo({ y: middleIdx * 48, animated: false });
+                                                    setTimeout(() => { isScrollingProgrammatically.current = false; }, 50);
+                                                }, 50);
+                                            }
                                         }}
                                     >
-                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                        {infiniteHours.map((h, idx) => (
                                             <TouchableOpacity
-                                                key={h}
+                                                key={`hour-${idx}`}
                                                 onPress={() => onPressHour(h)}
                                             >
                                                 <Text style={[
@@ -581,16 +620,30 @@ export default function addRoutines() {
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
                                         onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
+                                            if (isScrollingProgrammatically.current) return;
+                                            
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
-                                            const clamped = Math.max(0, Math.min(59, idx));
-                                            setMinute(clamped.toString().padStart(2, "0"));
+                                            const actualMinute = infiniteMinutes[idx];
+                                            setMinute(actualMinute.toString().padStart(2, "0"));
                                             setFormScrollEnabled(true);
+                                            
+                                            // Check if near edges and reset to middle if needed
+                                            const totalItems = infiniteMinutes.length;
+                                            if (idx < 30 || idx >= totalItems - 30) {
+                                                if (minuteScrollTimeout.current) clearTimeout(minuteScrollTimeout.current);
+                                                minuteScrollTimeout.current = setTimeout(() => {
+                                                    isScrollingProgrammatically.current = true;
+                                                    const middleIdx = 60 + actualMinute; // Middle repetition
+                                                    minuteRef.current?.scrollTo({ y: middleIdx * 48, animated: false });
+                                                    setTimeout(() => { isScrollingProgrammatically.current = false; }, 50);
+                                                }, 50);
+                                            }
                                         }}
                                     >
-                                        {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                                        {infiniteMinutes.map((m, idx) => (
                                             <TouchableOpacity
-                                                key={m}
+                                                key={`minute-${idx}`}
                                                 onPress={() => onPressMinute(m)}
                                             >
                                                 <Text style={[
@@ -698,21 +751,21 @@ export default function addRoutines() {
                                     </Text>
                                     <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
-
-                                {/* Delete Button - Only show when editing */}
-                                {editingRoutineId && (
-                                    <TouchableOpacity 
-                                        style={styles.deleteButton}
-                                        onPress={handleDelete}
-                                    >
-                                        <Text style={styles.deleteButtonText}>Delete</Text>
-                                    </TouchableOpacity>
-                                )}
                             </View>
 
-                            {/* Primary action button (outside the card) */}
-                            <TouchableOpacity style={[styles.presetButton, { marginTop: 30 }]} onPress={handleDone}>
-                                <Text style={styles.presetButtonText}>{editingRoutineId ? 'Edit Routine' : 'Add Routine'}</Text>
+                            {/* Delete Button - Only show when editing */}
+                            {editingRoutineId && (
+                                <TouchableOpacity 
+                                    style={styles.deleteButton}
+                                    onPress={handleDelete}
+                                >
+                                    <Text style={styles.deleteButtonText}>Delete</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Action buttons (outside the card) */}
+                            <TouchableOpacity style={[styles.presetButton, { marginTop: editingRoutineId ? 8 : 16, marginBottom: 8 }]} onPress={handleDone}>
+                                <Text style={styles.presetButtonText}>{editingRoutineId ? 'Save' : 'Add Routine'}</Text>
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
@@ -1406,7 +1459,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: "center",
-        marginTop: 16,
+        marginTop: 12,
+        marginBottom: 0,
     },
     deleteButtonText: {
         fontSize: 16,

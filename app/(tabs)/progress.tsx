@@ -575,6 +575,10 @@ export default function Progress() {
 								<View style={[styles.legendDot, styles.legendOrange]} />
 								<Text style={styles.legendText}>Pending</Text>
 							</View>
+							<View style={styles.legendItem}>
+								<View style={[styles.legendDot, styles.legendGray]} />
+								<Text style={styles.legendText}>Unassigned</Text>
+							</View>
 						</View>
 					</View>
 				</View>
@@ -895,14 +899,14 @@ const styles = StyleSheet.create({
 	},
 	legendRow: {
 		flexDirection: 'row',
-		gap: 20,
+		gap: 10,
 		paddingTop: 12,
 		alignSelf: 'center',
 	},
 	legendItem: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 6,
+		gap: 3,
 	},
 	legendDot: {
 		width: 10,
