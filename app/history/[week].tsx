@@ -161,8 +161,33 @@ export default function WeeklyHistoryDetail() {
         const dayOfWeek = weekDates.weekDays[index];
         return getTaskStatus(routine, dateStr, dayOfWeek);
       });
+      
+      // Format timestamp (date and time when routine was created)
+      let timestamp = '';
+      if (routine.created_at && routine.time) {
+        const createdDate = new Date(routine.created_at);
+        const month = String(createdDate.getMonth() + 1).padStart(2, '0');
+        const day = String(createdDate.getDate()).padStart(2, '0');
+        const year = createdDate.getFullYear();
+        const formattedDate = `${month}-${day}-${year}`;
+        
+        // Format time from routine.time (e.g., "01:00 am" -> "1:00am")
+        const timeStr = routine.time.toLowerCase().replace(/\s+/g, '');
+        timestamp = `${formattedDate}/${timeStr}`;
+      } else {
+        // Fallback: if no created_at, use current date with routine time
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const year = now.getFullYear();
+        const formattedDate = `${month}-${day}-${year}`;
+        const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
+        timestamp = `${formattedDate}/${timeStr}`;
+      }
+      
       return {
         name: (routine.name || '').toUpperCase(),
+        timestamp,
         statuses,
         routineId: routine.id,
         days: routine.days || [0,1,2,3,4,5,6]
@@ -295,22 +320,30 @@ export default function WeeklyHistoryDetail() {
           </View>
           {/* Ritmo Tracker (match Progress) */}
           <View style={styles.card}>
-            <View style={styles.trackerTitleRow}>
-              <Text style={styles.cardTitleLeft}>Ritmo Tracker</Text>
-              <View style={styles.legendRow}>
-                <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText}>Done</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText}>Missed</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText}>Pending</Text></View>
-              </View>
+            <Text style={styles.cardTitle}>Ritmo Tracker</Text>
+            
+            {/* Legend */}
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText}>Done</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText}>Missed</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText}>Pending</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGray]} /><Text style={styles.legendText}>Unassigned</Text></View>
             </View>
+
+            {/* Grid Header */}
             <View style={[styles.gridRow, styles.gridHeader]}>
               <Text style={[styles.gridCellTask, styles.gridHeaderText]}>Task</Text>
               {['M','T','W','Th','F','St','S'].map(d => <Text key={d} style={[styles.gridCellDay, styles.gridHeaderText]}>{d}</Text>)}
               <Text style={[styles.gridCellDone, styles.gridHeaderText]}>Done</Text>
             </View>
+
+            {/* Rows */}
             {tasks.map((t,i) => (
               <View key={t.routineId} style={styles.gridRow}>
-                <Text style={styles.gridCellTask}>{t.name}</Text>
+                <View style={styles.gridCellTask}>
+                  <Text style={styles.taskNameText}>{t.name}</Text>
+                  <Text style={styles.taskTimestampText}>{t.timestamp}</Text>
+                </View>
                 {t.statuses.map((s, idx) => (
                   <View key={idx} style={[styles.gridCellDay, styles.indicatorCell]}>
                     {s === undefined ? (
@@ -468,10 +501,24 @@ const styles = StyleSheet.create({
   },
   gridCellTask: {
     flex: 2,
+    paddingRight: 4,
+  },
+  taskNameText: {
     color: '#2A3B4D',
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
+    lineHeight: 16,
+    flexWrap: 'wrap',
+  },
+  taskTimestampText: {
+    color: '#6B8E7E',
+    fontSize: 12,
+    lineHeight: 12,
+    marginTop: 2,
+    flexWrap: 'wrap',
   },
   gridCellDay: {
-    flex: 0.6,
+    flex: 0.45,
     textAlign: 'center',
     alignItems: 'center',
     justifyContent: 'center',
@@ -507,6 +554,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 2,
+    marginBottom: 12,
   },
   legendItem: {
     flexDirection: 'row',
