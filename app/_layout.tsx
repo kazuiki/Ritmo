@@ -24,20 +24,22 @@ export default function RootLayout() {
       const currentPath = segments.join('/');
 
       if (!session) {
-        if (!hasRedirectedRef.current) {
+        // Only redirect to login if not already on an auth page
+        if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
           hasRedirectedRef.current = true;
           router.replace('/auth/login');
         }
         return;
       }
 
-      // Logged in: decide single redirect target
+      // Logged in: only redirect if user is on auth pages or truly at root
       if (!hasRedirectedRef.current) {
         hasRedirectedRef.current = true;
-        // If in auth or root, go to loading with next param for greetings
-        if (!currentPath || currentPath === '' || currentPath.startsWith('auth') || pathname === '/' || pathname === undefined) {
+        // Only redirect if on auth pages or at the absolute root (no path)
+        if (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') {
           router.replace('/loading?next=/greetings');
         }
+        // Otherwise, stay on current page (don't redirect)
       }
     };
 
