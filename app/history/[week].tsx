@@ -132,8 +132,22 @@ export default function WeeklyHistoryDetail() {
       return null;
     };
     
+    // Determine if we're viewing the current week
+    const today = new Date();
+    const currentWeekStart = new Date(today);
+    const day = today.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1 - day);
+    currentWeekStart.setDate(today.getDate() + diffToMonday);
+    currentWeekStart.setHours(0, 0, 0, 0);
+    
+    const viewingWeekStart = new Date(weekRange.startDate);
+    viewingWeekStart.setHours(0, 0, 0, 0);
+    
+    const isCurrentWeek = currentWeekStart.getTime() === viewingWeekStart.getTime();
+    
     // Filter routines to only show those created before or during this week
-    const filteredRoutines = routines.filter(routine => {
+    // BUT: If viewing current week, show ALL routines (same as Progress page)
+    const filteredRoutines = isCurrentWeek ? routines : routines.filter(routine => {
       if (!routine.created_at) {
         // If no created_at, only show if there's actual progress data for this week
         const hasProgressThisWeek = progressData.some(
@@ -500,8 +514,8 @@ const styles = StyleSheet.create({
     color: '#2A3B4D',
   },
   gridCellTask: {
-    flex: 2,
-    paddingRight: 4,
+    flex: 2.5,
+    paddingRight: 1,
   },
   taskNameText: {
     color: '#2A3B4D',
@@ -518,7 +532,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   gridCellDay: {
-    flex: 0.45,
+    flex: 0.5,
     textAlign: 'center',
     alignItems: 'center',
     justifyContent: 'center',
