@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		fontFamily: 'Fredoka_500Medium',
 		flexShrink: 1,
-		paddingHorizontal: 5,
+		paddingHorizontal: 3,
 		paddingVertical: 1,
 	},
 	weekInlineIcon: {
