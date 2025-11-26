@@ -41,6 +41,34 @@ export default function Login() {
     };
   }, []);
 
+  // Listen for OAuth callback and handle auth state changes
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        // User successfully signed in with Google
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          setAlertMessage(userError.message);
+          setAlertModalVisible(true);
+          return;
+        }
+
+        const loggedInUser = userData.user;
+        const childName = (loggedInUser?.user_metadata as any)?.child_name;
+
+        if (!childName) {
+          router.replace("/auth/child-nickname");
+        } else {
+          router.replace("/loading?next=/greetings");
+        }
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
   // Bubble animation setup
   const bubbleCount = 4;
   const bubbleValues = useRef(
@@ -149,6 +177,68 @@ export default function Login() {
 
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      console.log('Google Sign-In clicked');
+      
+      // Check if user is already signed in
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Current session:', session ? 'exists' : 'none');
+      
+      if (session) {
+        // User is already authenticated, navigate to home
+        setLoading(true);
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.error('User error:', userError);
+          setAlertMessage(userError.message);
+          setAlertModalVisible(true);
+          setLoading(false);
+          return;
+        }
+
+        const loggedInUser = userData.user;
+        const childName = (loggedInUser?.user_metadata as any)?.child_name;
+
+        if (!childName) {
+          router.replace("/auth/child-nickname");
+        } else {
+          router.replace("/loading?next=/greetings");
+        }
+        setLoading(false);
+        return;
+      }
+
+      // User not signed in, start OAuth flow
+      console.log('Starting OAuth flow...');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'ritmo://auth/callback',
+        },
+      });
+
+      console.log('OAuth response:', { data, error });
+
+      if (error) {
+        console.error('OAuth error:', error);
+        setAlertMessage(`Google Sign-In Error: ${error.message}`);
+        setAlertModalVisible(true);
+        return;
+      }
+
+      if (data?.url) {
+        console.log('Opening OAuth URL:', data.url);
+        await Linking.openURL(data.url);
+      }
+
+    } catch (err: any) {
+      console.error('Google sign-in exception:', err);
+      setAlertMessage(err.message || "Google sign-in failed. Please try again.");
+      setAlertModalVisible(true);
+    }
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.outer}>
       <Stack.Screen options={{ title: "Log in", headerShown: false }} />
@@ -255,10 +345,11 @@ export default function Login() {
               {/* Divider text */}
               <Text style={styles.orText}>Or sign in with</Text>
 
-              {/* Google Icon (Open Gmail / Email App) */}
+              {/* Google Icon (Sign in with Google) */}
               <TouchableOpacity
                 style={styles.gmailIconWrapper}
-                onPress={() => Linking.openURL("mailto:")}
+                onPress={handleGoogleSignIn}
+                disabled={loading}
               >
                 <ImageBackground
                   source={require("../../assets/Google.png")} // 🟢 transparent background expected
