@@ -71,9 +71,8 @@ export default function Home() {
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
 
-
-
-  const loadRoutines = async () => {
+  const loadRoutines = async (options = {}) => {
+    const { useCache = true } = options as any;
     try {
       // If user is not authenticated, skip DB calls silently
       const { data: { user } } = await supabase.auth.getUser();
@@ -84,11 +83,13 @@ export default function Home() {
       }
 
       // Show cached data immediately (if available)
-      try {
-        const cached = await loadCachedRoutines(user.id);
-        if (cached.routines) setRoutines(cached.routines as any);
-        if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
-      } catch {}
+      if (useCache) {
+        try {
+          const cached = await loadCachedRoutines(user.id);
+          if (cached.routines) setRoutines(cached.routines as any);
+          if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
+        } catch {}
+      }
 
       const routinesFromDb = await getRoutinesForCurrentUser();
       
@@ -262,34 +263,63 @@ export default function Home() {
           ]),
         ]).start();
         
-        // Archive completed routines (keep in storage, hide from home page)
+        // Show celebration for a few seconds, then archive and refresh
         setTimeout(async () => {
           try {
-            console.log("Home - Archiving completed routines");
-            
-            // Get the IDs of completed routines
-            const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
-            console.log("Home - Completed routine IDs to archive:", completedIds);
-            
-            // Get existing archived IDs
-            const archivedStored = await AsyncStorage.getItem("@routines_archived");
-            const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
-            
-            // Add new completed IDs to archived list
-            const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
-            console.log("Home - Updated archived IDs:", updatedArchived);
-            
-            // Save archived list (routines stay in @routines for addRoutines page)
-            await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
-            
-            // Clear the home page's routine state (they'll reload when page is focused again)
-            setRoutines([]);
-            
-            console.log("Home - Completed routines archived successfully");
+            // Fade out the "All Done" message
+            Animated.parallel([
+              Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+              Animated.timing(scaleAnim, {
+                toValue: 0.8,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+            ]).start(async () => {
+              // After fade out animation completes
+              setShowAllDone(false);
+              
+              // Reset animations for next time
+              fadeAnim.setValue(0);
+              scaleAnim.setValue(0.5);
+              bounceAnim.setValue(0);
+              
+              // Archive completed routines
+              console.log("Home - Archiving completed routines");
+              
+              const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
+              console.log("Home - Completed routine IDs to archive:", completedIds);
+              
+              // Get existing archived IDs
+              const archivedStored = await AsyncStorage.getItem("@routines_archived");
+              const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
+              
+              // Add new completed IDs to archived list
+              const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
+              console.log("Home - Updated archived IDs:", updatedArchived);
+              
+              // Save archived list
+              await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
+              
+              console.log("Home - Completed routines archived successfully");
+              
+              // Auto-refresh to load fresh routines from database (skip cache to avoid flicker)
+              console.log("Home - Auto-refreshing routines...");
+              await loadRoutines({ useCache: false });
+            });
           } catch (error) {
-            console.error("Failed to archive completed routines:", error);
+            console.error("Failed to archive and refresh:", error);
+            // Even if archiving fails, try to refresh
+            try {
+              await loadRoutines({ useCache: false });
+            } catch (refreshError) {
+              console.error("Failed to refresh routines:", refreshError);
+            }
           }
-        }, 800);
+        }, 3000); // Show "All Done" for 3 seconds before refreshing
       } else {
         // Otherwise just update state
         setRoutines(updatedRoutines);
@@ -312,10 +342,27 @@ export default function Home() {
       if (successModalVisible) {
         try {
           const { sound } = await Audio.Sound.createAsync(
-            require("../../assets/ringtone/STARS.mp3"),
+            require("../../assets/ringtone/Stars.mp3"),
             { shouldPlay: true }
           );
           setSuccessSound(sound);
+          
+          // Play GoodJob.mp3 immediately after Stars.mp3 finishes (no delay)
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.durationMillis) {
+            setTimeout(async () => {
+              try {
+                const { sound: goodJobSound } = await Audio.Sound.createAsync(
+                  require("../../assets/ringtone/GoodJob.mp3"),
+                  { shouldPlay: true }
+                );
+                await sound.unloadAsync();
+                setSuccessSound(goodJobSound);
+              } catch (error) {
+                console.error("Failed to play GoodJob audio:", error);
+              }
+            }, status.durationMillis);
+          }
         } catch (error) {
           console.error("Failed to play success audio:", error);
         }
@@ -341,23 +388,38 @@ export default function Home() {
     const playAllDoneAudio = async () => {
       if (showAllDone) {
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            require("../../assets/ringtone/Every completed routines.mp3"),
+          // Play both Completed.mp3 and Congratulations.mp3 simultaneously
+          const { sound: completedSound } = await Audio.Sound.createAsync(
+            require("../../assets/ringtone/Completed.mp3"),
             { shouldPlay: true }
           );
-          setAllDoneSound(sound);
           
-          // Get audio duration and set timeout to match
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded && status.durationMillis) {
-            const duration = status.durationMillis;
-            
+          const { sound: congratsSound } = await Audio.Sound.createAsync(
+            require("../../assets/ringtone/Congratulations.mp3"),
+            { shouldPlay: true }
+          );
+          
+          setAllDoneSound(completedSound);
+          
+          // Get longest audio duration for timeout
+          const completedStatus = await completedSound.getStatusAsync();
+          const congratsStatus = await congratsSound.getStatusAsync();
+          
+          let maxDuration = 0;
+          if (completedStatus.isLoaded && completedStatus.durationMillis) {
+            maxDuration = Math.max(maxDuration, completedStatus.durationMillis);
+          }
+          if (congratsStatus.isLoaded && congratsStatus.durationMillis) {
+            maxDuration = Math.max(maxDuration, congratsStatus.durationMillis);
+          }
+          
+          if (maxDuration > 0) {
             // Clear previous timeout if exists
             if (allDoneTimeoutRef.current) {
               clearTimeout(allDoneTimeoutRef.current);
             }
             
-            // Set timeout to hide after audio duration
+            // Set timeout to hide after longest audio duration
             allDoneTimeoutRef.current = setTimeout(() => {
               // Smooth fade out animation
               Animated.parallel([
@@ -378,7 +440,7 @@ export default function Home() {
                 scaleAnim.setValue(0.5);
                 bounceAnim.setValue(0);
               });
-            }, duration);
+            }, maxDuration);
           }
         } catch (error) {
           console.error("Failed to play all done audio:", error);
@@ -1363,7 +1425,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(0,0,0,0.06)",
+    // Slightly darkened from 0.06 to 0.12 for better visibility
+    backgroundColor: "rgba(0,0,0,0.15)",
     borderRadius: 16,
   },
   // Playbook Modal Styles

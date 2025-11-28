@@ -1,6 +1,5 @@
 import { Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
 import { Asset } from "expo-asset";
-import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MotiView } from "moti";
 import { useEffect, useRef } from "react";
@@ -14,20 +13,7 @@ export default function LoadingPage() {
   const [fontsLoaded] = useFonts({ Fredoka_700Bold });
 
   useEffect(() => {
-    let sound: Audio.Sound | null = null;
     let navTimer: number | null = null;
-
-    const playLogoSound = async () => {
-      try {
-        const result = await Audio.Sound.createAsync(
-          require("../assets/ringtone/LOGO BG SOUND.mp3"),
-          { shouldPlay: true, positionMillis: 500 }
-        );
-        sound = result.sound;
-      } catch (e) {
-        console.log('Logo sound load error:', e);
-      }
-    };
 
     // Preload all GIF assets to speed up playbook display
     const preloadAssets = async () => {
@@ -58,7 +44,6 @@ export default function LoadingPage() {
     };
 
     preloadAssets();
-    playLogoSound();
 
     // Fade in immediately
     Animated.timing(fadeRef.current, {
@@ -68,17 +53,6 @@ export default function LoadingPage() {
     }).start();
 
     navTimer = setTimeout(() => {
-      // Stop and unload sound exactly at end of 5s
-      (async () => {
-        try {
-          if (sound) {
-            await sound.stopAsync();
-            await sound.unloadAsync();
-            sound = null;
-          }
-        } catch {}
-      })();
-
       // Fade out and navigate
       Animated.timing(fadeRef.current, {
         toValue: 0,
@@ -91,14 +65,6 @@ export default function LoadingPage() {
 
     return () => {
       if (navTimer) clearTimeout(navTimer as number);
-      (async () => {
-        try {
-          if (sound) {
-            await sound.stopAsync();
-            await sound.unloadAsync();
-          }
-        } catch {}
-      })();
     };
   }, [next]);
 

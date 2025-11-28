@@ -19,7 +19,7 @@ import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../const
 import NotificationService from "../../src/notificationService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
-import { createRoutineForCurrentUser, getRoutinesForCurrentUser, unlinkRoutineForCurrentUser, updateRoutine } from "../../src/routinesService";
+import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 
 interface Routine {
     id: number;
@@ -45,9 +45,20 @@ export default function addRoutines() {
     const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
+    const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
     const ALL_DAYS = [0,1,2,3,4,5,6];
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
     const [formScrollEnabled, setFormScrollEnabled] = useState(true);
+    
+    // Delete confirmation and success modals
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [deleteSuccessVisible, setDeleteSuccessVisible] = useState(false);
+    
+    // Save confirmation modal
+    const [saveConfirmVisible, setSaveConfirmVisible] = useState(false);
+
+    // Select days error modal
+    const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
     
     // Parental lock modal state
     const [showParentalLockModal, setShowParentalLockModal] = useState(false);
@@ -58,6 +69,17 @@ export default function addRoutines() {
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
     const periodRef = useRef<ScrollView | null>(null);
+    
+    // For infinite scroll - track if we're programmatically scrolling
+    const isScrollingProgrammatically = useRef(false);
+    const hourScrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const minuteScrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    
+    // Create infinite scroll arrays (3 repetitions each)
+    const HOURS_REPETITIONS = 3;
+    const MINUTES_REPETITIONS = 3;
+    const infiniteHours = Array.from({ length: 12 * HOURS_REPETITIONS }, (_, i) => ((i % 12) + 1));
+    const infiniteMinutes = Array.from({ length: 60 * MINUTES_REPETITIONS }, (_, i) => i % 60);
 
     // Check parental lock on component mount and when focused
     useEffect(() => {
@@ -82,6 +104,11 @@ export default function addRoutines() {
             ParentalLockAuthService.removeListener(authListener);
             // CLEANUP: Stop any playing sounds when component unmounts
             NotificationService.stopRingtone().catch(console.error);
+            // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
+            setDeleteConfirmVisible(false);
+            setDeleteSuccessVisible(false);
+            setSaveConfirmVisible(false);
+            setSelectDaysModalVisible(false);
         };
     }, []);
 
@@ -153,13 +180,21 @@ export default function addRoutines() {
     const onPressHour = (h: number) => {
         const val = h.toString().padStart(2, "0");
         setHour(val);
-        scrollToIndex(hourRef, h - 1);
+        // Scroll to middle repetition
+        const middleIndex = 12 + (h - 1);
+        isScrollingProgrammatically.current = true;
+        scrollToIndex(hourRef, middleIndex);
+        setTimeout(() => { isScrollingProgrammatically.current = false; }, 300);
     };
 
     const onPressMinute = (m: number) => {
         const val = m.toString().padStart(2, "0");
         setMinute(val);
-        scrollToIndex(minuteRef, m);
+        // Scroll to middle repetition
+        const middleIndex = 60 + m;
+        isScrollingProgrammatically.current = true;
+        scrollToIndex(minuteRef, middleIndex);
+        setTimeout(() => { isScrollingProgrammatically.current = false; }, 300);
     };
 
     const onPressPeriod = (p: "AM" | "PM") => {
@@ -222,9 +257,12 @@ export default function addRoutines() {
         setSelectedRingtone(undefined);
         setSelectedDays([]);
         setTimeout(() => {
-            hourRef.current?.scrollTo({ y: 0, animated: false });
-            minuteRef.current?.scrollTo({ y: 0, animated: false });
+            // Start at middle repetition (01:00 AM)
+            isScrollingProgrammatically.current = true;
+            hourRef.current?.scrollTo({ y: 12 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (hour 1)
+            minuteRef.current?.scrollTo({ y: 60 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (minute 0)
             periodRef.current?.scrollTo({ y: 0, animated: false });
+            setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
         }, 0);
     };
 
@@ -249,9 +287,12 @@ export default function addRoutines() {
         setTimeout(() => {
             const hIndex = parseInt(h, 10) - 1;
             const mIndex = parseInt(m, 10);
-            hourRef.current?.scrollTo({ y: hIndex * ITEM_HEIGHT, animated: false });
-            minuteRef.current?.scrollTo({ y: mIndex * ITEM_HEIGHT, animated: false });
+            // Scroll to middle repetition
+            isScrollingProgrammatically.current = true;
+            hourRef.current?.scrollTo({ y: (12 + hIndex) * ITEM_HEIGHT, animated: false });
+            minuteRef.current?.scrollTo({ y: (60 + mIndex) * ITEM_HEIGHT, animated: false });
             periodRef.current?.scrollTo({ y: (p === "AM" ? 0 : 1) * ITEM_HEIGHT, animated: false });
+            setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
         }, 0);
     };
 
@@ -263,49 +304,14 @@ export default function addRoutines() {
     const handleDone = () => {
         if (routineName.trim()) {
             if (selectedDays.length === 0) {
-                Alert.alert("Select days", "Please pick at least one day for this routine.");
+                setSelectDaysModalVisible(true);
                 return;
             }
             const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
             
             if (editingRoutineId) {
-                // Determine imageUrl to save: use newly selected preset if any; otherwise keep existing
-                const selectedPreset = getPresetById(selectedPresetId);
-                const current = routines.find(r => r.id === editingRoutineId);
-                const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
-
-                updateRoutine(editingRoutineId, {
-                    name: routineName,
-                    time: routineTime,
-                    imageUrl: imageUrlToSave,
-                })
-                .then(async () => {
-                    // Update in local storage with days/ringtone
-                    const stored = await AsyncStorage.getItem('@routines');
-                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                    const idx = existing.findIndex(r => r.id === editingRoutineId);
-                    if (idx >= 0) {
-                        existing[idx] = {
-                            ...existing[idx],
-                            name: routineName,
-                            time: routineTime,
-                            imageUrl: imageUrlToSave,
-                            ringtone: selectedRingtone || 'alarm1',
-                            days: selectedDays,
-                        };
-                        await AsyncStorage.setItem('@routines', JSON.stringify(existing));
-                    }
-                    return loadRoutinesFromDb();
-                })
-                .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
-
-                NotificationService.scheduleRoutineNotification({
-                    routineId: editingRoutineId,
-                    routineName: routineName,
-                    time: routineTime,
-                    ringtone: selectedRingtone || 'alarm1',
-                    days: selectedDays,
-                }).catch(err => console.error('Error scheduling notification:', err));
+                // Show custom confirmation modal for editing
+                setSaveConfirmVisible(true);
             } else {
                 // Get imageUrl from selected preset
                 const selectedPreset = getPresetById(selectedPresetId);
@@ -340,33 +346,51 @@ export default function addRoutines() {
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     }).catch(err => console.error('Error scheduling notification:', err));
-                    return loadRoutinesFromDb();
+                    await loadRoutinesFromDb();
                 })
                 .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
+                
+                closeModal();
             }
+        } else if (!editingRoutineId) {
+            // Only close modal for Add (no editing), Edit has its own close in confirmation
+            closeModal();
         }
-        closeModal();
     };
 
     const handleDelete = () => {
         if (editingRoutineId) {
-            NotificationService.cancelRoutineNotification(editingRoutineId)
-                .catch(err => console.error('Error cancelling notification:', err));
-
-            unlinkRoutineForCurrentUser(editingRoutineId)
-                .then(async () => {
-                    // Remove from local storage
-                    const stored = await AsyncStorage.getItem('@routines');
-                    const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                    const filtered = existing.filter(r => r.id !== editingRoutineId);
-                    await AsyncStorage.setItem('@routines', JSON.stringify(filtered));
-                    
-                    // Update UI immediately (don't reload from DB)
-                    setRoutines(filtered);
-                })
-                .catch(err => console.error('Supabase unlinkRoutine error:', err?.message || err));
+            setDeleteConfirmVisible(true);
         }
-        closeModal();
+    };
+
+    const confirmDelete = async () => {
+        if (editingRoutineId) {
+            setDeleteConfirmVisible(false);
+            try {
+                // Cancel notification
+                await NotificationService.cancelRoutineNotification(editingRoutineId);
+                
+                // Delete from database (both routine and progress records)
+                await deleteRoutine(editingRoutineId);
+                
+                // Remove from local storage
+                const stored = await AsyncStorage.getItem('@routines');
+                const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                const filtered = existing.filter(r => r.id !== editingRoutineId);
+                await AsyncStorage.setItem('@routines', JSON.stringify(filtered));
+                
+                // Update UI immediately
+                setRoutines(filtered);
+                closeModal();
+                
+                // Show success modal
+                setDeleteSuccessVisible(true);
+            } catch (err: any) {
+                console.error('Error deleting routine:', err?.message || err);
+                Alert.alert('Error', 'Failed to delete routine. Please try again.');
+            }
+        }
     };
 
     const openPresetModal = () => setPresetModalVisible(true);
@@ -376,6 +400,53 @@ export default function addRoutines() {
         setRoutineName(preset.name);
         setSelectedPresetId(preset.id);
         closePresetModal();
+    };
+
+    const confirmSave = async () => {
+        setSaveConfirmVisible(false);
+        if (editingRoutineId) {
+            const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
+            
+            // Determine imageUrl to save: use newly selected preset if any; otherwise keep existing
+            const selectedPreset = getPresetById(selectedPresetId);
+            const current = routines.find(r => r.id === editingRoutineId);
+            const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
+
+            updateRoutine(editingRoutineId, {
+                name: routineName,
+                time: routineTime,
+                imageUrl: imageUrlToSave,
+            })
+            .then(async () => {
+                // Update in local storage with days/ringtone
+                const stored = await AsyncStorage.getItem('@routines');
+                const existing: Routine[] = stored ? JSON.parse(stored) : [];
+                const idx = existing.findIndex(r => r.id === editingRoutineId);
+                if (idx >= 0) {
+                    existing[idx] = {
+                        ...existing[idx],
+                        name: routineName,
+                        time: routineTime,
+                        imageUrl: imageUrlToSave,
+                        ringtone: selectedRingtone || 'alarm1',
+                        days: selectedDays,
+                    };
+                    await AsyncStorage.setItem('@routines', JSON.stringify(existing));
+                }
+                return loadRoutinesFromDb();
+            })
+            .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
+
+            NotificationService.scheduleRoutineNotification({
+                routineId: editingRoutineId,
+                routineName: routineName,
+                time: routineTime,
+                ringtone: selectedRingtone || 'alarm1',
+                days: selectedDays,
+            }).catch(err => console.error('Error scheduling notification:', err));
+            
+            closeModal();
+        }
     };
 
     const openRingtoneModal = () => setRingtoneModalVisible(true);
@@ -389,14 +460,17 @@ export default function addRoutines() {
         closeRingtoneModal();
     };
 
-    const previewRingtone = async (ringtoneName: string) => {
-        await NotificationService.stopRingtone(); // Stop any playing sound first
-        await NotificationService.playRingtone(ringtoneName);
-        
-        // Auto-stop after 5 seconds for preview
-        setTimeout(async () => {
-            await NotificationService.stopRingtone();
-        }, 5000);
+    const togglePreview = async (ringtoneName: string) => {
+        // If this ringtone is already playing, pause it
+        if (previewingRingtone === ringtoneName) {
+            await NotificationService.stopRingtone().catch(console.error);
+            setPreviewingRingtone(null);
+            return;
+        }
+        // Otherwise start this ringtone (stop previous first)
+        await NotificationService.stopRingtone().catch(()=>{});
+        await NotificationService.playRingtone(ringtoneName).catch(console.error);
+        setPreviewingRingtone(ringtoneName);
     };
 
     return (
@@ -496,16 +570,30 @@ export default function addRoutines() {
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
                                         onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
+                                            if (isScrollingProgrammatically.current) return;
+                                            
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
-                                            const clamped = Math.max(0, Math.min(11, idx));
-                                            setHour((clamped + 1).toString().padStart(2, "0"));
+                                            const actualHour = infiniteHours[idx];
+                                            setHour(actualHour.toString().padStart(2, "0"));
                                             setFormScrollEnabled(true);
+                                            
+                                            // Check if near edges and reset to middle if needed
+                                            const totalItems = infiniteHours.length;
+                                            if (idx < 6 || idx >= totalItems - 6) {
+                                                if (hourScrollTimeout.current) clearTimeout(hourScrollTimeout.current);
+                                                hourScrollTimeout.current = setTimeout(() => {
+                                                    isScrollingProgrammatically.current = true;
+                                                    const middleIdx = 12 + (actualHour - 1); // Middle repetition
+                                                    hourRef.current?.scrollTo({ y: middleIdx * 48, animated: false });
+                                                    setTimeout(() => { isScrollingProgrammatically.current = false; }, 50);
+                                                }, 50);
+                                            }
                                         }}
                                     >
-                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                        {infiniteHours.map((h, idx) => (
                                             <TouchableOpacity
-                                                key={h}
+                                                key={`hour-${idx}`}
                                                 onPress={() => onPressHour(h)}
                                             >
                                                 <Text style={[
@@ -532,16 +620,30 @@ export default function addRoutines() {
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
                                         onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
+                                            if (isScrollingProgrammatically.current) return;
+                                            
                                             const y = e.nativeEvent.contentOffset.y;
                                             const idx = Math.round(y / 48);
-                                            const clamped = Math.max(0, Math.min(59, idx));
-                                            setMinute(clamped.toString().padStart(2, "0"));
+                                            const actualMinute = infiniteMinutes[idx];
+                                            setMinute(actualMinute.toString().padStart(2, "0"));
                                             setFormScrollEnabled(true);
+                                            
+                                            // Check if near edges and reset to middle if needed
+                                            const totalItems = infiniteMinutes.length;
+                                            if (idx < 30 || idx >= totalItems - 30) {
+                                                if (minuteScrollTimeout.current) clearTimeout(minuteScrollTimeout.current);
+                                                minuteScrollTimeout.current = setTimeout(() => {
+                                                    isScrollingProgrammatically.current = true;
+                                                    const middleIdx = 60 + actualMinute; // Middle repetition
+                                                    minuteRef.current?.scrollTo({ y: middleIdx * 48, animated: false });
+                                                    setTimeout(() => { isScrollingProgrammatically.current = false; }, 50);
+                                                }, 50);
+                                            }
                                         }}
                                     >
-                                        {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                                        {infiniteMinutes.map((m, idx) => (
                                             <TouchableOpacity
-                                                key={m}
+                                                key={`minute-${idx}`}
                                                 onPress={() => onPressMinute(m)}
                                             >
                                                 <Text style={[
@@ -649,21 +751,21 @@ export default function addRoutines() {
                                     </Text>
                                     <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
-
-                                {/* Delete Button - Only show when editing */}
-                                {editingRoutineId && (
-                                    <TouchableOpacity 
-                                        style={styles.deleteButton}
-                                        onPress={handleDelete}
-                                    >
-                                        <Text style={styles.deleteButtonText}>Delete</Text>
-                                    </TouchableOpacity>
-                                )}
                             </View>
 
-                            {/* Primary action button (outside the card) */}
-                            <TouchableOpacity style={[styles.presetButton, { marginTop: 30 }]} onPress={handleDone}>
-                                <Text style={styles.presetButtonText}>{editingRoutineId ? 'Edit Routine' : 'Add Routine'}</Text>
+                            {/* Delete Button - Only show when editing */}
+                            {editingRoutineId && (
+                                <TouchableOpacity 
+                                    style={styles.deleteButton}
+                                    onPress={handleDelete}
+                                >
+                                    <Text style={styles.deleteButtonText}>Delete</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Action buttons (outside the card) */}
+                            <TouchableOpacity style={[styles.presetButton, { marginTop: editingRoutineId ? 8 : 16, marginBottom: 8 }]} onPress={handleDone}>
+                                <Text style={styles.presetButtonText}>{editingRoutineId ? 'Save' : 'Add Routine'}</Text>
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
@@ -735,67 +837,76 @@ export default function addRoutines() {
 
                         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
                             {/* Morning Bell */}
-                            <TouchableOpacity 
+                            <View
                                 style={[
                                     styles.ringtoneItem,
                                     selectedRingtone === 'alarm1' && styles.selectedRingtoneItem
-                                ]} 
-                                onPress={() => selectRingtone('alarm1')}
+                                ]}
                             >
-                                <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
-                                <TouchableOpacity 
-                                    style={styles.previewButton}
-                                    onPress={async (e) => {
-                                        e.stopPropagation();
-                                        await NotificationService.stopRingtone(); // Stop first
-                                        await previewRingtone('alarm1');
-                                    }}
+                                <View style={styles.ringtoneInfo}>
+                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm1')}>
+                                        {selectedRingtone === 'alarm1' && <View style={styles.radioInner} />}
+                                    </TouchableOpacity>
+                                    <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.previewIconButton}
+                                    onPress={(e) => { e.stopPropagation(); togglePreview('alarm1'); }}
                                 >
-                                    <Text style={styles.previewButtonText}>▶ Preview</Text>
+                                    <Image
+                                        source={previewingRingtone === 'alarm1' ? require('../../assets/images/Pause.png') : require('../../assets/images/Play.png')}
+                                        style={styles.previewIcon}
+                                    />
                                 </TouchableOpacity>
-                            </TouchableOpacity>
+                            </View>
 
                             {/* Gentle Wake */}
-                            <TouchableOpacity 
+                            <View
                                 style={[
                                     styles.ringtoneItem,
                                     selectedRingtone === 'alarm2' && styles.selectedRingtoneItem
-                                ]} 
-                                onPress={() => selectRingtone('alarm2')}
+                                ]}
                             >
-                                <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
-                                <TouchableOpacity 
-                                    style={styles.previewButton}
-                                    onPress={async (e) => {
-                                        e.stopPropagation();
-                                        await NotificationService.stopRingtone(); // Stop first
-                                        await previewRingtone('alarm2');
-                                    }}
+                                <View style={styles.ringtoneInfo}>
+                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm2')}>
+                                        {selectedRingtone === 'alarm2' && <View style={styles.radioInner} />}
+                                    </TouchableOpacity>
+                                    <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.previewIconButton}
+                                    onPress={(e) => { e.stopPropagation(); togglePreview('alarm2'); }}
                                 >
-                                    <Text style={styles.previewButtonText}>▶ Preview</Text>
+                                    <Image
+                                        source={previewingRingtone === 'alarm2' ? require('../../assets/images/Pause.png') : require('../../assets/images/Play.png')}
+                                        style={styles.previewIcon}
+                                    />
                                 </TouchableOpacity>
-                            </TouchableOpacity>
+                            </View>
 
                             {/* Classic Chime */}
-                            <TouchableOpacity 
+                            <View
                                 style={[
                                     styles.ringtoneItem,
                                     selectedRingtone === 'alarm3' && styles.selectedRingtoneItem
-                                ]} 
-                                onPress={() => selectRingtone('alarm3')}
+                                ]}
                             >
-                                <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
-                                <TouchableOpacity 
-                                    style={styles.previewButton}
-                                    onPress={async (e) => {
-                                        e.stopPropagation();
-                                        await NotificationService.stopRingtone(); // Stop first
-                                        await previewRingtone('alarm3');
-                                    }}
+                                <View style={styles.ringtoneInfo}>
+                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm3')}>
+                                        {selectedRingtone === 'alarm3' && <View style={styles.radioInner} />}
+                                    </TouchableOpacity>
+                                    <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.previewIconButton}
+                                    onPress={(e) => { e.stopPropagation(); togglePreview('alarm3'); }}
                                 >
-                                    <Text style={styles.previewButtonText}>▶ Preview</Text>
+                                    <Image
+                                        source={previewingRingtone === 'alarm3' ? require('../../assets/images/Pause.png') : require('../../assets/images/Play.png')}
+                                        style={styles.previewIcon}
+                                    />
                                 </TouchableOpacity>
-                            </TouchableOpacity>
+                            </View>
                         </ScrollView>
                     </View>
                 </View>
@@ -876,6 +987,146 @@ export default function addRoutines() {
                             </View>
                         </View>
                     </ImageBackground>
+                </View>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={deleteConfirmVisible}
+                onRequestClose={() => setDeleteConfirmVisible(false)}
+            >
+                <View style={styles.deleteModalOverlay}>
+                    <View style={styles.deleteModalContainer}>
+                        <View style={styles.deleteIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Delete.png")}
+                                style={styles.deleteIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.deleteModalTitle}>Are you sure?</Text>
+                        <Text style={styles.deleteModalMessage}>
+                            Do you really want to delete this routine?{'\n'}
+                            This action cannot be undone.
+                        </Text>
+                        
+                        <View style={styles.deleteModalButtons}>
+                            <TouchableOpacity
+                                style={styles.deleteCancelButton}
+                                onPress={() => setDeleteConfirmVisible(false)}
+                            >
+                                <Text style={styles.deleteCancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                style={styles.deleteConfirmButton}
+                                onPress={confirmDelete}
+                            >
+                                <Text style={styles.deleteConfirmButtonText}>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Success Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={deleteSuccessVisible}
+                onRequestClose={() => setDeleteSuccessVisible(false)}
+            >
+                <View style={styles.successModalOverlay}>
+                    <View style={styles.successModalContainer}>
+                        <View style={styles.successIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Checkmark.png")}
+                                style={styles.successIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.successModalTitle}>Success!</Text>
+                        <Text style={styles.successModalMessage}>Routine deleted successfully</Text>
+                        
+                        <TouchableOpacity
+                            style={styles.successOkButton}
+                            onPress={() => setDeleteSuccessVisible(false)}
+                        >
+                            <Text style={styles.successOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Save Changes Confirmation Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={saveConfirmVisible}
+                onRequestClose={() => setSaveConfirmVisible(false)}
+            >
+                <View style={styles.saveModalOverlay}>
+                    <View style={styles.saveModalContainer}>
+                        <View style={styles.saveIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Save.png")}
+                                style={styles.saveIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.saveModalTitle}>Save Changes</Text>
+                        <Text style={styles.saveModalMessage}>
+                            Do you want to save the changes to this routine?
+                        </Text>
+                        
+                        <View style={styles.saveModalButtons}>
+                            <TouchableOpacity
+                                style={styles.saveCancelButton}
+                                onPress={() => setSaveConfirmVisible(false)}
+                            >
+                                <Text style={styles.saveCancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                style={styles.saveConfirmButton}
+                                onPress={confirmSave}
+                            >
+                                <Text style={styles.saveConfirmButtonText}>Save</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Select Days Error Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={selectDaysModalVisible}
+                onRequestClose={() => setSelectDaysModalVisible(false)}
+            >
+                <View style={styles.selectDaysModalOverlay}>
+                    <View style={styles.selectDaysModalContainer}>
+                        <View style={styles.selectDaysIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Calendar.png")}
+                                style={styles.selectDaysIcon}
+                                resizeMode="contain"
+                            />
+                        </View>
+                        <Text style={styles.selectDaysModalTitle}>Select Days</Text>
+                        <Text style={styles.selectDaysModalMessage}>
+                            Please pick at least one day for this routine.
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.selectDaysOkButton}
+                            onPress={() => setSelectDaysModalVisible(false)}
+                        >
+                            <Text style={styles.selectDaysOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
         </View>
@@ -1122,9 +1373,10 @@ const styles = StyleSheet.create({
     },
     ringtoneItem: {
         backgroundColor: "#fff",
-        borderRadius: 16,
-        padding: 10,
-        marginBottom: 16,
+        borderRadius: 14,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        marginBottom: 10,
         borderWidth: 2,
         borderColor: "#B8E6D9",
         flexDirection: "row",
@@ -1154,10 +1406,10 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     ringtoneItemTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: "700",
         color: "#244D4A",
-        marginBottom: 4,
+        marginBottom: 0,
     },
     ringtoneItemSubtitle: {
         fontSize: 14,
@@ -1174,12 +1426,41 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#fff",
     },
+    previewIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    previewIcon: {
+        width: 22,
+        height: 22,
+        resizeMode: 'contain',
+    },
+    radioButton: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 2,
+        borderColor: '#5DD4B4',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    radioInner: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#5DD4B4',
+    },
     deleteButton: {
         backgroundColor: "#FF6B6B",
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: "center",
-        marginTop: 16,
+        marginTop: 12,
+        marginBottom: 0,
     },
     deleteButtonText: {
         fontSize: 16,
@@ -1422,5 +1703,299 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#666",
         fontFamily: "ITIM",
+    },
+    
+    // Delete Confirmation Modal Styles
+    deleteModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    deleteModalContainer: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 24,
+        width: "80%",
+        maxWidth: 360,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+        borderWidth: 3,
+        borderColor: "#FFB3BA",
+    },
+    deleteIconCircle: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: "#FFE5E7",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    deleteIcon: {
+        width: 40,
+        height: 40,
+        resizeMode: "contain",
+    },
+    deleteModalTitle: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#1A1A1A",
+        marginBottom: 8,
+        fontFamily: "Fredoka_700Bold",
+    },
+    deleteModalMessage: {
+        fontSize: 14,
+        color: "#4A4A4A",
+        textAlign: "center",
+        lineHeight: 20,
+        marginBottom: 20,
+        fontFamily: "Fredoka_400Regular",
+        paddingHorizontal: 8,
+        flexWrap: "wrap",
+    },
+    deleteModalButtons: {
+        flexDirection: "row",
+        gap: 12,
+        width: "100%",
+    },
+    deleteCancelButton: {
+        flex: 1,
+        backgroundColor: "#D3D3D3",
+        paddingVertical: 12,
+        borderRadius: 50,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    deleteCancelButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#FFFFFF",
+        fontFamily: "Fredoka_600SemiBold",
+    },
+    deleteConfirmButton: {
+        flex: 1,
+        backgroundColor: "#FF6B7A",
+        paddingVertical: 12,
+        borderRadius: 50,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    deleteConfirmButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#FFFFFF",
+        fontFamily: "Fredoka_600SemiBold",
+    },
+    
+    // Success Modal Styles
+    successModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    successModalContainer: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 24,
+        width: "70%",
+        maxWidth: 320,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+        borderWidth: 3,
+        borderColor: "#9FD19E",
+    },
+    successIconCircle: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: "#D4F1D3",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    successIcon: {
+        width: 40,
+        height: 40,
+        resizeMode: "contain",
+    },
+    successModalTitle: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#1A1A1A",
+        marginBottom: 8,
+        fontFamily: "Fredoka_700Bold",
+    },
+    successModalMessage: {
+        fontSize: 14,
+        color: "#4A4A4A",
+        textAlign: "center",
+        marginBottom: 18,
+        fontFamily: "Fredoka_400Regular",
+        flexWrap: "wrap",
+    },
+    successOkButton: {
+        backgroundColor: "#4CAF50",
+        paddingVertical: 12,
+        paddingHorizontal: 40,
+        borderRadius: 50,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    successOkButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#FFFFFF",
+        fontFamily: "Fredoka_600SemiBold",
+    },
+    
+    // Save Changes Confirmation Modal Styles
+    saveModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    saveModalContainer: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 24,
+        width: "80%",
+        maxWidth: 360,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+        borderWidth: 3,
+        borderColor: "#9FD19E",
+    },
+    saveIconCircle: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: "#D4F1D3",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    saveIcon: {
+        width: 40,
+        height: 40,
+        resizeMode: "contain",
+    },
+    saveModalTitle: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#1A1A1A",
+        marginBottom: 8,
+        fontFamily: "Fredoka_700Bold",
+    },
+    saveModalMessage: {
+        fontSize: 14,
+        color: "#4A4A4A",
+        textAlign: "center",
+        lineHeight: 20,
+        marginBottom: 20,
+        fontFamily: "Fredoka_400Regular",
+        paddingHorizontal: 8,
+        flexWrap: "wrap",
+    },
+    saveModalButtons: {
+        flexDirection: "row",
+        gap: 12,
+        width: "100%",
+    },
+    saveCancelButton: {
+        flex: 1,
+        backgroundColor: "#D3D3D3",
+        paddingVertical: 12,
+        borderRadius: 50,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    saveCancelButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#FFFFFF",
+        fontFamily: "Fredoka_600SemiBold",
+    },
+    saveConfirmButton: {
+        flex: 1,
+        backgroundColor: "#4CAF50",
+        paddingVertical: 12,
+        borderRadius: 50,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    saveConfirmButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#FFFFFF",
+        fontFamily: "Fredoka_600SemiBold",
+    },
+    // Select Days Error Modal Styles
+    selectDaysModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    selectDaysModalContainer: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 24,
+        width: "80%",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "#FFB3BA",
+    },
+    selectDaysIconCircle: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: "#FFE1E4",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    selectDaysIcon: {
+        width: 40,
+        height: 40,
+    },
+    selectDaysModalTitle: {
+        fontSize: 18,
+        fontFamily: "Fredoka_700Bold",
+        color: "#000",
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    selectDaysModalMessage: {
+        fontSize: 14,
+        fontFamily: "Fredoka_400Regular",
+        color: "#333",
+        textAlign: "center",
+        marginBottom: 20,
+    },
+    selectDaysOkButton: {
+        backgroundColor: "#FF6F79",
+        paddingVertical: 10,
+        paddingHorizontal: 40,
+        borderRadius: 20,
+    },
+    selectDaysOkButtonText: {
+        color: "#fff",
+        fontSize: 16,
+        fontFamily: "Fredoka_600SemiBold",
     },
 });

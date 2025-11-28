@@ -1,3 +1,10 @@
+import {
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
+} from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
@@ -24,6 +31,12 @@ export default function Settings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const [fontsLoaded] = useFonts({
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
   const [childNickname, setChildNickname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("********");
@@ -38,6 +51,23 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+  
+  // Password error modals
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [errorType, setErrorType] = useState<"error" | "pencil">("error"); // "error" for Error.png, "pencil" for Pencil.png
+  
+  // Password success modal
+  const [passwordSuccessVisible, setPasswordSuccessVisible] = useState(false);
+  
+  // Terms & Conditions modal
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  
+  // Privacy Policy modal
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<number[]>([]);
+  
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
   // Check parental lock on component mount and when focused
@@ -53,6 +83,11 @@ export default function Settings() {
     
     return () => {
       ParentalLockAuthService.removeListener(authListener);
+      // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
+      setLogoutConfirmVisible(false);
+      setErrorModalVisible(false);
+      setPasswordSuccessVisible(false);
+      setShowChangePasswordModal(false);
     };
   }, []);
 
@@ -166,17 +201,23 @@ export default function Settings() {
 
   const handleSavePassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in both password fields");
+      setErrorType("pencil");
+      setErrorMessage("Please fill in both password fields");
+      setErrorModalVisible(true);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      setErrorType("error");
+      setErrorMessage("Passwords do not match");
+      setErrorModalVisible(true);
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long");
+      setErrorType("error");
+      setErrorMessage("Password must be at least 6 characters long");
+      setErrorModalVisible(true);
       return;
     }
 
@@ -190,14 +231,24 @@ export default function Settings() {
       // Clear parental lock authentication after password change
       ParentalLockAuthService.setAuthenticated(false);
       
-      Alert.alert("Success", "Password updated successfully!");
+      // Show success modal
       setShowChangePasswordModal(false);
+      setPasswordSuccessVisible(true);
       setNewPassword("");
       setConfirmPassword("");
       setShowNewPassword(false);
       setShowConfirmPassword(false);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to update password");
+      // Check if error is about new password being same as old password
+      if (error.message && error.message.toLowerCase().includes("same")) {
+        setErrorType("error");
+        setErrorMessage("New password should be different from the old password");
+        setErrorModalVisible(true);
+      } else {
+        setErrorType("error");
+        setErrorMessage(error.message || "Failed to update password");
+        setErrorModalVisible(true);
+      }
     }
   };
 
@@ -210,19 +261,12 @@ export default function Settings() {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Log out", "Are you sure you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Log out",
-        style: "destructive",
-        onPress: async () => {
-          await supabase.auth.signOut();
-        },
-      },
-    ]);
+    setLogoutConfirmVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    setLogoutConfirmVisible(false);
+    await supabase.auth.signOut();
   };
 
   const handleParentalLock = () => {
@@ -230,18 +274,32 @@ export default function Settings() {
   };
 
   const handleInstruction = () => {
-    Alert.alert("Instruction", "App instructions will be shown here");
+    router.push("/instruction");
   };
 
   const handleTermsAndConditions = () => {
-    Alert.alert(
-      "Terms and Conditions",
-      "Terms and Conditions content will be shown here"
-    );
+    setTermsModalVisible(true);
+  };
+
+  const handleAcceptTerms = () => {
+    setTermsModalVisible(false);
+  };
+
+  const handleDeclineTerms = () => {
+    setTermsModalVisible(false);
   };
 
   const handlePrivacyPolicy = () => {
-    Alert.alert("Privacy Policy", "Privacy Policy content will be shown here");
+    setPrivacyModalVisible(true);
+    setExpandedSections([]);
+  };
+
+  const toggleSection = (sectionNumber: number) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionNumber) 
+        ? [] // Close if already open
+        : [sectionNumber] // Open this one and close all others
+    );
   };
 
   return (
@@ -380,7 +438,7 @@ export default function Settings() {
 
         {/* Log out Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Log out</Text>
+          <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -544,6 +602,511 @@ export default function Settings() {
               </View>
             </View>
           </ImageBackground>
+        </View>
+      </Modal>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={logoutConfirmVisible}
+        onRequestClose={() => setLogoutConfirmVisible(false)}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <View style={styles.logoutModalContainer}>
+            <View style={styles.logoutIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.logoutIcon}
+              />
+            </View>
+            
+            <Text style={styles.logoutModalTitle}>Logout?</Text>
+            <Text style={styles.logoutModalMessage}>
+              Are you sure you want to logout?
+            </Text>
+            
+            <View style={styles.logoutModalButtons}>
+              <TouchableOpacity
+                style={styles.logoutCancelButton}
+                onPress={() => setLogoutConfirmVisible(false)}
+              >
+                <Text style={styles.logoutCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.logoutConfirmButton}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.logoutConfirmButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Error Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorModalVisible}
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={
+                  errorType === "pencil"
+                    ? require("../../assets/images/Pencil.png")
+                    : require("../../assets/images/Error.png")
+                }
+                style={styles.errorIcon}
+              />
+            </View>
+            
+            <Text style={styles.errorModalTitle}>Error{errorType === "pencil" ? "!" : ""}</Text>
+            <Text style={styles.errorModalMessage}>{errorMessage}</Text>
+            
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={passwordSuccessVisible}
+        onRequestClose={() => setPasswordSuccessVisible(false)}
+      >
+        <View style={styles.successPasswordModalOverlay}>
+          <View style={styles.successPasswordModalContainer}>
+            <View style={styles.successPasswordIconCircle}>
+              <Image
+                source={require("../../assets/images/Checkmark.png")}
+                style={styles.successPasswordIcon}
+              />
+            </View>
+            
+            <Text style={styles.successPasswordModalTitle}>Success!</Text>
+            <Text style={styles.successPasswordModalMessage}>
+              Password updated successfully!
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.successPasswordOkButton}
+              onPress={() => setPasswordSuccessVisible(false)}
+            >
+              <Text style={styles.successPasswordOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Terms & Conditions Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={termsModalVisible}
+        onRequestClose={() => setTermsModalVisible(false)}
+      >
+        <View style={styles.termsModalOverlay}>
+          <View style={styles.termsModalContainer}>
+            {/* Back Button */}
+            <TouchableOpacity 
+              style={styles.termsBackButton}
+              onPress={() => setTermsModalVisible(false)}
+            >
+              <Text style={styles.termsBackButtonText}>Back</Text>
+            </TouchableOpacity>
+
+            {/* Scrollable Content */}
+            <ScrollView 
+              style={styles.termsScrollView}
+              contentContainerStyle={styles.termsScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={styles.termsTitle}>Terms & Conditions</Text>
+              <Text style={styles.termsSubtitle}>Last updated on November 2025</Text>
+
+              <Text style={styles.termsText}>
+                Welcome to Ritmo. These Terms and Conditions ("Terms") govern your access to and use of the Ritmo mobile application ("App"), operated for the purpose of supporting children with Autism Spectrum Disorder (ASD) in completing daily routines with independence, structure, and consistency.
+              </Text>
+              
+              <Text style={styles.termsText}>
+                By downloading, installing, or using Ritmo, you agree to be bound by these Terms. If you do not agree, please stop using the App immediately.
+              </Text>
+
+              <Text style={styles.termsSectionTitle}>1. Purpose of the App</Text>
+              <Text style={styles.termsText}>Ritmo is designed to:</Text>
+              <Text style={styles.termsBullet}>• Provide visual, auditory, and structured routine guides for children with Level 2 Autism.</Text>
+              <Text style={styles.termsBullet}>• Support parents, teachers, and guardians in managing, customizing, and monitoring daily routines.</Text>
+              <Text style={styles.termsBullet}>• Promote independence, reduce anxiety, and create predictable daily structures for children.</Text>
+              <Text style={styles.termsText}>Ritmo is an assistive tool, not a medical, therapeutic, or diagnostic service.</Text>
+
+              <Text style={styles.termsSectionTitle}>2. User Eligibility</Text>
+              <Text style={styles.termsText}>Ritmo is intended for:</Text>
+              <Text style={styles.termsBullet}>• Parents/Guardian who manage the child's routines and monitor progress.</Text>
+              <Text style={styles.termsBullet}>• Children who follow the visual and auditory guides provided in the App.</Text>
+              <Text style={styles.termsText}>Parents/Guardian are responsible for:</Text>
+              <Text style={styles.termsBullet}>• Creating and managing the child's account and routine settings.</Text>
+              <Text style={styles.termsBullet}>• Ensuring the accuracy and appropriateness of tasks added to the system.</Text>
+              <Text style={styles.termsBullet}>• Supervising the child while using the App when necessary.</Text>
+
+              <Text style={styles.termsSectionTitle}>3. Account Registration</Text>
+              <Text style={styles.termsText}>When creating an account:</Text>
+              <Text style={styles.termsBullet}>• You agree to provide accurate and complete information.</Text>
+              <Text style={styles.termsBullet}>• You are responsible for keeping your login details secure.</Text>
+              <Text style={styles.termsBullet}>• You must notify Ritmo immediately if you suspect unauthorized access.</Text>
+              <Text style={styles.termsText}>Ritmo may suspend or terminate accounts that violate these Terms.</Text>
+
+              <Text style={styles.termsSectionTitle}>4. App Features and Use</Text>
+              <Text style={styles.termsText}>By using the App, you acknowledge and agree to the following features:</Text>
+              
+              <Text style={styles.termsSubsectionTitle}>4.1 Routine Creation & Management</Text>
+              <Text style={styles.termsBullet}>• Parents/Guardian can create personalized routines, tasks, and schedules based on the child's needs.</Text>
+              <Text style={styles.termsBullet}>• You are fully responsible for ensuring tasks are safe, age-appropriate, and supportive.</Text>
+
+              <Text style={styles.termsSubsectionTitle}>4.2 Visual and Auditory Guides</Text>
+              <Text style={styles.termsBullet}>• Ritmo provides icons, images, simple instructions, audio cues, and optional instructional videos. These guides are for educational and supportive purposes only.</Text>
+
+              <Text style={styles.termsSubsectionTitle}>4.3 Progress Tracking</Text>
+              <Text style={styles.termsBullet}>• The App may record task completion, routine history, and user activity for monitoring progress.</Text>
+              <Text style={styles.termsBullet}>• This data is accessible only to the authorized Parents/Guardian.</Text>
+
+              <Text style={styles.termsSubsectionTitle}>4.4 Positive Reinforcement System</Text>
+              <Text style={styles.termsBullet}>• The App uses stars, badges, points, and other motivating elements to support routine completion.</Text>
+              <Text style={styles.termsBullet}>• These rewards are digital and have no real-world monetary value.</Text>
+
+              <Text style={styles.termsSubsectionTitle}>4.5 Accessibility Design</Text>
+              <Text style={styles.termsText}>Ritmo is designed with autism-friendly features including:</Text>
+              <Text style={styles.termsBullet}>• Low-stimulus colors</Text>
+              <Text style={styles.termsBullet}>• Clear icons</Text>
+              <Text style={styles.termsBullet}>• Minimal text</Text>
+              <Text style={styles.termsBullet}>• Smooth, simple navigation</Text>
+              <Text style={styles.termsText}>However, Ritmo does not guarantee that all features will be suitable for every child.</Text>
+
+              <Text style={styles.termsSectionTitle}>5. Acceptable Use of the App</Text>
+              <Text style={styles.termsText}>By using Ritmo, you agree that you will NOT:</Text>
+              <Text style={styles.termsBullet}>• Misuse, reverse-engineer, or modify any App function.</Text>
+              <Text style={styles.termsBullet}>• Use the App for purposes other than assisting routine management.</Text>
+              <Text style={styles.termsBullet}>• Upload unlawful, harmful, or inappropriate content.</Text>
+              <Text style={styles.termsBullet}>• Attempt to access data you are not authorized to view.</Text>
+              <Text style={styles.termsText}>Violations may result in account suspension or permanent removal.</Text>
+
+              <Text style={styles.termsSectionTitle}>6. Data Privacy and Security</Text>
+              <Text style={styles.termsText}>Ritmo values privacy, especially since it supports children. By using the App, you agree to the following:</Text>
+              
+              <Text style={styles.termsSubsectionTitle}>6.1 Information We Collect</Text>
+              <Text style={styles.termsText}>Ritmo may collect:</Text>
+              <Text style={styles.termsBullet}>• Parents/Guardian account information (name, email)</Text>
+              <Text style={styles.termsBullet}>• Child routine data (tasks, progress, schedules)</Text>
+              <Text style={styles.termsBullet}>• App usage analytics (for improvement purposes)</Text>
+              <Text style={styles.termsText}>Ritmo does not sell or share personal information with third parties for marketing.</Text>
+
+              <Text style={styles.termsSubsectionTitle}>6.2 How Data Is Used</Text>
+              <Text style={styles.termsText}>Data is used to:</Text>
+              <Text style={styles.termsBullet}>• Provide personalized routines and progress tracking</Text>
+              <Text style={styles.termsBullet}>• Improve App performance and accessibility</Text>
+              <Text style={styles.termsBullet}>• Ensure account security</Text>
+
+              <Text style={styles.termsSubsectionTitle}>6.3 Storage and Security</Text>
+              <Text style={styles.termsText}>Ritmo uses secure systems to store routine and user information. However, no app can guarantee 100% security. Parents/Guardian must protect their own login information.</Text>
+
+              <Text style={styles.termsSectionTitle}>7. No Medical or Therapeutic Claims</Text>
+              <Text style={styles.termsText}>Ritmo:</Text>
+              <Text style={styles.termsBullet}>• It is not a substitute for professional therapy, diagnosis, or medical intervention.</Text>
+              <Text style={styles.termsBullet}>• Does not guarantee improvements in behavior, skills, or development.</Text>
+              <Text style={styles.termsBullet}>• Should be used as a support tool alongside caregiver guidance and professional advice.</Text>
+              <Text style={styles.termsText}>Consult professionals for clinical or behavioral concerns.</Text>
+
+              <Text style={styles.termsSectionTitle}>8. App Updates and Changes</Text>
+              <Text style={styles.termsText}>Ritmo may update features, fix bugs, or change functionality at any time. Some updates may be required to continue using the App. Ritmo is not responsible for interruptions caused by updates or maintenance.</Text>
+
+              <Text style={styles.termsSectionTitle}>9. Limitation of Liability</Text>
+              <Text style={styles.termsText}>To the fullest extent allowed by law, Ritmo is not liable for:</Text>
+              <Text style={styles.termsBullet}>• Improper use of the App</Text>
+              <Text style={styles.termsBullet}>• Errors caused by user-submitted tasks or routines</Text>
+              <Text style={styles.termsBullet}>• Damages resulting from device malfunction or internet issues</Text>
+              <Text style={styles.termsBullet}>• Behavioral outcomes that may arise from routine changes</Text>
+              <Text style={styles.termsText}>Parents/Guardian remain fully responsible for supervising the child and ensuring safety during real-life tasks.</Text>
+
+              <Text style={styles.termsSectionTitle}>10. Termination of Use</Text>
+              <Text style={styles.termsText}>Ritmo reserves the right to:</Text>
+              <Text style={styles.termsBullet}>• Suspend or delete accounts that violate these Terms</Text>
+              <Text style={styles.termsBullet}>• Discontinue certain features or the entire App</Text>
+              <Text style={styles.termsBullet}>• Restrict access if misuse is suspected</Text>
+              <Text style={styles.termsText}>Users may stop using the App at any time by uninstalling it.</Text>
+
+              <Text style={styles.termsSectionTitle}>11. Intellectual Property</Text>
+              <Text style={styles.termsText}>All content in Ritmo including icons, visuals, text, videos, and system design is owned by the App developers. Users may not copy, reproduce, modify, or distribute content without permission.</Text>
+
+              <Text style={styles.termsSectionTitle}>12. Contact Information</Text>
+              <Text style={styles.termsText}>For questions, support, or feedback, you can reach us at:</Text>
+              <Text style={styles.termsBullet}>• Email:</Text>
+              <Text style={styles.termsBullet}>• Website:</Text>
+
+              {/* Bottom Buttons - At the end of scrollable content */}
+              <View style={styles.termsButtonContainer}>
+                <TouchableOpacity 
+                  style={styles.termsDeclineButton}
+                  onPress={handleDeclineTerms}
+                >
+                  <Text style={styles.termsDeclineButtonText}>Decline</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.termsAcceptButton}
+                  onPress={handleAcceptTerms}
+                >
+                  <Text style={styles.termsAcceptButtonText}>Accept</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Privacy Policy Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={privacyModalVisible}
+        onRequestClose={() => setPrivacyModalVisible(false)}
+      >
+        <View style={styles.termsModalOverlay}>
+          <View style={styles.termsModalContainer}>
+            {/* Back Button */}
+            <TouchableOpacity 
+              style={styles.termsBackButton}
+              onPress={() => setPrivacyModalVisible(false)}
+            >
+              <Text style={styles.termsBackButtonText}>Back</Text>
+            </TouchableOpacity>
+
+            {/* Scrollable Content */}
+            <ScrollView 
+              style={styles.termsScrollView}
+              contentContainerStyle={styles.termsScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={styles.termsTitle}>Privacy Policy</Text>
+              <Text style={styles.termsSubtitle}>Last Updated: November 2025</Text>
+
+              <Text style={styles.termsText}>
+                Ritmo we designed to support children, parents, and caregivers in managing daily routines through visual schedules and guided activities. We value your trust and are committed to protecting your privacy. This Privacy Policy explains what information we collect, how it is used, and the choices you have regarding your data.
+              </Text>
+
+              {/* Section 1 - Information We Collect */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(1)}
+              >
+                <Text style={styles.privacyAccordionTitle}>1. Information We Collect</Text>
+                <Ionicons 
+                  name={expandedSections.includes(1) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(1) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.privacySubsectionTitle}>1.1 Personal Information</Text>
+                  <Text style={styles.termsText}>
+                    Ritmo does not require users to create an account. However, the app may collect basic information provided by parents or caregivers, including:
+                  </Text>
+                  <Text style={styles.termsBullet}>• Child's nickname or first name</Text>
+                  <Text style={styles.termsBullet}>• Routine preferences (e.g., scheduled tasks)</Text>
+                  <Text style={styles.termsText}>
+                    No sensitive personal data (e.g., exact location, medical history, contact details) is required.
+                  </Text>
+
+                  <Text style={styles.privacySubsectionTitle}>1.2 Usage Data</Text>
+                  <Text style={styles.termsText}>To improve the app, we may collect anonymous usage information such as:</Text>
+                  <Text style={styles.termsBullet}>• Features used</Text>
+                  <Text style={styles.termsBullet}>• Task completion frequency</Text>
+                  <Text style={styles.termsBullet}>• App performance and error reports</Text>
+                  <Text style={styles.termsText}>This data does not identify the child or user.</Text>
+
+                  <Text style={styles.privacySubsectionTitle}>1.3 Media Files (Optional)</Text>
+                  <Text style={styles.termsText}>
+                    If parents upload custom images or videos for routines, these remain stored locally on the device unless cloud backup is enabled by the user.
+                  </Text>
+
+                  <Text style={styles.privacySubsectionTitle}>1.4 Device Information</Text>
+                  <Text style={styles.termsText}>The app may collect basic device data such as:</Text>
+                  <Text style={styles.termsBullet}>• Device model</Text>
+                  <Text style={styles.termsBullet}>• Operating system version</Text>
+                  <Text style={styles.termsBullet}>• App version</Text>
+                  <Text style={styles.termsText}>This helps us ensure compatibility and fix technical issues.</Text>
+                </View>
+              )}
+
+              {/* Section 2 - How We Use Your Information */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(2)}
+              >
+                <Text style={styles.privacyAccordionTitle}>2. How We Use Your Information</Text>
+                <Ionicons 
+                  name={expandedSections.includes(2) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(2) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsText}>We use the collected information to:</Text>
+                  <Text style={styles.termsBullet}>• Customize tasks and routines for the child</Text>
+                  <Text style={styles.termsBullet}>• Improve the app's functionality and performance</Text>
+                  <Text style={styles.termsBullet}>• Provide a personalized experience for learning and independence</Text>
+                  <Text style={styles.termsBullet}>• Ensure stability and security of the app</Text>
+                  <Text style={styles.termsText}>We do not sell, rent, or share your information with advertisers.</Text>
+                </View>
+              )}
+
+              {/* Section 3 - Data Storage and Security */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(3)}
+              >
+                <Text style={styles.privacyAccordionTitle}>3. Data Storage and Security</Text>
+                <Ionicons 
+                  name={expandedSections.includes(3) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(3) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsBullet}>• All routine-related data is stored locally on the user's device unless cloud services are enabled.</Text>
+                  <Text style={styles.termsBullet}>• We use standard security practices to protect information from unauthorized access.</Text>
+                  <Text style={styles.termsBullet}>• Parents maintain full control over the child's information.</Text>
+                </View>
+              )}
+
+              {/* Section 4 - Data Sharing */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(4)}
+              >
+                <Text style={styles.privacyAccordionTitle}>4. Data Sharing</Text>
+                <Ionicons 
+                  name={expandedSections.includes(4) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(4) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsText}>We do not share your personal information with third parties except:</Text>
+                  <Text style={styles.termsBullet}>• When required by law</Text>
+                  <Text style={styles.termsBullet}>• When necessary to maintain the app (e.g., error or crash reporting tools)</Text>
+                  <Text style={styles.termsText}>These tools collect anonymous diagnostic data only.</Text>
+                </View>
+              )}
+
+              {/* Section 5 - Children's Privacy */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(5)}
+              >
+                <Text style={styles.privacyAccordionTitle}>5. Children's Privacy</Text>
+                <Ionicons 
+                  name={expandedSections.includes(5) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(5) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsText}>
+                    Ritmo is designed specifically for children, but all account setup and data entry are intended to be done by a parent or guardian.
+                  </Text>
+                  <Text style={styles.termsText}>We comply with child protection best practices:</Text>
+                  <Text style={styles.termsBullet}>• No advertising</Text>
+                  <Text style={styles.termsBullet}>• No social media links</Text>
+                  <Text style={styles.termsBullet}>• No collection of sensitive identifying information</Text>
+                  <Text style={styles.termsText}>Parents may delete the child's data at any time.</Text>
+                </View>
+              )}
+
+              {/* Section 6 - Your Rights and Choices */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(6)}
+              >
+                <Text style={styles.privacyAccordionTitle}>6. Your Rights and Choices</Text>
+                <Ionicons 
+                  name={expandedSections.includes(6) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(6) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsText}>Parents and guardians may:</Text>
+                  <Text style={styles.termsBullet}>• Edit or delete any information in the app</Text>
+                  <Text style={styles.termsBullet}>• Disable data collection features</Text>
+                  <Text style={styles.termsBullet}>• Request clarification about how information is handled</Text>
+                  <Text style={styles.termsText}>
+                    If you want to delete all stored data, you may uninstall the app or request additional support.
+                  </Text>
+                </View>
+              )}
+
+              {/* Section 7 - Changes to This Privacy Policy */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(7)}
+              >
+                <Text style={styles.privacyAccordionTitle}>7. Changes to This Privacy Policy</Text>
+                <Ionicons 
+                  name={expandedSections.includes(7) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(7) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsText}>
+                    We may update this Privacy Policy from time to time. Any changes will be posted within the app. Continued use of the app means you accept the updated policy.
+                  </Text>
+                </View>
+              )}
+
+              {/* Section 8 - Contact Us */}
+              <TouchableOpacity 
+                style={styles.privacyAccordionHeader}
+                onPress={() => toggleSection(8)}
+              >
+                <Text style={styles.privacyAccordionTitle}>8. Contact Us</Text>
+                <Ionicons 
+                  name={expandedSections.includes(8) ? "remove" : "add"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+              {expandedSections.includes(8) && (
+                <View style={styles.privacyAccordionContent}>
+                  <Text style={styles.termsText}>
+                    If you have questions or concerns about this Privacy Policy, you may contact us at:
+                  </Text>
+                  <Text style={styles.termsBullet}>• Email:</Text>
+                  <Text style={styles.termsBullet}>• Developer:</Text>
+                </View>
+              )}
+
+              {/* Bottom spacing */}
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -905,5 +1468,403 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  
+  // Logout Confirmation Modal Styles
+  logoutModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logoutModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    maxWidth: 360,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  logoutIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  logoutIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  logoutModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  logoutModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  logoutModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  logoutCancelButton: {
+    flex: 1,
+    backgroundColor: "#D3D3D3",
+    paddingVertical: 12,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutCancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  logoutConfirmButton: {
+    flex: 1,
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 12,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  
+  // Password Error Modal Styles
+  errorModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "75%",
+    maxWidth: 340,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  errorIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  errorIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  errorModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  errorModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  errorOkButton: {
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 12,
+    paddingHorizontal: 50,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  errorOkButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  
+  // Password Success Modal Styles
+  successPasswordModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  successPasswordModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    width: "70%",
+    maxWidth: 320,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  successPasswordIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  successPasswordIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+  },
+  successPasswordModalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    fontFamily: "Fredoka_700Bold",
+  },
+  successPasswordModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    marginBottom: 18,
+    fontFamily: "Fredoka_400Regular",
+    flexWrap: "wrap",
+  },
+  successPasswordOkButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  successPasswordOkButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  // Terms & Conditions Modal
+  termsModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  termsModalContainer: {
+    backgroundColor: "#F0F9F7",
+    borderRadius: 24,
+    width: "105%",
+    height: "100%",
+    borderWidth: 3,
+    borderColor: "#61CCB2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  termsBackButton: {
+    position: "absolute",
+    top: 5,
+    left: 10,
+    zIndex: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  termsBackButtonText: {
+    fontSize: 18,
+    color: "#2A3B4D",
+    fontWeight: "600",
+    textDecorationLine: "underline",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  termsScrollView: {
+    flex: 1,
+    marginTop: 50,
+    paddingHorizontal: 20,
+  },
+  termsScrollContent: {
+    paddingBottom: 5,
+  },
+  termsTitle: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#2A3B4D",
+    textAlign: "left",
+    marginBottom: 6,
+    letterSpacing: 0.5,
+    fontFamily: "Fredoka_700Bold",
+  },
+  termsSubtitle: {
+    fontSize: 15,
+    color: "#6B8E7E",
+    textAlign: "left",
+    marginBottom: 24,
+    fontWeight: "500",
+    fontFamily: "Fredoka_500Medium",
+  },
+  termsText: {
+    fontSize: 15,
+    color: "#2A3B4D",
+    lineHeight: 24,
+    marginBottom: 14,
+    textAlign: "justify",
+    fontWeight: "400",
+    fontFamily: "Fredoka_400Regular",
+  },
+  termsSectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#2A3B4D",
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: "left",
+    letterSpacing: 0.3,
+    fontFamily: "Fredoka_700Bold",
+  },
+  termsSubsectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2A3B4D",
+    marginTop: 14,
+    marginBottom: 8,
+    textAlign: "left",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  termsBullet: {
+    fontSize: 15,
+    color: "#2A3B4D",
+    lineHeight: 24,
+    marginBottom: 8,
+    marginLeft: 10,
+    textAlign: "justify",
+    fontFamily: "Fredoka_400Regular",
+  },
+  termsButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingTop: 20,
+    paddingBottom: 10,
+    marginTop: -10,
+  },
+  termsDeclineButton: {
+    flex: 1,
+    backgroundColor: "#D3D3D3",
+    borderRadius: 50,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  termsDeclineButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#666666",
+    fontFamily: "Fredoka_700Bold",
+  },
+  termsAcceptButton: {
+    flex: 1,
+    backgroundColor: "#00A980",
+    borderRadius: 50,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  termsAcceptButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_700Bold",
+  },
+  // Privacy Policy Accordion Styles
+  privacyAccordionHeader: {
+    backgroundColor: "#C4DFE6",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 2,
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  privacyAccordionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#2A3B4D",
+    flex: 1,
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  privacyAccordionContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#C4DFE6",
+  },
+  privacySubsectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2A3B4D",
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: "left",
+    fontFamily: "Fredoka_600SemiBold",
   },
 });
