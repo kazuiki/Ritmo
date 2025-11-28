@@ -268,9 +268,9 @@ class NotificationService {
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
-        'alarm1': require('../assets/ringtone/ALARM 1.mp3'),
-        'alarm2': require('../assets/ringtone/ALARM 2.mp3'),
-        'alarm3': require('../assets/ringtone/ALARM 3.mp3'),
+        'alarm1': require('../assets/ringtone/Alarm1.mp3'),
+        'alarm2': require('../assets/ringtone/Alarm2.mp3'),
+        'alarm3': require('../assets/ringtone/Alarm3.mp3'),
       };
 
       const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
@@ -314,9 +314,9 @@ class NotificationService {
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
-        'alarm1': require('../assets/ringtone/ALARM 1.mp3'),
-        'alarm2': require('../assets/ringtone/ALARM 2.mp3'),
-        'alarm3': require('../assets/ringtone/ALARM 3.mp3'),
+        'alarm1': require('../assets/ringtone/Alarm1.mp3'),
+        'alarm2': require('../assets/ringtone/Alarm2.mp3'),
+        'alarm3': require('../assets/ringtone/Alarm3.mp3'),
       };
 
       const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
