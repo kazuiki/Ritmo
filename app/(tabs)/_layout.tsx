@@ -3,19 +3,16 @@ import { useEffect, useState } from "react";
 import {
   Dimensions,
   Image,
-  Platform,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { scaleFont } from "../../utils/scaler";
 
-
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  const isAndroid = Platform.OS === "android";
 
   const [layout, setLayout] = useState(Dimensions.get("window"));
 
@@ -29,18 +26,22 @@ export default function TabsLayout() {
   const { width: W, height: H } = layout;
 
   // ===============================
-  // PERFECT RESPONSIVE MEASUREMENTS
+  // DEVICE TYPE DETECTION
   // ===============================
-  const TAB_HEIGHT = 65;
-  const FAB_SIZE = 75;
+  const isTablet = Math.min(W, H) >= 600;
+
+  // ===============================
+  // RESPONSIVE VALUES
+  // ===============================
+  const TAB_HEIGHT = isTablet ? 95 : 65;
+  const FAB_SIZE = isTablet ? 110 : 75;
 
   const CUTOUT_RADIUS = FAB_SIZE * 0.55;
-  const SVG_HEIGHT = CUTOUT_RADIUS + 20;
+  const SVG_HEIGHT = CUTOUT_RADIUS + (isTablet ? 35 : 20);
 
-  const tabItem = W * 0.11;
-  const iconSize = W * 0.055;
-  const fab = FAB_SIZE;
-  const fabIcon = W * 0.10;
+  const tabItem = isTablet ? W * 0.10 : W * 0.11;
+  const iconSize = isTablet ? W * 0.045 : W * 0.055;
+  const fabIcon = isTablet ? W * 0.085 : W * 0.10;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
@@ -48,6 +49,9 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
 
+          // ===============================
+          // TAB BAR BACKGROUND SVG
+          // ===============================
           tabBarBackground: () => (
             <View
               style={{
@@ -86,6 +90,9 @@ export default function TabsLayout() {
             </View>
           ),
 
+          // ===============================
+          // TAB BAR STYLE
+          // ===============================
           tabBarStyle: {
             backgroundColor: "transparent",
             position: "absolute",
@@ -98,7 +105,7 @@ export default function TabsLayout() {
             justifyContent: "flex-start",
             alignItems: "center",
             width: W / 5,
-            paddingTop: 5,
+            paddingTop: isTablet ? 10 : 5,
           },
         }}
       >
@@ -141,14 +148,14 @@ export default function TabsLayout() {
           name="addRoutines"
           options={{
             tabBarIcon: () => (
-              <View style={{ position: "absolute", top: -fab * 0.38 }}>
+              <View style={{ position: "absolute", top: -FAB_SIZE * 0.38 }}>
                 <View
                   style={[
                     styles.floatingButton,
                     {
-                      width: fab,
-                      height: fab,
-                      borderRadius: fab / 2,
+                      width: FAB_SIZE,
+                      height: FAB_SIZE,
+                      borderRadius: FAB_SIZE / 2,
                     },
                   ]}
                 >
@@ -224,16 +231,15 @@ function TabItem({ focused, size, iconSize, label, icon }) {
         }}
       />
       <Text
-  style={{
-    color: "#fff",
-    fontSize: scaleFont(11),
-    marginTop: 2,
-    fontWeight: "600",
-  }}
->
-  {label}
-</Text>
-
+        style={{
+          color: "#fff",
+          fontSize: scaleFont(11),
+          marginTop: 2,
+          fontWeight: "600",
+        }}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
