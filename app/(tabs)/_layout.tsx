@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { scaleFont } from "../../utils/scaler";
+
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -26,13 +28,19 @@ export default function TabsLayout() {
 
   const { width: W, height: H } = layout;
 
-  // FIXED responsive measurements
-  const TAB_HEIGHT = H * 0.085;          // Lower bar height
-  const SVG_HEIGHT = H * 0.09;           // Correct curve height
-  const tabItem = W * 0.11;              // Icon container
-  const iconSize = W * 0.055;            // Icon only
-  const fab = W * 0.19;                  // Floating button size
-  const fabIcon = W * 0.10;              // Icon inside FAB
+  // ===============================
+  // PERFECT RESPONSIVE MEASUREMENTS
+  // ===============================
+  const TAB_HEIGHT = 65;
+  const FAB_SIZE = 75;
+
+  const CUTOUT_RADIUS = FAB_SIZE * 0.55;
+  const SVG_HEIGHT = CUTOUT_RADIUS + 20;
+
+  const tabItem = W * 0.11;
+  const iconSize = W * 0.055;
+  const fab = FAB_SIZE;
+  const fabIcon = W * 0.10;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
@@ -40,7 +48,6 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
 
-          // FIXED SVG background alignment
           tabBarBackground: () => (
             <View
               style={{
@@ -54,10 +61,20 @@ export default function TabsLayout() {
                 <Path
                   d={`
                     M0 0
-                    H${W * 0.32}
-                    Q${W * 0.38} ${SVG_HEIGHT * 0.00} ${W * 0.40} ${SVG_HEIGHT * 0.25}
-                    Q${W * 0.50} ${SVG_HEIGHT * 0.70} ${W * 0.60} ${SVG_HEIGHT * 0.25}
-                    Q${W * 0.62} 0 ${W * 0.68} 0
+                    H${(W / 2) - CUTOUT_RADIUS - 20}
+
+                    C ${(W / 2) - CUTOUT_RADIUS - 5} 0,
+                      ${(W / 2) - CUTOUT_RADIUS} ${CUTOUT_RADIUS * 0.35},
+                      ${W / 2 - CUTOUT_RADIUS * 0.60} ${CUTOUT_RADIUS * 0.85}
+
+                    C ${(W / 2) - CUTOUT_RADIUS * 0.25} ${CUTOUT_RADIUS * 1.25},
+                      ${(W / 2) + CUTOUT_RADIUS * 0.25} ${CUTOUT_RADIUS * 1.25},
+                      ${(W / 2) + CUTOUT_RADIUS * 0.60} ${CUTOUT_RADIUS * 0.85}
+
+                    C ${(W / 2) + CUTOUT_RADIUS} ${CUTOUT_RADIUS * 0.35},
+                      ${(W / 2) + CUTOUT_RADIUS + 5} 0,
+                      ${(W / 2) + CUTOUT_RADIUS + 20} 0
+
                     H${W}
                     V${SVG_HEIGHT}
                     H0
@@ -69,7 +86,6 @@ export default function TabsLayout() {
             </View>
           ),
 
-          // FIXED TAB HEIGHT + SAFE AREA
           tabBarStyle: {
             backgroundColor: "transparent",
             position: "absolute",
@@ -192,14 +208,12 @@ export default function TabsLayout() {
 function TabItem({ focused, size, iconSize, label, icon }) {
   return (
     <View
-      style={[
-        {
-          width: size,
-          height: size,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-      ]}
+      style={{
+        width: size,
+        height: size,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
     >
       <Image
         source={icon}
@@ -210,15 +224,16 @@ function TabItem({ focused, size, iconSize, label, icon }) {
         }}
       />
       <Text
-        style={{
-          color: "#fff",
-          fontSize: 11,
-          marginTop: 2,
-          fontWeight: "600",
-        }}
-      >
-        {label}
-      </Text>
+  style={{
+    color: "#fff",
+    fontSize: scaleFont(11),
+    marginTop: 2,
+    fontWeight: "600",
+  }}
+>
+  {label}
+</Text>
+
     </View>
   );
 }
