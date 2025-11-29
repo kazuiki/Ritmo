@@ -15,24 +15,20 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const isAndroid = Platform.OS === "android";
 
-  const [layout, setLayout] = useState(Dimensions.get("window"));
+  // Track dimension changes (orientation, device size)
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
 
   useEffect(() => {
     const sub = Dimensions.addEventListener("change", ({ window }) => {
-      setLayout(window);
+      setScreenWidth(window.width);
     });
     return () => sub?.remove();
   }, []);
 
-  const { width: W, height: H } = layout;
-
-  // FIXED responsive measurements
-  const TAB_HEIGHT = H * 0.085;          // Lower bar height
-  const SVG_HEIGHT = H * 0.09;           // Correct curve height
-  const tabItem = W * 0.11;              // Icon container
-  const iconSize = W * 0.055;            // Icon only
-  const fab = W * 0.19;                  // Floating button size
-  const fabIcon = W * 0.10;              // Icon inside FAB
+  // Dynamic sizes
+  const tabItemSize = screenWidth * 0.13; // icons + container
+  const floatingButtonSize = screenWidth * 0.18;
+  const floatingIconSize = screenWidth * 0.10;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
@@ -40,26 +36,27 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
 
-          // FIXED SVG background alignment
           tabBarBackground: () => (
-            <View
-              style={{
-                position: "absolute",
-                width: W,
-                height: SVG_HEIGHT,
-                bottom: 0,
-              }}
-            >
-              <Svg width={W} height={SVG_HEIGHT}>
+            <View style={styles.tabBarContainer}>
+              <Svg width={screenWidth} height={140} style={styles.svgStyle}>
                 <Path
                   d={`
                     M0 0
-                    H${W * 0.32}
-                    Q${W * 0.38} ${SVG_HEIGHT * 0.00} ${W * 0.40} ${SVG_HEIGHT * 0.25}
-                    Q${W * 0.50} ${SVG_HEIGHT * 0.70} ${W * 0.60} ${SVG_HEIGHT * 0.25}
-                    Q${W * 0.62} 0 ${W * 0.68} 0
-                    H${W}
-                    V${SVG_HEIGHT}
+                    H${screenWidth / 2 - screenWidth * 0.18}
+                    Q${screenWidth / 2 - screenWidth * 0.13} 0 ${
+                    screenWidth / 2 - screenWidth * 0.11
+                  } 15
+                    Q${screenWidth / 2 - screenWidth * 0.07} 43 ${
+                    screenWidth / 2
+                  } 43
+                    Q${screenWidth / 2 + screenWidth * 0.07} 43 ${
+                    screenWidth / 2 + screenWidth * 0.11
+                  } 15
+                    Q${screenWidth / 2 + screenWidth * 0.13} 0 ${
+                    screenWidth / 2 + screenWidth * 0.18
+                  } 0
+                    H${screenWidth}
+                    V150
                     H0
                     Z
                   `}
@@ -69,78 +66,83 @@ export default function TabsLayout() {
             </View>
           ),
 
-          // FIXED TAB HEIGHT + SAFE AREA
           tabBarStyle: {
-            backgroundColor: "transparent",
-            position: "absolute",
-            borderTopWidth: 0,
-            height: TAB_HEIGHT + insets.bottom,
-            paddingBottom: insets.bottom,
+            ...styles.tabBar,
+            height: 70 + (isAndroid ? insets.bottom : 0),
+            paddingBottom: isAndroid ? insets.bottom : 0,
           },
 
           tabBarItemStyle: {
-            justifyContent: "flex-start",
+            justifyContent: "center",
             alignItems: "center",
-            width: W / 5,
-            paddingTop: 5,
+            width: screenWidth / 5,
           },
         }}
       >
-        {/* HOME */}
+        {/* Home */}
         <Tabs.Screen
           name="home"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabItem
-                focused={focused}
-                size={tabItem}
-                iconSize={iconSize}
-                label="Home"
-                icon={require("../../assets/images/home.png")}
-              />
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                  { width: tabItemSize, height: tabItemSize },
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/home.png")}
+                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                />
+                <Text style={styles.tabLabel}>Home</Text>
+              </View>
             ),
             tabBarLabel: () => null,
           }}
         />
 
-        {/* MEDIA */}
+        {/* Media */}
         <Tabs.Screen
           name="media"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabItem
-                focused={focused}
-                size={tabItem}
-                iconSize={iconSize}
-                label="Media"
-                icon={require("../../assets/images/media.png")}
-              />
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                  { width: tabItemSize, height: tabItemSize },
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/media.png")}
+                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                />
+                <Text style={styles.tabLabel}>Media</Text>
+              </View>
             ),
             tabBarLabel: () => null,
           }}
         />
 
-        {/* CENTER FAB */}
+        {/* Floating Add Button */}
         <Tabs.Screen
           name="addRoutines"
           options={{
-            tabBarIcon: () => (
-              <View style={{ position: "absolute", top: -fab * 0.38 }}>
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.centerWrapper}>
                 <View
                   style={[
                     styles.floatingButton,
-                    {
-                      width: fab,
-                      height: fab,
-                      borderRadius: fab / 2,
-                    },
+                    { width: floatingButtonSize, height: floatingButtonSize, borderRadius: floatingButtonSize / 2 },
+                    focused && styles.floatingButtonActive,
                   ]}
                 >
                   <Image
                     source={require("../../assets/images/addRoutines.png")}
                     style={{
-                      width: fabIcon,
-                      height: fabIcon,
+                      width: floatingIconSize,
+                      height: floatingIconSize,
                       tintColor: "#fff",
                     }}
                   />
@@ -151,35 +153,47 @@ export default function TabsLayout() {
           }}
         />
 
-        {/* PROGRESS */}
+        {/* Progress */}
         <Tabs.Screen
           name="progress"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabItem
-                focused={focused}
-                size={tabItem}
-                iconSize={iconSize}
-                label="Progress"
-                icon={require("../../assets/images/progress.png")}
-              />
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                  { width: tabItemSize, height: tabItemSize },
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/progress.png")}
+                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                />
+                <Text style={styles.tabLabel}>Progress</Text>
+              </View>
             ),
             tabBarLabel: () => null,
           }}
         />
 
-        {/* SETTINGS */}
+        {/* Settings */}
         <Tabs.Screen
           name="settings"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabItem
-                focused={focused}
-                size={tabItem}
-                iconSize={iconSize}
-                label="Settings"
-                icon={require("../../assets/images/settings.png")}
-              />
+              <View
+                style={[
+                  styles.tabItemWrapper,
+                  focused && styles.activeTabBackground,
+                  { width: tabItemSize, height: tabItemSize },
+                ]}
+              >
+                <Image
+                  source={require("../../assets/images/settings.png")}
+                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                />
+                <Text style={styles.tabLabel}>Settings</Text>
+              </View>
             ),
             tabBarLabel: () => null,
           }}
@@ -189,49 +203,55 @@ export default function TabsLayout() {
   );
 }
 
-function TabItem({ focused, size, iconSize, label, icon }) {
-  return (
-    <View
-      style={[
-        {
-          width: size,
-          height: size,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-      ]}
-    >
-      <Image
-        source={icon}
-        style={{
-          width: iconSize,
-          height: iconSize,
-          tintColor: focused ? "#06C08A" : "#fff",
-        }}
-      />
-      <Text
-        style={{
-          color: "#fff",
-          fontSize: 11,
-          marginTop: 2,
-          fontWeight: "600",
-        }}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
+  tabBarContainer: {
+    position: "absolute",
+    height: 150,
+  },
+  svgStyle: {
+    position: "absolute",
+    bottom: 0,
+  },
+  tabBar: {
+    backgroundColor: "transparent",
+    position: "absolute",
+    borderTopWidth: 0,
+    elevation: 0,
+  },
+  tabItemWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    top: 20,
+    borderRadius: 15,
+  },
+  activeTabBackground: {
+    backgroundColor: "#06C08A",
+  },
+  icon: {
+    tintColor: "#fff",
+    resizeMode: "contain",
+  },
+  tabLabel: {
+    color: "#fff",
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  centerWrapper: {
+    position: "absolute",
+    top: -28,
+    alignSelf: "center",
+  },
   floatingButton: {
     backgroundColor: "#2F7C72",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+  },
+  floatingButtonActive: {
+    backgroundColor: "#06C08A",
   },
 });
