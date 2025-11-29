@@ -11,18 +11,58 @@ import {
   KeyboardAvoidingView,
   Linking,
   Modal,
+  PixelRatio,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
+  View,
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 
+/* -------------------------
+   Responsive helpers (Option B)
+   ------------------------- */
+const baseWidth = 390; // guideline (iPhone 14 width)
+const baseHeight = 844; // guideline height (optional)
+
+/**
+ * scale - horizontal scale based on screen width
+ * vscale - vertical scale based on screen height
+ * scaleFont - scale fonts with PixelRatio rounding
+ */
+function createScaler(width: number, height: number) {
+  const scale = (size: number) => (width / baseWidth) * size;
+  const vscale = (size: number) => (height / baseHeight) * size;
+  const scaleFont = (size: number) =>
+    Math.round(PixelRatio.roundToNearestPixel((width / baseWidth) * size));
+  return { scale, vscale, scaleFont };
+}
+
 export default function Login() {
   const router = useRouter();
+
+  // Responsive layout state (updates on rotate / size change)
+  const [layout, setLayout] = useState(() => Dimensions.get("window"));
+  useEffect(() => {
+    const onChange = ({ window }: { window: { width: number; height: number } }) => {
+      setLayout(Dimensions.get("window"));
+    };
+    const sub = Dimensions.addEventListener?.("change", onChange) ?? Dimensions.addEventListener("change", onChange);
+    return () => {
+      try {
+        sub?.remove?.();
+      } catch {
+        // react-native < 0.65 fallback handled above
+      }
+    };
+  }, []);
+  const { width, height } = layout;
+  const { scale, vscale, scaleFont } = createScaler(width, height);
+
+  // State & refs (kept as original)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +74,7 @@ export default function Login() {
   const [alertMessage, setAlertMessage] = useState("");
   const reduceMotionRef = useRef(false);
 
-  // Cleanup all modals on unmount to prevent delayed pop-ups
+  // OAuth listener cleanup
   useEffect(() => {
     return () => {
       setAlertModalVisible(false);
@@ -44,8 +84,7 @@ export default function Login() {
   // Listen for OAuth callback and handle auth state changes
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        // User successfully signed in with Google
+      if (event === "SIGNED_IN" && session) {
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) {
           setAlertMessage(userError.message);
@@ -67,9 +106,9 @@ export default function Login() {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
-  // Bubble animation setup
+  // Bubble animation setup (sizes will be scaled)
   const bubbleCount = 4;
   const bubbleValues = useRef(
     new Array(bubbleCount).fill(null).map(() => ({ x: new Animated.Value(0), y: new Animated.Value(0) }))
@@ -77,20 +116,29 @@ export default function Login() {
   const bubbleAnims = useRef(new Array(bubbleCount).fill(null));
   const randomBetween = (min: number, max: number) => Math.random() * (max - min) + min;
 
-  const bubbleBase = useRef(
-    (() => {
-      const { width, height } = Dimensions.get("window");
-      const sizeOptions = [220, 160, 120, 90];
-      const colorOptions = ["#CFF6E6", "#E7FFF8", "#DFFCF0", "#EAFDF6"];
-      return new Array(bubbleCount).fill(null).map((_, i) => {
-        const size = sizeOptions[i % sizeOptions.length];
-        const color = colorOptions[i % colorOptions.length];
-        const left = randomBetween(0, width - size);
-        const top = randomBetween(0, height - size);
-        return { size, color, top, left };
-      });
-    })()
-  ).current;
+  // base bubble params should update when layout changes; keep a ref and regenerate on layout change
+  const bubbleBaseRef = useRef<any[]>([]);
+  useEffect(() => {
+    const w = width;
+    const h = height;
+    // original sizes scaled
+    const sizeOptions = [220, 160, 120, 90].map((s) => Math.max(36, scale(s))); // ensure minimum size
+    const colorOptions = ["#CFF6E6", "#E7FFF8", "#DFFCF0", "#EAFDF6"];
+    bubbleBaseRef.current = new Array(bubbleCount).fill(null).map((_, i) => {
+      const size = sizeOptions[i % sizeOptions.length];
+      const color = colorOptions[i % colorOptions.length];
+      const left = randomBetween(0, Math.max(0, w - size));
+      const top = randomBetween(0, Math.max(0, h - size));
+      return { size, color, top, left };
+    });
+    // restart anims to reflect new sizes if running
+    stopAllBubbles();
+    AccessibilityInfo.isReduceMotionEnabled().then((r) => {
+      reduceMotionRef.current = !!r;
+      if (!r) startAllBubbles();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height]);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((r) => {
@@ -98,6 +146,7 @@ export default function Login() {
       if (!r) startAllBubbles();
     });
     return stopAllBubbles;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startBubble = (i: number) => {
@@ -105,12 +154,28 @@ export default function Login() {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(v.x, { toValue: randomBetween(-40, 40), duration: 3000, useNativeDriver: true }),
-          Animated.timing(v.y, { toValue: randomBetween(-20, 20), duration: 3000, useNativeDriver: true }),
+          Animated.timing(v.x, {
+            toValue: randomBetween(-Math.max(10, scale(40)), Math.max(10, scale(40))),
+            duration: Math.max(1200, vscale(3000)),
+            useNativeDriver: true,
+          }),
+          Animated.timing(v.y, {
+            toValue: randomBetween(-Math.max(6, vscale(20)), Math.max(6, vscale(20))),
+            duration: Math.max(1200, vscale(3000)),
+            useNativeDriver: true,
+          }),
         ]),
         Animated.parallel([
-          Animated.timing(v.x, { toValue: randomBetween(-40, 40), duration: 3000, useNativeDriver: true }),
-          Animated.timing(v.y, { toValue: randomBetween(-20, 20), duration: 3000, useNativeDriver: true }),
+          Animated.timing(v.x, {
+            toValue: randomBetween(-Math.max(10, scale(40)), Math.max(10, scale(40))),
+            duration: Math.max(1200, vscale(3000)),
+            useNativeDriver: true,
+          }),
+          Animated.timing(v.y, {
+            toValue: randomBetween(-Math.max(6, vscale(20)), Math.max(6, vscale(20))),
+            duration: Math.max(1200, vscale(3000)),
+            useNativeDriver: true,
+          }),
         ]),
       ])
     );
@@ -121,13 +186,15 @@ export default function Login() {
   const startAllBubbles = () => {
     if (reduceMotionRef.current) return;
     for (let i = 0; i < bubbleCount; i++) {
-      bubbleAnims.current[i]?.stop();
+      bubbleAnims.current[i]?.stop?.();
       startBubble(i);
     }
   };
   const stopAllBubbles = () => {
     for (let i = 0; i < bubbleCount; i++) {
-      bubbleAnims.current[i]?.stop();
+      try {
+        bubbleAnims.current[i]?.stop?.();
+      } catch {}
       bubbleAnims.current[i] = null;
     }
   };
@@ -239,6 +306,13 @@ export default function Login() {
     }
   };
 
+   /* -------------------------
+     Responsive styles (uses scale/vscale/scaleFont)
+     ------------------------- */
+  const styles = createStyles({ scale, vscale, scaleFont, width, height });
+
+  const bubbleBase = bubbleBaseRef.current;
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.outer}>
       <Stack.Screen options={{ title: "Log in", headerShown: false }} />
@@ -265,7 +339,7 @@ export default function Login() {
 
             {/* Moti animations for logo and fields */}
             <MotiImage
-              from={{ opacity: 0, translateY: -20 }}
+              from={{ opacity: 0, translateY: -vscale(20) }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ type: "timing", duration: 800 }}
               source={require("../../assets/ritmo-logo.png")}
@@ -275,7 +349,7 @@ export default function Login() {
 
             {/* Animated input group */}
             <MotiView
-              from={{ opacity: 0, translateY: 30 }}
+              from={{ opacity: 0, translateY: vscale(30) }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 400, duration: 600 }}
               style={{ width: "100%", alignItems: "center" }}
@@ -288,6 +362,7 @@ export default function Login() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                placeholderTextColor="#6b6b6b"
               />
 
               <Text style={styles.label}>Password:</Text>
@@ -299,25 +374,22 @@ export default function Login() {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  placeholderTextColor="#6b6b6b"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#276a63" />
+                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={scaleFont(18)} color="#276a63" />
                 </TouchableOpacity>
               </View>
 
               {/* Forgot Password Link */}
-              <TouchableOpacity 
-                onPress={() => router.push("./forgot-password")}
-                style={{ alignSelf: "flex-end" }}
-              >
-                <Text style={[styles.link, {marginTop: 8}]}>Forgot Password?</Text>
+              <TouchableOpacity onPress={() => router.push("./forgot-password")} style={{ alignSelf: "flex-end" }}>
+                <Text style={[styles.link, { marginTop: vscale(8) }]}>Forgot Password?</Text>
               </TouchableOpacity>
-
             </MotiView>
 
             {/* Animated login button */}
             <MotiView
-              from={{ opacity: 0, scale: 0.8 }}
+              from={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 700, type: "spring" }}
               style={{ width: "100%", alignItems: "center" }}
@@ -334,58 +406,32 @@ export default function Login() {
               transition={{ delay: 900, duration: 600 }}
               style={{ width: "100%", alignItems: "center" }}
             >
-              {/* Sign up Button (same as Login style, different color) */}
-              <TouchableOpacity
-                style={[styles.button, styles.signUpButton]}
-                onPress={() => router.push("/auth/signup")}
-              >
+              <TouchableOpacity style={[styles.button, styles.signUpButton]} onPress={() => router.push("/auth/signup")}>
                 <Text style={styles.buttonText}>Sign Up</Text>
               </TouchableOpacity>
 
-              {/* Divider text */}
               <Text style={styles.orText}>Or sign in with</Text>
 
-              {/* Google Icon (Sign in with Google) */}
-              <TouchableOpacity
-                style={styles.gmailIconWrapper}
-                onPress={handleGoogleSignIn}
-                disabled={loading}
-              >
-                <ImageBackground
-                  source={require("../../assets/Google.png")} // 🟢 transparent background expected
-                  style={styles.gmailIcon}
-                  resizeMode="contain"
-                />
+              <TouchableOpacity style={styles.gmailIconWrapper} onPress={handleGoogleSignIn} disabled={loading}>
+                <ImageBackground source={require("../../assets/Google.png")} style={styles.gmailIcon} resizeMode="contain" />
               </TouchableOpacity>
             </MotiView>
-
           </View>
         </TouchableWithoutFeedback>
       </ImageBackground>
 
       {/* Alert Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={alertModalVisible}
-        onRequestClose={() => setAlertModalVisible(false)}
-      >
+      <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
         <View style={styles.alertModalOverlay}>
           <View style={styles.alertModalContainer}>
             <View style={styles.alertIconCircle}>
-              <Image
-                source={require("../../assets/images/Pencil.png")}
-                style={styles.alertIcon}
-              />
+              <Image source={require("../../assets/images/Pencil.png")} style={styles.alertIcon} />
             </View>
-            
+
             <Text style={styles.alertModalTitle}>Alert!</Text>
             <Text style={styles.alertModalMessage}>{alertMessage}</Text>
-            
-            <TouchableOpacity
-              style={styles.alertOkButton}
-              onPress={() => setAlertModalVisible(false)}
-            >
+
+            <TouchableOpacity style={styles.alertOkButton} onPress={() => setAlertModalVisible(false)}>
               <Text style={styles.alertOkButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
@@ -395,169 +441,176 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
-  outer: { flex: 1 },
-  container: {
-    flex: 1,
-    paddingHorizontal: 28,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logo: {
-    width: 260,
-    height: 220,
-    marginBottom: 6,
-  },
-  label: {
-    alignSelf: "flex-start",
-    color: "#276a63",
-    marginTop: 8,
-  },
-  input: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#fff",
-    borderRadius: 5,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    marginTop: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-    fontSize: 15,
-  },
-  inputRow: {
-    width: "100%",
-    maxWidth: 340,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 5,
-    paddingHorizontal: 14,
-    marginTop: 10,
-    elevation: 2,
-  },
-  inputFlex: { flex: 1, paddingVertical: 12, fontSize: 15 },
-  eyeButton: { paddingHorizontal: 4, paddingVertical: 4 },
-  background: { flex: 1, width: "100%", height: "100%" },
-  button: {
-    marginTop: 22,
-    backgroundColor: "#2D7778",
-    paddingVertical: 10,
-    width: "60%",
-    maxWidth: 340,
-    borderRadius: 20,
-    alignItems: "center",
-    elevation: 3,
-  },
-  signUpButton: {
-    marginTop: 5,
-    backgroundColor: "#5BDFC9",
-  },
-  buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
-  link: { marginTop: 16, color: "#276a63", textDecorationLine: "underline"},
-  orText: {
-    marginTop: 16,
-    color: "#244D4A",
-    fontWeight: "500",
-  },
-  createAccountBtn: {
-    marginTop: 18,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#2D7778",
-    borderRadius: 5,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    width: "50%",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-  },
-  createAccountText: {
-    color: "#2D7778",
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  gmailIconWrapper: {
-    marginTop: 10,
-    backgroundColor: "transparent",
-    padding: 0,
-  },
-  gmailIcon: {
-    width: 30,
-    height: 30,
-    backgroundColor: "transparent",
-  },
-  
-  // Alert Modal Styles
-  alertModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  alertModalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    width: "75%",
-    maxWidth: 340,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 3,
-    borderColor: "#FFB3BA",
-  },
-  alertIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFE5E7",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  alertIcon: {
-    width: 40,
-    height: 40,
-    resizeMode: "contain",
-  },
-  alertModalTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 8,
-    fontFamily: "Fredoka_700Bold",
-  },
-  alertModalMessage: {
-    fontSize: 14,
-    color: "#4A4A4A",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 20,
-    fontFamily: "Fredoka_400Regular",
-    paddingHorizontal: 8,
-    flexWrap: "wrap",
-  },
-  alertOkButton: {
-    backgroundColor: "#FF6B7A",
-    paddingVertical: 12,
-    paddingHorizontal: 50,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 120,
-  },
-  alertOkButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    fontFamily: "Fredoka_600SemiBold",
-  },
+/* -------------------------
+   createStyles factory using scale/vscale/scaleFont
+   (keeps everything responsive for hybrid mode)
+   ------------------------- */
+function createStyles({ scale, vscale, scaleFont, width, height }: any) {
+  return StyleSheet.create({
+    outer: { flex: 1 },
+    container: {
+      flex: 1,
+      paddingHorizontal: scale(20),
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    logo: {
+      width: Math.min(scale(300), width * 0.78),
+      height: Math.min(vscale(220), height * 0.22),
+      marginBottom: vscale(6),
+    },
+    label: {
+      alignSelf: "flex-start",
+      color: "#276a63",
+      marginTop: vscale(8),
+      fontSize: scaleFont(14),
+      fontWeight: "600",
+    },
+    input: {
+      width: "100%",
+      maxWidth: Math.max(scale(340), width * 0.92),
+      backgroundColor: "#fff",
+      borderRadius: scale(8),
+      paddingHorizontal: scale(14),
+      paddingVertical: vscale(12),
+      marginTop: vscale(10),
+      shadowColor: "#000",
+      shadowOpacity: 0.05,
+      shadowRadius: scale(4),
+      elevation: 2,
+      fontSize: scaleFont(15),
+    },
+    inputRow: {
+      width: "100%",
+      maxWidth: Math.max(scale(340), width * 0.92),
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#fff",
+      borderRadius: scale(8),
+      paddingHorizontal: scale(10),
+      marginTop: vscale(10),
+      elevation: 2,
+    },
+    inputFlex: { flex: 1, paddingVertical: vscale(10), fontSize: scaleFont(15) },
+    eyeButton: { paddingHorizontal: scale(6), paddingVertical: vscale(6) },
+    background: { flex: 1, width: "100%", height: "100%" },
+    button: {
+      marginTop: vscale(22),
+      backgroundColor: "#2D7778",
+      paddingVertical: vscale(12),
+      width: width >= 800 ? "45%" : "60%",
+      maxWidth: Math.max(scale(420), 420),
+      borderRadius: scale(20),
+      alignItems: "center",
+      elevation: 3,
+    },
+    signUpButton: {
+      marginTop: vscale(10),
+      backgroundColor: "#5BDFC9",
+    },
+    buttonText: { color: "#fff", fontWeight: "600", fontSize: scaleFont(16) },
+    link: { marginTop: vscale(12), color: "#276a63", textDecorationLine: "underline", fontSize: scaleFont(13) },
+    orText: {
+      marginTop: vscale(16),
+      color: "#244D4A",
+      fontWeight: "500",
+      fontSize: scaleFont(14),
+    },
+    createAccountBtn: {
+      marginTop: vscale(18),
+      backgroundColor: "#fff",
+      borderWidth: 1,
+      borderColor: "#2D7778",
+      borderRadius: scale(8),
+      paddingVertical: vscale(12),
+      paddingHorizontal: scale(10),
+      width: "50%",
+      alignItems: "center",
+      justifyContent: "center",
+      elevation: 2,
+    },
+    createAccountText: {
+      color: "#2D7778",
+      fontWeight: "600",
+      fontSize: scaleFont(15),
+    },
+    gmailIconWrapper: {
+      marginTop: vscale(10),
+      backgroundColor: "transparent",
+      padding: 0,
+    },
+    gmailIcon: {
+      width: scale(44),
+      height: scale(44),
+      backgroundColor: "transparent",
+    },
 
-});
+    // Alert Modal Styles
+    alertModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    alertModalContainer: {
+      backgroundColor: "#FFFFFF",
+      borderRadius: scale(18),
+      padding: scale(18),
+      width: "82%",
+      maxWidth: Math.min(scale(420), 420),
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: scale(12),
+      elevation: 8,
+      borderWidth: scale(3),
+      borderColor: "#FFB3BA",
+    },
+    alertIconCircle: {
+      width: scale(64),
+      height: scale(64),
+      borderRadius: scale(32),
+      backgroundColor: "#FFE5E7",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: vscale(12),
+    },
+    alertIcon: {
+      width: scale(36),
+      height: scale(36),
+      resizeMode: "contain",
+    },
+    alertModalTitle: {
+      fontSize: scaleFont(20),
+      fontWeight: "700",
+      color: "#1A1A1A",
+      marginBottom: vscale(8),
+      // fontFamily: "Fredoka_700Bold", // keep if available
+    },
+    alertModalMessage: {
+      fontSize: scaleFont(14),
+      color: "#4A4A4A",
+      textAlign: "center",
+      lineHeight: scaleFont(18),
+      marginBottom: vscale(16),
+      paddingHorizontal: scale(8),
+      flexWrap: "wrap",
+    },
+    alertOkButton: {
+      backgroundColor: "#FF6B7A",
+      paddingVertical: vscale(10),
+      paddingHorizontal: scale(28),
+      borderRadius: scale(40),
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: scale(110),
+    },
+    alertOkButtonText: {
+      fontSize: scaleFont(15),
+      fontWeight: "600",
+      color: "#FFFFFF",
+      // fontFamily: "Fredoka_600SemiBold",
+    },
+  });
+}
