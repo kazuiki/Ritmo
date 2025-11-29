@@ -25,6 +25,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
+import { clearCachedRoutines } from "../../src/routinesStore";
 import { supabase } from "../../src/supabaseClient";
 
 export default function Settings() {
@@ -266,6 +267,17 @@ export default function Settings() {
 
   const confirmLogout = async () => {
     setLogoutConfirmVisible(false);
+    
+    // Get current user ID before logging out to clear their cache
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        await clearCachedRoutines(user.id);
+      }
+    } catch (error) {
+      console.error('Failed to clear cached routines on logout:', error);
+    }
+    
     await supabase.auth.signOut();
   };
 

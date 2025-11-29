@@ -2,17 +2,17 @@ import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fon
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");
@@ -49,6 +49,7 @@ const PAGES = [
     id: 4,
     title: "Ritmo with Parents",
     description: "Parents are advised to guide and\nsupervise children when using Ritmo.",
+    image: require("../assets/images/Parents.png"),
     buttonLabel: "Ritmo Parent",
     showButton: true,
   },
@@ -56,7 +57,9 @@ const PAGES = [
     id: 5,
     title: "Ritmo with Therapist",
     description: "Ritmo provides therapists with\nPDF reports detailing the child's\nprogress.",
-    showButton: false,
+    image: require("../assets/images/Therapist.png"),
+    buttonLabel: "Ritmo Therapist",
+    showButton: true,
   },
 ];
 

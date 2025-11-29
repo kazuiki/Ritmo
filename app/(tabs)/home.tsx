@@ -83,10 +83,18 @@ export default function Home() {
       }
 
       // Show cached data immediately (if available)
+      // Filter cached routines to only show those scheduled for today
       if (useCache) {
         try {
           const cached = await loadCachedRoutines(user.id);
-          if (cached.routines) setRoutines(cached.routines as any);
+          const todayDayOfWeek = new Date().getDay(); // 0=Sunday, 6=Saturday
+          if (cached.routines) {
+            const filteredRoutines = (cached.routines as Routine[]).filter(routine => {
+              const days = routine.days || [0, 1, 2, 3, 4, 5, 6];
+              return days.includes(todayDayOfWeek);
+            });
+            setRoutines(filteredRoutines);
+          }
           if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
         } catch {}
       }
@@ -99,9 +107,16 @@ export default function Home() {
         return;
       }
       
+      // Load days/ringtone data from AsyncStorage
+      const stored = await AsyncStorage.getItem('@routines');
+      const storedMap = new Map(
+        (stored ? JSON.parse(stored) : []).map((r: Routine) => [r.id, r])
+      );
+      
       // Fetch today's progress for all routines
       const today = new Date();
       const todayStr = today.toISOString().slice(0, 10);
+      const todayDayOfWeek = today.getDay(); // 0=Sunday, 6=Saturday
       const progressData = await getUserProgressForRange({
         from: todayStr,
         to: todayStr,
@@ -112,15 +127,22 @@ export default function Home() {
         progressData.map(p => [p.routine_id, p])
       );
       
-      // Merge routines with their progress data
-      // If no progress exists for today, default to not completed
-      const routinesWithProgress = routinesFromDb.map(routine => {
-        const progress = progressMap.get(routine.id);
-        return {
-          ...routine,
-          completed: progress?.completed ?? false,
-        };
-      });
+      // Merge routines with their progress data and AsyncStorage data (days, ringtone)
+      // Filter to only show routines scheduled for today
+      const routinesWithProgress = routinesFromDb
+        .map(routine => {
+          const progress = progressMap.get(routine.id);
+          const storedRoutine = storedMap.get(routine.id);
+          return {
+            ...routine,
+            completed: progress?.completed ?? false,
+            days: storedRoutine?.days || [0, 1, 2, 3, 4, 5, 6], // Default to all days if not set
+          };
+        })
+        .filter(routine => {
+          // Only show routines scheduled for today
+          return routine.days.includes(todayDayOfWeek);
+        });
       
       setRoutines(routinesWithProgress);
       
