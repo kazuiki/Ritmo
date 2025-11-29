@@ -1,20 +1,45 @@
 import { Dimensions, PixelRatio } from "react-native";
 
-const { width, height } = Dimensions.get("window");
+let { width, height } = Dimensions.get("window");
 
-// Base sizes taken from standard mobile design (375 × 812)
+// Recalculate when orientation changes
+Dimensions.addEventListener("change", ({ window }) => {
+  width = window.width;
+  height = window.height;
+});
+
+// Base design from a standard phone 375 x 812
 const BASE_WIDTH = 375;
 const BASE_HEIGHT = 812;
 
+// Detect if the device is tablet
+const isTablet = Math.min(width, height) >= 600;
+
+// Normalize scale so large screens (tablets, foldables) don’t overscale
+const normalize = (value: number) => {
+  if (isTablet) return value * 0.7;        // reduce scale 30% on tablets
+  if (width > 430) return value * 0.9;     // very large phones (Pro Max)
+  return value;
+};
+
 export function scale(size: number) {
-  return (width / BASE_WIDTH) * size;
+  const scaled = (width / BASE_WIDTH) * size;
+  return normalize(scaled);
 }
 
 export function vscale(size: number) {
-  return (height / BASE_HEIGHT) * size;
+  const scaled = (height / BASE_HEIGHT) * size;
+  return normalize(scaled);
 }
 
 export function scaleFont(size: number) {
   const newSize = (width / BASE_WIDTH) * size;
-  return Math.round(PixelRatio.roundToNearestPixel(newSize));
+  const scaled = PixelRatio.roundToNearestPixel(newSize);
+  return normalize(scaled);
 }
+
+export const Screen = {
+  width,
+  height,
+  isTablet,
+};
