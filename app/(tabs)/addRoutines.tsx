@@ -20,6 +20,7 @@ import NotificationService from "../../src/notificationService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
+import { supabase } from "../../src/supabaseClient";
 
 interface Routine {
     id: number;
@@ -210,8 +211,17 @@ export default function addRoutines() {
 
     const loadRoutinesFromDb = async () => {
         try {
+            // Get current user to use user-specific storage key
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                setRoutines([]);
+                return;
+            }
+
+            const storageKey = `@routines_${user.id}`;
+
             // Load from AsyncStorage first (has days/ringtone)
-            const stored = await AsyncStorage.getItem('@routines');
+            const stored = await AsyncStorage.getItem(storageKey);
             if (stored) {
                 const parsed = JSON.parse(stored);
                 setRoutines(parsed);
@@ -220,24 +230,22 @@ export default function addRoutines() {
             // Then sync with Supabase in background
             const dbRoutines = await getRoutinesForCurrentUser();
             
-            // Only keep DB routines that exist in storage (user hasn't deleted)
+            // Merge database routines with AsyncStorage data (for days/ringtone)
             const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [r.id, r]));
-            const merged: Routine[] = dbRoutines
-                .filter(dbR => storedMap.has(dbR.id)) // Don't re-add deleted routines
-                .map(dbR => {
-                    const existing = storedMap.get(dbR.id) as Routine;
-                    return {
-                        id: dbR.id,
-                        name: dbR.name,
-                        time: dbR.time,
-                        imageUrl: dbR.imageUrl,
-                        ringtone: existing?.ringtone || 'alarm1',
-                        days: existing?.days || [0,1,2,3,4,5,6],
-                    };
-                });
+            const merged: Routine[] = dbRoutines.map(dbR => {
+                const existing = storedMap.get(dbR.id) as Routine | undefined;
+                return {
+                    id: dbR.id,
+                    name: dbR.name,
+                    time: dbR.time,
+                    imageUrl: dbR.imageUrl,
+                    ringtone: existing?.ringtone || 'alarm1',
+                    days: existing?.days || [0,1,2,3,4,5,6],
+                };
+            });
             
             setRoutines(merged);
-            await AsyncStorage.setItem('@routines', JSON.stringify(merged));
+            await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
         } catch (error: any) {
             // Silently handle authentication errors - user may not be logged in yet
             if (error?.message !== 'Not authenticated') {
@@ -326,7 +334,9 @@ export default function addRoutines() {
                 })
                 .then(async (created) => {
                     // Add to local storage with days/ringtone
-                    const stored = await AsyncStorage.getItem('@routines');
+                    const { data: { user } } = await supabase.auth.getUser();
+                    const storageKey = user ? `@routines_${user.id}` : '@routines';
+                    const stored = await AsyncStorage.getItem(storageKey);
                     const existing: Routine[] = stored ? JSON.parse(stored) : [];
                     const newRoutine: Routine = {
                         id: created.id,
@@ -337,7 +347,7 @@ export default function addRoutines() {
                         days: selectedDays,
                     };
                     existing.push(newRoutine);
-                    await AsyncStorage.setItem('@routines', JSON.stringify(existing));
+                    await AsyncStorage.setItem(storageKey, JSON.stringify(existing));
                     
                     NotificationService.scheduleRoutineNotification({
                         routineId: created.id,
@@ -375,10 +385,12 @@ export default function addRoutines() {
                 await deleteRoutine(editingRoutineId);
                 
                 // Remove from local storage
-                const stored = await AsyncStorage.getItem('@routines');
+                const { data: { user } } = await supabase.auth.getUser();
+                const storageKey = user ? `@routines_${user.id}` : '@routines';
+                const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
                 const filtered = existing.filter(r => r.id !== editingRoutineId);
-                await AsyncStorage.setItem('@routines', JSON.stringify(filtered));
+                await AsyncStorage.setItem(storageKey, JSON.stringify(filtered));
                 
                 // Update UI immediately
                 setRoutines(filtered);
@@ -419,7 +431,9 @@ export default function addRoutines() {
             })
             .then(async () => {
                 // Update in local storage with days/ringtone
-                const stored = await AsyncStorage.getItem('@routines');
+                const { data: { user } } = await supabase.auth.getUser();
+                const storageKey = user ? `@routines_${user.id}` : '@routines';
+                const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
                 const idx = existing.findIndex(r => r.id === editingRoutineId);
                 if (idx >= 0) {
@@ -431,7 +445,7 @@ export default function addRoutines() {
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     };
-                    await AsyncStorage.setItem('@routines', JSON.stringify(existing));
+                    await AsyncStorage.setItem(storageKey, JSON.stringify(existing));
                 }
                 return loadRoutinesFromDb();
             })

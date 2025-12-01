@@ -102,9 +102,25 @@ export default function Home() {
         return;
       }
       
-      // Fetch today's progress for all routines
+      // Load days from AsyncStorage (user-specific)
+      const storageKey = `@routines_${user.id}`;
+      const storedRoutines = await AsyncStorage.getItem(storageKey);
+      const daysMap = new Map();
+      if (storedRoutines) {
+        const parsed = JSON.parse(storedRoutines);
+        parsed.forEach((r: any) => {
+          if (r.days) {
+            daysMap.set(r.id, r.days);
+          }
+        });
+      }
+      
+      // Get today's day of week (0=Sunday, 6=Saturday)
       const today = new Date();
+      const todayDayOfWeek = today.getDay();
       const todayStr = today.toISOString().slice(0, 10);
+      
+      // Fetch today's progress for all routines
       const progressData = await getUserProgressForRange({
         from: todayStr,
         to: todayStr,
@@ -115,15 +131,21 @@ export default function Home() {
         progressData.map(p => [p.routine_id, p])
       );
       
-      // Merge routines with their progress data
-      // If no progress exists for today, default to not completed
-      const routinesWithProgress = routinesFromDb.map(routine => {
-        const progress = progressMap.get(routine.id);
-        return {
-          ...routine,
-          completed: progress?.completed ?? false,
-        };
-      });
+      // Merge routines with their progress data and filter by today's day
+      const routinesWithProgress = routinesFromDb
+        .map(routine => {
+          const progress = progressMap.get(routine.id);
+          const days = daysMap.get(routine.id) || [0,1,2,3,4,5,6]; // Default to all days if not set
+          return {
+            ...routine,
+            days,
+            completed: progress?.completed ?? false,
+          };
+        })
+        .filter(routine => {
+          // Only show routines that should appear on today's day of week
+          return routine.days.includes(todayDayOfWeek);
+        });
       
       setRoutines(routinesWithProgress);
       
