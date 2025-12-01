@@ -53,6 +53,9 @@ export default function Home() {
   const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
   const [completedModalVisible, setCompletedModalVisible] = useState(false);
+  // Alert modal for missing minigame
+  const [alertModalVisible, setAlertModalVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
   // Task modal popup animations
   const taskOpacity = useRef(new Animated.Value(0)).current;
   const taskScale = useRef(new Animated.Value(0.9)).current;
@@ -170,7 +173,7 @@ export default function Home() {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadRoutines();
+      loadRoutines({ useCache: false });
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
     }, [])
@@ -731,6 +734,8 @@ export default function Home() {
             
               if (!path) {
                 console.warn("No minigame found for preset", activePreset.id);
+                setAlertMessage("No minigame is available for this task");
+                setAlertModalVisible(true);
                 return;
               }
             
@@ -1062,6 +1067,22 @@ export default function Home() {
           </View>
         </View>
       </Modal>
+
+      {/* Alert Modal */}
+      <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
+        <View style={styles.alertModalOverlay}>
+          <View style={styles.alertModalContainer}>
+            <View style={styles.alertIconCircle}>
+              <Image source={require("../../assets/images/sad_face_nobg.png")} style={styles.alertIcon} />
+            </View>
+            <Text style={styles.alertModalTitle}>I'm Sorry!</Text>
+            <Text style={styles.alertModalMessage}>{alertMessage}</Text>
+            <TouchableOpacity style={styles.alertOkButton} onPress={() => setAlertModalVisible(false)}>
+              <Text style={styles.alertOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1161,6 +1182,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#E8FFFA',
+  },
+  // Alert Modal Styles (matching login.tsx)
+  alertModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 18,
+    width: "82%",
+    maxWidth: 420,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  alertIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  alertIcon: {
+    width: 36,
+    height: 36,
+    resizeMode: "contain",
+  },
+  alertModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+  },
+  alertModalMessage: {
+    fontSize: 14,
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+  },
+  alertOkButton: {
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 110,
+  },
+  alertOkButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   completedStripStars: {
     position: 'absolute',
