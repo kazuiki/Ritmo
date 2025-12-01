@@ -248,8 +248,9 @@ export default function WeeklyHistoryDetail() {
         // Fetch routines from Supabase
         const routinesData = await getRoutinesForCurrentUser();
         
-        // Load days info from AsyncStorage
-        const stored = await AsyncStorage.getItem('@routines');
+        // Load days info from AsyncStorage (user-specific)
+        const storageKey = `@routines_${user.id}`;
+        const stored = await AsyncStorage.getItem(storageKey);
         const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
         const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
         
