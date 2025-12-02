@@ -227,20 +227,19 @@ export default function Progress() {
 					const { data: { user } } = await supabase.auth.getUser();
 					if (!user) return;
 
-					const [routinesData, progressForWeek] = await Promise.all([
-						getRoutinesForCurrentUser(),
-						getUserProgressForRange({
-							from: weekInfo.monday,
-							to: weekInfo.sunday,
-						})
-					]);
-					
-					// Load days info from AsyncStorage
-					const stored = await AsyncStorage.getItem('@routines');
-					const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
-					const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
-					
-					// Merge days info with routines data
+				const [routinesData, progressForWeek] = await Promise.all([
+					getRoutinesForCurrentUser(),
+					getUserProgressForRange({
+						from: weekInfo.monday,
+						to: weekInfo.sunday,
+					})
+				]);
+				
+				// Load days info from AsyncStorage (user-specific)
+				const storageKey = `@routines_${user.id}`;
+				const stored = await AsyncStorage.getItem(storageKey);
+				const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+				const storedMap = new Map(storedRoutines.map(r => [r.id, r]));					// Merge days info with routines data
 					const routinesWithDays: RoutineWithDays[] = routinesData.map(routine => {
 						const storedRoutine = storedMap.get(routine.id);
 						return {
@@ -288,15 +287,14 @@ export default function Progress() {
 				const { data: { user } } = await supabase.auth.getUser();
 				if (!user) return;
 
-				// Fetch routines from Supabase
-				const routinesData = await getRoutinesForCurrentUser();
-				
-				// Load days info from AsyncStorage
-				const stored = await AsyncStorage.getItem('@routines');
-				const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
-				const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
-				
-				// Merge days info with routines data
+			// Fetch routines from Supabase
+			const routinesData = await getRoutinesForCurrentUser();
+			
+			// Load days info from AsyncStorage (user-specific)
+			const storageKey = `@routines_${user.id}`;
+			const stored = await AsyncStorage.getItem(storageKey);
+			const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+			const storedMap = new Map(storedRoutines.map(r => [r.id, r]));				// Merge days info with routines data
 				const routinesWithDays: RoutineWithDays[] = routinesData.map(routine => {
 					const storedRoutine = storedMap.get(routine.id);
 					return {
@@ -369,15 +367,14 @@ export default function Progress() {
 						async (payload) => {
 							console.log('Routine change detected:', payload);
 							// Refetch routines when any change occurs
-							try {
-								const updatedRoutines = await getRoutinesForCurrentUser();
-								
-								// Load days info from AsyncStorage
-								const stored = await AsyncStorage.getItem('@routines');
-								const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
-								const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
-								
-								// Merge days info with routines data
+						try {
+							const updatedRoutines = await getRoutinesForCurrentUser();
+							
+							// Load days info from AsyncStorage (user-specific)
+							const storageKey = `@routines_${user.id}`;
+							const stored = await AsyncStorage.getItem(storageKey);
+							const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+							const storedMap = new Map(storedRoutines.map(r => [r.id, r]));								// Merge days info with routines data
 								const routinesWithDays: RoutineWithDays[] = updatedRoutines.map(routine => {
 									const storedRoutine = storedMap.get(routine.id);
 									return {
