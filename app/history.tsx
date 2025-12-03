@@ -1,16 +1,19 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../src/supabaseClient";
+import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
 
 export default function History() {
   const router = useRouter();
+  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const [childName, setChildName] = useState<string>("");
   const [showSort, setShowSort] = useState(false);
   const [renderButtons, setRenderButtons] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc"); // default latest first
   const [ascAnim] = useState(new Animated.Value(0));
   const [descAnim] = useState(new Animated.Value(0));
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     if (showSort) {
@@ -143,26 +146,55 @@ export default function History() {
     setShowSort(false);
   };
 
-  // Custom slide animation container (replicates playbook modal feel)
+  // Optimized slide animation for maximum smoothness
   const slideX = useMemo(() => new Animated.Value(400), []);
+  
   useEffect(() => {
-    // animate in on mount
-    Animated.timing(slideX, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+    setIsAnimating(true);
+    // Fast, responsive slide-in animation
+    Animated.timing(slideX, {
+      toValue: 0,
+      duration: 250, // Much faster for responsiveness
+      easing: Easing.out(Easing.ease), // Simpler, faster easing
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      setIsAnimating(false);
+    });
   }, []);
 
   const handleBack = () => {
-    Animated.timing(slideX, { toValue: 400, duration: 300, useNativeDriver: true }).start(() => {
+    if (isAnimating) return; // Prevent multiple animations
+    
+    setIsAnimating(true);
+    Animated.timing(slideX, {
+      toValue: 400,
+      duration: 200, // Fast exit to prevent lag
+      easing: Easing.in(Easing.ease), // Simple, fast easing
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      setIsAnimating(false);
       router.back();
     });
   };
 
   return (
-    <Animated.View style={{ flex: 1, transform: [{ translateX: slideX }] }}>
+    <View style={styles.container}>
+      {/* Background Image */}
       <Image
         source={require("../assets/background.png")}
-        style={StyleSheet.absoluteFillObject}
+        style={styles.backgroundImage}
         resizeMode="cover"
       />
+      <Animated.View 
+        style={[{ 
+          flex: 1, 
+          transform: [{ translateX: slideX }]
+        }]}
+        renderToHardwareTextureAndroid={true}
+        shouldRasterizeIOS={true}
+      >
       {/* Top bar: Back + Title + Sort */}
       <View style={styles.topRow}>
         <TouchableOpacity onPress={handleBack}>
@@ -229,21 +261,30 @@ export default function History() {
       </View>
 
       {/* end sort dropdown */}
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: { paddingTop: 50, paddingHorizontal: 16 },
-  brandLogo: { width: 120, height: 30, resizeMode: "contain", marginLeft: -22, marginTop: -20 },
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  backgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
+  header: { paddingTop: scale.scaleSpacing(50), paddingHorizontal: scale.scaleSpacing(16) },
+  brandLogo: { width: scale.scaleWidth(120), height: scale.scaleHeight(30), resizeMode: "contain", marginLeft: scale.scaleSpacing(-22), marginTop: scale.scaleSpacing(-20) },
 
   topRow: {
-    paddingHorizontal: 16,
-    paddingTop: 40,
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingTop: scale.scaleSpacing(40),
   },
   backTextLink: {
     color: "#1F2937",
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "600",
     textDecorationLine: "underline",
     alignSelf: "flex-start",
@@ -253,86 +294,86 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    marginBottom: 8,
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingTop: scale.scaleSpacing(6),
+    marginBottom: scale.scaleSpacing(8),
   },
-  title: { fontSize: 32, fontWeight: "700", color: "#2A3B4D" },
+  title: { fontSize: scale.scaleFont(32), fontWeight: "700", color: "#2A3B4D" },
   sortButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    width: 100,
-    height: 28,
+    width: scale.scaleWidth(100),
+    height: scale.scaleHeight(28),
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "#000",
-    borderRadius: 5,
-    paddingVertical: 1,
-    paddingHorizontal: 12,
-    gap: 6,
+    borderRadius: scale.scaleBorderRadius(5),
+    paddingVertical: scale.scaleSpacing(1),
+    paddingHorizontal: scale.scaleSpacing(12),
+    gap: scale.scaleSpacing(6),
   },
-  sortLabel: { fontSize: 16, fontWeight: "700", color: "#1F2937" },
-  sortIcon: { width: 16, height: 16, resizeMode: "contain" },
+  sortLabel: { fontSize: scale.scaleFont(16), fontWeight: "700", color: "#1F2937" },
+  sortIcon: { width: scale.scaleWidth(16), height: scale.scaleHeight(16), resizeMode: "contain" },
 
   // Dropdown overlay positioned absolutely over the list
   dropdownOverlay: {
     position: 'absolute',
-    top: 70,
-    right: 16,
+    top: scale.scaleSpacing(70),
+    right: scale.scaleSpacing(16),
     zIndex: 10,
   },
   dropdownRow: {
     alignItems: 'flex-end',
-    gap: 8,
+    gap: scale.scaleSpacing(8),
   },
   dropdownOption: {
-    width: 100,
-    height: 28,
+    width: scale.scaleWidth(100),
+    height: scale.scaleHeight(28),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#000',
-    borderRadius: 5,
-    paddingVertical: 1,
-    paddingHorizontal: 12,
-    gap: 6,
+    borderRadius: scale.scaleBorderRadius(5),
+    paddingVertical: scale.scaleSpacing(1),
+    paddingHorizontal: scale.scaleSpacing(12),
+    gap: scale.scaleSpacing(6),
   },
-  dropdownOptionLabel: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
-  dropdownOptionIcon: { width: 16, height: 16, resizeMode: 'contain' },
+  dropdownOptionLabel: { fontSize: scale.scaleFont(16), fontWeight: '700', color: '#1F2937' },
+  dropdownOptionIcon: { width: scale.scaleWidth(16), height: scale.scaleHeight(16), resizeMode: 'contain' },
 
   listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    gap: 8,
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingBottom: scale.scaleSpacing(24),
+    gap: scale.scaleSpacing(8),
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderRadius: scale.scaleBorderRadius(16),
+    paddingVertical: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(14),
     borderWidth: 2,
     borderColor: "#CFF6EB",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: scale.scaleHeight(2) },
     shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowRadius: scale.scaleSpacing(6),
     elevation: 4,
   },
   cardLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    gap: scale.scaleSpacing(6),
     flexWrap: 'wrap',
     width: '100%',
-    marginBottom: 4,
+    marginBottom: scale.scaleSpacing(4),
   },
-  cardLabel: { fontSize: 14, color: "#2A3B4D", marginBottom: 6, fontWeight: "700" },
+  cardLabel: { fontSize: scale.scaleFont(14), color: "#2A3B4D", marginBottom: scale.scaleSpacing(6), fontWeight: "700" },
   cardValue: { fontWeight: "500", color: "#2A3B4D" },
-  cardLabelInline: { fontSize: 14, color: '#2A3B4D', fontWeight: '700' },
-  cardValueInline: { fontSize: 14, color: '#2A3B4D', flexShrink: 1, flexWrap: 'wrap' },
+  cardLabelInline: { fontSize: scale.scaleFont(14), color: '#2A3B4D', fontWeight: '700' },
+  cardValueInline: { fontSize: scale.scaleFont(14), color: '#2A3B4D', flexShrink: 1, flexWrap: 'wrap' },
 
   // old modal styles removed
-});
+}));

@@ -4,6 +4,7 @@
  */
 
 import { Platform } from 'react-native';
+import { RESPONSIVE_VALUES } from '../src/utils/responsive';
 
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
@@ -51,3 +52,23 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+// Responsive theme values
+export const ResponsiveTheme = {
+  // Spacing system
+  spacing: RESPONSIVE_VALUES.spacing,
+  
+  // Typography
+  fontSize: RESPONSIVE_VALUES.fontSize,
+  
+  // Layout
+  borderRadius: RESPONSIVE_VALUES.borderRadius,
+  
+  // Components
+  button: RESPONSIVE_VALUES.buttonHeight,
+  icon: RESPONSIVE_VALUES.iconSize,
+  
+  // Layout constants
+  tabBarHeight: RESPONSIVE_VALUES.spacing.xxl + RESPONSIVE_VALUES.spacing.lg,
+  headerHeight: RESPONSIVE_VALUES.spacing.xxl + RESPONSIVE_VALUES.spacing.md,
+};

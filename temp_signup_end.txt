@@ -1,0 +1,7 @@
+  errorOkButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+});
