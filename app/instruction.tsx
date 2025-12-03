@@ -2,17 +2,17 @@ import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fon
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");
@@ -81,6 +81,9 @@ export default function InstructionPage() {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
       scrollViewRef.current?.scrollTo({ x: nextPage * width, animated: true });
+    } else {
+      // Finished instructions – proceed to child nickname setup
+      router.replace("/auth/child-nickname");
     }
   };
 
@@ -172,14 +175,12 @@ export default function InstructionPage() {
             <Text style={styles.headerButtonText}>Back</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerButton, currentPage === PAGES.length - 1 && styles.headerButtonDisabled]}
+            style={[styles.headerButton]}
             onPress={handleNext}
-            disabled={currentPage === PAGES.length - 1}
           >
             <Text
               style={[
                 styles.headerButtonText,
-                currentPage === PAGES.length - 1 && styles.headerButtonTextDisabled,
               ]}
             >
               Next
