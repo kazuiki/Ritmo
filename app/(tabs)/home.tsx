@@ -385,23 +385,37 @@ export default function Home() {
     const playSuccessAudio = async () => {
       if (successModalVisible) {
         try {
+          console.log('🎵 Playing Stars.mp3 audio...');
+          
+          // Set audio mode for better playback
+          await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            allowsRecordingIOS: false,
+            staysActiveInBackground: false,
+          });
+          
           const { sound } = await Audio.Sound.createAsync(
             require("../../assets/ringtone/Stars.mp3"),
-            { shouldPlay: true }
+            { shouldPlay: true, volume: 1.0 }
           );
           setSuccessSound(sound);
+          
+          console.log('🎵 Stars.mp3 started playing');
           
           // Play GoodJob.mp3 immediately after Stars.mp3 finishes (no delay)
           const status = await sound.getStatusAsync();
           if (status.isLoaded && status.durationMillis) {
+            console.log('🎵 Scheduling GoodJob.mp3 to play after', status.durationMillis, 'ms');
             setTimeout(async () => {
               try {
+                console.log('🎵 Playing GoodJob.mp3 audio...');
                 const { sound: goodJobSound } = await Audio.Sound.createAsync(
                   require("../../assets/ringtone/GoodJob.mp3"),
-                  { shouldPlay: true }
+                  { shouldPlay: true, volume: 1.0 }
                 );
                 await sound.unloadAsync();
                 setSuccessSound(goodJobSound);
+                console.log('🎵 GoodJob.mp3 started playing');
               } catch (error) {
                 console.error("Failed to play GoodJob audio:", error);
               }
@@ -1890,6 +1904,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   successNextButton: {
     paddingVertical: scale.scaleSpacing(8),
     paddingHorizontal: scale.scaleSpacing(40),
+    zIndex: 1000,
+    elevation: 1000,
+    position: "relative",
   },
   successNextButtonText: {
     fontSize: scale.scaleFont(26),
