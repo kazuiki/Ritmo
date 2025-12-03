@@ -53,9 +53,16 @@ export default function Home() {
   const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
   const [completedModalVisible, setCompletedModalVisible] = useState(false);
+  // Replay mode: allows re-playing a completed routine without affecting progress
+  const [isReplayMode, setIsReplayMode] = useState(false);
   // Alert modal for missing minigame
   const [alertModalVisible, setAlertModalVisible] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
+  // Alert modal for disabled routine (not yet time)
+  const [timeAlertModalVisible, setTimeAlertModalVisible] = useState(false);
+  const [timeAlertMessage, setTimeAlertMessage] = useState("");
+  // Real-time current time tracker
+  const [currentTime, setCurrentTime] = useState(new Date());
   // Task modal popup animations
   const taskOpacity = useRef(new Animated.Value(0)).current;
   const taskScale = useRef(new Animated.Value(0.9)).current;
@@ -191,6 +198,15 @@ export default function Home() {
 
   useEffect(() => {
     fetchChildName();
+  }, []);
+
+  // Real-time clock update every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000); // Update every second
+
+    return () => clearInterval(timer);
   }, []);
 
   useFocusEffect(
@@ -487,13 +503,35 @@ export default function Home() {
     playAllDoneAudio();
   }, [showAllDone]);
 
-  // Build ordered incomplete routines (creation order by id ascending)
-  const incompleteRoutinesRaw = routines.filter((r) => !r.completed).sort((a,b)=>a.id-b.id);
-  const incompleteRoutines = incompleteRoutinesRaw; // can extend later if custom order needed
-  const activeIncompleteId = incompleteRoutines.length > 0 ? incompleteRoutines[0].id : null;
+  // Helper function to parse time strings (e.g., "8:00 AM", "3:00 PM")
+  const parseTime = (timeStr: string) => {
+    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return 0;
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const period = match[3].toUpperCase();
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+  // Get current time in minutes since midnight (updated every second)
+  const currentTimeInMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+  // Build ordered incomplete routines (sorted by time, earliest first)
+  const incompleteRoutines = routines.filter((r) => !r.completed).sort((a, b) => {
+    return parseTime(a.time) - parseTime(b.time);
+  });
+  
+  // Find first routine that has reached its time (or first if none have)
+  const enabledRoutineIndex = incompleteRoutines.findIndex(r => parseTime(r.time) <= currentTimeInMinutes);
+  const activeIncompleteId = enabledRoutineIndex >= 0 
+    ? incompleteRoutines[enabledRoutineIndex].id 
+    : (incompleteRoutines.length > 0 ? incompleteRoutines[0].id : null);
   const completedRoutinesOrdered = completedOrder
     .map(id => routines.find(r => r.id === id))
     .filter(Boolean) as Routine[];
+  const completedRoutinesReversed = [...completedRoutinesOrdered].reverse(); // Oldest first for See All
 
   const totalRoutines = routines.length;
   const completedCount = routines.filter((r) => r.completed).length;
@@ -564,7 +602,32 @@ export default function Home() {
               {displayed.map(routine => {
                 const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
                 return (
-                  <View key={routine.id} style={styles.completedItem}>
+                  <TouchableOpacity
+                    key={routine.id}
+                    style={styles.completedItem}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setActiveRoutineId(routine.id);
+                      setIsReplayMode(true);
+                      taskOpacity.setValue(0);
+                      taskScale.setValue(0);
+                      setTaskModalVisible(true);
+                      Animated.parallel([
+                        Animated.timing(taskOpacity, {
+                          toValue: 1,
+                          duration: 250,
+                          easing: Easing.out(Easing.ease),
+                          useNativeDriver: true,
+                        }),
+                        Animated.timing(taskScale, {
+                          toValue: 1,
+                          duration: 250,
+                          easing: Easing.out(Easing.back(1.2)),
+                          useNativeDriver: true,
+                        }),
+                      ]).start();
+                    }}
+                  >
                     <View style={styles.completedStripStars}>
                       <Text style={styles.completedStripStar}>⭐</Text>
                       <Text style={styles.completedStripStar}>⭐</Text>
@@ -575,7 +638,7 @@ export default function Home() {
                     ) : (
                       <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -595,6 +658,9 @@ export default function Home() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}>
           {incompleteRoutines.map((routine, idx) => {
           const isActive = routine.id === activeIncompleteId;
+          const routineTimeInMinutes = parseTime(routine.time);
+          const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
+          const isEnabled = isActive && isTimeReached;
           const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
           
           // Initialize animation value if not exists
@@ -627,7 +693,7 @@ export default function Home() {
                 style={styles.taskCard}
                 activeOpacity={0.8}
                 onPress={() => {
-                  if (isActive) {
+                  if (isEnabled) {
                     setActiveRoutineId(routine.id);
                     // Pop from center - starts small then grows
                     taskOpacity.setValue(0);
@@ -647,6 +713,10 @@ export default function Home() {
                         useNativeDriver: true,
                       }),
                     ]).start();
+                  } else {
+                    // Show time alert when clicking disabled routine
+                    setTimeAlertMessage(`This task is scheduled for ${routine.time}. You're too early for it!`);
+                    setTimeAlertModalVisible(true);
                   }
                 }}
               >
@@ -665,8 +735,8 @@ export default function Home() {
                   <Text style={[styles.taskTitle, styles.taskTitleCentered]}>{routine.name}</Text>
                   <Text style={[styles.taskTime, styles.taskTimeCentered]}>{routine.time}</Text>
                 </View>
-                {/* Dim overlay only if there is more than one remaining and this is not active */}
-                {(!isActive && incompleteRoutines.length > 1) && <View pointerEvents="none" style={styles.dimOverlay} />}
+                {/* Dim overlay: show if not enabled (not time yet or not active) */}
+                {!isEnabled && <View pointerEvents="none" style={styles.dimOverlay} />}
               </TouchableOpacity>
             </Animated.View>
           );
@@ -718,6 +788,7 @@ export default function Home() {
                   }),
                 ]).start(() => {
                   setTaskModalVisible(false);
+                  setIsReplayMode(false);
                 });
               }}>
                 <Text style={styles.backText}>Back</Text>
@@ -775,10 +846,10 @@ export default function Home() {
 
             {/* Footer - Finish Task */}
             <View style={styles.taskDialogFooter}>
-              <TouchableOpacity 
-                style={styles.finishButton} 
+              <TouchableOpacity
+                style={styles.finishButton}
                 onPress={() => {
-                  if (activeRoutineId) {
+                  if (activeRoutineId && !isReplayMode) {
                     toggleComplete(activeRoutineId);
                   }
                   Animated.parallel([
@@ -796,12 +867,18 @@ export default function Home() {
                     }),
                   ]).start(() => {
                     setTaskModalVisible(false);
+                    if (isReplayMode) {
+                      // Show Good Job without affecting progress
+                      setSuccessModalVisible(true);
+                      setShowRainingStars(true);
+                    }
                     setActiveRoutineId(null);
+                    // Keep isReplayMode until Success modal Next/back clears it
                   });
                 }} 
                 activeOpacity={0.9}
               >
-                <Text style={styles.finishButtonText}>Finish Task</Text>
+                <Text style={styles.finishButtonText}>{isReplayMode ? 'Close' : 'Finish Task'}</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -813,7 +890,10 @@ export default function Home() {
         visible={completedModalVisible}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => setCompletedModalVisible(false)}
+        onRequestClose={() => {
+          setCompletedModalVisible(false);
+          setIsReplayMode(false);
+        }}
       >
         <View style={{ flex: 1 }}>
           <Image
@@ -822,16 +902,45 @@ export default function Home() {
             resizeMode="cover"
           />
           <View style={styles.completedModalHeader}>
-            <TouchableOpacity onPress={() => setCompletedModalVisible(false)}>
+            <TouchableOpacity onPress={() => {
+              setCompletedModalVisible(false);
+              setIsReplayMode(false);
+            }}>
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.completedModalTitle}>Completed Task</Text>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-            {completedRoutinesOrdered.slice(0, Math.max(0, completedRoutinesOrdered.length - Math.min(4, completedRoutinesOrdered.length))).map((routine) => {
+            {completedRoutinesReversed.map((routine) => {
               const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
               return (
-                <View key={routine.id} style={styles.completedModalCard}>
+                <TouchableOpacity
+                  key={routine.id}
+                  style={styles.completedModalCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    setActiveRoutineId(routine.id);
+                    setIsReplayMode(true);
+                    setCompletedModalVisible(false);
+                    taskOpacity.setValue(0);
+                    taskScale.setValue(0);
+                    setTaskModalVisible(true);
+                    Animated.parallel([
+                      Animated.timing(taskOpacity, {
+                        toValue: 1,
+                        duration: 250,
+                        easing: Easing.out(Easing.ease),
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(taskScale, {
+                        toValue: 1,
+                        duration: 250,
+                        easing: Easing.out(Easing.back(1.2)),
+                        useNativeDriver: true,
+                      }),
+                    ]).start();
+                  }}
+                >
                   <View style={styles.completedModalStars}>
                     <Text style={styles.completedStar}>⭐</Text>
                     <Text style={styles.completedStar}>⭐</Text>
@@ -844,7 +953,7 @@ export default function Home() {
                   )}
                   <Text style={[styles.taskTitle, styles.taskTitleCentered]}>{routine.name}</Text>
                   <Text style={[styles.taskTime, styles.taskTimeCentered]}>{routine.time}</Text>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
@@ -965,20 +1074,31 @@ export default function Home() {
                   setIsPlaying(false);
                   setAudioControlIndex(0);
                 } else {
-                  // Step 4 - Finish button action - Show success modal
-                  // Close playbook and also close the underlying task dialog
-                  setPlaybookModalVisible(false);
-                  setTaskModalVisible(false);
-                  setSuccessModalVisible(true);
-                  setShowRainingStars(true);
-                  setCurrentStep(1);
-                  setIsPlaying(false);
-                  setAudioControlIndex(0);
+                  // Step 4 - Finish button action
+                  if (isReplayMode) {
+                    // Replay mode: show Good Job modal without affecting progress
+                    setPlaybookModalVisible(false);
+                    setTaskModalVisible(false);
+                    setSuccessModalVisible(true);
+                    setShowRainingStars(true);
+                    setCurrentStep(1);
+                    setIsPlaying(false);
+                    setAudioControlIndex(0);
+                  } else {
+                    // Normal mode: show success celebration, progress handled on Success modal Next
+                    setPlaybookModalVisible(false);
+                    setTaskModalVisible(false);
+                    setSuccessModalVisible(true);
+                    setShowRainingStars(true);
+                    setCurrentStep(1);
+                    setIsPlaying(false);
+                    setAudioControlIndex(0);
+                  }
                 }
               }}
             >
               <Text style={styles.nextButtonText}>
-                {currentStep === 4 ? "FINISH" : "NEXT"}
+                {currentStep === 4 ? 'FINISH' : 'NEXT'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -993,6 +1113,7 @@ export default function Home() {
         onRequestClose={() => {
           setSuccessModalVisible(false);
           setShowRainingStars(false);
+          setIsReplayMode(false);
         }}
       >
         <View style={styles.successScreen}>
@@ -1076,12 +1197,13 @@ export default function Home() {
             <TouchableOpacity
               style={styles.successNextButton}
               onPress={() => {
-                if (activeRoutineId) {
+                if (activeRoutineId && !isReplayMode) {
                   toggleComplete(activeRoutineId);
                 }
                 setSuccessModalVisible(false);
                 setShowRainingStars(false);
                 setActiveRoutineId(null);
+                setIsReplayMode(false);
               }}
             >
               <Text style={styles.successNextButtonText}>Next</Text>
@@ -1090,7 +1212,7 @@ export default function Home() {
         </View>
       </Modal>
 
-      {/* Alert Modal */}
+      {/* Alert Modal - No Minigame */}
       <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
         <View style={styles.alertModalOverlay}>
           <View style={styles.alertModalContainer}>
@@ -1100,6 +1222,22 @@ export default function Home() {
             <Text style={styles.alertModalTitle}>I'm Sorry!</Text>
             <Text style={styles.alertModalMessage}>{alertMessage}</Text>
             <TouchableOpacity style={styles.alertOkButton} onPress={() => setAlertModalVisible(false)}>
+              <Text style={styles.alertOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Time Alert Modal - Routine Not Yet Available */}
+      <Modal animationType="fade" transparent={true} visible={timeAlertModalVisible} onRequestClose={() => setTimeAlertModalVisible(false)}>
+        <View style={styles.alertModalOverlay}>
+          <View style={styles.alertModalContainer}>
+            <View style={styles.alertIconCircle}>
+              <Image source={require("../../assets/images/shock_face.png")} style={styles.alertIcon} />
+            </View>
+            <Text style={styles.alertModalTitle}>Oops!</Text>
+            <Text style={styles.alertModalMessage}>{timeAlertMessage}</Text>
+            <TouchableOpacity style={styles.alertOkButton} onPress={() => setTimeAlertModalVisible(false)}>
               <Text style={styles.alertOkButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
