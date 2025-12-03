@@ -3,22 +3,22 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    PixelRatio,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  PixelRatio,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -95,9 +95,13 @@ export default function Login() {
   // Listen for OAuth callback and handle auth state changes
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
       if (event === "SIGNED_IN" && session) {
+        console.log('User signed in via OAuth, checking user data...');
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) {
+          console.error('Error fetching user:', userError);
           setAlertMessage(userError.message);
           setAlertModalVisible(true);
           return;
@@ -106,9 +110,12 @@ export default function Login() {
         const loggedInUser = userData.user;
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
+        console.log('Child name:', childName);
         if (!childName) {
-          router.replace("/loading?next=/instruction");
+          console.log('No child name, routing to instruction');
+          router.replace("/instruction");
         } else {
+          console.log('Child name exists, routing to greetings');
           navigateToGreetingsWithNetworkCheck(router);
         }
       }
@@ -282,7 +289,8 @@ export default function Login() {
       const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
       if (!childName) {
-        router.replace("/auth/child-nickname");
+        // Show instruction first; child-nickname will appear after completing instruction flow
+        router.replace("/instruction");
       } else {
         // Single replace to loading with next param – avoids sequential replaces
         navigateToGreetingsWithNetworkCheck(router);
