@@ -21,6 +21,9 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
+import { isNetworkConnected } from "../../src/utils/networkUtils";
+import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
+import NetworkFailureModal from "../components/NetworkFailureModal";
 
 /* -------------------------
    Responsive helpers (Option B)
@@ -74,6 +77,14 @@ export default function Login() {
   const [alertMessage, setAlertMessage] = useState("");
   const reduceMotionRef = useRef(false);
 
+  // Local network failure detection for authentication
+  const [localNetworkFailure, setLocalNetworkFailure] = useState(false);
+
+  const handleLocalNetworkRetry = async () => {
+    console.log('🔄 User dismissed network failure modal');
+    setLocalNetworkFailure(false);
+  };
+
   // OAuth listener cleanup
   useEffect(() => {
     return () => {
@@ -98,7 +109,7 @@ export default function Login() {
         if (!childName) {
           router.replace("/auth/child-nickname");
         } else {
-          router.replace("/loading?next=/greetings");
+          navigateToGreetingsWithNetworkCheck(router);
         }
       }
     });
@@ -214,32 +225,73 @@ export default function Login() {
       setAlertModalVisible(true);
       return;
     }
+
+    // Check network connectivity before attempting login
+    console.log('🔍 Checking network connectivity for login...');
+    const isConnected = await isNetworkConnected();
+    console.log('📡 Network connectivity result:', isConnected);
+    
+    if (!isConnected) {
+      console.log('❌ No network connection - login blocked');
+      setLocalNetworkFailure(true);
+      return;
+    }
+    
+    console.log('✅ Network connection available, proceeding with login');
+
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      setAlertMessage(error.message);
-      setAlertModalVisible(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      
+      if (error) {
+        // Check if it's a network-related error
+        if (error.message.includes('Network request failed') || 
+            error.message.includes('fetch') ||
+            error.message.includes('network') ||
+            error.name === 'TypeError') {
+          console.log('❌ Network error during login:', error.message);
+          setLocalNetworkFailure(true);
+          return;
+        }
+        
+        setAlertMessage(error.message);
+        setAlertModalVisible(true);
+        return;
+      }
+
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        // Check if it's a network-related error
+        if (userError.message.includes('Network request failed') || 
+            userError.message.includes('fetch') ||
+            userError.message.includes('network') ||
+            userError.name === 'TypeError') {
+          console.log('❌ Network error during user fetch:', userError.message);
+          setLocalNetworkFailure(true);
+          return;
+        }
+        
+        setAlertMessage(userError.message);
+        setAlertModalVisible(true);
+        return;
+      }
+
+      const loggedInUser = userData.user;
+      const childName = (loggedInUser?.user_metadata as any)?.child_name;
+
+      if (!childName) {
+        router.replace("/auth/child-nickname");
+      } else {
+        // Single replace to loading with next param – avoids sequential replaces
+        navigateToGreetingsWithNetworkCheck(router);
+      }
+    } catch (networkError: any) {
+      setLoading(false);
+      console.log('❌ Caught network error during login:', networkError.message);
+      setLocalNetworkFailure(true);
       return;
-    }
-
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      setAlertMessage(userError.message);
-      setAlertModalVisible(true);
-      return;
-    }
-
-    const loggedInUser = userData.user;
-    const childName = (loggedInUser?.user_metadata as any)?.child_name;
-
-
-    if (!childName) {
-      router.replace("/auth/child-nickname");
-    } else {
-      // Single replace to loading with next param – avoids sequential replaces
-      router.replace("/loading?next=/greetings");
     }
 
   };
@@ -247,6 +299,14 @@ export default function Login() {
   const handleGoogleSignIn = async () => {
     try {
       console.log('Google Sign-In clicked');
+      
+      // Check network connectivity before attempting sign-in
+      const isConnected = await isNetworkConnected();
+      if (!isConnected) {
+        console.log('❌ No network connection - Google sign-in blocked');
+        setLocalNetworkFailure(true);
+        return;
+      }
       
       // Check if user is already signed in
       const { data: { session } } = await supabase.auth.getSession();
@@ -258,6 +318,17 @@ export default function Login() {
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) {
           console.error('User error:', userError);
+          // Check if it's a network-related error
+          if (userError.message.includes('Network request failed') || 
+              userError.message.includes('fetch') ||
+              userError.message.includes('network') ||
+              userError.name === 'TypeError') {
+            console.log('❌ Network error during Google sign-in user fetch:', userError.message);
+            setLocalNetworkFailure(true);
+            setLoading(false);
+            return;
+          }
+          
           setAlertMessage(userError.message);
           setAlertModalVisible(true);
           setLoading(false);
@@ -270,7 +341,7 @@ export default function Login() {
         if (!childName) {
           router.replace("/auth/child-nickname");
         } else {
-          router.replace("/loading?next=/greetings");
+          navigateToGreetingsWithNetworkCheck(router);
         }
         setLoading(false);
         return;
@@ -289,6 +360,16 @@ export default function Login() {
 
       if (error) {
         console.error('OAuth error:', error);
+        // Check if it's a network-related error
+        if (error.message.includes('Network request failed') || 
+            error.message.includes('fetch') ||
+            error.message.includes('network') ||
+            error.name === 'TypeError') {
+          console.log('❌ Network error during OAuth:', error.message);
+          setLocalNetworkFailure(true);
+          return;
+        }
+        
         setAlertMessage(`Google Sign-In Error: ${error.message}`);
         setAlertModalVisible(true);
         return;
@@ -301,6 +382,16 @@ export default function Login() {
 
     } catch (err: any) {
       console.error('Google sign-in exception:', err);
+      // Check if it's a network-related error
+      if (err.message.includes('Network request failed') || 
+          err.message.includes('fetch') ||
+          err.message.includes('network') ||
+          err.name === 'TypeError') {
+        console.log('❌ Network error during Google sign-in:', err.message);
+        setLocalNetworkFailure(true);
+        return;
+      }
+      
       setAlertMessage(err.message || "Google sign-in failed. Please try again.");
       setAlertModalVisible(true);
     }
@@ -437,6 +528,12 @@ export default function Login() {
           </View>
         </View>
       </Modal>
+
+      {/* Network Failure Modal */}
+      <NetworkFailureModal 
+        visible={localNetworkFailure} 
+        onRetry={handleLocalNetworkRetry} 
+      />
     </KeyboardAvoidingView>
   );
 }
