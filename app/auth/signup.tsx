@@ -3,22 +3,24 @@ import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
+import { isNetworkConnected } from "../../src/utils/networkUtils";
+import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function SignUp() {
   const router = useRouter();
@@ -35,6 +37,14 @@ export default function SignUp() {
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
   const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState("");
+
+  // Local network failure detection for authentication
+  const [localNetworkFailure, setLocalNetworkFailure] = useState(false);
+
+  const handleLocalNetworkRetry = async () => {
+    console.log('🔄 User dismissed network failure modal');
+    setLocalNetworkFailure(false);
+  };
   const reduceMotionRef = useRef(false);
 
   // Cleanup all modals on unmount to prevent delayed pop-ups
@@ -158,18 +168,48 @@ export default function SignUp() {
       return;
     }
 
-    setLoading(true);
-
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-
-    if (error) {
-      setEmailErrorMessage(error.message);
-      setEmailErrorModalVisible(true);
+    // Check network connectivity before attempting signup
+    console.log('🔍 Checking network connectivity for signup...');
+    const isConnected = await isNetworkConnected();
+    console.log('📡 Network connectivity result:', isConnected);
+    
+    if (!isConnected) {
+      console.log('❌ No network connection - signup blocked');
+      setLocalNetworkFailure(true);
       return;
     }
+    
+    console.log('✅ Network connection available, proceeding with signup');
 
-    setConfirmEmailModalVisible(true);
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      setLoading(false);
+
+      if (error) {
+        // Check if it's a network-related error
+        if (error.message.includes('Network request failed') || 
+            error.message.includes('fetch') ||
+            error.message.includes('network') ||
+            error.name === 'TypeError') {
+          console.log('❌ Network error during signup:', error.message);
+          setLocalNetworkFailure(true);
+          return;
+        }
+        
+        setEmailErrorMessage(error.message);
+        setEmailErrorModalVisible(true);
+        return;
+      }
+
+      setConfirmEmailModalVisible(true);
+    } catch (networkError: any) {
+      setLoading(false);
+      console.log('❌ Caught network error during signup:', networkError.message);
+      setLocalNetworkFailure(true);
+      return;
+    }
   };
 
   return (
@@ -469,6 +509,12 @@ export default function SignUp() {
           </View>
         </View>
       </Modal>
+
+      {/* Network Failure Modal */}
+      <NetworkFailureModal 
+        visible={localNetworkFailure} 
+        onRetry={handleLocalNetworkRetry} 
+      />
     </KeyboardAvoidingView>
   );
 }

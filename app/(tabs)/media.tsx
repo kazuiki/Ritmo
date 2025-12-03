@@ -2,18 +2,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
+import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
 import type { YouTubeVideo } from "../../src/youtubeKidsService";
 import { YouTubeKidsService } from "../../src/youtubeKidsService";
 
@@ -33,6 +34,7 @@ export default function Media() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTimeout, setSearchTimeout] = useState<number | null>(null);
+  const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -44,7 +46,26 @@ export default function Media() {
   // Load initial videos
   useEffect(() => {
     loadVideos();
-  }, []);
+
+    // Setup network listener to auto-retry when network comes back
+    const networkListener = setupNetworkListener();
+
+    // Set up automatic retry when network is restored
+    const retryTimer = setInterval(() => {
+      if (error && error.includes('internet connection')) {
+        console.log('🔄 Auto-retrying due to previous network error...');
+        clearNetworkCache(); // Clear any cached network state
+        loadVideos(); // Retry loading videos
+      }
+    }, 10000); // Check every 10 seconds
+
+    setNetworkRetryTimer(retryTimer);
+
+    return () => {
+      networkListener?.();
+      if (retryTimer) clearInterval(retryTimer);
+    };
+  }, [error]);
 
   // Handle search with debounce
   useEffect(() => {
@@ -103,6 +124,7 @@ export default function Media() {
   const onRefresh = async () => {
     setRefreshing(true);
     setSearch(""); // Clear search when refreshing
+    clearNetworkCache(); // Clear network cache for fresh check
     await loadVideos();
     setRefreshing(false);
   };
