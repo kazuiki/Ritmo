@@ -3,22 +3,22 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  PixelRatio,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    PixelRatio,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -278,13 +278,6 @@ export default function Login() {
         return;
       }
 
-
-    if (!childName) {
-      router.replace("/instruction");
-    } else {
-      // Single replace to loading with next param – avoids sequential replaces
-      router.replace("/loading?next=/greetings");
-
       const loggedInUser = userData.user;
       const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
@@ -294,12 +287,11 @@ export default function Login() {
         // Single replace to loading with next param – avoids sequential replaces
         navigateToGreetingsWithNetworkCheck(router);
       }
-    } catch (networkError: any) {
+    } catch (networkError) {
       setLoading(false);
-      console.log('❌ Caught network error during login:', networkError.message);
+      console.log('❌ Caught network error during login:', (networkError as any).message);
       setLocalNetworkFailure(true);
       return;
-
     }
 
   };
@@ -388,11 +380,11 @@ export default function Login() {
         await Linking.openURL(data.url);
       }
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Google sign-in exception:', err);
       // Check if it's a network-related error
-      if (err.message.includes('Network request failed') || 
-          err.message.includes('fetch') ||
+      if ((err as any).message.includes('Network request failed') || 
+          (err as any).message.includes('fetch') ||
           err.message.includes('network') ||
           err.name === 'TypeError') {
         console.log('❌ Network error during Google sign-in:', err.message);

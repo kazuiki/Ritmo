@@ -58,9 +58,9 @@ export default function ConfirmEmail() {
         router.push("/auth/child-nickname");
       }
         Alert.alert("✅ Email confirmed!", "Proceed to the next step.");
-      } catch (error: any) {
+      } catch (error) {
         console.log("Confirm email error:", error);
-        Alert.alert("Error", error?.message || "Something went wrong while confirming your email.");
+        Alert.alert("Error", (error as any)?.message || "Something went wrong while confirming your email.");
       }
     };
 

@@ -4,11 +4,12 @@ import * as Print from 'expo-print';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { getRoutinesForCurrentUser, getUserProgressForRange, type Routine, type RoutineProgress } from '../../src/routinesService';
 import { supabase } from '../../src/supabaseClient';
 import { defaultPdfFilename, saveViewAsPdf } from '../../src/utils/pdf';
+import { createResponsiveStyles, useResponsiveDimensions } from '../../src/utils/responsive';
 
 interface RoutineWithDays extends Routine {
 	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -17,6 +18,7 @@ interface RoutineWithDays extends Routine {
 export default function WeeklyHistoryDetail() {
   const { start } = useLocalSearchParams<{ start?: string }>();
   const router = useRouter();
+  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const printableRef = useRef<View>(null);
   const [childName, setChildName] = useState('Kid');
   const [fontsLoaded] = useFonts({ Fredoka_600SemiBold });
@@ -24,6 +26,7 @@ export default function WeeklyHistoryDetail() {
   const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // Parse start date and compute end date (Mon-Sun assumed)
   const weekRange = useMemo(() => {
@@ -296,20 +299,54 @@ export default function WeeklyHistoryDetail() {
     }
   };
 
-  // Custom slide animation, similar to playbook modal and History list
+  // Ultra-smooth slide animation with performance optimization
   const slideX = useMemo(() => new Animated.Value(400), []);
+  
   useEffect(() => {
-    Animated.timing(slideX, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+    setIsAnimating(true);
+    // Fast, responsive slide-in animation
+    Animated.timing(slideX, {
+      toValue: 0,
+      duration: 250, // Faster for immediate response
+      easing: Easing.out(Easing.ease), // Simpler easing
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      setIsAnimating(false);
+    });
   }, []);
+  
   const handleBack = () => {
-    Animated.timing(slideX, { toValue: 400, duration: 300, useNativeDriver: true }).start(() => {
+    if (isAnimating) return; // Prevent animation conflicts
+    
+    setIsAnimating(true);
+    Animated.timing(slideX, {
+      toValue: 400,
+      duration: 200, // Very fast exit
+      easing: Easing.in(Easing.ease), // Simple easing
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      setIsAnimating(false);
       router.back();
     });
   };
 
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateX: slideX }] }]}>
-      <Image source={require('../../assets/background.png')} style={styles.background} resizeMode='cover' />
+    <View style={styles.outerContainer}>
+      {/* Background Image */}
+      <Image
+        source={require('../../assets/background.png')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      <Animated.View 
+        style={[styles.container, { 
+          transform: [{ translateX: slideX }] 
+        }]}
+        renderToHardwareTextureAndroid={true} // Hardware acceleration
+        shouldRasterizeIOS={true} // iOS rasterization
+      >
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <TouchableOpacity onPress={handleBack}>
@@ -402,53 +439,61 @@ export default function WeeklyHistoryDetail() {
           </View>
         </TouchableOpacity>
       </ScrollView>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+  },
+  backgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
   container: { flex: 1 },
-  background: { position: 'absolute', width: '100%', height: '100%' },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 40, paddingTop: 16 },
+  scrollContent: { paddingHorizontal: scale.scaleSpacing(16), paddingBottom: scale.scaleSpacing(40), paddingTop: scale.scaleSpacing(16) },
   topRow: {
     paddingHorizontal: 0,
-    paddingTop: 24,
+    paddingTop: scale.scaleSpacing(24),
   },
   backTextLink: {
     color: "#1F2937",
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "600",
     textDecorationLine: "underline",
     alignSelf: "flex-start",
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: scale.scaleBorderRadius(16),
     borderWidth: 2,
     borderColor: '#CFF6EB',
-    padding: 16,
-    marginTop: 16,
+    padding: scale.scaleSpacing(16),
+    marginTop: scale.scaleSpacing(16),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: scale.scaleHeight(6) },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: scale.scaleSpacing(8),
     elevation: 3,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: scale.scaleFont(18),
     fontWeight: '700',
     color: '#2A3B4D',
-    marginBottom: 8,
+    marginBottom: scale.scaleSpacing(8),
     alignSelf: 'center',
   },
   trackerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: scale.scaleSpacing(8),
   },
   cardTitleLeft: {
-    fontSize: 18,
+    fontSize: scale.scaleFont(18),
     fontWeight: '700',
     color: '#2A3B4D',
   },
@@ -459,7 +504,7 @@ const styles = StyleSheet.create({
   },
   subtleText: {
     color: '#2A3B4D',
-    fontSize: 14,
+    fontSize: scale.scaleFont(14),
   },
   boldText: {
     fontWeight: '700',
@@ -467,48 +512,48 @@ const styles = StyleSheet.create({
   weekRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: scale.scaleSpacing(8),
   },
   weekRangeText: {
     color: '#2A3B4D',
-    fontSize: 13,
+    fontSize: scale.scaleFont(13),
   },
   metricsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10,
-    marginTop: 12,
+    gap: scale.scaleSpacing(10),
+    marginTop: scale.scaleSpacing(12),
   },
   metricCard: {
     flex: 1,
     backgroundColor: '#F3FFFB',
-    borderRadius: 12,
+    borderRadius: scale.scaleBorderRadius(12),
     borderWidth: 2,
     borderColor: '#CFF6EB',
-    paddingVertical: 12,
+    paddingVertical: scale.scaleSpacing(12),
     alignItems: 'center',
   },
   metricTitle: {
     color: '#2A3B4D',
-    fontSize: 12,
-    marginBottom: 4,
+    fontSize: scale.scaleFont(12),
+    marginBottom: scale.scaleSpacing(4),
   },
   metricValue: {
     color: '#2A3B4D',
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
   },
   gridRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: scale.scaleSpacing(5),
     borderBottomWidth: 1,
     borderBottomColor: '#E6F6F1',
   },
   gridHeader: {
     backgroundColor: '#F7FFFD',
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+    borderTopLeftRadius: scale.scaleBorderRadius(10),
+    borderTopRightRadius: scale.scaleBorderRadius(10),
   },
   gridHeaderText: {
     fontWeight: '700',
@@ -516,20 +561,20 @@ const styles = StyleSheet.create({
   },
   gridCellTask: {
     flex: 2.5,
-    paddingRight: 1,
+    paddingRight: scale.scaleSpacing(1),
   },
   taskNameText: {
     color: '#2A3B4D',
     fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 15,
-    lineHeight: 16,
+    fontSize: scale.scaleFont(15),
+    lineHeight: scale.scaleHeight(16),
     flexWrap: 'wrap',
   },
   taskTimestampText: {
     color: '#6B8E7E',
-    fontSize: 12,
-    lineHeight: 12,
-    marginTop: 2,
+    fontSize: scale.scaleFont(12),
+    lineHeight: scale.scaleHeight(12),
+    marginTop: scale.scaleSpacing(2),
     flexWrap: 'wrap',
   },
   gridCellDay: {
@@ -545,82 +590,82 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   indicatorCell: {
-    height: 24,
+    height: scale.scaleHeight(24),
     justifyContent: 'center',
     alignItems: 'center',
   },
   indicatorSquare: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
+    width: scale.scaleWidth(16),
+    height: scale.scaleHeight(16),
+    borderRadius: scale.scaleBorderRadius(3),
     borderWidth: 1,
     borderColor: '#DDECE7',
   },
   indicatorGreen: { backgroundColor: '#1EBE69', borderColor: '#18A65B' },
   indicatorRed: { backgroundColor: '#F56A6A', borderColor: '#E05A5A' },
-  indicatorGray: { backgroundColor: '#E0E0E0', borderColor: '#CCCCCC' }, // Not scheduled
-  indicatorOrange: { backgroundColor: '#FFA500', borderColor: '#E69500' }, // Pending
+  indicatorGray: { backgroundColor: '#E0E0E0', borderColor: '#CCCCCC' },
+  indicatorOrange: { backgroundColor: '#FFA500', borderColor: '#E69500' },
   indicatorDarkGray: { backgroundColor: '#555555', borderColor: '#444444' },
   emptyIndicator: {
-    width: 16,
-    height: 16,
+    width: scale.scaleWidth(16),
+    height: scale.scaleHeight(16),
   },
   legendRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: scale.scaleSpacing(12),
     alignItems: 'center',
     alignSelf: 'center',
-    marginTop: 2,
-    marginBottom: 12,
+    marginTop: scale.scaleSpacing(2),
+    marginBottom: scale.scaleSpacing(12),
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: scale.scaleSpacing(6),
   },
   legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: scale.scaleWidth(10),
+    height: scale.scaleHeight(10),
+    borderRadius: scale.scaleBorderRadius(5),
   },
   legendGreen: { backgroundColor: '#1EBE69' },
   legendRed: { backgroundColor: '#F56A6A' },
-  legendGray: { backgroundColor: '#E0E0E0' }, // Not scheduled (no legend entry)
+  legendGray: { backgroundColor: '#E0E0E0' },
   legendOrange: { backgroundColor: '#FFA500' },
   legendText: {
     color: '#2A3B4D',
-    fontSize: 12,
+    fontSize: scale.scaleFont(12),
   },
   pdfButton: {
-    marginTop: 16,
+    marginTop: scale.scaleSpacing(16),
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: scale.scaleBorderRadius(16),
     borderWidth: 2,
     borderColor: '#CFF6EB',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(20),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: scale.scaleHeight(6) },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: scale.scaleSpacing(8),
     elevation: 3,
   },
   pdfButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: scale.scaleSpacing(12),
     
   },
   pdfIcon: {
-    width: 36,
-    height: 36,
+    width: scale.scaleWidth(36),
+    height: scale.scaleHeight(36),
     resizeMode: 'contain',
   },
   pdfLabel: {
-    fontSize: 22,
+    fontSize: scale.scaleFont(22),
     fontWeight: '600',
     color: '#5BDFC9',
     fontFamily: 'Fredoka_600SemiBold',
   },
-});
+}));

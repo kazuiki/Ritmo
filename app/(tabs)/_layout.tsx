@@ -1,34 +1,65 @@
 import { Tabs } from "expo-router";
-import { useEffect, useState } from "react";
 import {
-  Dimensions,
   Image,
   Platform,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { ResponsiveTheme } from "../../constants/theme";
+import { useResponsiveDimensions } from "../../src/utils/responsive";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const isAndroid = Platform.OS === "android";
 
-  // Track dimension changes (orientation, device size)
-  const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
+  // Use responsive dimensions that update automatically
+  const responsive = useResponsiveDimensions();
+  const { width: screenWidth, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
 
-  useEffect(() => {
-    const sub = Dimensions.addEventListener("change", ({ window }) => {
-      setScreenWidth(window.width);
-    });
-    return () => sub?.remove();
-  }, []);
-
-  // Dynamic sizes
-  const tabItemSize = screenWidth * 0.13; // icons + container
-  const floatingButtonSize = screenWidth * 0.18;
-  const floatingIconSize = screenWidth * 0.10;
+  // Dynamic responsive sizes
+  const tabItemSize = scaleWidth(50); // Responsive tab item size
+  const floatingButtonSize = scaleWidth(70); // Responsive floating button
+  const floatingIconSize = scaleWidth(38); // Responsive floating icon
+  const tabBarHeight = scaleHeight(70) + (isAndroid ? insets.bottom : 0);
+  const svgHeight = scaleHeight(140);
+  
+  // Device-responsive floating button position
+  const getFloatingButtonTop = () => {
+    if (screenWidth >= 768) { // Tablet size
+      return scaleHeight(-80); // Higher position for tablets to clear curve
+    }
+    return scaleHeight(-40); // Original mobile position - perfect for mobile
+  };
+  
+  // Calculate dynamic SVG path based on screen width with enhanced curves
+  const getCurveParameters = () => {
+    const isTablet = screenWidth >= 768;
+    
+    if (isTablet) {
+      // More pronounced curves for tablets
+      return {
+        curveRadius: screenWidth * 0.22,
+        curveSmallRadius: screenWidth * 0.16,
+        curveOffset: screenWidth * 0.14,
+        curvePeak: screenWidth * 0.09,
+        curveDepth: scaleHeight(55) // Deeper curve for tablets
+      };
+    } else {
+      // Enhanced curves for mobile
+      return {
+        curveRadius: screenWidth * 0.20,
+        curveSmallRadius: screenWidth * 0.15,
+        curveOffset: screenWidth * 0.13,
+        curvePeak: screenWidth * 0.08,
+        curveDepth: scaleHeight(43) // Standard depth for mobile
+      };
+    }
+  };
+  
+  const { curveRadius, curveSmallRadius, curveOffset, curvePeak, curveDepth } = getCurveParameters();
 
   return (
     <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
@@ -37,26 +68,26 @@ export default function TabsLayout() {
           headerShown: false,
 
           tabBarBackground: () => (
-            <View style={styles.tabBarContainer}>
-              <Svg width={screenWidth} height={140} style={styles.svgStyle}>
+            <View style={[styles.tabBarContainer, { height: svgHeight }]}>
+              <Svg width={screenWidth} height={svgHeight} style={styles.svgStyle}>
                 <Path
                   d={`
                     M0 0
-                    H${screenWidth / 2 - screenWidth * 0.18}
-                    Q${screenWidth / 2 - screenWidth * 0.13} 0 ${
-                    screenWidth / 2 - screenWidth * 0.11
-                  } 15
-                    Q${screenWidth / 2 - screenWidth * 0.07} 43 ${
+                    H${screenWidth / 2 - curveRadius}
+                    Q${screenWidth / 2 - curveSmallRadius} 0 ${
+                    screenWidth / 2 - curveOffset
+                  } ${scaleHeight(15)}
+                    Q${screenWidth / 2 - curvePeak} ${curveDepth} ${
                     screenWidth / 2
-                  } 43
-                    Q${screenWidth / 2 + screenWidth * 0.07} 43 ${
-                    screenWidth / 2 + screenWidth * 0.11
-                  } 15
-                    Q${screenWidth / 2 + screenWidth * 0.13} 0 ${
-                    screenWidth / 2 + screenWidth * 0.18
+                  } ${curveDepth}
+                    Q${screenWidth / 2 + curvePeak} ${curveDepth} ${
+                    screenWidth / 2 + curveOffset
+                  } ${scaleHeight(15)}
+                    Q${screenWidth / 2 + curveSmallRadius} 0 ${
+                    screenWidth / 2 + curveRadius
                   } 0
                     H${screenWidth}
-                    V150
+                    V${scaleHeight(150)}
                     H0
                     Z
                   `}
@@ -68,7 +99,7 @@ export default function TabsLayout() {
 
           tabBarStyle: {
             ...styles.tabBar,
-            height: 70 + (isAndroid ? insets.bottom : 0),
+            height: tabBarHeight,
             paddingBottom: isAndroid ? insets.bottom : 0,
           },
 
@@ -88,14 +119,24 @@ export default function TabsLayout() {
                 style={[
                   styles.tabItemWrapper,
                   focused && styles.activeTabBackground,
-                  { width: tabItemSize, height: tabItemSize },
+                  { 
+                    width: tabItemSize, 
+                    height: tabItemSize,
+                    borderRadius: scaleSpacing(15),
+                  },
                 ]}
               >
                 <Image
                   source={require("../../assets/images/home.png")}
-                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                  style={[
+                    styles.icon, 
+                    { 
+                      width: tabItemSize * 0.55, 
+                      height: tabItemSize * 0.55 
+                    }
+                  ]}
                 />
-                <Text style={styles.tabLabel}>Home</Text>
+                <Text style={[styles.tabLabel, { fontSize: scaleFont(10) }]}>Home</Text>
               </View>
             ),
             tabBarLabel: () => null,
@@ -111,14 +152,24 @@ export default function TabsLayout() {
                 style={[
                   styles.tabItemWrapper,
                   focused && styles.activeTabBackground,
-                  { width: tabItemSize, height: tabItemSize },
+                  { 
+                    width: tabItemSize, 
+                    height: tabItemSize,
+                    borderRadius: scaleSpacing(15),
+                  },
                 ]}
               >
                 <Image
                   source={require("../../assets/images/media.png")}
-                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                  style={[
+                    styles.icon, 
+                    { 
+                      width: tabItemSize * 0.55, 
+                      height: tabItemSize * 0.55 
+                    }
+                  ]}
                 />
-                <Text style={styles.tabLabel}>Media</Text>
+                <Text style={[styles.tabLabel, { fontSize: scaleFont(10) }]}>Media</Text>
               </View>
             ),
             tabBarLabel: () => null,
@@ -130,11 +181,17 @@ export default function TabsLayout() {
           name="addRoutines"
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={styles.centerWrapper}>
+              <View style={[styles.centerWrapper, { top: getFloatingButtonTop() }]}>
                 <View
                   style={[
                     styles.floatingButton,
-                    { width: floatingButtonSize, height: floatingButtonSize, borderRadius: floatingButtonSize / 2 },
+                    { 
+                      width: floatingButtonSize, 
+                      height: floatingButtonSize, 
+                      borderRadius: floatingButtonSize / 2,
+                      shadowRadius: scaleHeight(12),
+                      shadowOffset: { width: 0, height: scaleHeight(8) },
+                    },
                     focused && styles.floatingButtonActive,
                   ]}
                 >
@@ -162,14 +219,24 @@ export default function TabsLayout() {
                 style={[
                   styles.tabItemWrapper,
                   focused && styles.activeTabBackground,
-                  { width: tabItemSize, height: tabItemSize },
+                  { 
+                    width: tabItemSize, 
+                    height: tabItemSize,
+                    borderRadius: scaleSpacing(15),
+                  },
                 ]}
               >
                 <Image
                   source={require("../../assets/images/progress.png")}
-                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                  style={[
+                    styles.icon, 
+                    { 
+                      width: tabItemSize * 0.55, 
+                      height: tabItemSize * 0.55 
+                    }
+                  ]}
                 />
-                <Text style={styles.tabLabel}>Progress</Text>
+                <Text style={[styles.tabLabel, { fontSize: scaleFont(10) }]}>Progress</Text>
               </View>
             ),
             tabBarLabel: () => null,
@@ -185,14 +252,24 @@ export default function TabsLayout() {
                 style={[
                   styles.tabItemWrapper,
                   focused && styles.activeTabBackground,
-                  { width: tabItemSize, height: tabItemSize },
+                  { 
+                    width: tabItemSize, 
+                    height: tabItemSize,
+                    borderRadius: scaleSpacing(15),
+                  },
                 ]}
               >
                 <Image
                   source={require("../../assets/images/settings.png")}
-                  style={[styles.icon, { width: tabItemSize * 0.55, height: tabItemSize * 0.55 }]}
+                  style={[
+                    styles.icon, 
+                    { 
+                      width: tabItemSize * 0.55, 
+                      height: tabItemSize * 0.55 
+                    }
+                  ]}
                 />
-                <Text style={styles.tabLabel}>Settings</Text>
+                <Text style={[styles.tabLabel, { fontSize: scaleFont(10) }]}>Settings</Text>
               </View>
             ),
             tabBarLabel: () => null,
@@ -206,7 +283,6 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: "absolute",
-    height: 150,
   },
   svgStyle: {
     position: "absolute",
@@ -221,8 +297,7 @@ const styles = StyleSheet.create({
   tabItemWrapper: {
     alignItems: "center",
     justifyContent: "center",
-    top: 20,
-    borderRadius: 15,
+    top: ResponsiveTheme.spacing.md,
   },
   activeTabBackground: {
     backgroundColor: "#06C08A",
@@ -233,13 +308,11 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     color: "#fff",
-    fontSize: 10,
     marginTop: 2,
     fontWeight: "600",
   },
   centerWrapper: {
     position: "absolute",
-    top: -28,
     alignSelf: "center",
   },
   floatingButton: {
@@ -247,9 +320,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    elevation: 8,
   },
   floatingButtonActive: {
     backgroundColor: "#06C08A",

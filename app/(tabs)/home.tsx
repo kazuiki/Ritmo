@@ -1,5 +1,3 @@
-// @ts-nocheck
-// app/(tabs)/home.tsx
 import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -16,6 +14,7 @@ import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
 import { supabase } from "../../src/supabaseClient";
+import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 interface Routine {
   id: number;
@@ -35,6 +34,10 @@ export default function Home() {
     Fredoka_600SemiBold,
     Fredoka_700Bold,
   });
+
+  // Get responsive dimensions and scaling functions
+  const responsive = useResponsiveDimensions();
+  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
@@ -176,9 +179,9 @@ export default function Home() {
           completedOrder: completedToday,
         });
       } catch {}
-    } catch (error: any) {
+    } catch (error) {
       // Suppress noisy unauthenticated errors; log other issues
-      if (error?.message !== 'Not authenticated') {
+      if ((error as any)?.message !== 'Not authenticated') {
         console.error("Failed to load routines for user:", error);
       }
       setRoutines([]);
@@ -502,6 +505,13 @@ export default function Home() {
 
     playAllDoneAudio();
   }, [showAllDone]);
+
+  // Trigger falling stars when success modal opens
+  useEffect(() => {
+    if (successModalVisible) {
+      setShowRainingStars(true);
+    }
+  }, [successModalVisible]);
 
   // Helper function to parse time strings (e.g., "8:00 AM", "3:00 PM")
   const parseTime = (timeStr: string) => {
@@ -832,7 +842,7 @@ export default function Home() {
                 return;
               }
             
-              router.push(path);
+              router.push(path as any);
             }}
           >
             <Image 
@@ -870,7 +880,9 @@ export default function Home() {
                     if (isReplayMode) {
                       // Show Good Job without affecting progress
                       setSuccessModalVisible(true);
-                      setShowRainingStars(true);
+                    } else {
+                      // Show Good Job for normal completion
+                      setSuccessModalVisible(true);
                     }
                     setActiveRoutineId(null);
                     // Keep isReplayMode until Success modal Next/back clears it
@@ -1124,45 +1136,15 @@ export default function Home() {
             resizeMode="cover"
           />
 
+          {/* Falling Stars GIF Overlay */}
+          <Image
+            source={require("../../assets/gifs/fallingstars.gif")}
+            style={styles.fallingStarsGif}
+            resizeMode="cover"
+          />
+
           {/* Content Overlay */}
           <View style={styles.successContent}>
-            {/* Raining Stars Animation */}
-            {showRainingStars && (
-              <View style={styles.rainingStarsContainer} pointerEvents="none">
-                {[...Array(50)].map((_, index) => {
-                  const startX = Math.random() * 400; // Full screen width spread
-                  const endX = startX + (Math.random() * 100 - 50); // Small drift
-                  return (
-                    <MotiView
-                      key={index}
-                      from={{
-                        translateY: -100,
-                        translateX: startX,
-                        opacity: 0,
-                        rotate: '0deg',
-                        scale: 0.8 + Math.random() * 0.4,
-                      }}
-                      animate={{
-                        translateY: 700,
-                        translateX: endX,
-                        opacity: [0, 1, 1, 0],
-                        rotate: '360deg',
-                        scale: 0.8 + Math.random() * 0.4,
-                      }}
-                      transition={{
-                        type: 'timing',
-                        duration: 2000 + Math.random() * 1500,
-                        delay: Math.random() * 500, // Much shorter delay - stars start immediately
-                        repeat: Infinity,
-                      }}
-                      style={styles.rainingStar}
-                    >
-                      <Text style={styles.rainingStarText}>⭐</Text>
-                    </MotiView>
-                  );
-                })}
-              </View>
-            )}
 
             {/* Three Stars - Middle one elevated with pop animation */}
             <View style={styles.starsSuccessContainer}>
@@ -1201,7 +1183,7 @@ export default function Home() {
                   toggleComplete(activeRoutineId);
                 }
                 setSuccessModalVisible(false);
-                setShowRainingStars(false);
+                setShowRainingStars(true);
                 setActiveRoutineId(null);
                 setIsReplayMode(false);
               }}
@@ -1256,21 +1238,36 @@ function formatDays(days: number[]) {
   return days.map(d => full[d]).join(', ');
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
   backgroundImage: {
     position: "absolute",
     width: "100%",
     height: "100%",
   },
-  header: { paddingTop: 50, paddingHorizontal: 16 },
-  brand: { fontSize: 22, color: "#276a63", fontWeight: "700", fontFamily: "Fredoka_700Bold" },
-  brandLogo: { width: 120, height: 30, resizeMode: "contain", marginLeft: -22, marginTop: -20, marginBottom: 12 },
+  header: { 
+    paddingTop: scale.scaleHeight(50), 
+    paddingHorizontal: scale.scaleSpacing(16) 
+  },
+  brand: { 
+    fontSize: scale.scaleFont(22), 
+    color: "#276a63", 
+    fontWeight: "700", 
+    fontFamily: "Fredoka_700Bold" 
+  },
+  brandLogo: { 
+    width: scale.scaleWidth(120), 
+    height: scale.scaleHeight(30), 
+    resizeMode: "contain", 
+    marginLeft: scale.scaleSpacing(-22), 
+    marginTop: scale.scaleSpacing(-20), 
+    marginBottom: scale.scaleSpacing(12) 
+  },
   progressCard: {
     backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 8,
+    padding: scale.scaleSpacing(16),
+    borderRadius: scale.scaleBorderRadius(12),
+    marginHorizontal: scale.scaleSpacing(16),
+    marginBottom: scale.scaleSpacing(8),
     borderWidth: 3,
     borderColor: "#B8E6D9",
   },
@@ -1278,50 +1275,60 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: scale.scaleSpacing(12),
   },
-  progressTitle: { fontWeight: "700", fontSize: 16, color: "#244D4A", fontFamily: "Fredoka_700Bold" },
-  progressCount: { color: "#06C08A", fontSize: 16, fontWeight: "600", fontFamily: "Fredoka_600SemiBold" },
+  progressTitle: { 
+    fontWeight: "700", 
+    fontSize: scale.scaleFont(16), 
+    color: "#244D4A", 
+    fontFamily: "Fredoka_700Bold" 
+  },
+  progressCount: { 
+    color: "#06C08A", 
+    fontSize: scale.scaleFont(16), 
+    fontWeight: "600", 
+    fontFamily: "Fredoka_600SemiBold" 
+  },
   progressBarContainer: {
-    height: 8,
+    height: scale.scaleHeight(8),
     backgroundColor: "#E0E0E0",
-    borderRadius: 4,
+    borderRadius: scale.scaleBorderRadius(4),
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
     backgroundColor: "#06C08A",
-    borderRadius: 4,
+    borderRadius: scale.scaleBorderRadius(4),
   },
   completedSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: scale.scaleSpacing(16),
   },
   completedHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: scale.scaleSpacing(8),
   },
   completedTitle: {
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: '700',
     color: '#244D4A',
     fontFamily: 'Fredoka_700Bold',
-    paddingLeft: 2,
+    paddingLeft: scale.scaleSpacing(2),
   },
   seeAllLink: {
     color: '#06C08A',
-    fontSize: 18,
+    fontSize: scale.scaleFont(18),
     fontFamily: 'Fredoka_600SemiBold',
   },
   completedRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: scale.scaleSpacing(12),
   },
   completedItem: {
-    width: 73,
-    height: 72,
-    borderRadius: 14,
+    width: scale.scaleWidth(73),
+    height: scale.scaleHeight(72),
+    borderRadius: scale.scaleBorderRadius(14),
     borderWidth: 3,
     borderColor: '#B8E6D9',
     backgroundColor: '#FFFFFF',
@@ -1334,7 +1341,7 @@ const styles = StyleSheet.create({
     width: '80%',
     height: '80%',
     resizeMode: 'cover',
-    marginTop: 15,
+    marginTop: scale.scaleSpacing(15),
   },
   completedPlaceholder: {
     width: '85%',
@@ -1343,106 +1350,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#E8FFFA',
   },
-  // Alert Modal Styles (matching login.tsx)
-  alertModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  alertModalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-    width: "82%",
-    maxWidth: 420,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 3,
-    borderColor: "#FFB3BA",
-  },
-  alertIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#FFE5E7",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  alertIcon: {
-    width: 36,
-    height: 36,
-    resizeMode: "contain",
-  },
-  alertModalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 8,
-  },
-  alertModalMessage: {
-    fontSize: 14,
-    color: "#4A4A4A",
-    textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 16,
-    paddingHorizontal: 8,
-    flexWrap: "wrap",
-  },
-  alertOkButton: {
-    backgroundColor: "#FF6B7A",
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 110,
-  },
-  alertOkButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
   completedStripStars: {
     position: 'absolute',
-    top: 1,
+    top: scale.scaleSpacing(1),
     left: '50%',
-    transform: [{ translateX: -24 }],
+    transform: [{ translateX: scale.scaleSpacing(-24) }],
     flexDirection: 'row',
     zIndex: 10,
   },
   completedStripStar: {
-    fontSize: 16,
-    verticalAlign: 'center',
+    fontSize: scale.scaleFont(16),
+    textAlignVertical: 'center',
   },
   remainingTitle: {
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: '700',
     color: '#244D4A',
-    marginBottom: 2,
+    marginBottom: scale.scaleSpacing(2),
     fontFamily: 'Fredoka_700Bold',
-    paddingLeft: 2,
+    paddingLeft: scale.scaleSpacing(2),
   },
   taskCard: {
     backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 10,
-    marginBottom: 12,
-    marginHorizontal: 2,
+    borderRadius: scale.scaleBorderRadius(20),
+    padding: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(12),
+    marginHorizontal: scale.scaleSpacing(2),
     borderWidth: 3,
     borderColor: "#B8E6D9",
     shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },  
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },  
+    shadowRadius: scale.scaleSpacing(8),
     elevation: 4,
     position: "relative",
-    minHeight: 280,
+    minHeight: scale.scaleHeight(280),
   },
   taskCardContent: {
     flex: 1,
@@ -1450,62 +1392,72 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   iconPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: scale.scaleWidth(80),
+    height: scale.scaleHeight(80),
+    borderRadius: scale.scaleBorderRadius(12),
     backgroundColor: "#E8FFFA",
     alignItems: "center",
     justifyContent: "center",
   },
   iconPlaceholderLarge: {
-    width: 160,
-    height: 160,
-    borderRadius: 18,
+    width: scale.scaleWidth(160),
+    height: scale.scaleHeight(160),
+    borderRadius: scale.scaleBorderRadius(18),
     backgroundColor: "#E8FFFA",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: scale.scaleSpacing(12),
   },
   iconDim: {
     opacity: 0.7,
   },
   presetImageSmall: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: scale.scaleWidth(80),
+    height: scale.scaleHeight(80),
+    borderRadius: scale.scaleBorderRadius(12),
     resizeMode: "cover",
   },
   presetImageLarge: {
-    width: 200,
-    height: 180,
-    borderRadius: 18,
+    width: scale.scaleWidth(200),
+    height: scale.scaleHeight(180),
+    borderRadius: scale.scaleBorderRadius(18),
     resizeMode: "cover",
-    marginBottom: 2,
+    marginBottom: scale.scaleSpacing(2),
   },
   presetImageDim: {
     opacity: 0.7,
   },
-  icon: { fontSize: 28 },
-  iconLarge: { fontSize: 70 },
-  taskTitle: { fontWeight: "700", color: "#244D4A", fontSize: 20, marginBottom: 1, fontFamily: "Fredoka_700Bold" },
+  icon: { fontSize: scale.scaleFont(28) },
+  iconLarge: { fontSize: scale.scaleFont(70) },
+  taskTitle: { 
+    fontWeight: "700", 
+    color: "#244D4A", 
+    fontSize: scale.scaleFont(20), 
+    marginBottom: scale.scaleSpacing(1), 
+    fontFamily: "Fredoka_700Bold" 
+  },
   taskTitleCentered: { 
-    fontSize: 22, 
-    marginBottom: 1, 
+    fontSize: scale.scaleFont(22), 
+    marginBottom: scale.scaleSpacing(1), 
     textAlign: "center",
     letterSpacing: 0.3,
   },
-  taskTime: { fontSize: 18, color: "#666", fontFamily: "Fredoka_500Medium" },
+  taskTime: { 
+    fontSize: scale.scaleFont(18), 
+    color: "#666", 
+    fontFamily: "Fredoka_500Medium" 
+  },
   taskTimeCentered: { 
-    fontSize: 20, 
+    fontSize: scale.scaleFont(20), 
     fontWeight: "600",
     color: "#244D4A",
     textAlign: "center",
   },
   taskDays: {
-    fontSize: 14,
+    fontSize: scale.scaleFont(14),
     color: '#244D4A',
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: scale.scaleSpacing(2),
     fontFamily: "Fredoka_500Medium",
   },
   // Task Modal Dialog Styles
@@ -1518,84 +1470,84 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: scale.scaleSpacing(20),
   },
   taskDialog: {
     width: "100%",
     height: "95%",
     backgroundColor: "#E8FFFA",
-    borderRadius: 15,
+    borderRadius: scale.scaleBorderRadius(15),
     borderWidth: 3,
     borderColor: "#B8E6D9",
     overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: scale.scaleHeight(8) },
+    shadowRadius: scale.scaleSpacing(16),
     elevation: 8,
   },
   taskDialogHeader: {
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingTop: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingBottom: scale.scaleSpacing(12),
   },
   completedModalHeader: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
+    paddingTop: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(16),
   },
   completedModalTitle: {
-    fontSize: 22,
+    fontSize: scale.scaleFont(22),
     textAlign: 'center',
     color: '#244D4A',
     fontWeight: '700',
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: scale.scaleSpacing(8),
+    marginBottom: scale.scaleSpacing(8),
     fontFamily: 'Fredoka_700Bold',
   },
   completedModalCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: scale.scaleBorderRadius(16),
     borderWidth: 4,
     borderColor: '#B8E6D9',
-    padding: 12,
-    marginBottom: 12,
+    padding: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(12),
     alignItems: 'center',
     position: 'relative',
   },
   completedModalStars: {
     position: 'absolute',
-    top: 10,
-    right: 14,
+    top: scale.scaleSpacing(10),
+    right: scale.scaleSpacing(14),
     flexDirection: 'row',
   },
   completedStar: {
-    fontSize: 20,
-    marginLeft: 6,
+    fontSize: scale.scaleFont(20),
+    marginLeft: scale.scaleSpacing(6),
   },
   taskDialogContent: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    gap: -20,
-    marginTop: -70,
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(10),
+    gap: scale.scaleSpacing(-20),
+    marginTop: scale.scaleSpacing(-70),
   },
   taskDialogFooter: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingBottom: scale.scaleSpacing(20),
   },
   modalScreen: {
     flex: 1,
     backgroundColor: "#E8FFFA",
   },
   taskHeader: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingTop: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingBottom: scale.scaleSpacing(8),
   },
   backText: {
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     color: "#244D4A",
     textDecorationLine: "underline",
     fontWeight: "700",
@@ -1605,16 +1557,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 35,
-    paddingVertical: 100,
-    gap: 20,
-    marginTop: -100,
+    paddingHorizontal: scale.scaleSpacing(35),
+    paddingVertical: scale.scaleSpacing(100),
+    gap: scale.scaleSpacing(20),
+    marginTop: scale.scaleSpacing(-100),
   },
   taskBlock: {
     width: "100%",
     flex: 1,
-    maxHeight: 220,
-    borderRadius: 20,
+    maxHeight: scale.scaleHeight(220),
+    borderRadius: scale.scaleBorderRadius(20),
     backgroundColor: "#fff",
     borderWidth: 2,
     borderColor: "#B8E6D9",
@@ -1622,8 +1574,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowRadius: scale.scaleSpacing(8),
     elevation: 3,
   },
   taskItem: {
@@ -1632,35 +1584,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   taskImage: {
-    width: 250,
-    height: 250,
-    marginBottom: -65,
+    width: scale.scaleWidth(250),
+    height: scale.scaleHeight(250),
+    marginBottom: scale.scaleSpacing(-65),
   },
   taskBlockLabel: {
-    fontSize: 24,
+    fontSize: scale.scaleFont(24),
     fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 32,
+    lineHeight: scale.scaleHeight(32),
     fontFamily: "Fredoka_700Bold",
   },
   taskFooter: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingBottom: scale.scaleSpacing(24),
   },
   finishButton: {
     backgroundColor: "#2F7D73",
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: scale.scaleBorderRadius(16),
+    paddingVertical: scale.scaleSpacing(14),
     alignItems: "center",
     shadowColor: "#000",
     shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowRadius: scale.scaleSpacing(8),
     elevation: 4,
   },
   finishButtonText: {
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "700",
     color: "#fff",
     fontFamily: "Fredoka_700Bold",
@@ -1671,9 +1623,73 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    // Slightly darkened from 0.06 to 0.12 for better visibility
     backgroundColor: "rgba(0,0,0,0.15)",
-    borderRadius: 16,
+    borderRadius: scale.scaleBorderRadius(16),
+  },
+  // Alert Modal Styles (matching login.tsx)
+  alertModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(18),
+    padding: scale.scaleSpacing(18),
+    width: "82%",
+    maxWidth: scale.scaleWidth(420),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.2,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFB3BA",
+  },
+  alertIconCircle: {
+    width: scale.scaleWidth(64),
+    height: scale.scaleHeight(64),
+    borderRadius: scale.scaleWidth(32),
+    backgroundColor: "#FFE5E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(12),
+  },
+  alertIcon: {
+    width: scale.scaleWidth(36),
+    height: scale.scaleHeight(36),
+    resizeMode: "contain",
+  },
+  alertModalTitle: {
+    fontSize: scale.scaleFont(20),
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: scale.scaleSpacing(8),
+  },
+  alertModalMessage: {
+    fontSize: scale.scaleFont(14),
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: scale.scaleHeight(18),
+    marginBottom: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(8),
+    flexWrap: "wrap",
+  },
+  alertOkButton: {
+    backgroundColor: "#FF6B7A",
+    paddingVertical: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(28),
+    borderRadius: scale.scaleBorderRadius(40),
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: scale.scaleWidth(110),
+  },
+  alertOkButtonText: {
+    fontSize: scale.scaleFont(15),
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   // Playbook Modal Styles
   playbookScreen: {
@@ -1689,30 +1705,30 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: scale.scaleSpacing(20),
   },
   playbookDialog: {
     width: "90%",
     maxHeight: "85%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderRadius: scale.scaleBorderRadius(20),
     borderWidth: 3,
     borderColor: "#2F7C72",
     overflow: "hidden",
   },
   playbookHeader: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    minHeight: 48,
+    paddingTop: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingBottom: scale.scaleSpacing(8),
+    minHeight: scale.scaleHeight(48),
   },
   routineTitleCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    marginHorizontal: 20,
+    borderRadius: scale.scaleBorderRadius(20),
+    padding: scale.scaleSpacing(20),
+    marginHorizontal: scale.scaleSpacing(20),
     marginTop: 0,
-    marginBottom: 12,
+    marginBottom: scale.scaleSpacing(12),
     borderWidth: 3,
     borderColor: "#2F7C72",
     flexDirection: "row",
@@ -1720,37 +1736,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   routineTitle: {
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "700",
     color: "#244D4A",
     fontFamily: "Fredoka_700Bold",
   },
   starsContainer: {
     flexDirection: "row",
-    gap: 25,
+    gap: scale.scaleSpacing(25),
   },
   star: {
-    fontSize: 30,
+    fontSize: scale.scaleFont(30),
   },
   playbookContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 80,
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingBottom: scale.scaleSpacing(80),
     alignItems: "center",
   },
   videoCard: {
     width: "100%",
-    height: 400,
+    height: scale.scaleHeight(400),
     backgroundColor: "#FFFFFF",
     borderWidth: 3,
     borderColor: "#2F7C72",
-    borderRadius: 16,
+    borderRadius: scale.scaleBorderRadius(16),
     overflow: "hidden",
-    marginBottom: 30,
+    marginBottom: scale.scaleSpacing(30),
     position: "relative",
   },
   videoInner: {
     flex: 1,
-    padding: 8,
+    padding: scale.scaleSpacing(8),
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1761,18 +1777,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   stepLabel: {
-    fontSize: 26,
+    fontSize: scale.scaleFont(26),
     fontWeight: "700",
     color: "#244D4A",
-    marginBottom: 10,
+    marginBottom: scale.scaleSpacing(10),
     fontFamily: "Fredoka_700Bold",
   },
   instructionText: {
-    fontSize: 22,
+    fontSize: scale.scaleFont(22),
     fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: 28,
+    lineHeight: scale.scaleHeight(28),
     fontFamily: "Fredoka_700Bold",
   },
   playbookFooter: {
@@ -1786,15 +1802,15 @@ const styles = StyleSheet.create({
   backButtonBottom: {
     width: "48%",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
+    paddingVertical: scale.scaleSpacing(16),
     alignItems: "center",
     borderColor: "#244D4A",
   },
   backButtonText: {
-      fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "700",
     color: "#244D4A",
-      fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_700Bold",
   },
   buttonSpacer: {
     width: "4%",
@@ -1802,22 +1818,22 @@ const styles = StyleSheet.create({
   nextButton: {
     width: "48%",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
+    paddingVertical: scale.scaleSpacing(16),
     alignItems: "center",
     borderColor: "#244D4A",
   },
   nextButtonFull: {
     width: "48%",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
+    paddingVertical: scale.scaleSpacing(16),
     alignItems: "center",
     borderColor: "#244D4A",
   },
   nextButtonText: {
-      fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "700",
     color: "#244D4A",
-      fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_700Bold",
   },
   // Success Modal Styles
   successScreen: {
@@ -1829,51 +1845,59 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  fallingStarsGif: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    zIndex: 10,
+    opacity: 0.3,
+    tintColor: 'rgba(255, 215, 0, 0.6)',
+  },
   successContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
+    paddingHorizontal: scale.scaleSpacing(40),
   },
   starsSuccessContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    marginBottom: 30,
-    gap: 15,
+    marginBottom: scale.scaleSpacing(30),
+    gap: scale.scaleSpacing(15),
   },
   starSuccess: {
-    fontSize: 60,
+    fontSize: scale.scaleFont(60),
   },
   starElevated: {
-    marginBottom: 15,
+    marginBottom: scale.scaleSpacing(15),
   },
   goodJobText: {
-      fontSize: 44,
+    fontSize: scale.scaleFont(44),
     fontWeight: "800",
     color: "#244D4A",
-    marginBottom: 4,
+    marginBottom: scale.scaleSpacing(4),
     letterSpacing: 1,
-      fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_700Bold",
   },
   childNameText: {
-      fontSize: 32,
+    fontSize: scale.scaleFont(32),
     fontWeight: "600",
     color: "#244D4A",
-    marginBottom: 60,
+    marginBottom: scale.scaleSpacing(60),
     fontStyle: "italic",
-      fontFamily: "Fredoka_600SemiBold",
+    fontFamily: "Fredoka_600SemiBold",
   },
   successNextButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 40,
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(40),
   },
   successNextButtonText: {
-      fontSize: 26,
+    fontSize: scale.scaleFont(26),
     fontWeight: "700",
     color: "#244D4A",
     textDecorationLine: "underline",
     letterSpacing: 0.5,
-      fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_700Bold",
   },
   // All Done Message Styles
   allDoneContainer: {
@@ -1884,26 +1908,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   allDoneText: {
-      fontSize: 16,
+    fontSize: scale.scaleFont(16),
     fontWeight: "600",
     color: "#244D4A",
     letterSpacing: 1,
-      fontFamily: "Fredoka_600SemiBold",
+    fontFamily: "Fredoka_600SemiBold",
   },
   congratulationText: {
-      fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "800",
     color: "#244D4A",
     letterSpacing: 1,
-      fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_700Bold",
   },
   childNameDone: {
-      fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "700",
     color: "#244D4A",
     textDecorationLine: "underline",
     fontStyle: "italic",
-      fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_700Bold",
   },
   rainingStarsContainer: {
     position: 'absolute',
@@ -1911,16 +1935,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1,
+    zIndex: 100,
+    elevation: 100,
   },
   rainingStar: {
     position: 'absolute',
-    zIndex: 2,
+    zIndex: 101,
+    elevation: 101,
   },
   rainingStarText: {
-      fontSize: 22,
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    fontSize: scale.scaleFont(32),
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
   },
-});
+}));
