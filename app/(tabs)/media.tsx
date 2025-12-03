@@ -15,6 +15,7 @@ import {
 import YoutubePlayer from "react-native-youtube-iframe";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
+import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 import type { YouTubeVideo } from "../../src/youtubeKidsService";
 import { YouTubeKidsService } from "../../src/youtubeKidsService";
 
@@ -27,6 +28,10 @@ type PlayerState =
   | "cued";
 
 export default function Media() {
+  // Get responsive dimensions and scaling functions
+  const responsive = useResponsiveDimensions();
+  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
+  
   const [search, setSearch] = useState("");
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
@@ -241,7 +246,7 @@ export default function Media() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
   backgroundImage: {
     position: "absolute",
     width: "100%",
@@ -251,93 +256,97 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 50,
-    paddingHorizontal: 16,
+    paddingTop: scale.scaleSpacing(50),
+    paddingHorizontal: scale.scaleSpacing(16),
   },
   brandLogo: {
-    width: 120,
-    height: 30,
+    width: scale.scaleWidth(120),
+    height: scale.scaleHeight(30),
     resizeMode: "contain",
-    marginLeft: -22,
-    marginTop: -20,
-    marginBottom: 12,
+    marginLeft: scale.scaleSpacing(-22),
+    marginTop: scale.scaleSpacing(-20),
+    marginBottom: scale.scaleSpacing(12),
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f0f0f0",
-    marginHorizontal: 12,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    borderRadius: 25,
-    height: 40,
+    marginHorizontal: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(10),
+    borderRadius: scale.scaleBorderRadius(25),
+    height: scale.scaleHeight(40),
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
+    marginLeft: scale.scaleSpacing(8),
+    fontSize: scale.scaleFont(16),
     color: "#000",
   },
   videoContainer: {
     backgroundColor: "#fafafa",
-    marginHorizontal: 12,
-    marginBottom: 16,
-    borderRadius: 12,
+    marginHorizontal: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(16),
+    borderRadius: scale.scaleBorderRadius(12),
     overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+    shadowRadius: scale.scaleSpacing(4),
     elevation: 2,
   },
   thumbnail: {
     width: "100%",
-    height: 200,
+    height: scale.scaleHeight(200),
     backgroundColor: "#ccc",
   },
   playButton: {
     position: "absolute",
-    top: "35%",
-    left: "38%",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
     opacity: 0.9,
   },
   videoInfo: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: scale.scaleSpacing(10),
+    paddingVertical: scale.scaleSpacing(8),
   },
   channelIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
+    width: scale.scaleWidth(40),
+    height: scale.scaleHeight(40),
+    borderRadius: scale.scaleBorderRadius(20),
+    marginRight: scale.scaleSpacing(10),
   },
   videoTitle: {
-    fontSize: 15,
+    fontSize: scale.scaleFont(15),
     fontWeight: "600",
     color: "#000",
   },
   videoMeta: {
-    fontSize: 13,
+    fontSize: scale.scaleFont(13),
     color: "#666",
-    marginTop: 2,
+    marginTop: scale.scaleSpacing(2),
   },
   noResults: {
     textAlign: "center",
     color: "#666",
-    marginTop: 20,
-    fontSize: 16,
+    marginTop: scale.scaleSpacing(20),
+    fontSize: scale.scaleFont(16),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 50,
+    paddingVertical: scale.scaleSpacing(50),
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
+    marginTop: scale.scaleSpacing(10),
+    fontSize: scale.scaleFont(16),
     color: "#666",
     fontFamily: "ITIM",
   },
@@ -345,27 +354,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 50,
-    paddingHorizontal: 20,
+    paddingVertical: scale.scaleSpacing(50),
+    paddingHorizontal: scale.scaleSpacing(20),
   },
   errorText: {
-    marginTop: 15,
-    fontSize: 16,
+    marginTop: scale.scaleSpacing(15),
+    fontSize: scale.scaleFont(16),
     color: "#666",
     textAlign: "center",
     fontFamily: "ITIM",
   },
   retryButton: {
-    marginTop: 20,
+    marginTop: scale.scaleSpacing(20),
     backgroundColor: "#5A8F8A",
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
+    paddingHorizontal: scale.scaleSpacing(30),
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(25),
   },
   retryButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: scale.scaleFont(16),
     fontWeight: "600",
     fontFamily: "ITIM",
   },
-});
+}));

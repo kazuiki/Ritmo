@@ -183,9 +183,9 @@ export default function ForgotPassword() {
       }
 
       setEmailSentModalVisible(true);
-    } catch (networkError: any) {
+    } catch (networkError) {
       setLoading(false);
-      console.log('❌ Caught network error during password reset:', networkError.message);
+      console.log('❌ Caught network error during password reset:', (networkError as any).message);
       setLocalNetworkFailure(true);
       return;
     }

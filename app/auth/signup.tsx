@@ -5,27 +5,29 @@ import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
+import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function SignUp() {
   const router = useRouter();
+  const { scale } = useResponsiveDimensions();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState(""); // ✅ new state
@@ -52,6 +54,7 @@ export default function SignUp() {
   const handleLocalNetworkRetry = async () => {
     console.log('🔄 User dismissed network failure modal');
     setLocalNetworkFailure(false);
+  };
 
   const reduceMotionRef = useRef(false);
   const isInitialMount = useRef(true);
@@ -271,9 +274,9 @@ export default function SignUp() {
       }
 
       setConfirmEmailModalVisible(true);
-    } catch (networkError: any) {
+    } catch (networkError) {
       setLoading(false);
-      console.log('❌ Caught network error during signup:', networkError.message);
+      console.log('❌ Caught network error during signup:', (networkError as any).message);
       setLocalNetworkFailure(true);
       return;
     }
@@ -714,85 +717,88 @@ export default function SignUp() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
   outer: { flex: 1 },
   container: {
     flex: 1,
-    paddingHorizontal: 28,
+    paddingHorizontal: scale.scaleSpacing(28),
     justifyContent: "center",
     alignItems: "center",
   },
   background: { flex: 1, width: "100%", height: "100%" },
   logo: {
-    width: 260,
-    height: 220,
-    marginBottom: 6,
+    width: scale.scaleWidth(260),
+    height: scale.scaleHeight(220),
+    marginBottom: scale.scaleSpacing(6),
   },
   label: {
     alignSelf: "flex-start",
     color: "#276a63",
-    marginTop: 8,
+    marginTop: scale.scaleSpacing(8),
+    fontSize: scale.scaleFont(14),
+    fontFamily: "ITIM",
   },
   input: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: scale.scaleWidth(340),
     backgroundColor: "#fff",
-    borderRadius: 5,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    marginTop: 10,
+    borderRadius: scale.scaleBorderRadius(5),
+    paddingHorizontal: scale.scaleSpacing(18),
+    paddingVertical: scale.scaleSpacing(14),
+    marginTop: scale.scaleSpacing(10),
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
-    fontSize: 15,
+    fontSize: scale.scaleFont(15),
   },
   inputRow: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: scale.scaleWidth(340),
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 5,
-    paddingHorizontal: 14,
-    marginTop: 10,
+    borderRadius: scale.scaleBorderRadius(5),
+    paddingHorizontal: scale.scaleSpacing(14),
+    marginTop: scale.scaleSpacing(10),
     elevation: 2,
   },
-  inputFlex: { flex: 1, paddingVertical: 12, fontSize: 15 },
-  eyeButton: { paddingHorizontal: 4, paddingVertical: 4 },
+  inputFlex: { flex: 1, paddingVertical: scale.scaleSpacing(12), fontSize: scale.scaleFont(15) },
+  eyeButton: { paddingHorizontal: scale.scaleSpacing(4), paddingVertical: scale.scaleSpacing(4) },
   button: {
-    marginTop: 22,
+    marginTop: scale.scaleSpacing(22),
     backgroundColor: "#2D7778",
-    paddingVertical: 14,
+    paddingVertical: scale.scaleSpacing(14),
     width: "100%",
-    maxWidth: 340,
-    borderRadius: 5,
+    maxWidth: scale.scaleWidth(340),
+    borderRadius: scale.scaleBorderRadius(5),
     alignItems: "center",
     elevation: 3,
   },
-  buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
+  buttonText: { color: "#fff", fontWeight: "400", fontSize: scale.scaleFont(15) },
   link: {
-    marginTop: 16,
+    marginTop: scale.scaleSpacing(16),
     color: "#276a63",
     textDecorationLine: "underline",
     textAlign: "center",
+    fontSize: scale.scaleFont(14),
   },
   agreeRow: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: scale.scaleWidth(340),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: scale.scaleSpacing(12),
     flexWrap: 'wrap',
   },
   checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 3,
+    width: scale.scaleWidth(18),
+    height: scale.scaleHeight(18),
+    borderRadius: scale.scaleBorderRadius(3),
     borderWidth: 2,
     borderColor: '#244D4A',
-    marginRight: 8,
+    marginRight: scale.scaleSpacing(8),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -801,17 +807,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#CFEDE8',
   },
   checkboxInner: {
-    width: 10,
-    height: 10,
+    width: scale.scaleWidth(10),
+    height: scale.scaleHeight(10),
     backgroundColor: '#2D7778',
-    borderRadius: 2,
+    borderRadius: scale.scaleBorderRadius(2),
   },
   agreeText: {
     color: '#244D4A',
+    fontSize: scale.scaleFont(12),
   },
   linkInline: {
     color: '#276a63',
     textDecorationLine: 'underline',
+    fontSize: scale.scaleFont(12),
   },
   confirmEmailModalOverlay: {
     flex: 1,
@@ -821,50 +829,52 @@ const styles = StyleSheet.create({
   },
   confirmEmailModalContainer: {
     backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: scale.scaleBorderRadius(20),
+    padding: scale.scaleSpacing(24),
     alignItems: "center",
     width: "80%",
     borderWidth: 2,
     borderColor: "#9FD19E",
   },
   confirmEmailIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: scale.scaleWidth(70),
+    height: scale.scaleHeight(70),
+    borderRadius: scale.scaleBorderRadius(35),
     backgroundColor: "#D4F1D3",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: scale.scaleSpacing(16),
   },
   confirmEmailIcon: {
-    width: 40,
-    height: 40,
+    width: scale.scaleWidth(40),
+    height: scale.scaleHeight(40),
   },
   confirmEmailModalTitle: {
-    fontSize: 18,
-    fontFamily: "Fredoka_700Bold",
+    fontSize: scale.scaleFont(18),
+    fontFamily: "ITIM",
+    fontWeight: "700",
     color: "#000",
-    marginBottom: 8,
+    marginBottom: scale.scaleSpacing(8),
     textAlign: "center",
   },
   confirmEmailModalMessage: {
-    fontSize: 14,
-    fontFamily: "Fredoka_400Regular",
+    fontSize: scale.scaleFont(14),
+    fontFamily: "ITIM",
     color: "#666",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: scale.scaleSpacing(20),
   },
   confirmEmailOkButton: {
     backgroundColor: "#4CAF50",
-    paddingVertical: 10,
-    paddingHorizontal: 40,
-    borderRadius: 20,
+    paddingVertical: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(20),
   },
   confirmEmailOkButtonText: {
     color: "#fff",
-    fontSize: 16,
-    fontFamily: "Fredoka_600SemiBold",
+    fontSize: scale.scaleFont(16),
+    fontFamily: "ITIM",
+    fontWeight: "600",
   },
   
   // Error Modal Styles (pink theme)
@@ -876,10 +886,10 @@ const styles = StyleSheet.create({
   },
   errorModalContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
+    borderRadius: scale.scaleBorderRadius(18),
+    padding: scale.scaleSpacing(18),
     width: "82%",
-    maxWidth: 420,
+    maxWidth: scale.scaleWidth(420),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -890,49 +900,49 @@ const styles = StyleSheet.create({
     borderColor: "#FFB3BA",
   },
   errorIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: scale.scaleWidth(64),
+    height: scale.scaleHeight(64),
+    borderRadius: scale.scaleBorderRadius(32),
     backgroundColor: "#FFE5E7",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: scale.scaleSpacing(12),
   },
   errorIcon: {
-    width: 36,
-    height: 36,
+    width: scale.scaleWidth(36),
+    height: scale.scaleHeight(36),
     resizeMode: "contain",
   },
   errorModalTitle: {
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "700",
     color: "#1A1A1A",
-    marginBottom: 8,
-    fontFamily: "Fredoka_700Bold",
+    marginBottom: scale.scaleSpacing(8),
+    fontFamily: "ITIM",
   },
   errorModalMessage: {
-    fontSize: 14,
+    fontSize: scale.scaleFont(14),
     color: "#4A4A4A",
     textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 16,
-    paddingHorizontal: 8,
+    lineHeight: scale.scaleFont(18),
+    marginBottom: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(8),
     flexWrap: "wrap",
-    fontFamily: "Fredoka_400Regular",
+    fontFamily: "ITIM",
   },
   errorOkButton: {
     backgroundColor: "#FF6B7A",
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 40,
+    paddingVertical: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(28),
+    borderRadius: scale.scaleBorderRadius(40),
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 110,
+    minWidth: scale.scaleWidth(110),
   },
   errorOkButtonText: {
-    fontSize: 15,
+    fontSize: scale.scaleFont(15),
     fontWeight: "600",
     color: "#FFFFFF",
-    fontFamily: "Fredoka_600SemiBold",
+    fontFamily: "ITIM",
   },
-});
+}));

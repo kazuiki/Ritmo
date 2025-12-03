@@ -1,7 +1,8 @@
 // app/(auth)/loading.tsx
-import React, { useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { useRouter } from "expo-router";
+import { useEffect } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { createResponsiveStyles } from "../../src/utils/responsive";
 
 export default function LoadingScreen({ route }: any) {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function LoadingScreen({ route }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
   container: { 
     flex: 1, 
     justifyContent: "center", 
@@ -32,15 +33,14 @@ const styles = StyleSheet.create({
   },
 
   dots: { 
-    fontSize: 36, 
-    marginBottom: 12, 
+    fontSize: scale.scaleFont(36), 
+    marginBottom: scale.scaleSpacing(12), 
     color: "#06C08A" 
   },
 
   text: { 
-    fontSize: 18, 
+    fontSize: scale.scaleFont(18), 
     fontWeight: "600", 
     color: "#276a63" 
   },
-  
-});
+}));

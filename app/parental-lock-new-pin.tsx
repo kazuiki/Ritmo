@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
     Alert,
     ImageBackground,
@@ -13,11 +13,13 @@ import {
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
 import { supabase } from "../src/supabaseClient";
+import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
 
 const backgroundImage = require("../assets/background.png");
 
 export default function ParentalLockNewPin() {
   const router = useRouter();
+  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -209,49 +211,49 @@ export default function ParentalLockNewPin() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles((scale) => StyleSheet.create({
   bg: { flex: 1 },
   container: {
     flex: 1,
     backgroundColor: "transparent",
-    padding: 20,
-    paddingTop: 50,
+    padding: scale.scaleSpacing(20),
+    paddingTop: scale.scaleSpacing(50),
     justifyContent: "flex-start",
   },
   backText: {
     alignSelf: "flex-start",
     color: "#333",
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: scale.scaleFont(16),
+    marginBottom: scale.scaleSpacing(10),
     textDecorationLine: "underline",
     fontFamily: "ITIM",
   },
   title: {
-    fontSize: 24,
+    fontSize: scale.scaleFont(24),
     fontWeight: "700",
     fontFamily: "ITIM",
     color: "#333",
-    marginBottom: 40,
+    marginBottom: scale.scaleSpacing(40),
     textAlign: "center",
   },
   field: {
     width: "100%",
-    marginBottom: 20,
+    marginBottom: scale.scaleSpacing(20),
   },
   label: {
-    fontSize: 14,
+    fontSize: scale.scaleFont(14),
     color: "#333",
-    marginBottom: 8,
+    marginBottom: scale.scaleSpacing(8),
     fontFamily: "ITIM",
   },
   input: {
-    height: 50,
-    borderRadius: 12,
+    height: scale.scaleHeight(50),
+    borderRadius: scale.scaleBorderRadius(12),
     borderWidth: 1,
     borderColor: "#E6E6E6",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    fontSize: 16,
+    paddingHorizontal: scale.scaleSpacing(16),
+    fontSize: scale.scaleFont(16),
     color: "#000",
     fontFamily: "ITIM",
   },
@@ -261,42 +263,42 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   passwordInput: {
-    height: 50,
-    borderRadius: 12,
+    height: scale.scaleHeight(50),
+    borderRadius: scale.scaleBorderRadius(12),
     borderWidth: 1,
     borderColor: "#E6E6E6",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingRight: 50,
-    fontSize: 16,
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingRight: scale.scaleSpacing(50),
+    fontSize: scale.scaleFont(16),
     color: "#000",
     fontFamily: "ITIM",
     flex: 1,
   },
   eyeButton: {
     position: "absolute",
-    right: 15,
-    padding: 10,
+    right: scale.scaleSpacing(15),
+    padding: scale.scaleSpacing(10),
   },
   note: {
-    fontSize: 12,
+    fontSize: scale.scaleFont(12),
     color: "#666",
     textAlign: "center",
-    marginBottom: 30,
-    lineHeight: 16,
+    marginBottom: scale.scaleSpacing(30),
+    lineHeight: scale.scaleFont(16),
     fontFamily: "ITIM",
   },
   continueButton: {
     backgroundColor: "#2B6A63",
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 25,
+    paddingVertical: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(25),
     width: "100%",
     alignItems: "center",
   },
   continueText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: scale.scaleFont(16),
     fontWeight: "600",
     textAlign: "center",
     fontFamily: "ITIM",
@@ -310,10 +312,10 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 25,
+    borderRadius: scale.scaleBorderRadius(25),
     borderWidth: 2,
     borderColor: "#CFF6EB",
-    padding: 35,
+    padding: scale.scaleSpacing(35),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -321,30 +323,30 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     width: "90%",
-    maxWidth: 320,
+    maxWidth: scale.scaleWidth(320),
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: scale.scaleFont(16),
     fontWeight: "600",
     fontFamily: "ITIM",
     color: "#333",
-    marginBottom: 30,
+    marginBottom: scale.scaleSpacing(30),
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: scale.scaleFont(22),
   },
   pinContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: 20,
-    gap: 15,
+    marginBottom: scale.scaleSpacing(20),
+    gap: scale.scaleSpacing(15),
   },
   pinBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
+    width: scale.scaleWidth(50),
+    height: scale.scaleHeight(50),
+    borderRadius: scale.scaleBorderRadius(8),
     backgroundColor: "#D1D1D6",
     textAlign: "center",
-    fontSize: 20,
+    fontSize: scale.scaleFont(20),
     fontWeight: "600",
     color: "#000",
   },
@@ -353,31 +355,31 @@ const styles = StyleSheet.create({
   },
   savePinButton: {
     backgroundColor: "#5A8F8A",
-    paddingVertical: 18,
-    paddingHorizontal: 60,
-    borderRadius: 25,
-    marginBottom: 15,
+    paddingVertical: scale.scaleSpacing(18),
+    paddingHorizontal: scale.scaleSpacing(60),
+    borderRadius: scale.scaleBorderRadius(25),
+    marginBottom: scale.scaleSpacing(15),
     width: "90%",
   },
   savePinText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: scale.scaleFont(18),
     fontWeight: "600",
     fontFamily: "ITIM",
     textAlign: "center",
   },
   cancelPinButton: {
     backgroundColor: "#7DDDD3",
-    paddingVertical: 18,
-    paddingHorizontal: 60,
-    borderRadius: 25,
+    paddingVertical: scale.scaleSpacing(18),
+    paddingHorizontal: scale.scaleSpacing(60),
+    borderRadius: scale.scaleBorderRadius(25),
     width: "90%",
   },
   cancelPinText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: scale.scaleFont(16),
     fontWeight: "600",
     fontFamily: "ITIM",
     textAlign: "center",
   },
-});
+}));
