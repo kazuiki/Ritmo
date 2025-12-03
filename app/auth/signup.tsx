@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
@@ -35,7 +37,66 @@ export default function SignUp() {
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
   const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [agreementRequiredModalVisible, setAgreementRequiredModalVisible] = useState(false);
+  const [completeDetailsModalVisible, setCompleteDetailsModalVisible] = useState(false);
+  const [privacyPolicyModalVisible, setPrivacyPolicyModalVisible] = useState(false);
   const reduceMotionRef = useRef(false);
+  const isInitialMount = useRef(true);
+
+  // On first mount (fresh visit from Login), clear any persisted inputs
+  useEffect(() => {
+    const initInputs = async () => {
+      try {
+        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm']);
+        // Reset acceptance on fresh visit from Login to prevent stale check
+        await AsyncStorage.setItem('@termsAccepted', 'false');
+      } catch {}
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+    };
+    initInputs();
+  }, []);
+
+  // Restore saved inputs when returning to an already-mounted screen (after Privacy/Terms)
+  useFocusEffect(
+    (() => {
+      const restoreIfMounted = async () => {
+        try {
+          const savedEmail = await AsyncStorage.getItem('@signupEmail');
+          const savedPassword = await AsyncStorage.getItem('@signupPassword');
+          const savedConfirm = await AsyncStorage.getItem('@signupConfirm');
+          if (savedEmail) setEmail(savedEmail);
+          if (savedPassword) setPassword(savedPassword);
+          if (savedConfirm) setConfirmPassword(savedConfirm);
+        } catch {}
+      };
+      restoreIfMounted();
+      return () => {};
+    })
+  );
+
+  // When screen gains focus (after initial mount), read stored acceptance
+  useFocusEffect(
+    (() => {
+      let mounted = true;
+      const checkAccepted = async () => {
+        if (isInitialMount.current) {
+          isInitialMount.current = false;
+          return;
+        }
+        try {
+          const val = await AsyncStorage.getItem("@termsAccepted");
+          if (mounted) setAgreed(val === "true");
+        } catch {}
+      };
+      checkAccepted();
+      return () => {
+        mounted = false;
+      };
+    })
+  );
 
   // Cleanup all modals on unmount to prevent delayed pop-ups
   useEffect(() => {
@@ -143,6 +204,10 @@ export default function SignUp() {
 
   // === SignUp Function ===
   const handleSignUp = async () => {
+    if (!agreed) {
+      setAgreementRequiredModalVisible(true);
+      return;
+    }
     if (!email || !password || !confirmPassword) {
       setFillFieldsModalVisible(true);
       return;
@@ -276,6 +341,42 @@ export default function SignUp() {
                     size={20}
                     color="#276a63"
                   />
+                </TouchableOpacity>
+              </View>
+
+              {/* Agreement checkbox + text */}
+              <View style={styles.agreeRow}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Require fields filled before proceeding to Terms
+                    if (!email || !password || !confirmPassword) {
+                      setCompleteDetailsModalVisible(true);
+                      return;
+                    }
+                    // Persist current inputs so they are restored after returning
+                    AsyncStorage.multiSet([
+                      ['@signupEmail', email],
+                      ['@signupPassword', password],
+                      ['@signupConfirm', confirmPassword],
+                      ['@termsAccepted', 'false'],
+                    ]).catch(() => {});
+                    setAgreed(false);
+                    // Open Privacy Policy first, then Terms
+                    router.push('/privacy-policy');
+                  }}
+                  style={[styles.checkbox, agreed && styles.checkboxChecked]}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: agreed }}
+                >
+                  {agreed && <View style={styles.checkboxInner} />}
+                </TouchableOpacity>
+                <Text style={styles.agreeText}> by signing up you agree to our </Text>
+                <TouchableOpacity onPress={() => router.push('/terms&conditions')}>
+                  <Text style={styles.linkInline}>terms and conditions</Text>
+                </TouchableOpacity>
+                <Text style={styles.agreeText}> and </Text>
+                <TouchableOpacity onPress={() => router.push('/privacy-policy')}>
+                  <Text style={styles.linkInline}>privacy policy</Text>
                 </TouchableOpacity>
               </View>
             </MotiView>
@@ -469,6 +570,96 @@ export default function SignUp() {
           </View>
         </View>
       </Modal>
+
+      {/* Agreement Required Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={agreementRequiredModalVisible}
+        onRequestClose={() => setAgreementRequiredModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Agreement Required</Text>
+            <Text style={styles.errorModalMessage}>
+              Please accept the terms & privacy policy before signing up.
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setAgreementRequiredModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Complete Details Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={completeDetailsModalVisible}
+        onRequestClose={() => setCompleteDetailsModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Pencil.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Complete Your Details</Text>
+            <Text style={styles.errorModalMessage}>
+              Please fill Email, Password, and Confirm Password first.
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setCompleteDetailsModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Privacy Policy Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={privacyPolicyModalVisible}
+        onRequestClose={() => setPrivacyPolicyModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Pencil.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Privacy Policy</Text>
+            <Text style={styles.errorModalMessage}>
+              Privacy policy is included within Terms for now.
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setPrivacyPolicyModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -536,6 +727,42 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textAlign: "center",
   },
+  agreeRow: {
+    width: '100%',
+    maxWidth: 340,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 3,
+    borderWidth: 2,
+    borderColor: '#244D4A',
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    borderColor: '#2D7778',
+    backgroundColor: '#CFEDE8',
+  },
+  checkboxInner: {
+    width: 10,
+    height: 10,
+    backgroundColor: '#2D7778',
+    borderRadius: 2,
+  },
+  agreeText: {
+    color: '#244D4A',
+  },
+  linkInline: {
+    color: '#276a63',
+    textDecorationLine: 'underline',
+  },
   confirmEmailModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -599,49 +826,63 @@ const styles = StyleSheet.create({
   },
   errorModalContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    width: "80%",
+    borderRadius: 18,
+    padding: 18,
+    width: "82%",
+    maxWidth: 420,
     alignItems: "center",
-    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
     borderColor: "#FFB3BA",
   },
   errorIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFE1E4",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FFE5E7",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   errorIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    resizeMode: "contain",
   },
   errorModalTitle: {
-    fontSize: 18,
-    fontFamily: "Fredoka_700Bold",
-    color: "#000",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1A1A1A",
     marginBottom: 8,
-    textAlign: "center",
+    fontFamily: "Fredoka_700Bold",
   },
   errorModalMessage: {
     fontSize: 14,
-    fontFamily: "Fredoka_400Regular",
-    color: "#333",
+    color: "#4A4A4A",
     textAlign: "center",
-    marginBottom: 20,
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+    fontFamily: "Fredoka_400Regular",
   },
   errorOkButton: {
-    backgroundColor: "#FF6F79",
+    backgroundColor: "#FF6B7A",
     paddingVertical: 10,
-    paddingHorizontal: 40,
-    borderRadius: 20,
+    paddingHorizontal: 28,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 110,
   },
   errorOkButtonText: {
-    color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
     fontFamily: "Fredoka_600SemiBold",
   },
 });
