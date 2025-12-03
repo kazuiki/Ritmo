@@ -107,7 +107,7 @@ export default function Login() {
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
         if (!childName) {
-          router.replace("/auth/child-nickname");
+          router.replace("/loading?next=/instruction");
         } else {
           navigateToGreetingsWithNetworkCheck(router);
         }
@@ -278,6 +278,13 @@ export default function Login() {
         return;
       }
 
+
+    if (!childName) {
+      router.replace("/instruction");
+    } else {
+      // Single replace to loading with next param – avoids sequential replaces
+      router.replace("/loading?next=/greetings");
+
       const loggedInUser = userData.user;
       const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
@@ -292,6 +299,7 @@ export default function Login() {
       console.log('❌ Caught network error during login:', networkError.message);
       setLocalNetworkFailure(true);
       return;
+
     }
 
   };
@@ -339,7 +347,7 @@ export default function Login() {
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
         if (!childName) {
-          router.replace("/auth/child-nickname");
+          router.replace("/instruction");
         } else {
           navigateToGreetingsWithNetworkCheck(router);
         }

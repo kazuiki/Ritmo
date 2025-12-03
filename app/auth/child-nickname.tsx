@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Image, ImageBackground, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
@@ -32,25 +32,53 @@ export default function ChildNickname() {
       return;
     }
 
+    // Navigate directly to greetings after saving nickname
+    router.replace("/greetings");
+
     // Navigate to next screen (show loading first, then greetings)
     navigateToGreetingsWithNetworkCheck(router);
+
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Child Nickname</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your child's nickname"
-          value={child}
-          onChangeText={setChild}
-        />
-
-        <TouchableOpacity style={styles.save} onPress={handleSaveChild} disabled={loading}>
-          <Text style={{ color: "#fff", fontWeight: "700" }}>{loading ? "Saving..." : "SAVE & CONTINUE"}</Text>
+    <ImageBackground 
+      source={require("../../assets/background.png")} 
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        {/* Back Button */}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/instruction")}>
+          <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
+
+        <View style={styles.container}>
+          {/* Ritmo Logo */}
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require("../../assets/ritmo-logo.png")} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Title */}
+          <Text style={styles.title}>Set child's nickname</Text>
+
+          {/* Input */}
+          <TextInput
+            style={styles.input}
+            placeholder="Enter child's nickname here"
+            value={child}
+            onChangeText={setChild}
+            placeholderTextColor="#999"
+          />
+
+          {/* Save Button */}
+          <TouchableOpacity style={styles.save} onPress={handleSaveChild} disabled={loading}>
+            <Text style={styles.saveButtonText}>{loading ? "SAVING..." : "SAVE"}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Alert Modal */}
         <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
@@ -67,16 +95,84 @@ export default function ChildNickname() {
             </View>
           </View>
         </Modal>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#E8FFFA", padding: 22, justifyContent: "center" },
-  title: { fontSize: 22, color: "#276a63", fontWeight: "700", marginBottom: 18 },
-  input: { backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12 },
-  save: { backgroundColor: "#06C08A", paddingVertical: 14, borderRadius: 18, alignItems: "center", marginTop: 8 },
+  background: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
+  backButton: {
+    position: "absolute",
+    top: 50,
+    left: 16,
+    zIndex: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  backButtonText: {
+    fontSize: 22,
+    color: "#2A3B4D",
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  container: { 
+    flex: 1, 
+    padding: 22, 
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 10,
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  logo: {
+    width: 280,
+    height: 280,
+  },
+  title: { 
+    fontSize: 18, 
+    color: "#2A3B4D", 
+    fontWeight: "600", 
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  input: { 
+    backgroundColor: "#fff", 
+    borderRadius: 20, 
+    paddingHorizontal: 20, 
+    paddingVertical: 14, 
+    marginBottom: 20,
+    width: "90%",
+    maxWidth: 350,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  save: { 
+    backgroundColor: "#00A980", 
+    paddingVertical: 14, 
+    borderRadius: 20, 
+    alignItems: "center", 
+    width: "80%",
+    maxWidth: 250,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+    letterSpacing: 0.5,
+  },
   alertModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
