@@ -13,14 +13,17 @@ Notes:
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
 #>
 
-Write-Host "[1/4] Running: npm install"
+Write-Host "[1/5] Running: npm install"
 npm install
 
-Write-Host "[2/4] Running: npm install -g npm@latest"
+Write-Host "[2/5] Running: npm install -g npm@latest"
 npm install -g npm@latest
 
-Write-Host "[3/4] Running: npm install expo"
+Write-Host "[3/5] Running: npm install expo"
 npm install expo
 
-Write-Host "[4/4] Starting Expo with: npx expo start"
+Write-Host "[4/5] Running: npm install @react-native-community/netinfo"
+npm install @react-native-community/netinfo
+
+Write-Host "[5/5] Starting Expo with: npx expo start"
 npx expo start
