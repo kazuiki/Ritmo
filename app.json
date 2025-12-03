@@ -28,8 +28,16 @@
       "permissions": [
         "NOTIFICATIONS",
         "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM"
-      ]
+        "USE_EXACT_ALARM",
+        "ACCESS_NETWORK_STATE",
+        "INTERNET",
+        "NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "ACCESS_NETWORK_STATE",
+        "INTERNET"
+      ],
+      "package": "com.anonymous.ritmo"
     },
     "web": {
       "output": "static",
@@ -55,7 +63,9 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#5BDFC9",
-          "sounds": ["./assets/ringtone/rooster.mp3"]
+          "sounds": [
+            "./assets/ringtone/rooster.mp3"
+          ]
         }
       ]
     ],

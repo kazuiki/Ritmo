@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, ImageBackground, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
+import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
 export default function ChildNickname() {
   const router = useRouter();
@@ -33,6 +34,10 @@ export default function ChildNickname() {
 
     // Navigate directly to greetings after saving nickname
     router.replace("/greetings");
+
+    // Navigate to next screen (show loading first, then greetings)
+    navigateToGreetingsWithNetworkCheck(router);
+
   };
 
   return (

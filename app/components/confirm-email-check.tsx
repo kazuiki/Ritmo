@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, AppState, AppStateStatus, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
+import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
 export default function ConfirmEmailCheck() {
   const router = useRouter();
@@ -32,7 +33,11 @@ export default function ConfirmEmailCheck() {
 
         // Check child_name
         const childName = (user.user_metadata as any)?.child_name;
-        router.replace(childName ? "/loading?next=/greetings" : "/auth/child-nickname");
+        if (childName) {
+          navigateToGreetingsWithNetworkCheck(router);
+        } else {
+          router.replace("/auth/child-nickname");
+        }
       }
     } catch (error: any) {
       console.log("Error checking email:", error.message);
