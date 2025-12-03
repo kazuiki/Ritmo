@@ -96,7 +96,7 @@ export default function Login() {
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
         if (!childName) {
-          router.replace("/auth/child-nickname");
+          router.replace("/loading?next=/instruction");
         } else {
           router.replace("/loading?next=/greetings");
         }
@@ -236,7 +236,7 @@ export default function Login() {
 
 
     if (!childName) {
-      router.replace("/auth/child-nickname");
+      router.replace("/instruction");
     } else {
       // Single replace to loading with next param – avoids sequential replaces
       router.replace("/loading?next=/greetings");
@@ -268,7 +268,7 @@ export default function Login() {
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
         if (!childName) {
-          router.replace("/auth/child-nickname");
+          router.replace("/instruction");
         } else {
           router.replace("/loading?next=/greetings");
         }

@@ -221,7 +221,7 @@ export default function Home() {
     const wasCompleted = routines.find(r => r.id === id)?.completed ?? false;
     const newCompletedStatus = !wasCompleted;
     
-    // Animate the routine card sliding out and fading
+    // Animate the routine card sliding up and fading
     if (routineAnimations[id]) {
       Animated.parallel([
         Animated.timing(routineAnimations[id], {
@@ -675,9 +675,9 @@ export default function Home() {
                 opacity: routineAnimations[routine.id],
                 transform: [
                   {
-                    translateX: routineAnimations[routine.id].interpolate({
+                    translateY: routineAnimations[routine.id].interpolate({
                       inputRange: [0, 1],
-                      outputRange: [-300, 0],
+                      outputRange: [-200, 0],
                     }),
                   },
                   {
