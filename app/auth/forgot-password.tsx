@@ -2,22 +2,24 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
+import { isNetworkConnected } from "../../src/utils/networkUtils";
+import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -29,6 +31,14 @@ export default function ForgotPassword() {
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const reduceMotionRef = useRef(false);
+
+  // Local network failure detection for authentication
+  const [localNetworkFailure, setLocalNetworkFailure] = useState(false);
+
+  const handleLocalNetworkRetry = async () => {
+    console.log('🔄 User dismissed network failure modal');
+    setLocalNetworkFailure(false);
+  };
 
   // Cleanup all modals on unmount to prevent delayed pop-ups
   useEffect(() => {
@@ -135,19 +145,50 @@ export default function ForgotPassword() {
       return;
     }
 
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'ritmo://auth/update-password',
-    });
-    setLoading(false);
-
-    if (error) {
-      setErrorMessage(error.message);
-      setErrorModalVisible(true);
+    // Check network connectivity before attempting reset
+    console.log('🔍 Checking network connectivity for password reset...');
+    const isConnected = await isNetworkConnected();
+    console.log('📡 Network connectivity result:', isConnected);
+    
+    if (!isConnected) {
+      console.log('❌ No network connection - password reset blocked');
+      setLocalNetworkFailure(true);
       return;
     }
+    
+    console.log('✅ Network connection available, proceeding with password reset');
 
-    setEmailSentModalVisible(true);
+    setLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'ritmo://auth/update-password',
+      });
+      setLoading(false);
+
+      if (error) {
+        // Check if it's a network-related error
+        if (error.message.includes('Network request failed') || 
+            error.message.includes('fetch') ||
+            error.message.includes('network') ||
+            error.name === 'TypeError') {
+          console.log('❌ Network error during password reset:', error.message);
+          setLocalNetworkFailure(true);
+          return;
+        }
+        
+        setErrorMessage(error.message);
+        setErrorModalVisible(true);
+        return;
+      }
+
+      setEmailSentModalVisible(true);
+    } catch (networkError: any) {
+      setLoading(false);
+      console.log('❌ Caught network error during password reset:', networkError.message);
+      setLocalNetworkFailure(true);
+      return;
+    }
   };
 
   return (
@@ -355,6 +396,12 @@ export default function ForgotPassword() {
           </View>
         </View>
       </Modal>
+
+      {/* Network Failure Modal */}
+      <NetworkFailureModal 
+        visible={localNetworkFailure} 
+        onRetry={handleLocalNetworkRetry} 
+      />
     </KeyboardAvoidingView>
   );
 }

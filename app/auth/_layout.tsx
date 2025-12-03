@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { supabase } from "../../src/supabaseClient";
+import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
 export default function AuthLayout() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function AuthLayout() {
         const child = (user.user_metadata as any)?.child_name;
         // Always go through loading → greetings flow for consistency
         if (!child) router.replace('/auth/child-nickname');
-        else router.replace('/loading?next=/greetings');
+        else navigateToGreetingsWithNetworkCheck(router);
       }
     });
   }, []);
