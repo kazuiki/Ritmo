@@ -1166,22 +1166,22 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         height: "100%",
     },
     header: { 
-        paddingTop: scale.scaleSpacing(50), 
+        paddingTop: scale.scaleSpacing(16), 
         paddingHorizontal: scale.scaleSpacing(16) 
     },
     brandLogo: {
         width: scale.scaleWidth(120),
         height: scale.scaleHeight(30),
         resizeMode: "contain",
-        marginLeft: scale.scaleSpacing(-22),
-        marginTop: scale.scaleSpacing(-20),
+        marginLeft: 0,
+        marginTop: 0,
     },
     titleRow: {
         paddingHorizontal: scale.scaleSpacing(16),
         paddingTop: scale.scaleSpacing(28),
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-evenly",
+        justifyContent: "space-between",
     },
     titleText: {
         fontSize: scale.scaleFont(28),
