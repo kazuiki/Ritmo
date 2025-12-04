@@ -1,6 +1,10 @@
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 
+// Suppress remote notifications warning in expo go
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
+
 // Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
