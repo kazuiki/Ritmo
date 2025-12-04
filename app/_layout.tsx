@@ -50,13 +50,32 @@ export default function RootLayout() {
         
         // Only redirect if on auth pages or at the absolute root (no path)
         if (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') {
-          console.log('🔄 Starting navigation to greetings...');
-          navigateToGreetingsWithNetworkCheck(router).finally(() => {
-            // Reset navigation flag after completion
-            setTimeout(() => {
+          // Check user profile to decide destination
+          try {
+            const { data: userData, error: userError } = await supabase.auth.getUser();
+            const childName = (userData?.user?.user_metadata as any)?.child_name;
+
+            if (userError) {
+              // If unable to fetch user, do not force navigation; reset flag
               isNavigatingRef.current = false;
-            }, 1000);
-          });
+            } else if (!childName) {
+              // No child nickname yet: go to instruction first
+              router.replace('/instruction');
+              setTimeout(() => { isNavigatingRef.current = false; }, 1000);
+            } else {
+              // Child nickname exists: proceed to greetings/home flow
+              console.log('🔄 Starting navigation to greetings...');
+              navigateToGreetingsWithNetworkCheck(router).finally(() => {
+                // Reset navigation flag after completion
+                setTimeout(() => {
+                  isNavigatingRef.current = false;
+                }, 1000);
+              });
+            }
+          } catch {
+            // Safe fallback: reset flag without navigating
+            isNavigatingRef.current = false;
+          }
         } else {
           isNavigatingRef.current = false; // Reset if not navigating
         }
