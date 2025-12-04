@@ -7,6 +7,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EatingGame = () => {
   const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Chicken, 2: Vegi, 3: Water1, 4: Water
+  const [renderKey, setRenderKey] = useState(0); // Force re-render
   const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open'
   const [isChewing, setIsChewing] = useState(false);
   const [isDraggingFood, setIsDraggingFood] = useState(false);
@@ -28,9 +29,9 @@ const EatingGame = () => {
   const foodX = useRef(0);
   const foodY = useRef(0);
   
-  // Track displayed stages (won't trigger re-render during animation)
-  const displayedCurrentStage = useRef(0);
-  const displayedNextStage = useRef(1);
+  // Track displayed stages - use state so changes trigger re-render
+  const [displayedCurrentStage, setDisplayedCurrentStage] = useState(0);
+  const [displayedNextStage, setDisplayedNextStage] = useState(1);
 
   const stages = [
     { id: 0, name: 'Rice', image: require('./EatGame/Rice.png') },
@@ -40,9 +41,9 @@ const EatingGame = () => {
     { id: 4, name: 'Water', image: require('./EatGame/Water.png') }
   ];
   
-  // Get images based on displayed stage refs (not state)
-  const getCurrentPlateImage = () => stages[displayedCurrentStage.current].image;
-  const getNextPlateImage = () => displayedNextStage.current < stages.length ? stages[displayedNextStage.current].image : null;
+  // Get images based on displayed stage
+  const getCurrentPlateImage = () => stages[displayedCurrentStage].image;
+  const getNextPlateImage = () => displayedNextStage < stages.length ? stages[displayedNextStage].image : null;
 
   useEffect(() => {
     // Preload all images
@@ -89,6 +90,37 @@ const EatingGame = () => {
     return y < -100;
   };
 
+  // Handle Water1 click to reveal Water
+  const handleWater1Click = () => {
+    if (currentStage !== 3 || isEatingSequence.current) return; // Only work on Water1 stage
+    
+    isEatingSequence.current = true;
+    const nextStage = 4; // Water stage
+    
+    // Slide to Water
+    Animated.parallel([
+      Animated.timing(currentPlateX, {
+        toValue: -SCREEN_WIDTH,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(nextPlateX, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setDisplayedCurrentStage(nextStage);
+      setDisplayedNextStage(nextStage + 1);
+      setCurrentStage(nextStage);
+      setRenderKey(prev => prev + 1);
+      
+      currentPlateX.setValue(0);
+      nextPlateX.setValue(SCREEN_WIDTH);
+      isEatingSequence.current = false;
+    });
+  };
+
   const handleFoodEaten = () => {
     if (isEatingSequence.current) return;
     isEatingSequence.current = true;
@@ -123,10 +155,15 @@ const EatingGame = () => {
               useNativeDriver: true,
             })
           ]).start(() => {
-            // After animation completes, update refs and state
-            displayedCurrentStage.current = nextStage;
-            displayedNextStage.current = nextStage + 1;
+            // After animation completes, update display states
+            console.log('🔄 Before update - displayedCurrent:', displayedCurrentStage, 'displayedNext:', displayedNextStage);
+            setDisplayedCurrentStage(nextStage);
+            setDisplayedNextStage(nextStage + 1);
+            console.log('✅ After update - displayedCurrent:', nextStage, 'displayedNext:', nextStage + 1);
+            console.log('📦 stages[' + nextStage + '] =', stages[nextStage].name);
+            console.log('📦 stages[' + (nextStage + 1) + '] =', (nextStage + 1) < stages.length ? stages[nextStage + 1].name : 'NONE');
             setCurrentStage(nextStage); // Force re-render with new stage
+            setRenderKey(prev => prev + 1); // Force re-render to show new images
             
             // Reset plate positions for next transition
             currentPlateX.setValue(0);
@@ -206,11 +243,11 @@ const EatingGame = () => {
   };
 
   const getCurrentFoodImage = () => {
-    return stages[displayedCurrentStage.current].image;
+    return stages[displayedCurrentStage].image;
   };
 
   const getFoodStyle = () => {
-    switch(displayedCurrentStage.current) {
+    switch(displayedCurrentStage) {
       case 0: return styles.riceImage;
       case 1: return styles.chickenImage;
       case 2: return styles.vegiImage;
@@ -221,7 +258,7 @@ const EatingGame = () => {
   };
 
   const getDraggableContainerStyle = () => {
-    switch(displayedCurrentStage.current) {
+    switch(displayedCurrentStage) {
       case 0: return styles.draggableRiceContainer;
       case 1: return styles.draggableChickenContainer;
       case 2: return styles.draggableVegiContainer;
@@ -232,7 +269,7 @@ const EatingGame = () => {
   };
 
   const getNextFoodStyle = () => {
-    switch(displayedNextStage.current) {
+    switch(displayedNextStage) {
       case 1: return styles.chickenImage;
       case 2: return styles.vegiImage;
       case 3: return styles.waterImage;
@@ -242,7 +279,7 @@ const EatingGame = () => {
   };
 
   const getNextDraggableContainerStyle = () => {
-    switch(displayedNextStage.current) {
+    switch(displayedNextStage) {
       case 1: return styles.draggableChickenContainer;
       case 2: return styles.draggableVegiContainer;
       case 3: return styles.draggableWaterContainer;
@@ -277,29 +314,53 @@ const EatingGame = () => {
           ]}
         >
           <Image source={require('./EatGame/Plate.png')} style={styles.plate} />
-          <Animated.View
-            style={[
-              getDraggableContainerStyle(),
-              {
-                opacity: foodOpacity,
-                transform: [
-                  { translateX: foodPosition.x },
-                  { translateY: foodPosition.y }
-                ]
-              }
-            ]}
-            {...foodPanResponder.panHandlers}
-          >
-            <Image
-              source={getCurrentFoodImage()}
-              style={getFoodStyle()}
-            />
-          </Animated.View>
+          {currentStage === 3 ? (
+            // Water1 - clickable only
+            <TouchableWithoutFeedback onPress={handleWater1Click}>
+              <Animated.View
+                style={[
+                  getDraggableContainerStyle(),
+                  {
+                    opacity: foodOpacity,
+                    transform: [
+                      { translateX: foodPosition.x },
+                      { translateY: foodPosition.y }
+                    ]
+                  }
+                ]}
+              >
+                <Image
+                  source={getCurrentFoodImage()}
+                  style={getFoodStyle()}
+                />
+              </Animated.View>
+            </TouchableWithoutFeedback>
+          ) : (
+            // All other foods - draggable
+            <Animated.View
+              style={[
+                getDraggableContainerStyle(),
+                {
+                  opacity: foodOpacity,
+                  transform: [
+                    { translateX: foodPosition.x },
+                    { translateY: foodPosition.y }
+                  ]
+                }
+              ]}
+              {...foodPanResponder.panHandlers}
+            >
+              <Image
+                source={getCurrentFoodImage()}
+                style={getFoodStyle()}
+              />
+            </Animated.View>
+          )}
         </Animated.View>
       )}
 
       {/* Next plate (prepared off-screen) - only show if not last stage */}
-      {displayedNextStage.current < stages.length && !allFoodEaten && (
+      {displayedNextStage < stages.length && !allFoodEaten && (
         <Animated.View
           style={[
             styles.plateContainer,
