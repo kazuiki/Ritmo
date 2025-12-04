@@ -6,7 +6,7 @@ import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableO
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EatingGame = () => {
-  const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Chicken, 2: Vegi
+  const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Vegi, 2: Chicken, 3: Water1, 4: Water
   const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open'
   const [isChewing, setIsChewing] = useState(false);
   const [isDraggingFood, setIsDraggingFood] = useState(false);
@@ -27,12 +27,22 @@ const EatingGame = () => {
   // Track current food position values
   const foodX = useRef(0);
   const foodY = useRef(0);
+  
+  // Track displayed stages (won't trigger re-render during animation)
+  const displayedCurrentStage = useRef(0);
+  const displayedNextStage = useRef(1);
 
   const stages = [
     { id: 0, name: 'Rice', image: require('./EatGame/Rice.png') },
     { id: 1, name: 'Chicken', image: require('./EatGame/Chicken.png') },
-    { id: 2, name: 'Vegi', image: require('./EatGame/Vegi.png') }
+    { id: 2, name: 'Vegi', image: require('./EatGame/Vegi.png') },
+    { id: 3, name: 'Water1', image: require('./EatGame/Water1.png') },
+    { id: 4, name: 'Water', image: require('./EatGame/Water.png') }
   ];
+  
+  // Get images based on displayed stage refs (not state)
+  const getCurrentPlateImage = () => stages[displayedCurrentStage.current].image;
+  const getNextPlateImage = () => displayedNextStage.current < stages.length ? stages[displayedNextStage.current].image : null;
 
   useEffect(() => {
     // Preload all images
@@ -45,6 +55,8 @@ const EatingGame = () => {
       require('./EatGame/Rice.png'),
       require('./EatGame/Chicken.png'),
       require('./EatGame/Vegi.png'),
+      require('./EatGame/Water1.png'),
+      require('./EatGame/Water.png'),
     ]);
   }, []);
 
@@ -93,41 +105,48 @@ const EatingGame = () => {
       // Chew briefly before transitioning plates
       setTimeout(() => {
         setIsChewing(false);
-        // Slide current plate out to the left
-        Animated.timing(currentPlateX, {
-          toValue: -SCREEN_WIDTH,
-          duration: 600,
-          useNativeDriver: true,
-        }).start(() => {
-        // Get the current value of nextPlateX for the swap
-        nextPlateX.extractOffset(); // Get the current animated value
         
         const nextStage = currentStage + 1;
         if (nextStage < stages.length) {
-          // Swap animation values
-          currentPlateX.setValue(SCREEN_WIDTH);
-          nextPlateX.setValue(0);
-          
-          // Reset next plate position for future use
-          const tempNextPlateX = new Animated.Value(SCREEN_WIDTH);
-          
-          // Update stage and reset food
-          setCurrentStage(nextStage);
           resetFoodState();
           
-          // Update the next plate reference
-          requestAnimationFrame(() => {
+          // Slide current plate out to the left and next plate in simultaneously
+          Animated.parallel([
+            Animated.timing(currentPlateX, {
+              toValue: -SCREEN_WIDTH,
+              duration: 600,
+              useNativeDriver: true,
+            }),
+            Animated.timing(nextPlateX, {
+              toValue: 0,
+              duration: 600,
+              useNativeDriver: true,
+            })
+          ]).start(() => {
+            // After animation completes, update refs and state
+            displayedCurrentStage.current = nextStage;
+            displayedNextStage.current = nextStage + 1;
+            setCurrentStage(nextStage); // Force re-render with new stage
+            
+            // Reset plate positions for next transition
+            currentPlateX.setValue(0);
+            nextPlateX.setValue(SCREEN_WIDTH);
             isEatingSequence.current = false;
           });
         } else {
-          // All food eaten
-          setAllFoodEaten(true);
-          isEatingSequence.current = false;
-          setTimeout(() => {
-            router.back();
-          }, 1500);
+          // All food eaten - slide out final plate
+          Animated.timing(currentPlateX, {
+            toValue: -SCREEN_WIDTH,
+            duration: 600,
+            useNativeDriver: true,
+          }).start(() => {
+            setAllFoodEaten(true);
+            isEatingSequence.current = false;
+            setTimeout(() => {
+              router.back();
+            }, 1500);
+          });
         }
-      });
       }, 700);
     });
   };
@@ -187,23 +206,47 @@ const EatingGame = () => {
   };
 
   const getCurrentFoodImage = () => {
-    return stages[currentStage].image;
+    return stages[displayedCurrentStage.current].image;
   };
 
   const getFoodStyle = () => {
-    switch(currentStage) {
+    switch(displayedCurrentStage.current) {
       case 0: return styles.riceImage;
       case 1: return styles.chickenImage;
       case 2: return styles.vegiImage;
+      case 3: return styles.waterImage;
+      case 4: return styles.waterImage;
       default: return styles.riceImage;
     }
   };
 
   const getDraggableContainerStyle = () => {
-    switch(currentStage) {
+    switch(displayedCurrentStage.current) {
       case 0: return styles.draggableRiceContainer;
       case 1: return styles.draggableChickenContainer;
       case 2: return styles.draggableVegiContainer;
+      case 3: return styles.draggableWaterContainer;
+      case 4: return styles.draggableWaterContainer;
+      default: return styles.draggableRiceContainer;
+    }
+  };
+
+  const getNextFoodStyle = () => {
+    switch(displayedNextStage.current) {
+      case 1: return styles.chickenImage;
+      case 2: return styles.vegiImage;
+      case 3: return styles.waterImage;
+      case 4: return styles.waterImage;
+      default: return styles.riceImage;
+    }
+  };
+
+  const getNextDraggableContainerStyle = () => {
+    switch(displayedNextStage.current) {
+      case 1: return styles.draggableChickenContainer;
+      case 2: return styles.draggableVegiContainer;
+      case 3: return styles.draggableWaterContainer;
+      case 4: return styles.draggableWaterContainer;
       default: return styles.draggableRiceContainer;
     }
   };
@@ -256,7 +299,7 @@ const EatingGame = () => {
       )}
 
       {/* Next plate (prepared off-screen) - only show if not last stage */}
-      {currentStage < stages.length - 1 && !allFoodEaten && (
+      {displayedNextStage.current < stages.length && !allFoodEaten && (
         <Animated.View
           style={[
             styles.plateContainer,
@@ -264,10 +307,10 @@ const EatingGame = () => {
           ]}
         >
           <Image source={require('./EatGame/Plate.png')} style={styles.plate} />
-          <View style={getDraggableContainerStyle()}>
+          <View style={getNextDraggableContainerStyle()}>
             <Image
-              source={stages[currentStage + 1].image}
-              style={currentStage === 0 ? styles.chickenImage : styles.vegiImage}
+              source={getNextPlateImage()}
+              style={getNextFoodStyle()}
             />
           </View>
         </Animated.View>
@@ -370,6 +413,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     zIndex: 20 
   },
+  draggableWaterContainer: { 
+    position: 'absolute', 
+    bottom: '8%', 
+    width: 200, 
+    height: 150, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    zIndex: 20 
+  },
   riceImage: { 
     bottom: '38%', 
     left: '6%', 
@@ -385,6 +437,13 @@ const styles = StyleSheet.create({
     resizeMode: 'contain' 
   },
   vegiImage: { 
+    bottom: '38%', 
+    left: '6%', 
+    width: 320, 
+    height: 200, 
+    resizeMode: 'contain' 
+  },
+  waterImage: { 
     bottom: '38%', 
     left: '6%', 
     width: 320, 
