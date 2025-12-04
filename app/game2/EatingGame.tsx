@@ -1,13 +1,14 @@
 import { Asset } from 'expo-asset';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EatingGame = () => {
   const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Chicken, 2: Vegi
   const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open'
+  const [isChewing, setIsChewing] = useState(false);
   const [isDraggingFood, setIsDraggingFood] = useState(false);
   const [allFoodEaten, setAllFoodEaten] = useState(false);
   const router = useRouter();
@@ -39,6 +40,7 @@ const EatingGame = () => {
       require('./EatGame/EatBG.png'),
       require('./EatGame/Eat1.png'),
       require('./EatGame/Eat2.png'),
+      require('./EatGame/Eat3.gif'),
       require('./EatGame/Plate.png'),
       require('./EatGame/Rice.png'),
       require('./EatGame/Chicken.png'),
@@ -86,13 +88,17 @@ const EatingGame = () => {
       useNativeDriver: true,
     }).start(() => {
       setChildMouth('closed');
+      setIsChewing(true);
 
-      // Slide current plate out to the left
-      Animated.timing(currentPlateX, {
-        toValue: -SCREEN_WIDTH,
-        duration: 600,
-        useNativeDriver: true,
-      }).start(() => {
+      // Chew briefly before transitioning plates
+      setTimeout(() => {
+        setIsChewing(false);
+        // Slide current plate out to the left
+        Animated.timing(currentPlateX, {
+          toValue: -SCREEN_WIDTH,
+          duration: 600,
+          useNativeDriver: true,
+        }).start(() => {
         // Get the current value of nextPlateX for the swap
         nextPlateX.extractOffset(); // Get the current animated value
         
@@ -122,6 +128,7 @@ const EatingGame = () => {
           }, 1500);
         }
       });
+      }, 700);
     });
   };
 
@@ -169,8 +176,14 @@ const EatingGame = () => {
   ).current;
 
   const getChildImage = () => {
+    if (isChewing) return require('./EatGame/Eat3.gif');
     if (childMouth === 'open') return require('./EatGame/Eat2.png');
     return require('./EatGame/Eat1.png');
+  };
+
+  const toggleChildMouth = () => {
+    if (isEatingSequence.current || isChewing) return;
+    setChildMouth((prev) => (prev === 'open' ? 'closed' : 'open'));
   };
 
   const getCurrentFoodImage = () => {
@@ -204,8 +217,13 @@ const EatingGame = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Child image - single source based on state */}
-      <Image source={getChildImage()} style={styles.child} />
+      {/* Child image - tap to toggle mouth */}
+      <TouchableWithoutFeedback onPress={toggleChildMouth}>
+        <Image
+          source={getChildImage()}
+          style={isChewing ? styles.childChewing : styles.child}
+        />
+      </TouchableWithoutFeedback>
 
       {/* Current plate */}
       {!allFoodEaten && (
@@ -297,11 +315,19 @@ const styles = StyleSheet.create({
   },
   child: { 
     position: 'absolute', 
-    top: '32.1%', 
-    left: '2%', 
+    top: '32%', 
+    left: '0%', 
     width: '100%', 
     height: '50%', 
     resizeMode: 'contain' 
+  },
+  childChewing: {
+    position: 'absolute', 
+    top: '32%', 
+    left: '0%', 
+    width: '100%', 
+    height: '50%', 
+    resizeMode: 'cover'
   },
   plateContainer: { 
     position: 'absolute',
