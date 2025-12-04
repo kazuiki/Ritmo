@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
+import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
@@ -83,6 +84,18 @@ export default function Home() {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
+
+  // Autoplay step audio and gate Next until clip finishes
+  const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
+  const currentAudioModule = playbook?.steps?.[currentStepIndex]?.audio;
+  const { isNextDisabled, isPlaying: isAudioPlaying } = useStepAudio(currentAudioModule, playbookModalVisible);
+
+  // Ensure Android audio mode when playbook opens
+  useEffect(() => {
+    if (playbookModalVisible) {
+      ensureMaxVolume();
+    }
+  }, [playbookModalVisible]);
 
   const loadRoutines = async (options = {}) => {
     const { useCache = true } = options as any;
@@ -1093,7 +1106,7 @@ export default function Home() {
             )}
             {currentStep > 1 && <View style={styles.buttonSpacer} />}
             <TouchableOpacity 
-              style={styles.nextButton}
+              style={[styles.nextButton, isNextDisabled && { opacity: 0.5 }]}
               onPress={() => {
                 if (currentStep < 4) {
                   setCurrentStep(currentStep + 1);
@@ -1122,6 +1135,7 @@ export default function Home() {
                   }
                 }
               }}
+              disabled={isNextDisabled}
             >
               <Text style={styles.nextButtonText}>
                 {currentStep === 4 ? 'FINISH' : 'NEXT'}

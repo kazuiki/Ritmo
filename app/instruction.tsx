@@ -49,6 +49,7 @@ const PAGES = [
     id: 4,
     title: "Ritmo with Parents",
     description: "Parents are advised to guide and\nsupervise children when using Ritmo.",
+    image: require("../assets/images/Parents.png"),
     buttonLabel: "Ritmo Parent",
     showButton: true,
   },
@@ -56,7 +57,9 @@ const PAGES = [
     id: 5,
     title: "Ritmo with Therapist",
     description: "Ritmo provides therapists with\nPDF reports detailing the child's\nprogress.",
-    showButton: false,
+    image: require("../assets/images/Therapist.png"),
+    buttonLabel: "Ritmo Therapist",
+    showButton: true,
   },
 ];
 
@@ -81,9 +84,6 @@ export default function InstructionPage() {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
       scrollViewRef.current?.scrollTo({ x: nextPage * width, animated: true });
-    } else {
-      // Finished instructions – proceed to child nickname setup
-      router.replace("/auth/child-nickname");
     }
   };
 
@@ -175,12 +175,14 @@ export default function InstructionPage() {
             <Text style={styles.headerButtonText}>Back</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerButton]}
+            style={[styles.headerButton, currentPage === PAGES.length - 1 && styles.headerButtonDisabled]}
             onPress={handleNext}
+            disabled={currentPage === PAGES.length - 1}
           >
             <Text
               style={[
                 styles.headerButtonText,
+                currentPage === PAGES.length - 1 && styles.headerButtonTextDisabled,
               ]}
             >
               Next
