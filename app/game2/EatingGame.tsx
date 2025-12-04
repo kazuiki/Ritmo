@@ -6,7 +6,7 @@ import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableO
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EatingGame = () => {
-  const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Vegi, 2: Chicken, 3: Water1, 4: Water
+  const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Chicken, 2: Vegi, 3: Water1, 4: Water
   const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open'
   const [isChewing, setIsChewing] = useState(false);
   const [isDraggingFood, setIsDraggingFood] = useState(false);
