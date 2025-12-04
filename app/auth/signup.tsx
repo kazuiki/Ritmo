@@ -5,20 +5,20 @@ import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -52,6 +52,7 @@ export default function SignUp() {
   const handleLocalNetworkRetry = async () => {
     console.log('🔄 User dismissed network failure modal');
     setLocalNetworkFailure(false);
+  };
 
   const reduceMotionRef = useRef(false);
   const isInitialMount = useRef(true);

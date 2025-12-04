@@ -278,13 +278,6 @@ export default function Login() {
         return;
       }
 
-
-    if (!childName) {
-      router.replace("/instruction");
-    } else {
-      // Single replace to loading with next param – avoids sequential replaces
-      router.replace("/loading?next=/greetings");
-
       const loggedInUser = userData.user;
       const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
@@ -294,12 +287,11 @@ export default function Login() {
         // Single replace to loading with next param – avoids sequential replaces
         navigateToGreetingsWithNetworkCheck(router);
       }
-    } catch (networkError: any) {
+    } catch (networkError) {
       setLoading(false);
-      console.log('❌ Caught network error during login:', networkError.message);
+      console.log('❌ Caught network error during login:', (networkError as any).message);
       setLocalNetworkFailure(true);
       return;
-
     }
 
   };
