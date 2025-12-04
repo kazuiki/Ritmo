@@ -84,6 +84,9 @@ export default function InstructionPage() {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
       scrollViewRef.current?.scrollTo({ x: nextPage * width, animated: true });
+    } else if (currentPage === PAGES.length - 1) {
+      // Last page (Therapist), navigate to child-nickname
+      router.push("/auth/child-nickname");
     }
   };
 
@@ -175,16 +178,10 @@ export default function InstructionPage() {
             <Text style={styles.headerButtonText}>Back</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerButton, currentPage === PAGES.length - 1 && styles.headerButtonDisabled]}
+            style={styles.headerButton}
             onPress={handleNext}
-            disabled={currentPage === PAGES.length - 1}
           >
-            <Text
-              style={[
-                styles.headerButtonText,
-                currentPage === PAGES.length - 1 && styles.headerButtonTextDisabled,
-              ]}
-            >
+            <Text style={styles.headerButtonText}>
               Next
             </Text>
           </TouchableOpacity>
