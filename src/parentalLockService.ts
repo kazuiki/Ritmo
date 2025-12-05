@@ -1,12 +1,20 @@
 import { supabase } from './supabaseClient';
 
+const isAuthParseError = (error: unknown) => {
+  if (!error) return false;
+  const message = (error as any)?.message;
+  return typeof message === 'string' && message.includes('JSON Parse error');
+};
+
 export const ParentalLockService = {
   // Check if parental lock is enabled
   async isEnabled(): Promise<boolean> {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
-        console.error('Error getting user:', error);
+        if (!isAuthParseError(error)) {
+          console.error('Error getting user:', error);
+        }
         return false;
       }
       // Check if parental_lock_enabled is set to true in user metadata
@@ -50,7 +58,9 @@ export const ParentalLockService = {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
-        console.error('Error getting user:', error);
+        if (!isAuthParseError(error)) {
+          console.error('Error getting user:', error);
+        }
         return null;
       }
       return user.user_metadata?.parental_pin || null;
