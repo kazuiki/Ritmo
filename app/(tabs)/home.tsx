@@ -152,7 +152,11 @@ export default function Home() {
       // Get today's day of week (0=Sunday, 6=Saturday)
       const today = new Date();
       const todayDayOfWeek = today.getDay();
-      const todayStr = today.toISOString().slice(0, 10);
+      // Use local timezone instead of UTC to get correct date
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
       
       // Fetch today's progress for all routines
       const progressData = await getUserProgressForRange({
@@ -883,10 +887,9 @@ export default function Home() {
       {!showAllDone && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}>
           {incompleteRoutines.map((routine, idx) => {
-          const isActive = routine.id === activeIncompleteId;
           const routineTimeInMinutes = parseTime(routine.time);
           const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
-          const isEnabled = isActive && isTimeReached;
+          const isEnabled = isTimeReached; // Enable any task that has reached its scheduled time
           const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
           
           // Initialize animation value if not exists
@@ -950,11 +953,11 @@ export default function Home() {
                   {preset ? (
                     <Image
                       source={preset.image}
-                      style={[styles.presetImageLarge, !isActive && styles.presetImageDim]}
-                      {...(!isActive ? { blurRadius: 1 } : {})}
+                      style={[styles.presetImageLarge, !isEnabled && styles.presetImageDim]}
+                      {...(!isEnabled ? { blurRadius: 1 } : {})}
                     />
                   ) : (
-                    <View style={[styles.iconPlaceholderLarge, !isActive && styles.iconDim]}>
+                    <View style={[styles.iconPlaceholderLarge, !isEnabled && styles.iconDim]}>
                       <Text style={styles.iconLarge}>📋</Text>
                     </View>
                   )}
@@ -1544,7 +1547,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     gap: scale.scaleSpacing(12),
   },
   completedItem: {
-    width: scale.scaleWidth(73),
+    width: scale.scaleWidth(80),
     height: scale.scaleHeight(72),
     borderRadius: scale.scaleBorderRadius(14),
     borderWidth: 3,
