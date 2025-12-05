@@ -306,20 +306,21 @@ const EatingGame = () => {
       </View>
 
       {/* Child image - single source based on state */}
-      <View 
+      <TouchableOpacity 
+        onPress={handleChildTap}
         style={[
           styles.childContainer,
           // Move child closer when chewing
           childMouth === 'chewing' ? styles.childContainerChewing : {}
         ]}
-        onTouchEnd={handleChildTap}
+        activeOpacity={1} // Prevent opacity change on press
       >
         <Image source={getChildImage()} style={[
           styles.child,
           // Ensure eat3.gif has same dimensions as eat1/eat2
           childMouth === 'chewing' ? { resizeMode: 'contain' } : {}
         ]} />
-      </View>
+      </TouchableOpacity>
 
       {/* Current plate */}
       {!allFoodEaten && (
@@ -459,7 +460,8 @@ const styles = StyleSheet.create({
   child: { 
     width: '100%', 
     height: '100%', 
-    resizeMode: 'contain' 
+    resizeMode: 'contain',
+    opacity: 1, // Always fully visible - no transitions
   },
   plateContainer: { 
     position: 'absolute',
