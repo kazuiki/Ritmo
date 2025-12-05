@@ -569,10 +569,10 @@ const styles = StyleSheet.create({
   },
   celebrationContainer: {
     position: 'absolute',
-    top: '35%', // Same as childContainerChewing position
+    top: '34%', // Adjusted position para tulad ng image 2
     left: '2%', // Same as childContainer position  
     width: '100%',
-    height: '40%', // Smaller height para hindi umabot sa orange
+    height: '45%', // Keep the bigger height
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'contain',
-    transform: [{ scale: 2.0 }], // Slightly smaller scale
+    transform: [{ scale: 2.1 }], // Slightly smaller scale para balanced
   },
   completionContainer: {
     position: 'absolute',
