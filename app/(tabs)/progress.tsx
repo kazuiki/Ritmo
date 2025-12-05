@@ -6,17 +6,17 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+	Alert,
+	Image,
+	ImageBackground,
+	Modal,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TextInput,
+	TouchableOpacity,
+	View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
@@ -74,7 +74,11 @@ export default function Progress() {
 		for (let i = 0; i < 7; i++) {
 			const date = new Date(monday);
 			date.setDate(monday.getDate() + i);
-			weekDates.push(date.toISOString().slice(0, 10)); // YYYY-MM-DD
+			// Use local timezone instead of UTC
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			weekDates.push(`${year}-${month}-${day}`); // YYYY-MM-DD in local timezone
 			weekDays.push(date.getDay()); // 0-6 (Sun-Sat)
 		}
 
@@ -135,10 +139,12 @@ export default function Progress() {
 			}
 			
 			// Check if the task is missed (after end of day)
-			const taskDate = new Date(dateStr);
-			// Set deadline to end of day (11:59:59.999 PM)
-			const missedDeadline = new Date(taskDate);
-			missedDeadline.setHours(23, 59, 59, 999);
+			// Parse the dateStr (YYYY-MM-DD) in local timezone
+			const [year, month, day] = dateStr.split('-').map(Number);
+			const taskDate = new Date(year, month - 1, day); // month is 0-indexed
+			
+			// Set deadline to end of day (11:59:59.999 PM) in local timezone
+			const missedDeadline = new Date(year, month - 1, day, 23, 59, 59, 999);
 			
 			// If current time is past the end of the day and task isn't completed, it's missed
 			if (currentTime > missedDeadline) {
