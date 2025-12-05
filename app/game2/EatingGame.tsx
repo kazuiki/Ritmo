@@ -16,6 +16,10 @@ const EatingGame = () => {
   const [isWaterReady, setIsWaterReady] = useState(false); // Track if water1 is tapped to become water
   const [isWaterShaking, setIsWaterShaking] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  
+  // Eye tracking state
+  const [eyeDirection, setEyeDirection] = useState('center'); // 'center', 'left', 'right', 'up', 'down'
+  
   const router = useRouter();
 
   // Food position for dragging
@@ -61,13 +65,15 @@ const EatingGame = () => {
     ]);
   }, []);
 
-  // Listen to food position changes
+  // Listen to food position changes and update eye direction
   useEffect(() => {
     const foodXId = foodPosition.x.addListener((value) => {
       foodX.current = value.value;
+      updateEyeDirection(value.value, foodY.current);
     });
     const foodYId = foodPosition.y.addListener((value) => {
       foodY.current = value.value;
+      updateEyeDirection(foodX.current, value.value);
     });
 
     return () => {
@@ -75,6 +81,29 @@ const EatingGame = () => {
       foodPosition.y.removeListener(foodYId);
     };
   }, []);
+
+  // Update eye direction based on food position
+  const updateEyeDirection = (x: number, y: number) => {
+    if (!isDraggingFood || childMouth === 'chewing') {
+      setEyeDirection('center');
+      return;
+    }
+
+    // Calculate direction based on food position relative to child
+    const threshold = 50;
+    
+    if (y < -threshold) {
+      setEyeDirection('up');
+    } else if (y > threshold) {
+      setEyeDirection('down');
+    } else if (x < -threshold) {
+      setEyeDirection('left');
+    } else if (x > threshold) {
+      setEyeDirection('right');
+    } else {
+      setEyeDirection('center');
+    }
+  };
 
   // Water shake effect when water1 appears
   useEffect(() => {
@@ -261,6 +290,7 @@ const EatingGame = () => {
       },
       onPanResponderRelease: (_, gestureState) => {
         setIsDraggingFood(false);
+        setEyeDirection('center'); // Reset eyes to center when drag ends
         const finalX = dragOffset.current.x + gestureState.dx;
         const finalY = dragOffset.current.y + gestureState.dy;
 
@@ -281,6 +311,24 @@ const EatingGame = () => {
     if (childMouth === 'chewing') return require('./EatGame/Eat3.gif');
     if (childMouth === 'open') return require('./EatGame/Eat2.png');
     return require('./EatGame/Eat1.png');
+  };
+
+  // Get eye tracking style for eat1 image
+  const getEyeTrackingStyle = () => {
+    if (childMouth !== 'closed' || !isDraggingFood) return {};
+    
+    switch (eyeDirection) {
+      case 'left':
+        return { transform: [{ translateX: -5 }] };
+      case 'right':
+        return { transform: [{ translateX: 5 }] };
+      case 'up':
+        return { transform: [{ translateY: -3 }] };
+      case 'down':
+        return { transform: [{ translateY: 3 }] };
+      default:
+        return {};
+    }
   };
 
   const getCurrentFoodImage = () => {
@@ -334,7 +382,9 @@ const EatingGame = () => {
           <Image source={getChildImage()} style={[
             styles.child,
             // Ensure eat3.gif has same dimensions as eat1/eat2
-            childMouth === 'chewing' ? { resizeMode: 'contain' } : {}
+            childMouth === 'chewing' ? { resizeMode: 'contain' } : {},
+            // Add eye tracking movement
+            getEyeTrackingStyle()
           ]} />
         </TouchableOpacity>
       )}
