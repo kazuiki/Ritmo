@@ -70,21 +70,42 @@ export default function WeeklyHistoryDetail() {
   // Build tasks data structure from routines and progress
   const tasks = useMemo(() => {
     if (!routines || routines.length === 0) return [];
+
+    // Find the first date a routine existed for this user (created_at or earliest progress row)
+    const firstActiveDateByRoutine = new Map<number, Date>();
+    progressData.forEach((p) => {
+      if (!p.day_date) return;
+      const [py, pm, pd] = p.day_date.split('-').map(Number);
+      const progressDay = new Date(py, pm - 1, pd);
+      progressDay.setHours(0, 0, 0, 0);
+      const existing = firstActiveDateByRoutine.get(p.routine_id);
+      if (!existing || progressDay < existing) firstActiveDateByRoutine.set(p.routine_id, progressDay);
+    });
+    routines.forEach((routine) => {
+      if (!routine.created_at) return;
+      const created = new Date(routine.created_at);
+      created.setHours(0, 0, 0, 0);
+      const existing = firstActiveDateByRoutine.get(routine.id);
+      if (!existing || created < existing) firstActiveDateByRoutine.set(routine.id, created);
+    });
+
+    const formatDate = (d: Date) => {
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${mm}-${dd}-${yyyy}`;
+    };
     
-    // Helper function to parse time string (e.g., "01:00 am") and create Date object for a given date
-    const parseRoutineTime = (dateStr: string, timeStr: string): Date => {
-      const [time, period] = timeStr.toLowerCase().split(' ');
+    // Helper to convert routine time (e.g., "01:00 am") to minutes since midnight for sorting
+    const timeToMinutes = (timeStr?: string): number => {
+      if (!timeStr) return Number.POSITIVE_INFINITY;
+      const [time, periodRaw] = timeStr.toLowerCase().split(' ');
+      if (!time || !periodRaw) return Number.POSITIVE_INFINITY;
       let [hours, minutes] = time.split(':').map(Number);
-      
-      if (period === 'pm' && hours !== 12) {
-        hours += 12;
-      } else if (period === 'am' && hours === 12) {
-        hours = 0;
-      }
-      
-      const date = new Date(dateStr);
-      date.setHours(hours, minutes, 0, 0);
-      return date;
+      const period = periodRaw.trim();
+      if (period === 'pm' && hours !== 12) hours += 12;
+      if (period === 'am' && hours === 12) hours = 0;
+      return hours * 60 + (minutes || 0);
     };
 
     // Helper function to determine task status
@@ -95,20 +116,13 @@ export default function WeeklyHistoryDetail() {
         return undefined; // Not scheduled for this day - don't show any indicator
       }
       
-      // Check if the routine was created before or on this date
-      // Only show as missed if the routine existed on that date
-      if (routine.created_at) {
-        const routineCreationDate = new Date(routine.created_at);
-        const checkDate = new Date(dateStr);
-        
-        // Reset time portion to compare dates only
-        routineCreationDate.setHours(0, 0, 0, 0);
-        checkDate.setHours(0, 0, 0, 0);
-        
-        // If the routine was created after this date, don't show indicator
-        if (routineCreationDate > checkDate) {
-          return undefined;
-        }
+      // Skip dates that happened before the routine first existed for this user
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const checkDate = new Date(year, month - 1, day);
+      checkDate.setHours(0, 0, 0, 0);
+      const firstActiveDate = firstActiveDateByRoutine.get(routine.id);
+      if (firstActiveDate && checkDate < firstActiveDate) {
+        return undefined; // Routine didn't exist yet; don't count as missed
       }
       
       const progress = progressData.find(
@@ -121,10 +135,8 @@ export default function WeeklyHistoryDetail() {
       }
       
       // Check if the task is missed (after end of day)
-      const taskDate = new Date(dateStr);
       // Set deadline to end of day (11:59:59.999 PM)
-      const missedDeadline = new Date(taskDate);
-      missedDeadline.setHours(23, 59, 59, 999);
+      const missedDeadline = new Date(year, month - 1, day, 23, 59, 59, 999);
       
       // If current time is past the end of the day and task isn't completed, it's missed
       if (currentTime > missedDeadline) {
@@ -172,38 +184,32 @@ export default function WeeklyHistoryDetail() {
       return routineCreatedDate <= endDateNormalized;
     });
     
-    return filteredRoutines.map(routine => {
+    const sortedRoutines = [...filteredRoutines].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+
+    return sortedRoutines.map(routine => {
       // For each day of the week, determine the status
       const statuses = weekDates.dates.map((dateStr, index) => {
         const dayOfWeek = weekDates.weekDays[index];
         return getTaskStatus(routine, dateStr, dayOfWeek);
       });
       
-      // Format timestamp (date and time when routine was created)
-      let timestamp = '';
-      if (routine.created_at && routine.time) {
-        const createdDate = new Date(routine.created_at);
-        const month = String(createdDate.getMonth() + 1).padStart(2, '0');
-        const day = String(createdDate.getDate()).padStart(2, '0');
-        const year = createdDate.getFullYear();
-        const formattedDate = `${month}-${day}-${year}`;
-        
-        // Format time from routine.time (e.g., "01:00 am" -> "1:00am")
-        const timeStr = routine.time.toLowerCase().replace(/\s+/g, '');
-        timestamp = `${formattedDate}/${timeStr}`;
-      } else {
-        // Fallback: if no created_at, use current date with routine time
-        const now = new Date();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const year = now.getFullYear();
-        const formattedDate = `${month}-${day}-${year}`;
-        const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
-        timestamp = `${formattedDate}/${timeStr}`;
-      }
+      // Format timestamp as "date added / routine time"
+      const addedDate = (() => {
+        const firstActive = firstActiveDateByRoutine.get(routine.id);
+        if (firstActive) return formatDate(firstActive);
+        if (routine.created_at) return formatDate(new Date(routine.created_at));
+        return formatDate(new Date());
+      })();
+      const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
+      const timestamp = `${addedDate}/${timeStr}`;
+
+      const nameWithDeletedFlag = (() => {
+        const base = (routine.name || '').toUpperCase();
+        return routine.is_active === false ? `${base} (DELETED)` : base;
+      })();
       
       return {
-        name: (routine.name || '').toUpperCase(),
+        name: nameWithDeletedFlag,
         timestamp,
         statuses,
         routineId: routine.id,
@@ -249,7 +255,7 @@ export default function WeeklyHistoryDetail() {
         if (!user) return;
 
         // Fetch routines from Supabase
-        const routinesData = await getRoutinesForCurrentUser();
+        const routinesData = await getRoutinesForCurrentUser({ includeInactive: true });
         
         // Load days info from AsyncStorage (user-specific)
         const storageKey = `@routines_${user.id}`;
