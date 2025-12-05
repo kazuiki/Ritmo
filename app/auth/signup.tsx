@@ -29,6 +29,10 @@ export default function SignUp() {
   const router = useRouter();
   const { scale } = useResponsiveDimensions();
   const [email, setEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [sentVerificationCode, setSentVerificationCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState(""); // ✅ new state
   const [showPassword, setShowPassword] = useState(false);
@@ -41,6 +45,9 @@ export default function SignUp() {
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
   const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState("");
+  const [verificationErrorModalVisible, setVerificationErrorModalVisible] = useState(false);
+  const [verificationSuccessModalVisible, setVerificationSuccessModalVisible] = useState(false);
+  const [emailRequiredModalVisible, setEmailRequiredModalVisible] = useState(false);
 
   const [agreed, setAgreed] = useState(false);
   const [agreementRequiredModalVisible, setAgreementRequiredModalVisible] = useState(false);
@@ -63,13 +70,16 @@ export default function SignUp() {
   useEffect(() => {
     const initInputs = async () => {
       try {
-        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm']);
+        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm', '@signupVerificationCode']);
         // Reset acceptance on fresh visit from Login to prevent stale check
         await AsyncStorage.setItem('@termsAccepted', 'false');
       } catch {}
       setEmail('');
       setPassword('');
       setConfirmPassword('');
+      setVerificationCode('');
+      setIsEmailVerified(false);
+      setSentVerificationCode('');
     };
     initInputs();
   }, []);
@@ -82,9 +92,11 @@ export default function SignUp() {
           const savedEmail = await AsyncStorage.getItem('@signupEmail');
           const savedPassword = await AsyncStorage.getItem('@signupPassword');
           const savedConfirm = await AsyncStorage.getItem('@signupConfirm');
+          const savedVerificationCode = await AsyncStorage.getItem('@signupVerificationCode');
           if (savedEmail) setEmail(savedEmail);
           if (savedPassword) setPassword(savedPassword);
           if (savedConfirm) setConfirmPassword(savedConfirm);
+          if (savedVerificationCode) setVerificationCode(savedVerificationCode);
         } catch {}
       };
       restoreIfMounted();
@@ -103,7 +115,7 @@ export default function SignUp() {
         }
         try {
           const val = await AsyncStorage.getItem("@termsAccepted");
-          if (mounted) setAgreed(val === "true");
+          if (mounted) setAgreed(Boolean(val === "true"));
         } catch {}
       };
       checkAccepted();
@@ -121,6 +133,9 @@ export default function SignUp() {
       setPasswordMismatchModalVisible(false);
       setPasswordLengthModalVisible(false);
       setEmailErrorModalVisible(false);
+      setVerificationErrorModalVisible(false);
+      setVerificationSuccessModalVisible(false);
+      setEmailRequiredModalVisible(false);
     };
   }, []);
 
@@ -217,8 +232,79 @@ export default function SignUp() {
     }
   };
 
+  // === Combined Send Code and Verify Function ===
+  const handleSendCodeOrVerify = async () => {
+    // If no verification code sent yet, send code
+    if (!sentVerificationCode) {
+      await handleSendVerificationCode();
+    } else {
+      // If code already sent, verify the entered code
+      handleVerifyCode();
+    }
+  };
+
+  // === Send Verification Code Function ===
+  const handleSendVerificationCode = async () => {
+    if (!email) {
+      setEmailRequiredModalVisible(true);
+      return;
+    }
+
+    // Check network connectivity before sending code
+    console.log('🔍 Checking network connectivity for sending verification code...');
+    const isConnected = await isNetworkConnected();
+    console.log('📡 Network connectivity result:', isConnected);
+    
+    if (!isConnected) {
+      console.log('❌ No network connection - send code blocked');
+      setLocalNetworkFailure(true);
+      return;
+    }
+    
+    console.log('✅ Network connection available, proceeding to send verification code');
+
+    setSendingCode(true);
+
+    try {
+      // Generate a random 6-digit verification code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setSentVerificationCode(code);
+      
+      // In a real app, you would send this code via email service
+      // For now, we'll just log it and show success
+      console.log('📧 Verification code sent:', code);
+      
+      setSendingCode(false);
+      alert(`Verification code sent to ${email}: ${code}`);
+      
+    } catch (error) {
+      setSendingCode(false);
+      console.log('❌ Error sending verification code:', (error as any).message);
+      setLocalNetworkFailure(true);
+    }
+  };
+
+  // === Verify Code Function ===
+  const handleVerifyCode = () => {
+    if (!verificationCode) {
+      setVerificationErrorModalVisible(true);
+      return;
+    }
+
+    if (verificationCode === sentVerificationCode) {
+      setIsEmailVerified(true);
+      setVerificationSuccessModalVisible(true);
+    } else {
+      setVerificationErrorModalVisible(true);
+    }
+  };
+
   // === SignUp Function ===
   const handleSignUp = async () => {
+    if (!isEmailVerified) {
+      setVerificationErrorModalVisible(true);
+      return;
+    }
     if (!agreed) {
       setAgreementRequiredModalVisible(true);
       return;
@@ -342,67 +428,106 @@ export default function SignUp() {
                 autoCapitalize="none"
               />
 
-              <Text style={styles.label}>Password:</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.inputFlex}
-                  placeholder="Enter password here:"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#276a63"
-                  />
-                </TouchableOpacity>
-              </View>
+              {!isEmailVerified && (
+                <>
+                  <Text style={styles.label}>Verification Code:</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      style={styles.inputFlex}
+                      placeholder="Enter verification code:"
+                      value={verificationCode}
+                      onChangeText={setVerificationCode}
+                      keyboardType="numeric"
+                      maxLength={6}
+                    />
+                    <TouchableOpacity
+                      style={styles.combinedButton}
+                      onPress={handleSendCodeOrVerify}
+                      disabled={Boolean(sendingCode || (!email && !sentVerificationCode) || (sentVerificationCode && !verificationCode))}
+                    >
+                      <Text style={styles.combinedButtonText}>
+                        {sendingCode 
+                          ? "Sending..." 
+                          : !sentVerificationCode 
+                          ? "SEND CODE" 
+                          : "VERIFY"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
-              {/* ✅ Confirm Password */}
-              <Text style={styles.label}>Confirm Password:</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.inputFlex}
-                  placeholder="Re-enter password:"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() =>
-                    setShowConfirmPassword(!showConfirmPassword)
-                  }
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showConfirmPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#276a63"
-                  />
-                </TouchableOpacity>
-              </View>
+              {isEmailVerified && (
+                <View style={styles.verifiedContainer}>
+                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                  <Text style={styles.verifiedText}>Email Verified!</Text>
+                </View>
+              )}
 
-              {/* Agreement checkbox + text */}
-              <View style={styles.agreeRow}>
-                <TouchableOpacity
-                  onPress={() => {
-                    // Require fields filled before proceeding to Terms
-                    if (!email || !password || !confirmPassword) {
-                      setCompleteDetailsModalVisible(true);
-                      return;
-                    }
-                    // Persist current inputs so they are restored after returning
-                    AsyncStorage.multiSet([
-                      ['@signupEmail', email],
-                      ['@signupPassword', password],
+              {isEmailVerified && (
+                <>
+                  <Text style={styles.label}>Password:</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      style={styles.inputFlex}
+                      placeholder="Enter password here:"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeButton}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={20}
+                        color="#276a63"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* ✅ Confirm Password */}
+                  <Text style={styles.label}>Confirm Password:</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      style={styles.inputFlex}
+                      placeholder="Re-enter password:"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      onPress={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      style={styles.eyeButton}
+                    >
+                      <Ionicons
+                        name={showConfirmPassword ? "eye-off" : "eye"}
+                        size={20}
+                        color="#276a63"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Agreement checkbox + text */}
+                  <View style={styles.agreeRow}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        // Require fields filled before proceeding to Terms
+                        if (!email || !password || !confirmPassword) {
+                          setCompleteDetailsModalVisible(true);
+                          return;
+                        }
+                        // Persist current inputs so they are restored after returning
+                        AsyncStorage.multiSet([
+                          ['@signupEmail', email],
+                          ['@signupPassword', password],
                       ['@signupConfirm', confirmPassword],
+                      ['@signupVerificationCode', verificationCode],
                       ['@termsAccepted', 'false'],
                     ]).catch(() => {});
                     setAgreed(false);
@@ -410,8 +535,6 @@ export default function SignUp() {
                     router.push('/privacy-policy');
                   }}
                   style={[styles.checkbox, agreed && styles.checkboxChecked]}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: agreed }}
                 >
                   {agreed && <View style={styles.checkboxInner} />}
                 </TouchableOpacity>
@@ -424,24 +547,26 @@ export default function SignUp() {
                   <Text style={styles.linkInline}>privacy policy</Text>
                 </TouchableOpacity>
               </View>
-            </MotiView>
 
-            {/* Animated sign-up button */}
-            <MotiView
-              from={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 700, type: "spring" }}
-              style={{ width: "100%", alignItems: "center" }}
-            >
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleSignUp}
-                disabled={loading}
+              {/* Animated sign-up button */}
+              <MotiView
+                from={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 700, type: "spring" }}
+                style={{ width: "100%", alignItems: "center" }}
               >
-                <Text style={styles.buttonText}>
-                  {loading ? "Signing up..." : "SIGN UP"}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={handleSignUp}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>
+                    {loading ? "Signing up..." : "SIGN UP"}
+                  </Text>
+                </TouchableOpacity>
+              </MotiView>
+                </>
+              )}
             </MotiView>
 
             {/* Link back to login */}
@@ -707,6 +832,96 @@ export default function SignUp() {
         </View>
       </Modal>
 
+      {/* Email Required Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={emailRequiredModalVisible}
+        onRequestClose={() => setEmailRequiredModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Pencil.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Email Required</Text>
+            <Text style={styles.errorModalMessage}>
+              Please enter your email address first
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setEmailRequiredModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Verification Error Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={verificationErrorModalVisible}
+        onRequestClose={() => setVerificationErrorModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Verification Failed</Text>
+            <Text style={styles.errorModalMessage}>
+              {!isEmailVerified && !verificationCode 
+                ? "Please enter the verification code" 
+                : !isEmailVerified 
+                ? "Incorrect verification code. Please try again" 
+                : "Please verify your email first"}
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setVerificationErrorModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Verification Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={verificationSuccessModalVisible}
+        onRequestClose={() => setVerificationSuccessModalVisible(false)}
+      >
+        <View style={styles.confirmEmailModalOverlay}>
+          <View style={styles.confirmEmailModalContainer}>
+            <View style={styles.confirmEmailIconCircle}>
+              <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
+            </View>
+            <Text style={styles.confirmEmailModalTitle}>Email Verified!</Text>
+            <Text style={styles.confirmEmailModalMessage}>
+              Your email has been successfully verified. You can now continue with your registration.
+            </Text>
+            <TouchableOpacity
+              style={styles.confirmEmailOkButton}
+              onPress={() => setVerificationSuccessModalVisible(false)}
+            >
+              <Text style={styles.confirmEmailOkButtonText}>CONTINUE</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Network Failure Modal */}
       <NetworkFailureModal 
         visible={localNetworkFailure} 
@@ -751,6 +966,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     fontSize: scale.scaleFont(15),
+  },
+  inputDisabled: {
+    backgroundColor: "#f5f5f5",
+    color: "#888",
   },
   inputRow: {
     width: "100%",
@@ -943,6 +1162,62 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(15),
     fontWeight: "600",
     color: "#FFFFFF",
+    fontFamily: "ITIM",
+  },
+  sendCodeButton: {
+    backgroundColor: "#2D7778",
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(5),
+    marginLeft: scale.scaleSpacing(4),
+  },
+  sendCodeButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: scale.scaleFont(13),
+    fontFamily: "ITIM",
+  },
+  verifyButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(16),
+    borderRadius: scale.scaleBorderRadius(5),
+    marginLeft: scale.scaleSpacing(8),
+  },
+  verifyButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: scale.scaleFont(12),
+    fontFamily: "ITIM",
+  },
+  verifiedContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E8",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(16),
+    borderRadius: scale.scaleBorderRadius(5),
+    marginTop: scale.scaleSpacing(10),
+    alignSelf: "flex-start",
+  },
+  verifiedText: {
+    color: "#4CAF50",
+    fontWeight: "600",
+    fontSize: scale.scaleFont(14),
+    fontFamily: "ITIM",
+    marginLeft: scale.scaleSpacing(8),
+  },
+  combinedButton: {
+    backgroundColor: "#2D7778",
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(16),
+    borderRadius: scale.scaleBorderRadius(5),
+    marginLeft: scale.scaleSpacing(8),
+  },
+  combinedButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: scale.scaleFont(12),
     fontFamily: "ITIM",
   },
 }));
