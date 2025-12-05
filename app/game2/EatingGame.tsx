@@ -6,10 +6,20 @@ import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableO
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EatingGame = () => {
-  const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Chicken, 2: Vegi
-  const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open'
+  const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Vegi, 2: Chicken, 3: Water
+  const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open', 'chewing'
+  
+  // Debug log current stage on every render
+  console.log('🎮 RENDER - Current Stage:', currentStage, 'Food:', currentStage < 4 ? ['Rice', 'Vegi', 'Chicken', 'Water'][currentStage] : 'Unknown');
   const [isDraggingFood, setIsDraggingFood] = useState(false);
   const [allFoodEaten, setAllFoodEaten] = useState(false);
+  const [isWaterReady, setIsWaterReady] = useState(false); // Track if water1 is tapped to become water
+  const [isWaterShaking, setIsWaterShaking] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  
+  // Eye tracking state
+  const [eyeDirection, setEyeDirection] = useState('center'); // 'center', 'left', 'right', 'up', 'down'
+  
   const router = useRouter();
 
   // Food position for dragging
@@ -20,6 +30,10 @@ const EatingGame = () => {
   const currentPlateX = useRef(new Animated.Value(0)).current;
   const nextPlateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
 
+  // Water shake animation
+  const waterShakeAnim = useRef(new Animated.Value(0)).current;
+  const waterShakeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Track if we're in eating sequence
   const isEatingSequence = useRef(false);
 
@@ -29,8 +43,9 @@ const EatingGame = () => {
 
   const stages = [
     { id: 0, name: 'Rice', image: require('./EatGame/Rice.png') },
-    { id: 1, name: 'Chicken', image: require('./EatGame/Chicken.png') },
-    { id: 2, name: 'Vegi', image: require('./EatGame/Vegi.png') }
+    { id: 1, name: 'Vegi', image: require('./EatGame/Vegi.png') },
+    { id: 2, name: 'Chicken', image: require('./EatGame/Chicken.png') },
+    { id: 3, name: 'Water', image: require('./EatGame/Water1.png') }
   ];
 
   useEffect(() => {
@@ -39,20 +54,26 @@ const EatingGame = () => {
       require('./EatGame/EatBG.png'),
       require('./EatGame/Eat1.png'),
       require('./EatGame/Eat2.png'),
+      require('./EatGame/Eat3.gif'),
+      require('./EatGame/Eat4.gif'),
       require('./EatGame/Plate.png'),
       require('./EatGame/Rice.png'),
       require('./EatGame/Chicken.png'),
       require('./EatGame/Vegi.png'),
+      require('./EatGame/Water.png'),
+      require('./EatGame/Water1.png'),
     ]);
   }, []);
 
-  // Listen to food position changes
+  // Listen to food position changes and update eye direction
   useEffect(() => {
     const foodXId = foodPosition.x.addListener((value) => {
       foodX.current = value.value;
+      updateEyeDirection(value.value, foodY.current);
     });
     const foodYId = foodPosition.y.addListener((value) => {
       foodY.current = value.value;
+      updateEyeDirection(foodX.current, value.value);
     });
 
     return () => {
@@ -61,13 +82,103 @@ const EatingGame = () => {
     };
   }, []);
 
+  // Update eye direction based on food position
+  const updateEyeDirection = (x: number, y: number) => {
+    if (!isDraggingFood || childMouth === 'chewing') {
+      setEyeDirection('center');
+      return;
+    }
+
+    // Calculate direction based on food position relative to child
+    const threshold = 50;
+    
+    if (y < -threshold) {
+      setEyeDirection('up');
+    } else if (y > threshold) {
+      setEyeDirection('down');
+    } else if (x < -threshold) {
+      setEyeDirection('left');
+    } else if (x > threshold) {
+      setEyeDirection('right');
+    } else {
+      setEyeDirection('center');
+    }
+  };
+
+  // Water shake effect when water1 appears
+  useEffect(() => {
+    if (currentStage === 3 && !isWaterReady) {
+      // Start 5-second timer for water shake
+      waterShakeTimeout.current = setTimeout(() => {
+        setIsWaterShaking(true);
+        // Start shake animation
+        const shakeAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(waterShakeAnim, {
+              toValue: 10,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(waterShakeAnim, {
+              toValue: -10,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(waterShakeAnim, {
+              toValue: 0,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+          ]),
+          { iterations: -1 }
+        );
+        shakeAnimation.start();
+      }, 5000);
+    }
+
+    return () => {
+      if (waterShakeTimeout.current) {
+        clearTimeout(waterShakeTimeout.current);
+      }
+    };
+  }, [currentStage, isWaterReady]);
+
   // Reset food position and opacity
   const resetFoodState = () => {
+    console.log('🔄 RESET FOOD STATE called for stage:', currentStage);
     foodPosition.setValue({ x: 0, y: 0 });
     foodOpacity.setValue(1);
     setChildMouth('closed');
     foodX.current = 0;
     foodY.current = 0;
+  };
+
+  // Handle water1 tap to convert to water
+  const handleWaterTap = () => {
+    if (currentStage === 3 && !isWaterReady) {
+      // Clear shake timeout
+      if (waterShakeTimeout.current) {
+        clearTimeout(waterShakeTimeout.current);
+      }
+      
+      // Stop shake animation
+      waterShakeAnim.stopAnimation();
+      waterShakeAnim.setValue(0);
+      setIsWaterShaking(false);
+      
+      // Convert to draggable water
+      setIsWaterReady(true);
+    }
+  };
+
+  // Handle child mouth tap to open/close mouth
+  const handleChildTap = () => {
+    if (!isEatingSequence.current && !allFoodEaten && childMouth !== 'chewing') {
+      // Toggle between closed and open mouth immediately
+      const newMouthState = childMouth === 'closed' ? 'open' : 'closed';
+      console.log('Mouth tap:', childMouth, '→', newMouthState);
+      setChildMouth(newMouthState);
+    }
   };
 
   // Detect if food is near the child's mouth (Eat1 position)
@@ -79,49 +190,68 @@ const EatingGame = () => {
     if (isEatingSequence.current) return;
     isEatingSequence.current = true;
 
+    // First show open mouth (eat2.png)
+    setChildMouth('open');
+
     // Food disappears
     Animated.timing(foodOpacity, {
       toValue: 0,
       duration: 400,
       useNativeDriver: true,
     }).start(() => {
-      setChildMouth('closed');
-
-      // Slide current plate out to the left
-      Animated.timing(currentPlateX, {
-        toValue: -SCREEN_WIDTH,
-        duration: 600,
-        useNativeDriver: true,
-      }).start(() => {
-        // Get the current value of nextPlateX for the swap
-        nextPlateX.extractOffset(); // Get the current animated value
+      // After food disappears, start chewing animation
+      setTimeout(() => {
+        setChildMouth('chewing');
         
-        const nextStage = currentStage + 1;
-        if (nextStage < stages.length) {
-          // Swap animation values
-          currentPlateX.setValue(SCREEN_WIDTH);
-          nextPlateX.setValue(0);
+        // After chewing, slide plate out and bring next food
+        setTimeout(() => {
+          setChildMouth('closed');
           
-          // Reset next plate position for future use
-          const tempNextPlateX = new Animated.Value(SCREEN_WIDTH);
-          
-          // Update stage and reset food
-          setCurrentStage(nextStage);
-          resetFoodState();
-          
-          // Update the next plate reference
-          requestAnimationFrame(() => {
-            isEatingSequence.current = false;
+          // Use callback to get the latest currentStage value
+          setCurrentStage(prevStage => {
+            const nextStage = prevStage + 1;
+            console.log('=== STAGE PROGRESSION (FIXED) ===');
+            console.log('FROM Stage:', prevStage, '(', stages[prevStage].name, ')');
+            console.log('TO Stage:', nextStage, nextStage < stages.length ? '(' + stages[nextStage].name + ')' : '(COMPLETE)');
+            console.log('===============================');
+            
+            if (nextStage < stages.length) {
+              // Slide current plate out to the left
+              Animated.timing(currentPlateX, {
+                toValue: -SCREEN_WIDTH,
+                duration: 600,
+                useNativeDriver: true,
+              }).start(() => {
+                resetFoodState();
+                
+                // Position new plate from right side
+                currentPlateX.setValue(SCREEN_WIDTH);
+                
+                // Slide new plate in from right
+                Animated.timing(currentPlateX, {
+                  toValue: 0,
+                  duration: 600,
+                  useNativeDriver: true,
+                }).start(() => {
+                  isEatingSequence.current = false;
+                });
+              });
+              
+              return nextStage; // Return the new stage
+            } else {
+              // All food eaten - show celebration
+              setAllFoodEaten(true);
+              setShowCelebration(true);
+              isEatingSequence.current = false;
+              setTimeout(() => {
+                router.back();
+              }, 3000);
+              
+              return prevStage; // Keep current stage if complete
+            }
           });
-        } else {
-          // All food eaten
-          setAllFoodEaten(true);
-          isEatingSequence.current = false;
-          setTimeout(() => {
-            router.back();
-          }, 1500);
-        }
-      });
+        }, 1500); // Show chewing for 1.5 seconds
+      }, 500); // Show open mouth for 0.5 seconds before chewing
     });
   };
 
@@ -129,8 +259,16 @@ const EatingGame = () => {
   const dragOffset = useRef({ x: 0, y: 0 });
   const foodPanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !isEatingSequence.current && !allFoodEaten,
-      onMoveShouldSetPanResponder: () => !isEatingSequence.current && !allFoodEaten,
+      onStartShouldSetPanResponder: () => {
+        // Only allow dragging if not in eating sequence, not all food eaten, 
+        // and if water stage, only when water is ready
+        return !isEatingSequence.current && !allFoodEaten && 
+               (currentStage !== 3 || isWaterReady);
+      },
+      onMoveShouldSetPanResponder: () => {
+        return !isEatingSequence.current && !allFoodEaten && 
+               (currentStage !== 3 || isWaterReady);
+      },
       onPanResponderGrant: () => {
         setIsDraggingFood(true);
         dragOffset.current = {
@@ -152,6 +290,7 @@ const EatingGame = () => {
       },
       onPanResponderRelease: (_, gestureState) => {
         setIsDraggingFood(false);
+        setEyeDirection('center'); // Reset eyes to center when drag ends
         const finalX = dragOffset.current.x + gestureState.dx;
         const finalY = dragOffset.current.y + gestureState.dy;
 
@@ -169,19 +308,43 @@ const EatingGame = () => {
   ).current;
 
   const getChildImage = () => {
+    if (childMouth === 'chewing') return require('./EatGame/Eat3.gif');
     if (childMouth === 'open') return require('./EatGame/Eat2.png');
     return require('./EatGame/Eat1.png');
   };
 
+  // Get eye tracking style for eat1 image
+  const getEyeTrackingStyle = () => {
+    if (childMouth !== 'closed' || !isDraggingFood) return {};
+    
+    switch (eyeDirection) {
+      case 'left':
+        return { transform: [{ translateX: -5 }] };
+      case 'right':
+        return { transform: [{ translateX: 5 }] };
+      case 'up':
+        return { transform: [{ translateY: -3 }] };
+      case 'down':
+        return { transform: [{ translateY: 3 }] };
+      default:
+        return {};
+    }
+  };
+
   const getCurrentFoodImage = () => {
+    if (currentStage === 3) {
+      // Water stage - show Water1.png initially, Water.png when ready
+      return isWaterReady ? require('./EatGame/Water.png') : require('./EatGame/Water1.png');
+    }
     return stages[currentStage].image;
   };
 
   const getFoodStyle = () => {
     switch(currentStage) {
       case 0: return styles.riceImage;
-      case 1: return styles.chickenImage;
-      case 2: return styles.vegiImage;
+      case 1: return styles.vegiImage;
+      case 2: return styles.chickenImage;
+      case 3: return styles.waterImage;
       default: return styles.riceImage;
     }
   };
@@ -189,8 +352,9 @@ const EatingGame = () => {
   const getDraggableContainerStyle = () => {
     switch(currentStage) {
       case 0: return styles.draggableRiceContainer;
-      case 1: return styles.draggableChickenContainer;
-      case 2: return styles.draggableVegiContainer;
+      case 1: return styles.draggableVegiContainer;
+      case 2: return styles.draggableChickenContainer;
+      case 3: return styles.draggableWaterContainer;
       default: return styles.draggableRiceContainer;
     }
   };
@@ -205,7 +369,25 @@ const EatingGame = () => {
       </View>
 
       {/* Child image - single source based on state */}
-      <Image source={getChildImage()} style={styles.child} />
+      {!showCelebration && (
+        <TouchableOpacity 
+          onPress={handleChildTap}
+          style={[
+            styles.childContainer,
+            // Move child closer when chewing
+            childMouth === 'chewing' ? styles.childContainerChewing : {}
+          ]}
+          activeOpacity={1} // Prevent opacity change on press
+        >
+          <Image source={getChildImage()} style={[
+            styles.child,
+            // Ensure eat3.gif has same dimensions as eat1/eat2
+            childMouth === 'chewing' ? { resizeMode: 'contain' } : {},
+            // Add eye tracking movement
+            getEyeTrackingStyle()
+          ]} />
+        </TouchableOpacity>
+      )}
 
       {/* Current plate */}
       {!allFoodEaten && (
@@ -215,7 +397,8 @@ const EatingGame = () => {
             { transform: [{ translateX: currentPlateX }] }
           ]}
         >
-          <Image source={require('./EatGame/Plate.png')} style={styles.plate} />
+          {/* Only show plate if not water stage */}
+          {currentStage !== 3 && <Image source={require('./EatGame/Plate.png')} style={styles.plate} />}
           <Animated.View
             style={[
               getDraggableContainerStyle(),
@@ -223,16 +406,31 @@ const EatingGame = () => {
                 opacity: foodOpacity,
                 transform: [
                   { translateX: foodPosition.x },
-                  { translateY: foodPosition.y }
+                  { translateY: foodPosition.y },
+                  // Add shake animation for water1
+                  ...(currentStage === 3 && !isWaterReady && isWaterShaking 
+                    ? [{ translateX: waterShakeAnim }] 
+                    : [])
                 ]
               }
             ]}
-            {...foodPanResponder.panHandlers}
+            {...(currentStage === 3 && !isWaterReady 
+              ? {} // No pan responder for water1, only tap
+              : foodPanResponder.panHandlers)}
           >
-            <Image
-              source={getCurrentFoodImage()}
-              style={getFoodStyle()}
-            />
+            {currentStage === 3 && !isWaterReady ? (
+              <TouchableOpacity onPress={handleWaterTap} style={styles.waterTouchable}>
+                <Image
+                  source={getCurrentFoodImage()}
+                  style={getFoodStyle()}
+                />
+              </TouchableOpacity>
+            ) : (
+              <Image
+                source={getCurrentFoodImage()}
+                style={getFoodStyle()}
+              />
+            )}
           </Animated.View>
         </Animated.View>
       )}
@@ -245,18 +443,34 @@ const EatingGame = () => {
             { transform: [{ translateX: nextPlateX }] }
           ]}
         >
-          <Image source={require('./EatGame/Plate.png')} style={styles.plate} />
-          <View style={getDraggableContainerStyle()}>
+          {/* Only show plate if next stage is not water */}
+          {currentStage + 1 !== 3 && <Image source={require('./EatGame/Plate.png')} style={styles.plate} />}
+          <View style={
+            currentStage === 0 ? styles.draggableVegiContainer : 
+            currentStage === 1 ? styles.draggableChickenContainer : 
+            currentStage === 2 ? styles.draggableWaterContainer : styles.draggableRiceContainer
+          }>
             <Image
               source={stages[currentStage + 1].image}
-              style={currentStage === 0 ? styles.chickenImage : styles.vegiImage}
+              style={
+                currentStage === 0 ? styles.vegiImage : 
+                currentStage === 1 ? styles.chickenImage : 
+                currentStage === 2 ? styles.waterImage : styles.riceImage
+              }
             />
           </View>
         </Animated.View>
       )}
 
+      {/* Celebration GIF */}
+      {showCelebration && (
+        <View style={styles.celebrationContainer}>
+          <Image source={require('./EatGame/Eat4.gif')} style={styles.celebrationGif} />
+        </View>
+      )}
+
       {/* Completion message */}
-      {allFoodEaten && (
+      {allFoodEaten && !showCelebration && (
         <View style={styles.completionContainer}>
           <Text style={styles.completionText}>All food eaten! Great job! 🎉</Text>
         </View>
@@ -295,21 +509,37 @@ const styles = StyleSheet.create({
     fontWeight: '700', 
     fontFamily: 'Fredoka_700Bold' 
   },
-  child: { 
+  childContainer: {
     position: 'absolute', 
     top: '32.1%', 
     left: '2%', 
     width: '100%', 
-    height: '50%', 
-    resizeMode: 'contain' 
+    height: '50%',
+    zIndex: 1, // Back to original layering
+  },
+  childContainerChewing: {
+    position: 'absolute', 
+    top: '32.1%', // Same position as normal childContainer
+    left: '2%', // Same left position
+    width: '100%', // Same width as normal
+    height: '50%', // Same height as normal childContainer
+    transform: [{ scale: 2.0 }], // Smaller scale para hindi sobrang laki
+    zIndex: 1, // Same level as normal child
+  },
+  child: { 
+    width: '100%', 
+    height: '100%', 
+    resizeMode: 'contain',
+    opacity: 1, // Always fully visible - no transitions
   },
   plateContainer: { 
     position: 'absolute',
     bottom: '-2%',
-    width: SCREEN_WIDTH,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 250
+    height: 250,
+    zIndex: 2, // Above child
   },
   plate: { 
     position: 'absolute', 
@@ -324,7 +554,7 @@ const styles = StyleSheet.create({
     height: 150, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 
+    zIndex: 20 // Above plate and child
   },
   draggableChickenContainer: { 
     position: 'absolute', 
@@ -333,7 +563,7 @@ const styles = StyleSheet.create({
     height: 150, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 
+    zIndex: 20 // Above plate and child
   },
   draggableVegiContainer: { 
     position: 'absolute', 
@@ -342,7 +572,7 @@ const styles = StyleSheet.create({
     height: 150, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 
+    zIndex: 20 // Above plate and child
   },
   riceImage: { 
     bottom: '38%', 
@@ -364,6 +594,44 @@ const styles = StyleSheet.create({
     width: 320, 
     height: 200, 
     resizeMode: 'contain' 
+  },
+  draggableWaterContainer: { 
+    position: 'absolute', 
+    bottom: '8%', // Same as other containers to align with table
+    width: 200, 
+    height: 150, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    zIndex: 20 // Above plate and child
+  },
+  waterImage: { 
+    bottom: '38%', 
+    left: '6%', 
+    width: 320, 
+    height: 200, 
+    resizeMode: 'contain' 
+  },
+  waterTouchable: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  celebrationContainer: {
+    position: 'absolute',
+    top: '34%', // Adjusted position para tulad ng image 2
+    left: '2%', // Same as childContainer position  
+    width: '100%',
+    height: '45%', // Keep the bigger height
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  celebrationGif: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+    transform: [{ scale: 2.1 }], // Slightly smaller scale para balanced
   },
   completionContainer: {
     position: 'absolute',
