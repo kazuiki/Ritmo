@@ -39,10 +39,23 @@ async function getCurrentUserId(): Promise<string> {
 }
 
 function toDateOnly(input?: Date | string): string {
-  if (!input) return new Date().toISOString().slice(0, 10);
-  if (input instanceof Date) return input.toISOString().slice(0, 10);
-  // assume already YYYY-MM-DD
-  return input.slice(0, 10);
+  let date: Date;
+  
+  if (!input) {
+    date = new Date();
+  } else if (input instanceof Date) {
+    date = input;
+  } else {
+    // assume already YYYY-MM-DD
+    return input.slice(0, 10);
+  }
+  
+  // Use local timezone instead of UTC to avoid date shift issues
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
 }
 
 export async function createRoutine(values: RoutineInsert): Promise<Routine> {
@@ -258,7 +271,8 @@ export async function getUserProgressForRange(params: {
   return (data ?? []) as RoutineProgress[];
 }
 
-export async function getRoutinesForCurrentUser(): Promise<Routine[]> {
+export async function getRoutinesForCurrentUser(params?: { includeInactive?: boolean }): Promise<Routine[]> {
+  const includeInactive = params?.includeInactive ?? false;
   const userId = await getCurrentUserId();
   const { data: links, error: linkErr } = await supabase
     .from("user_routine_progress")
@@ -269,11 +283,13 @@ export async function getRoutinesForCurrentUser(): Promise<Routine[]> {
     (v) => typeof v === "number"
   );
   if (ids.length === 0) return [];
-  const { data, error } = await supabase
+  let q = supabase
     .from("routines")
     .select("*")
     .in("id", ids)
     .order("id", { ascending: true });
+  if (!includeInactive) q = q.eq("is_active", true);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as Routine[];
 }
@@ -307,23 +323,14 @@ export async function unlinkRoutineForCurrentUser(routineId: number): Promise<nu
 // Delete a routine completely from the database (both routine and progress records)
 export async function deleteRoutine(routineId: number): Promise<void> {
   const userId = await getCurrentUserId();
-  
-  // First, delete all progress records for this routine for this user
-  const { error: progressError } = await supabase
-    .from("user_routine_progress")
-    .delete()
-    .eq("user_id", userId)
-    .eq("routine_id", routineId);
-  
-  if (progressError) throw progressError;
-  
-  // Then, delete the routine itself
-  const { error: routineError } = await supabase
+
+  // Soft delete: keep progress for history, mark routine inactive
+  const { error } = await supabase
     .from("routines")
-    .delete()
+    .update({ is_active: false })
     .eq("id", routineId);
-  
-  if (routineError) throw routineError;
+
+  if (error) throw error;
 }
 
 // Get the earliest date when the user started tracking routines
