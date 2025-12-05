@@ -152,6 +152,7 @@ class NotificationService {
         : [0, 1, 2, 3, 4, 5, 6];
 
       // Collect up to 3 upcoming matching days within next 14 days
+      // Start from today (matching Home tab logic: enable when currentTime >= scheduledTime)
       const notificationIds: string[] = [];
       const maxToSchedule = 3;
 
@@ -160,9 +161,11 @@ class NotificationService {
         triggerDate.setDate(now.getDate() + offset);
         triggerDate.setHours(hour, minute, 0, 0);
 
-        // Must be in the future and match selected weekdays
-        if (triggerDate.getTime() > now.getTime() && selectedDays.includes(triggerDate.getDay())) {
-          const secondsUntilTrigger = Math.floor((triggerDate.getTime() - now.getTime()) / 1000);
+        // Match selected weekdays; include today if time hasn't passed, always include future days
+        const isMatchingDay = selectedDays.includes(triggerDate.getDay());
+        const isFutureOrNow = offset > 0 || triggerDate.getTime() >= now.getTime();
+        if (isMatchingDay && isFutureOrNow) {
+          const secondsUntilTrigger = Math.max(1, Math.floor((triggerDate.getTime() - now.getTime()) / 1000));
 
           const notificationId = await Notifications.scheduleNotificationAsync({
             content: {

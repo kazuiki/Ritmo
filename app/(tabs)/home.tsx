@@ -77,6 +77,17 @@ export default function Home() {
   const [showRainingStars, setShowRainingStars] = useState(false);
   const [successSound, setSuccessSound] = useState<Audio.Sound | null>(null);
   const [allDoneSound, setAllDoneSound] = useState<Audio.Sound | null>(null);
+  const successAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Background audio refs for specific playbook presets
+  const sleepBGSoundRef = useRef<Audio.Sound | null>(null);
+  const dressBGSoundRef = useRef<Audio.Sound | null>(null);
+  const bgAudioPlayedRef = useRef(false); // Track if BG audio has played in current session
+  // Track minigame completion
+  const minigameStartedRef = useRef(false); // Set to true when launching a minigame
+  // Success modal fade-in animation
+  const successModalFadeAnim = useRef(new Animated.Value(0)).current;
+  // Loading state to prevent content flash during minigame return check
+  const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
   const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
@@ -231,10 +242,52 @@ export default function Home() {
 
   useFocusEffect(
     React.useCallback(() => {
+      // Set loading state immediately to hide content while checking
+      setIsCheckingCompletion(true);
+      
+      // Immediately check if we returned from a finished minigame so we can show Success first
+      AsyncStorage.getItem('@minigameCompleted').then(completed => {
+        if (completed === 'true') {
+          minigameStartedRef.current = false;
+
+          // Close any modal stacks and surface the Success modal right away
+          setTaskModalVisible(false);
+          setPlaybookModalVisible(false);
+          setSuccessModalVisible(true);
+          setShowRainingStars(true);
+
+          // Clear the flag for next time
+          AsyncStorage.removeItem('@minigameCompleted');
+
+          // Detect replay mode if we still know the active routine
+          if (activeRoutineId) {
+            setRoutines(prevRoutines => {
+              const routine = prevRoutines.find(r => r.id === activeRoutineId);
+              if (routine?.completed) {
+                setIsReplayMode(true);
+              }
+              return prevRoutines;
+            });
+          }
+        } else {
+          // User clicked back early - just reset the flag
+          minigameStartedRef.current = false;
+        }
+        
+        // Clear loading state after check completes
+        setIsCheckingCompletion(false);
+      }).catch(error => {
+        console.error('Error checking minigame completion:', error);
+        minigameStartedRef.current = false;
+        setIsCheckingCompletion(false);
+      });
+
+      // Reload routines after handling completion so UI already shows Success if needed
       loadRoutines({ useCache: false });
+
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
-    }, [])
+    }, [activeRoutineId])
   );
 
   const toggleComplete = async (id: number) => {
@@ -423,7 +476,15 @@ export default function Home() {
           const status = await sound.getStatusAsync();
           if (status.isLoaded && status.durationMillis) {
             console.log('🎵 Scheduling GoodJob.mp3 to play after', status.durationMillis, 'ms');
-            setTimeout(async () => {
+
+            if (successAudioTimeoutRef.current) {
+              clearTimeout(successAudioTimeoutRef.current);
+            }
+
+            successAudioTimeoutRef.current = setTimeout(async () => {
+              // If modal closed before timeout, do nothing
+              if (!successModalVisible) return;
+
               try {
                 console.log('🎵 Playing GoodJob.mp3 audio...');
                 const { sound: goodJobSound } = await Audio.Sound.createAsync(
@@ -443,6 +504,10 @@ export default function Home() {
         }
       } else {
         // Stop and unload sound when modal closes
+        if (successAudioTimeoutRef.current) {
+          clearTimeout(successAudioTimeoutRef.current);
+          successAudioTimeoutRef.current = null;
+        }
         if (successSound) {
           try {
             await successSound.stopAsync();
@@ -456,6 +521,12 @@ export default function Home() {
     };
 
     playSuccessAudio();
+    return () => {
+      if (successAudioTimeoutRef.current) {
+        clearTimeout(successAudioTimeoutRef.current);
+        successAudioTimeoutRef.current = null;
+      }
+    };
   }, [successModalVisible]);
 
   // Play all done audio when message appears
@@ -541,8 +612,113 @@ export default function Home() {
   useEffect(() => {
     if (successModalVisible) {
       setShowRainingStars(true);
+      // Animate success modal fade-in for smooth appearance
+      successModalFadeAnim.setValue(0);
+      Animated.timing(successModalFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Reset animation when modal closes
+      successModalFadeAnim.setValue(0);
     }
-  }, [successModalVisible]);
+  }, [successModalVisible, successModalFadeAnim]);
+
+  // Preload background audio for playbook presets on mount
+  useEffect(() => {
+    const preloadBackgroundAudio = async () => {
+      try {
+        // Set audio mode
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+          staysActiveInBackground: false,
+        });
+
+        // Preload SleepBG.mp3 for "Go to Sleep" (preset 7)
+        const { sound: sleepBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/SleepBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        sleepBGSoundRef.current = sleepBGSound;
+
+        // Preload DressBG.mp3 for "Dress Up Time" (preset 4)
+        const { sound: dressBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/DressBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        dressBGSoundRef.current = dressBGSound;
+
+        console.log('Background audio preloaded successfully');
+      } catch (error) {
+        console.error('Failed to preload background audio:', error);
+      }
+    };
+
+    preloadBackgroundAudio();
+
+    // Cleanup on unmount
+    return () => {
+      if (sleepBGSoundRef.current) {
+        sleepBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (dressBGSoundRef.current) {
+        dressBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+    };
+  }, []);
+
+  // Play/stop background audio when playbook modal opens/closes
+  useEffect(() => {
+    const handleBackgroundAudio = async () => {
+      if (playbookModalVisible && activePreset) {
+        // Only play once per session
+        if (bgAudioPlayedRef.current) return;
+
+        try {
+          // Check if this preset has background audio
+          if (activePreset.id === 7 && sleepBGSoundRef.current) {
+            // "Go to Sleep" - play SleepBG.mp3
+            await sleepBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing SleepBG.mp3 background audio');
+          } else if (activePreset.id === 4 && dressBGSoundRef.current) {
+            // "Dress Up Time" - play DressBG.mp3
+            await dressBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing DressBG.mp3 background audio');
+          }
+        } catch (error) {
+          console.error('Failed to play background audio:', error);
+        }
+      } else {
+        // Stop background audio when modal closes
+        try {
+          if (sleepBGSoundRef.current) {
+            const status = await sleepBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await sleepBGSoundRef.current.stopAsync();
+              console.log('Stopped SleepBG.mp3');
+            }
+          }
+          if (dressBGSoundRef.current) {
+            const status = await dressBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await dressBGSoundRef.current.stopAsync();
+              console.log('Stopped DressBG.mp3');
+            }
+          }
+          // Reset flag when modal closes
+          bgAudioPlayedRef.current = false;
+        } catch (error) {
+          console.error('Failed to stop background audio:', error);
+        }
+      }
+    };
+
+    handleBackgroundAudio();
+  }, [playbookModalVisible, activePreset]);
 
   // Helper function to parse time strings (e.g., "8:00 AM", "3:00 PM")
   const parseTime = (timeStr: string) => {
@@ -580,6 +756,19 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Loading overlay to prevent flash when checking minigame completion */}
+      {isCheckingCompletion && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#C8E6E2',
+          zIndex: 9999,
+        }} />
+      )}
+      
       {/* Background Image */}
       <Image
         source={require("../../assets/background.png")}
@@ -872,6 +1061,7 @@ export default function Home() {
                 return;
               }
             
+              minigameStartedRef.current = true;
               router.push(path as any);
             }}
           >
@@ -1159,7 +1349,7 @@ export default function Home() {
           setIsReplayMode(false);
         }}
       >
-        <View style={styles.successScreen}>
+        <Animated.View style={[styles.successScreen, { opacity: successModalFadeAnim }]}>
           {/* Background Image */}
           <Image
             source={require("../../assets/Success.png")}
@@ -1222,7 +1412,7 @@ export default function Home() {
               <Text style={styles.successNextButtonText}>Next</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </Modal>
 
       {/* Alert Modal - No Minigame */}
