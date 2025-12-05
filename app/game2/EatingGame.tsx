@@ -469,11 +469,11 @@ const styles = StyleSheet.create({
   },
   childContainerChewing: {
     position: 'absolute', 
-    top: '45%', // Even lower position para just above orange table
+    top: '32.1%', // Same position as normal childContainer
     left: '2%', // Same left position
     width: '100%', // Same width as normal
-    height: '35%', // Smaller height para controlled
-    transform: [{ scale: 1.6 }], // Much smaller scale para hindi lumagpas
+    height: '50%', // Same height as normal childContainer
+    transform: [{ scale: 2.0 }], // Smaller scale para hindi sobrang laki
     zIndex: 1, // Same level as normal child
   },
   child: { 
