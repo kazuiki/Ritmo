@@ -321,21 +321,23 @@ const EatingGame = () => {
       </View>
 
       {/* Child image - single source based on state */}
-      <TouchableOpacity 
-        onPress={handleChildTap}
-        style={[
-          styles.childContainer,
-          // Move child closer when chewing
-          childMouth === 'chewing' ? styles.childContainerChewing : {}
-        ]}
-        activeOpacity={1} // Prevent opacity change on press
-      >
-        <Image source={getChildImage()} style={[
-          styles.child,
-          // Ensure eat3.gif has same dimensions as eat1/eat2
-          childMouth === 'chewing' ? { resizeMode: 'contain' } : {}
-        ]} />
-      </TouchableOpacity>
+      {!showCelebration && (
+        <TouchableOpacity 
+          onPress={handleChildTap}
+          style={[
+            styles.childContainer,
+            // Move child closer when chewing
+            childMouth === 'chewing' ? styles.childContainerChewing : {}
+          ]}
+          activeOpacity={1} // Prevent opacity change on press
+        >
+          <Image source={getChildImage()} style={[
+            styles.child,
+            // Ensure eat3.gif has same dimensions as eat1/eat2
+            childMouth === 'chewing' ? { resizeMode: 'contain' } : {}
+          ]} />
+        </TouchableOpacity>
+      )}
 
       {/* Current plate */}
       {!allFoodEaten && (
@@ -345,7 +347,8 @@ const EatingGame = () => {
             { transform: [{ translateX: currentPlateX }] }
           ]}
         >
-          <Image source={require('./EatGame/Plate.png')} style={styles.plate} />
+          {/* Only show plate if not water stage */}
+          {currentStage !== 3 && <Image source={require('./EatGame/Plate.png')} style={styles.plate} />}
           <Animated.View
             style={[
               getDraggableContainerStyle(),
@@ -390,7 +393,8 @@ const EatingGame = () => {
             { transform: [{ translateX: nextPlateX }] }
           ]}
         >
-          <Image source={require('./EatGame/Plate.png')} style={styles.plate} />
+          {/* Only show plate if next stage is not water */}
+          {currentStage + 1 !== 3 && <Image source={require('./EatGame/Plate.png')} style={styles.plate} />}
           <View style={
             currentStage === 0 ? styles.draggableVegiContainer : 
             currentStage === 1 ? styles.draggableChickenContainer : 
@@ -465,11 +469,11 @@ const styles = StyleSheet.create({
   },
   childContainerChewing: {
     position: 'absolute', 
-    top: '35%', // Move up so it doesn't overlap the table
+    top: '45%', // Even lower position para just above orange table
     left: '2%', // Same left position
     width: '100%', // Same width as normal
-    height: '50%', // Same height as normal
-    transform: [{ scale: 2.2 }], // Much bigger scale to match eat1/eat2 size
+    height: '35%', // Smaller height para controlled
+    transform: [{ scale: 1.6 }], // Much smaller scale para hindi lumagpas
     zIndex: 1, // Same level as normal child
   },
   child: { 
@@ -543,7 +547,7 @@ const styles = StyleSheet.create({
   },
   draggableWaterContainer: { 
     position: 'absolute', 
-    bottom: '8%', 
+    bottom: '8%', // Same as other containers to align with table
     width: 200, 
     height: 150, 
     alignItems: 'center', 
@@ -565,10 +569,10 @@ const styles = StyleSheet.create({
   },
   celebrationContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: '35%', // Same as childContainerChewing position
+    left: '2%', // Same as childContainer position  
+    width: '100%',
+    height: '40%', // Smaller height para hindi umabot sa orange
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,
@@ -577,6 +581,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'contain',
+    transform: [{ scale: 2.0 }], // Slightly smaller scale
   },
   completionContainer: {
     position: 'absolute',
