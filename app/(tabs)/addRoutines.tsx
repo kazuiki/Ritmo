@@ -34,6 +34,8 @@ interface Routine {
     days?: number[]; // 0=Sun..6=Sat
 }
 
+const ITEM_HEIGHT = 48;
+
 export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
@@ -173,8 +175,6 @@ export default function addRoutines() {
         setPin(['', '', '', '']);
         router.replace("/(tabs)/home");
     };
-
-    const ITEM_HEIGHT = 48; 
 
     const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
         ref.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
@@ -580,7 +580,7 @@ export default function addRoutines() {
                                         showsVerticalScrollIndicator={false}
                                         snapToInterval={48}
                                         decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: 48 }}
+                                        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT, alignItems: "center" }}
                                         nestedScrollEnabled
                                         onScrollBeginDrag={() => setFormScrollEnabled(false)}
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
@@ -630,7 +630,7 @@ export default function addRoutines() {
                                         showsVerticalScrollIndicator={false}
                                         snapToInterval={48}
                                         decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: 48 }}
+                                        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT, alignItems: "center" }}
                                         nestedScrollEnabled
                                         onScrollBeginDrag={() => setFormScrollEnabled(false)}
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
@@ -680,7 +680,7 @@ export default function addRoutines() {
                                         showsVerticalScrollIndicator={false}
                                         snapToInterval={48}
                                         decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: 48 }}
+                                        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT, alignItems: "center" }}
                                         nestedScrollEnabled
                                         onScrollBeginDrag={() => setFormScrollEnabled(false)}
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
@@ -744,8 +744,8 @@ export default function addRoutines() {
                                         );
                                     })}
                                 </View>
-                                {/* Choose Routine Preset - white bordered selector with chevron (same for Add/Edit) */}
-                                <TouchableOpacity style={[styles.ringtoneSelector, { backgroundColor: '#FFFFFF', marginBottom: 16 }]} onPress={openPresetModal}>
+                                {/* Choose Routine Preset - white bordered selector with chevron (disabled when editing) */}
+                                <TouchableOpacity style={[styles.ringtoneSelector, { backgroundColor: editingRoutineId ? '#F5F5F5' : '#FFFFFF', marginBottom: 16 }]} onPress={openPresetModal} disabled={!!editingRoutineId}>
                                     <Text style={styles.ringtoneText}>Choose Routine Preset</Text>
                                     <Text style={styles.chevron}>›</Text>
                                 </TouchableOpacity>
@@ -1280,8 +1280,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontWeight: "600",
         color: "#244D4A",
         textAlign: "center",
-        height: scale.scaleHeight(48),
-        lineHeight: scale.scaleHeight(48),
+        height: ITEM_HEIGHT,
+        lineHeight: ITEM_HEIGHT,
     },
     selectedTime: {
         color: "#06C08A",
@@ -1289,10 +1289,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     },
     selectionIndicator: {
         position: "absolute",
-        top: scale.scaleSpacing(64),
+        top: scale.scaleSpacing(20) + (scale.scaleHeight(150) - ITEM_HEIGHT) / 2,
         left: scale.scaleSpacing(20),
         right: scale.scaleSpacing(20),
-        height: scale.scaleHeight(48),
+        height: ITEM_HEIGHT,
         justifyContent: "space-between",
         pointerEvents: "none",
     },
