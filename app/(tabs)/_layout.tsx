@@ -15,46 +15,42 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const isAndroid = Platform.OS === "android";
 
-  // Use responsive dimensions that update automatically
   const responsive = useResponsiveDimensions();
   const { width: screenWidth, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
 
-  // Dynamic responsive sizes
-  const tabItemSize = scaleWidth(50); // Responsive tab item size
-  const floatingButtonSize = scaleWidth(70); // Responsive floating button
-  const floatingIconSize = scaleWidth(38); // Responsive floating icon
+  const tabItemSize = scaleWidth(50); 
+  const floatingButtonSize = scaleWidth(70); 
+  const floatingIconSize = scaleWidth(38); 
   const tabBarHeight = scaleHeight(70) + (isAndroid ? insets.bottom : 0);
   const svgHeight = scaleHeight(140);
   
-  // Device-responsive floating button position
   const getFloatingButtonTop = () => {
-    if (screenWidth >= 768) { // Tablet size
-      return scaleHeight(-80); // Higher position for tablets to clear curve
+    const bottomInset = isAndroid ? insets.bottom * 0.-5 : 0;
+    
+    if (screenWidth >= 768) {
+      return scaleHeight(-75) + bottomInset; 
     }
-    return scaleHeight(-40); // Original mobile position - perfect for mobile
+    return scaleHeight(-35) + bottomInset; 
   };
   
-  // Calculate dynamic SVG path based on screen width with enhanced curves
   const getCurveParameters = () => {
     const isTablet = screenWidth >= 768;
     
     if (isTablet) {
-      // More pronounced curves for tablets
       return {
         curveRadius: screenWidth * 0.22,
         curveSmallRadius: screenWidth * 0.16,
         curveOffset: screenWidth * 0.14,
         curvePeak: screenWidth * 0.09,
-        curveDepth: scaleHeight(55) // Deeper curve for tablets
+        curveDepth: scaleHeight(60) 
       };
     } else {
-      // Enhanced curves for mobile
       return {
         curveRadius: screenWidth * 0.20,
         curveSmallRadius: screenWidth * 0.15,
         curveOffset: screenWidth * 0.13,
         curvePeak: screenWidth * 0.08,
-        curveDepth: scaleHeight(43) // Standard depth for mobile
+        curveDepth: scaleHeight(50) 
       };
     }
   };

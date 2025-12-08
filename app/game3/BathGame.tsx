@@ -43,11 +43,13 @@ export default function BathGame() {
   const towelY = useRef(new Animated.Value(0)).current;
 
   const [dirtOpacities, setDirtOpacities] = useState([1, 1, 1, 1, 1, 1]);
+  const [waterOpacities, setWaterOpacities] = useState([0, 0, 0, 0, 0, 0]);
   const [latherOpacities, setLatherOpacities] = useState([0, 0, 0, 0, 0, 0]);
   const [washOpacities, setWashOpacities] = useState([0, 0, 0, 0, 0, 0]);
 
   // Animated values for smooth transitions
   const dirtAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(1))).current;
+  const waterAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
   const latherAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
   const washAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
 
@@ -114,6 +116,7 @@ export default function BathGame() {
 
   // Track which dirt areas have been cleaned by which tool to prevent repeated animations
   const cleaningStateRef = useRef({
+    showerWetted: [false, false, false, false, false, false],
     soapCleaned: [false, false, false, false, false, false],
     showerRinsed: [false, false, false, false, false, false],
     towelDried: [false, false, false, false, false, false],
@@ -257,8 +260,11 @@ export default function BathGame() {
       s.setPositionAsync(0).then(() => s.playAsync().catch(() => {})).catch(() => {});
     };
 
-    // First, do a full scan to check if all dirts have been cleaned (for shower pulsing)
-    const allDirtsCleaned = state.soapCleaned.every(cleaned => cleaned === true);
+    // Check if all areas have been showered (wetted)
+    const allAreasWetted = state.showerWetted.every(wetted => wetted === true);
+    
+    // Check if all areas have been soaped (cleaned with lather)
+    const allAreasSoaped = state.soapCleaned.every(cleaned => cleaned === true);
     
     // Check if all lathers have been rinsed (for towel pulsing)
     const allLathersRinsed = state.soapCleaned.every((cleaned, i) => {
@@ -271,51 +277,33 @@ export default function BathGame() {
       if (checkCollision(toolX, toolY, i)) {
         hasAnyCollision = true;
         
-        // Determine which tool should be used based on the current state of this dirt area
-        const hasDirt = !state.soapCleaned[i];
+        // Determine the current state of this dirt area
+        const hasNotBeenWetted = !state.showerWetted[i];
+        const hasDirtAndWater = state.showerWetted[i] && !state.soapCleaned[i];
         const hasLather = state.soapCleaned[i] && !state.showerRinsed[i];
         const hasWash = state.showerRinsed[i] && !state.towelDried[i];
 
         // Determine correct tool for current state
         let correctTool = '';
-        if (hasDirt) {
+        if (hasNotBeenWetted) {
+          // First step: must shower to wet the child
+          correctTool = 'shower';
+        } else if (hasDirtAndWater) {
+          // Second step: apply soap to dirt+water to create lather
           correctTool = 'soap';
         } else if (hasLather) {
+          // Third step: shower to rinse lather into wash
           correctTool = 'shower';
         } else if (hasWash) {
+          // Fourth step: towel to dry
           correctTool = 'towel';
         }
 
         // Check if wrong tool is being used
         if (correctTool && toolType !== correctTool) {
-          // Determine which tool should pulse based on what's available
-          
-          // If on dirts (hasDirt=true): soap is always correct
-          if (hasDirt) {
-            shouldPulseTool = true;
-            toolToPulse = 'soap';
-            break;
-          }
-          
-          // If on lathers (hasLather=true): shower is correct
-          // But only pulse shower if ALL dirts are already cleaned
-          if (hasLather) {
-            if (allDirtsCleaned) {
-              shouldPulseTool = true;
-              toolToPulse = 'shower';
-              break;
-            }
-          }
-          
-          // If on washes (hasWash=true): towel is correct
-          // But only pulse towel if ALL lathers are already rinsed
-          if (hasWash) {
-            if (allLathersRinsed) {
-              shouldPulseTool = true;
-              toolToPulse = 'towel';
-              break;
-            }
-          }
+          shouldPulseTool = true;
+          toolToPulse = correctTool;
+          break;
         }
 
         // Only do cleaning animation if this is the correct tool and not already animated
@@ -327,14 +315,34 @@ export default function BathGame() {
         // Mark animation as active
         activeAnimationsRef.current[collisionId] = true;
 
-        // Soap cleans dirts and reveals lathers
-        if (toolType === 'soap' && !state.soapCleaned[i] && hasDirt) {
+        // Shower wets the child (first step) - creates water, doesn't affect dirt
+        if (toolType === 'shower' && !state.showerWetted[i] && hasNotBeenWetted) {
+          playOneShot(showerSoundRef);
+          state.showerWetted[i] = true;
+          
+          // Animate water opacity up (water appears, dirts stay)
+          Animated.timing(waterAnimations[i], {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: false,
+          }).start(() => {
+            delete activeAnimationsRef.current[collisionId];
+          });
+        }
+
+        // Soap cleans dirts+water and creates lathers
+        if (toolType === 'soap' && !state.soapCleaned[i] && hasDirtAndWater) {
           playOneShot(soapSoundRef);
           state.soapCleaned[i] = true;
           
-          // Animate dirt opacity down and lather opacity up
+          // Animate dirt+water opacity down and lather opacity up
           Animated.parallel([
             Animated.timing(dirtAnimations[i], {
+              toValue: 0,
+              duration: 2000,
+              useNativeDriver: false,
+            }),
+            Animated.timing(waterAnimations[i], {
               toValue: 0,
               duration: 2000,
               useNativeDriver: false,
@@ -345,12 +353,11 @@ export default function BathGame() {
               useNativeDriver: false,
             })
           ]).start(() => {
-            // Remove animation flag when done
             delete activeAnimationsRef.current[collisionId];
           });
         }
 
-        // Shower rinses lathers and reveals wash
+        // Shower rinses lathers and reveals wash (second shower use)
         if (toolType === 'shower' && !state.showerRinsed[i] && state.soapCleaned[i] && hasLather) {
           playOneShot(showerSoundRef);
           state.showerRinsed[i] = true;
@@ -368,7 +375,6 @@ export default function BathGame() {
               useNativeDriver: false,
             })
           ]).start(() => {
-            // Remove animation flag when done
             delete activeAnimationsRef.current[collisionId];
           });
         }
@@ -420,7 +426,6 @@ export default function BathGame() {
             duration: 200,
             useNativeDriver: false,
           }).start(() => {
-            // Remove animation flag when done
             delete activeAnimationsRef.current[collisionId];
           });
         }
@@ -433,7 +438,6 @@ export default function BathGame() {
         pulseTool(toolToPulse);
       }
     } else if (isPulsingRef.current) {
-      // Stop pulsing if no collision with wrong tool
       stopPulse();
     }
   };
@@ -672,41 +676,65 @@ export default function BathGame() {
           resizeMode="contain" 
         />
         {/* Dirt overlays with Lather and Wash layers on top */}
-        {/* Dirt 1 with Lather1 and Wash1 */}
+        {/* Dirt 1 with Water1, Lather1 and Wash1 */}
         <View style={[styles.dirtContainer, { left: '38%', top: '38%' }]}>
           <Animated.Image source={require('./BathGame/Dirt1.png')} style={[styles.dirt, { opacity: dirtAnimations[0] }]} />
           <Animated.Image source={require('./BathGame/Lather1.png')} style={[styles.dirt, { opacity: latherAnimations[0] }]} />
           <Animated.Image source={require('./BathGame/Wash1.png')} style={[styles.dirt, { opacity: washAnimations[0] }]} />
         </View>
-        {/* Dirt 2 with Lather2 and Wash2 */}
+        {/* Water 1 - positioned near dirt but offset */}
+        <View style={[styles.dirtContainer, { left: '41%', top: '34%' }]}>
+          <Animated.Image source={require('./BathGame/Water1.png')} style={[styles.dirt, { opacity: waterAnimations[0] }]} />
+        </View>
+        {/* Dirt 2 with Water2, Lather2 and Wash2 */}
         <View style={[styles.dirtContainer, { left: '50%', top: '42%' }]}>
           <Animated.Image source={require('./BathGame/Dirt2.png')} style={[styles.dirt, { opacity: dirtAnimations[1] }]} />
           <Animated.Image source={require('./BathGame/Lather2.png')} style={[styles.dirt, { opacity: latherAnimations[1] }]} />
           <Animated.Image source={require('./BathGame/Wash2.png')} style={[styles.dirt, { opacity: washAnimations[1] }]} />
         </View>
-        {/* Dirt 3 with Lather3 and Wash3 */}
+        {/* Water 2 - positioned near dirt but offset */}
+        <View style={[styles.dirtContainer, { left: '53%', top: '38%' }]}>
+          <Animated.Image source={require('./BathGame/Water2.png')} style={[styles.dirt, { opacity: waterAnimations[1] }]} />
+        </View>
+        {/* Dirt 3 with Water3, Lather3 and Wash3 */}
         <View style={[styles.dirtContainer, { left: '42%', top: '48%' }]}>
           <Animated.Image source={require('./BathGame/Dirt3.png')} style={[styles.dirt, { opacity: dirtAnimations[2] }]} />
           <Animated.Image source={require('./BathGame/Lather3.png')} style={[styles.dirt, { opacity: latherAnimations[2] }]} />
           <Animated.Image source={require('./BathGame/Wash3.png')} style={[styles.dirt, { opacity: washAnimations[2] }]} />
         </View>
-        {/* Dirt 4 with Lather4 and Wash4 */}
+        {/* Water 3 - positioned near dirt but offset */}
+        <View style={[styles.dirtContainer, { left: '45%', top: '44%' }]}>
+          <Animated.Image source={require('./BathGame/Water3.png')} style={[styles.dirt, { opacity: waterAnimations[2] }]} />
+        </View>
+        {/* Dirt 4 with Water4, Lather4 and Wash4 */}
         <View style={[styles.dirtContainer, { left: '48%', top: '52%' }]}>
           <Animated.Image source={require('./BathGame/Dirt4.png')} style={[styles.dirt, { opacity: dirtAnimations[3] }]} />
           <Animated.Image source={require('./BathGame/Lather4.png')} style={[styles.dirt, { opacity: latherAnimations[3] }]} />
           <Animated.Image source={require('./BathGame/Wash4.png')} style={[styles.dirt, { opacity: washAnimations[3] }]} />
         </View>
-        {/* Dirt 5 with Lather5 and Wash5 */}
+        {/* Water 4 - positioned near dirt but offset */}
+        <View style={[styles.dirtContainer, { left: '51%', top: '48%' }]}>
+          <Animated.Image source={require('./BathGame/Water4.png')} style={[styles.dirt, { opacity: waterAnimations[3] }]} />
+        </View>
+        {/* Dirt 5 with Water5, Lather5 and Wash5 */}
         <View style={[styles.dirtContainer, { left: '38%', top: '60%' }]}>
           <Animated.Image source={require('./BathGame/Dirt5.png')} style={[styles.dirt, { opacity: dirtAnimations[4] }]} />
           <Animated.Image source={require('./BathGame/Lather5.png')} style={[styles.dirt, { opacity: latherAnimations[4] }]} />
           <Animated.Image source={require('./BathGame/Wash5.png')} style={[styles.dirt, { opacity: washAnimations[4] }]} />
         </View>
-        {/* Dirt 6 with Lather6 and Wash6 */}
+        {/* Water 5 - positioned near dirt but offset */}
+        <View style={[styles.dirtContainer, { left: '41%', top: '56%' }]}>
+          <Animated.Image source={require('./BathGame/Water5.png')} style={[styles.dirt, { opacity: waterAnimations[4] }]} />
+        </View>
+        {/* Dirt 6 with Water6, Lather6 and Wash6 */}
         <View style={[styles.dirtContainer, { left: '52%', top: '64%' }]}>
           <Animated.Image source={require('./BathGame/Dirt6.png')} style={[styles.dirt, { opacity: dirtAnimations[5] }]} />
           <Animated.Image source={require('./BathGame/Lather6.png')} style={[styles.dirt, { opacity: latherAnimations[5] }]} />
           <Animated.Image source={require('./BathGame/Wash6.png')} style={[styles.dirt, { opacity: washAnimations[5] }]} />
+        </View>
+        {/* Water 6 - positioned near dirt but offset */}
+        <View style={[styles.dirtContainer, { left: '55%', top: '60%' }]}>
+          <Animated.Image source={require('./BathGame/Water6.png')} style={[styles.dirt, { opacity: waterAnimations[5] }]} />
         </View>
       </View>
 
