@@ -78,6 +78,7 @@ export default function Home() {
   const [successSound, setSuccessSound] = useState<Audio.Sound | null>(null);
   const [allDoneSound, setAllDoneSound] = useState<Audio.Sound | null>(null);
   const successAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const goodJobSoundRef = useRef<Audio.Sound | null>(null); // Track GoodJob.mp3 separately for cleanup
   // Background audio refs for specific playbook presets
   const sleepBGSoundRef = useRef<Audio.Sound | null>(null);
   const dressBGSoundRef = useRef<Audio.Sound | null>(null);
@@ -464,69 +465,73 @@ export default function Home() {
             staysActiveInBackground: false,
           });
           
-          const { sound } = await Audio.Sound.createAsync(
-            require("../../assets/ringtone/Stars.mp3"),
-            { shouldPlay: true, volume: 1.0 }
-          );
-          setSuccessSound(sound);
-          
-          console.log('🎵 Stars.mp3 started playing');
-          
-          // Play GoodJob.mp3 immediately after Stars.mp3 finishes (no delay)
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded && status.durationMillis) {
-            console.log('🎵 Scheduling GoodJob.mp3 to play after', status.durationMillis, 'ms');
-
-            if (successAudioTimeoutRef.current) {
-              clearTimeout(successAudioTimeoutRef.current);
-            }
-
-            successAudioTimeoutRef.current = setTimeout(async () => {
-              // If modal closed before timeout, do nothing
-              if (!successModalVisible) return;
-
-              try {
-                console.log('🎵 Playing GoodJob.mp3 audio...');
-                const { sound: goodJobSound } = await Audio.Sound.createAsync(
-                  require("../../assets/ringtone/GoodJob.mp3"),
-                  { shouldPlay: true, volume: 1.0 }
-                );
-                await sound.unloadAsync();
-                setSuccessSound(goodJobSound);
-                console.log('🎵 GoodJob.mp3 started playing');
-              } catch (error) {
-                console.error("Failed to play GoodJob audio:", error);
+          try {
+            const { sound } = await Audio.Sound.createAsync(
+              require("../../assets/ringtone/Stars.mp3"),
+              { shouldPlay: true, volume: 1.0 }
+            );
+            setSuccessSound(sound);
+            
+            console.log('🎵 Stars.mp3 started playing');
+            
+            // Use playback status callback for zero-gap transition to GoodJob.mp3
+            let goodJobScheduled = false;
+            sound.setOnPlaybackStatusUpdate((status) => {
+              // Only trigger once when Stars.mp3 finishes
+              if (status.isLoaded && status.didJustFinish && !goodJobScheduled) {
+                goodJobScheduled = true;
+                console.log('🎵 Stars.mp3 finished, playing GoodJob.mp3 immediately...');
+                
+                // Play GoodJob.mp3 with zero delay
+                (async () => {
+                  try {
+                    const { sound: goodJobSound } = await Audio.Sound.createAsync(
+                      require("../../assets/ringtone/GoodJob.mp3"),
+                      { shouldPlay: true, volume: 1.0 }
+                    );
+                    await sound.unloadAsync();
+                    goodJobSoundRef.current = goodJobSound;
+                    setSuccessSound(goodJobSound);
+                    console.log('🎵 GoodJob.mp3 started playing immediately');
+                  } catch (error) {
+                    console.warn("Failed to play GoodJob audio (non-critical):", error);
+                  }
+                })();
               }
-            }, status.durationMillis);
+            });
+          } catch (starError) {
+            console.warn("Stars.mp3 not available (non-critical):", starError);
+            // Continue without audio - Success modal still shows
           }
         } catch (error) {
-          console.error("Failed to play success audio:", error);
+          console.warn("Failed to play success audio (non-critical, app continues):", error);
+          // Audio won't play but Success modal still appears - app doesn't crash
         }
       } else {
         // Stop and unload sound when modal closes
-        if (successAudioTimeoutRef.current) {
-          clearTimeout(successAudioTimeoutRef.current);
-          successAudioTimeoutRef.current = null;
-        }
         if (successSound) {
           try {
             await successSound.stopAsync();
             await successSound.unloadAsync();
           } catch (error) {
-            console.error("Failed to stop success audio:", error);
+            console.warn("Failed to stop success audio:", error);
           }
           setSuccessSound(null);
+        }
+        // Also stop GoodJob.mp3 if still playing
+        if (goodJobSoundRef.current) {
+          try {
+            await goodJobSoundRef.current.stopAsync();
+            await goodJobSoundRef.current.unloadAsync();
+          } catch (error) {
+            console.warn("Failed to stop GoodJob audio:", error);
+          }
+          goodJobSoundRef.current = null;
         }
       }
     };
 
     playSuccessAudio();
-    return () => {
-      if (successAudioTimeoutRef.current) {
-        clearTimeout(successAudioTimeoutRef.current);
-        successAudioTimeoutRef.current = null;
-      }
-    };
   }, [successModalVisible]);
 
   // Play all done audio when message appears
@@ -1097,15 +1102,8 @@ export default function Home() {
                     }),
                   ]).start(() => {
                     setTaskModalVisible(false);
-                    if (isReplayMode) {
-                      // Show Good Job without affecting progress
-                      setSuccessModalVisible(true);
-                    } else {
-                      // Show Good Job for normal completion
-                      setSuccessModalVisible(true);
-                    }
                     setActiveRoutineId(null);
-                    // Keep isReplayMode until Success modal Next/back clears it
+                    setIsReplayMode(false);
                   });
                 }} 
                 activeOpacity={0.9}
