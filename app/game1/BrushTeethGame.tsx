@@ -1,7 +1,7 @@
 import { Asset } from 'expo-asset';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 const BrushTeethGame = () => {
@@ -15,16 +15,19 @@ const BrushTeethGame = () => {
     const [showCup, setShowCup] = useState(false);
     const [showTartars, setShowTartars] = useState(false);
     
+    
     // Cleaning state for all 24 tartars
     const [tartarsCleaning, setTartarsCleaning] = useState<boolean[]>(new Array(24).fill(false));
     const [tartarsCleaned, setTartarsCleaned] = useState<boolean[]>(new Array(24).fill(false));
-    
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
     const brushes = [
         require('./BrushGame/Brush1.png'), 
         require('./BrushGame/Brush2.png'), 
         require('./BrushGame/Brush3.png'), 
         require('./BrushGame/Brush4.png')
     ];
+    const scaleX = SCREEN_WIDTH / 375;      // your UI width base
+    const scaleY = SCREEN_HEIGHT / 812;     // your UI height base
 
     const router = useRouter();
     
@@ -247,9 +250,9 @@ const BrushTeethGame = () => {
                 
                 // Calculate brush paste position (where the paste is on the draggable brush)
                 const brushPasteX = newX + 56 + 35; // 56 offset + half paste width (~70/2)
-                const brushPasteY = newY + 32; // top offset + half paste height (~65/2)
+                const brushPasteY = newY + 350; // top offset + half paste height (~65/2)
                 
-                const collisionRadius = 40; // Adjust for sensitivity
+                const collisionRadius = 10; // Adjust for sensitivity
                 
                 // Check collision with all tartars
                 tartars.forEach((tartar, index) => {
