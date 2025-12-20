@@ -224,7 +224,11 @@ export default function InstructionPage() {
         animationType="fade"
         onRequestClose={() => setVideoModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <ImageBackground
+          source={require("../assets/background.png")}
+          style={styles.modalOverlay}
+          resizeMode="cover"
+        >
           <View style={styles.modalContainer}>
             <Text style={styles.modalText}>Video Coming Soon</Text>
             <TouchableOpacity
@@ -234,7 +238,7 @@ export default function InstructionPage() {
               <Text style={styles.modalCloseText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ImageBackground>
       </Modal>
     </ImageBackground>
   );
