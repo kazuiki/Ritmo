@@ -1109,7 +1109,11 @@ export default function Settings() {
         onRequestClose={() => setInstructionModalVisible(false)}
       >
         <View style={styles.instructionModalOverlay}>
-          <View style={styles.instructionModalContainer}>
+          <ImageBackground
+            source={require("../../assets/background.png")}
+            style={styles.instructionModalContainer}
+            resizeMode="cover"
+          >
             {/* Header with Back and Next */}
             <View style={styles.instructionHeader}>
               <TouchableOpacity 
@@ -1287,7 +1291,7 @@ export default function Settings() {
                 />
               ))}
             </View>
-          </View>
+          </ImageBackground>
         </View>
       </Modal>
 
@@ -2074,12 +2078,13 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
+    padding: scale.scaleSpacing(20),
   },
   instructionModalContainer: {
     backgroundColor: "#F0F9F7",
     borderRadius: scale.scaleBorderRadius(24),
-    width: "95%",
-    height: "90%",
+    width: "105%",
+    height: "100%",
     borderWidth: 3,
     borderColor: "#61CCB2",
     shadowColor: "#000",
@@ -2087,7 +2092,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 10,
-    position: "relative",
+    overflow: "hidden",
   },
   instructionHeader: {
     position: "absolute",
