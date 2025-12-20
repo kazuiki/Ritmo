@@ -1,9 +1,9 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -11,16 +11,16 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
@@ -69,6 +69,11 @@ export default function Settings() {
   // Privacy Policy modal
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
   const [expandedSections, setExpandedSections] = useState<number[]>([]);
+  
+  // Instruction modal
+  const [instructionModalVisible, setInstructionModalVisible] = useState(false);
+  const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
   
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
@@ -276,7 +281,8 @@ export default function Settings() {
   };
 
   const handleInstruction = () => {
-    router.push("/instruction");
+    setInstructionModalVisible(true);
+    setInstructionCurrentPage(0);
   };
 
   const handleTermsAndConditions = () => {
@@ -853,23 +859,6 @@ export default function Settings() {
               <Text style={styles.termsText}>For questions, support, or feedback, you can reach us at:</Text>
               <Text style={styles.termsBullet}>• Email:</Text>
               <Text style={styles.termsBullet}>• Website:</Text>
-
-              {/* Bottom Buttons - At the end of scrollable content */}
-              <View style={styles.termsButtonContainer}>
-                <TouchableOpacity 
-                  style={styles.termsDeclineButton}
-                  onPress={handleDeclineTerms}
-                >
-                  <Text style={styles.termsDeclineButtonText}>Decline</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.termsAcceptButton}
-                  onPress={handleAcceptTerms}
-                >
-                  <Text style={styles.termsAcceptButtonText}>Accept</Text>
-                </TouchableOpacity>
-              </View>
             </ScrollView>
           </View>
         </View>
@@ -1108,6 +1097,216 @@ export default function Settings() {
               {/* Bottom spacing */}
               <View style={{ height: 30 }} />
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Instruction Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={instructionModalVisible}
+        onRequestClose={() => setInstructionModalVisible(false)}
+      >
+        <View style={styles.instructionModalOverlay}>
+          <View style={styles.instructionModalContainer}>
+            {/* Header with Back and Next */}
+            <View style={styles.instructionHeader}>
+              <TouchableOpacity 
+                style={styles.instructionHeaderButton} 
+                onPress={() => {
+                  if (instructionCurrentPage > 0) {
+                    setInstructionCurrentPage(instructionCurrentPage - 1);
+                  } else {
+                    setInstructionModalVisible(false);
+                  }
+                }}
+              >
+                <Text style={styles.instructionHeaderButtonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.instructionHeaderButton}
+                onPress={() => {
+                  if (instructionCurrentPage < 4) {
+                    setInstructionCurrentPage(instructionCurrentPage + 1);
+                  } else {
+                    setInstructionModalVisible(false);
+                  }
+                }}
+              >
+                <Text style={styles.instructionHeaderButtonText}>
+                  {instructionCurrentPage === 4 ? 'Done' : 'Next'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Page Content */}
+            <View style={styles.instructionPageContainer}>
+              {/* Page 1: Ritmo for Autism */}
+              {instructionCurrentPage === 0 && (
+                <>
+                  <View style={styles.instructionImageContainer}>
+                    <Image
+                      source={require("../../assets/ritmo-logo.png")}
+                      style={styles.instructionMainImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={styles.instructionTitle}>Ritmo for Autism</Text>
+                  <Text style={styles.instructionDescription}>
+                    Made to empower children of{'\n'}Autism Spectrum to develop{'\n'}their daily RITMO.
+                  </Text>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                    <Image
+                      source={require("../../assets/images/WhitePlay.png")}
+                      style={styles.instructionPlayIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.instructionVideoButtonText}>What is Ritmo?</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Page 2: How Ritmo Works */}
+              {instructionCurrentPage === 1 && (
+                <>
+                  <View style={styles.instructionImageContainer}>
+                    <Image
+                      source={require("../../assets/images/BoyQ.png")}
+                      style={styles.instructionMainImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={styles.instructionTitle}>How Ritmo Works</Text>
+                  <Text style={styles.instructionDescription}>
+                    Track your child daily and weekly{'\n'}routines to support progress.
+                  </Text>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                    <Image
+                      source={require("../../assets/images/WhitePlay.png")}
+                      style={styles.instructionPlayIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.instructionVideoButtonText}>How Ritmo works?</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Page 3: Ritmo is Fun */}
+              {instructionCurrentPage === 2 && (
+                <>
+                  <View style={styles.instructionImageContainer}>
+                    <View style={styles.instructionMultiImageContainer}>
+                      <Image
+                        source={require("../../assets/images/Book.png")}
+                        style={styles.instructionSmallImage}
+                        resizeMode="contain"
+                      />
+                      <Image
+                        source={require("../../assets/images/Game.png")}
+                        style={styles.instructionSmallImage}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.instructionTitle}>Ritmo is Fun</Text>
+                  <Text style={styles.instructionDescription}>
+                    Enhance child engagement with{'\n'}interactive games and audio-visual{'\n'}book guides.
+                  </Text>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                    <Image
+                      source={require("../../assets/images/WhitePlay.png")}
+                      style={styles.instructionPlayIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.instructionVideoButtonText}>Ritmo is Fun</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Page 4: Ritmo with Parents */}
+              {instructionCurrentPage === 3 && (
+                <>
+                  <View style={styles.instructionImageContainer}>
+                    <Image
+                      source={require("../../assets/images/Parents.png")}
+                      style={styles.instructionMainImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={styles.instructionTitle}>Ritmo with Parents</Text>
+                  <Text style={styles.instructionDescription}>
+                    Parents are advised to guide and{'\n'}supervise children when using Ritmo.
+                  </Text>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                    <Image
+                      source={require("../../assets/images/WhitePlay.png")}
+                      style={styles.instructionPlayIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.instructionVideoButtonText}>Ritmo Parent</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Page 5: Ritmo with Therapist */}
+              {instructionCurrentPage === 4 && (
+                <>
+                  <View style={styles.instructionImageContainer}>
+                    <Image
+                      source={require("../../assets/images/Therapist.png")}
+                      style={styles.instructionMainImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={styles.instructionTitle}>Ritmo with Therapist</Text>
+                  <Text style={styles.instructionDescription}>
+                    Ritmo provides therapists with{'\n'}PDF reports detailing the child's{'\n'}progress.
+                  </Text>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                    <Image
+                      source={require("../../assets/images/WhitePlay.png")}
+                      style={styles.instructionPlayIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.instructionVideoButtonText}>Ritmo Therapist</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
+            {/* Pagination Dots */}
+            <View style={styles.instructionPagination}>
+              {[0, 1, 2, 3, 4].map((index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.instructionDot,
+                    instructionCurrentPage === index && styles.instructionDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Video Modal */}
+      <Modal
+        visible={videoModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setVideoModalVisible(false)}
+      >
+        <View style={styles.videoModalOverlay}>
+          <View style={styles.videoModalContainer}>
+            <Text style={styles.videoModalText}>Video Coming Soon</Text>
+            <TouchableOpacity
+              style={styles.videoModalCloseButton}
+              onPress={() => setVideoModalVisible(false)}
+            >
+              <Text style={styles.videoModalCloseText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1868,5 +2067,170 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginBottom: scale.scaleSpacing(8),
     textAlign: "left",
     fontFamily: "Fredoka_600SemiBold",
+  },
+  // Instruction Modal Styles
+  instructionModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  instructionModalContainer: {
+    backgroundColor: "#F0F9F7",
+    borderRadius: scale.scaleBorderRadius(24),
+    width: "95%",
+    height: "90%",
+    borderWidth: 3,
+    borderColor: "#61CCB2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 10,
+    position: "relative",
+  },
+  instructionHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingTop: scale.scaleSpacing(20),
+    paddingHorizontal: 0,
+    zIndex: 10,
+  },
+  instructionHeaderButton: {
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingVertical: scale.scaleSpacing(12),
+  },
+  instructionHeaderButtonText: {
+    fontSize: scale.scaleFont(18),
+    color: "#2A3B4D",
+    fontFamily: "Fredoka_600SemiBold",
+    textDecorationLine: "underline",
+  },
+  instructionPageContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingHorizontal: scale.scaleSpacing(40),
+    paddingTop: scale.scaleSpacing(100),
+    paddingBottom: scale.scaleSpacing(120),
+  },
+  instructionImageContainer: {
+    height: scale.scaleHeight(250),
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(12),
+  },
+  instructionMainImage: {
+    width: scale.scaleWidth(250),
+    height: scale.scaleHeight(250),
+  },
+  instructionMultiImageContainer: {
+    flexDirection: "row",
+    gap: scale.scaleSpacing(30),
+    alignItems: "center",
+  },
+  instructionSmallImage: {
+    width: scale.scaleWidth(130),
+    height: scale.scaleHeight(150),
+  },
+  instructionTitle: {
+    fontSize: scale.scaleFont(32),
+    fontWeight: "700",
+    color: "#2A3B4D",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(12),
+    fontFamily: "Fredoka_700Bold",
+  },
+  instructionDescription: {
+    fontSize: scale.scaleFont(17),
+    color: "#2A3B4D",
+    textAlign: "center",
+    lineHeight: scale.scaleHeight(26),
+    marginBottom: scale.scaleSpacing(35),
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  instructionVideoButton: {
+    backgroundColor: "#00A980",
+    borderRadius: scale.scaleBorderRadius(50),
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(24),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scale.scaleSpacing(10),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(8),
+    elevation: 6,
+  },
+  instructionPlayIcon: {
+    width: scale.scaleWidth(20),
+    height: scale.scaleHeight(20),
+    tintColor: "#FFFFFF",
+  },
+  instructionVideoButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_700Bold",
+  },
+  instructionPagination: {
+    position: "absolute",
+    bottom: scale.scaleSpacing(40),
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: scale.scaleSpacing(8),
+  },
+  instructionDot: {
+    width: scale.scaleWidth(10),
+    height: scale.scaleHeight(10),
+    borderRadius: scale.scaleBorderRadius(5),
+    backgroundColor: "#2A3B4D",
+    opacity: 0.3,
+  },
+  instructionDotActive: {
+    width: scale.scaleWidth(30),
+    opacity: 1,
+  },
+  // Video Modal Styles
+  videoModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(20),
+    padding: scale.scaleSpacing(30),
+    alignItems: "center",
+    width: "80%",
+  },
+  videoModalText: {
+    fontSize: scale.scaleFont(20),
+    fontWeight: "700",
+    color: "#2A3B4D",
+    marginBottom: scale.scaleSpacing(20),
+    fontFamily: "Fredoka_700Bold",
+  },
+  videoModalCloseButton: {
+    backgroundColor: "#00A980",
+    borderRadius: scale.scaleBorderRadius(50),
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(30),
+  },
+  videoModalCloseText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_700Bold",
   },
 }));

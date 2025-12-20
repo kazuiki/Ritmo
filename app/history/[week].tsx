@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
-import { getRoutinesForCurrentUser, getUserProgressForRange, type Routine, type RoutineProgress } from '../../src/routinesService';
+import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from '../../src/routinesService';
 import { supabase } from '../../src/supabaseClient';
 import { defaultPdfFilename, saveViewAsPdf } from '../../src/utils/pdf';
 import { createResponsiveStyles, useResponsiveDimensions } from '../../src/utils/responsive';
@@ -27,6 +27,7 @@ export default function WeeklyHistoryDetail() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isAnimating, setIsAnimating] = useState(false);
+  const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
 
   // Parse start date and compute end date (Mon-Sun assumed)
   const weekRange = useMemo(() => {
@@ -73,6 +74,17 @@ export default function WeeklyHistoryDetail() {
 
     // Find the first date a routine existed for this user (created_at or earliest progress row)
     const firstActiveDateByRoutine = new Map<number, Date>();
+
+    // Seed from globally earliest progress dates (not limited to selected week)
+    Object.entries(earliestProgressByRoutine).forEach(([rid, dateStr]) => {
+      const id = Number(rid);
+      if (!id || !dateStr) return;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+      dt.setHours(0,0,0,0);
+      const existing = firstActiveDateByRoutine.get(id);
+      if (!existing || dt < existing) firstActiveDateByRoutine.set(id, dt);
+    });
     progressData.forEach((p) => {
       if (!p.day_date) return;
       const [py, pm, pd] = p.day_date.split('-').map(Number);
@@ -147,41 +159,58 @@ export default function WeeklyHistoryDetail() {
       return null;
     };
     
-    // Determine if we're viewing the current week
-    const today = new Date();
-    const currentWeekStart = new Date(today);
-    const day = today.getDay();
-    const diffToMonday = (day === 0 ? -6 : 1 - day);
-    currentWeekStart.setDate(today.getDate() + diffToMonday);
-    currentWeekStart.setHours(0, 0, 0, 0);
-    
-    const viewingWeekStart = new Date(weekRange.startDate);
-    viewingWeekStart.setHours(0, 0, 0, 0);
-    
-    const isCurrentWeek = currentWeekStart.getTime() === viewingWeekStart.getTime();
-    
-    // Filter routines to only show those created before or during this week
-    // BUT: If viewing current week, show ALL routines (same as Progress page)
-    const filteredRoutines = isCurrentWeek ? routines : routines.filter(routine => {
-      if (!routine.created_at) {
-        // If no created_at, only show if there's actual progress data for this week
+    // Helper to get Monday of a date (00:00)
+    const weekStart = (d: Date) => {
+      const x = new Date(d);
+      const dow = x.getDay();
+      const diff = (dow === 0 ? -6 : 1 - dow);
+      x.setDate(x.getDate() + diff);
+      x.setHours(0,0,0,0);
+      return x;
+    };
+    const weekEnd = (d: Date) => {
+      const ws = weekStart(d);
+      const we = new Date(ws);
+      we.setDate(ws.getDate() + 6);
+      we.setHours(23,59,59,999);
+      return we;
+    };
+
+    const viewingWeekStart = weekStart(weekRange.startDate);
+    const viewingWeekEnd = weekEnd(weekRange.startDate);
+
+    // Filter: show only routines active by this week, and if deleted, only through the deletion week
+    const filteredRoutines = routines.filter(routine => {
+      // First active date (min of created_at and earliest progress)
+      let firstActive: Date | null = null;
+      if (routine.created_at) {
+        const [cy, cm, cd] = routine.created_at.slice(0,10).split('-').map(Number);
+        const createdAt = new Date(cy, cm - 1, cd);
+        createdAt.setHours(0,0,0,0);
+        firstActive = createdAt;
+      }
+      const rawEarliest = earliestProgressByRoutine[routine.id];
+      if (rawEarliest) {
+        const [py, pm, pd] = rawEarliest.split('-').map(Number);
+        const earliest = new Date(py, pm - 1, pd);
+        earliest.setHours(0,0,0,0);
+        if (!firstActive || earliest < firstActive) firstActive = earliest;
+      }
+
+      // If unknown firstActive, include only if there is progress in this selected week
+      if (!firstActive) {
         const hasProgressThisWeek = progressData.some(
           p => p.routine_id === routine.id && weekDates.dates.includes(p.day_date)
         );
-        return hasProgressThisWeek;
+        if (!hasProgressThisWeek) return false;
+      } else {
+        if (firstActive > viewingWeekEnd) return false; // not yet existed by this week
       }
-      
-      // Parse the created_at date properly to avoid timezone issues
-      const createdAtStr = routine.created_at.slice(0, 10); // Get YYYY-MM-DD
-      const [year, month, day] = createdAtStr.split('-').map(Number);
-      const routineCreatedDate = new Date(year, month - 1, day);
-      
-      // Normalize end date to start of day for fair comparison
-      const endDateNormalized = new Date(weekRange.endDate);
-      endDateNormalized.setHours(23, 59, 59, 999); // End of the day
-      
-      // Only show routine if it was created on or before the end of the week being viewed
-      return routineCreatedDate <= endDateNormalized;
+
+      // Deletion handling: if inactive, do not show in history at all
+      if (routine.is_active === false) return false;
+
+      return true;
     });
     
     const sortedRoutines = [...filteredRoutines].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
@@ -198,14 +227,16 @@ export default function WeeklyHistoryDetail() {
         const firstActive = firstActiveDateByRoutine.get(routine.id);
         if (firstActive) return formatDate(firstActive);
         if (routine.created_at) return formatDate(new Date(routine.created_at));
-        return formatDate(new Date());
+        const raw = earliestProgressByRoutine[routine.id];
+        if (raw) return raw.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2-$3-$1'); // YYYY-MM-DD -> MM-DD-YYYY
+        return '';
       })();
       const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
       const timestamp = `${addedDate}/${timeStr}`;
 
       const nameWithDeletedFlag = (() => {
         const base = (routine.name || '').toUpperCase();
-        return routine.is_active === false ? `${base} (DELETED)` : base;
+        return base;
       })();
       
       return {
@@ -216,7 +247,7 @@ export default function WeeklyHistoryDetail() {
         days: routine.days || [0,1,2,3,4,5,6]
       };
     });
-  }, [routines, progressData, weekDates, weekRange.endDate, currentTime]);
+  }, [routines, progressData, weekDates, weekRange.endDate, currentTime, earliestProgressByRoutine]);
 
   const metrics = useMemo(() => {
     // Count only the days that are scheduled (undefined means not scheduled)
@@ -246,7 +277,7 @@ export default function WeeklyHistoryDetail() {
     })();
   }, []);
 
-  // Load routines and progress data for the selected week
+  // Load routines, earliest dates, and progress data for the selected week
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -254,8 +285,15 @@ export default function WeeklyHistoryDetail() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Fetch routines from Supabase
-        const routinesData = await getRoutinesForCurrentUser({ includeInactive: true });
+        // Fetch routines, earliest progress dates, and week progress
+        const [routinesData, firstDatesMap, progressForWeek] = await Promise.all([
+          getRoutinesForCurrentUser({ includeInactive: true }),
+          getUserFirstProgressDatesByRoutine(),
+          getUserProgressForRange({
+            from: weekRange.startDate,
+            to: weekRange.endDate,
+          }),
+        ]);
         
         // Load days info from AsyncStorage (user-specific)
         const storageKey = `@routines_${user.id}`;
@@ -273,12 +311,7 @@ export default function WeeklyHistoryDetail() {
         });
         
         setRoutines(routinesWithDays);
-
-        // Fetch progress for the selected week
-        const progressForWeek = await getUserProgressForRange({
-          from: weekRange.startDate,
-          to: weekRange.endDate,
-        });
+        setEarliestProgressByRoutine(firstDatesMap || {});
         setProgressData(progressForWeek);
       } catch (error) {
         console.error('Failed to load week data:', error);
