@@ -25,6 +25,7 @@ const EatingGame = () => {
   const nguyaSound = useRef<Audio.Sound | null>(null);
   const higopSound = useRef<Audio.Sound | null>(null);
   const eat4Sound = useRef<Audio.Sound | null>(null);
+  const bgMusic = useRef<Audio.Sound | null>(null);
   
   // Store audio durations
   const [nguyaDuration, setNguyaDuration] = useState(2000); // default 2s
@@ -104,6 +105,13 @@ const EatingGame = () => {
         if (eat4Status.isLoaded && eat4Status.durationMillis) {
           setEat4Duration(eat4Status.durationMillis);
         }
+
+        // Load and play background music
+        const { sound: bgMusicSnd } = await Audio.Sound.createAsync(
+          require('./EatGame/eatGameBG.mp3'),
+          { shouldPlay: true, isLooping: true }
+        );
+        bgMusic.current = bgMusicSnd;
       } catch (error) {
         console.log('Error loading sounds:', error);
       }
@@ -121,6 +129,10 @@ const EatingGame = () => {
       }
       if (eat4Sound.current) {
         eat4Sound.current.unloadAsync();
+      }
+      if (bgMusic.current) {
+        bgMusic.current.stopAsync();
+        bgMusic.current.unloadAsync();
       }
     };
   }, []);
@@ -324,6 +336,13 @@ const EatingGame = () => {
               setAllFoodEaten(true);
               setShowCelebration(true);
               isEatingSequence.current = false;
+              
+              // Stop background music
+              if (bgMusic.current) {
+                bgMusic.current.stopAsync().catch(error => {
+                  console.log('Error stopping bg music:', error);
+                });
+              }
               
               // Play eat4 celebration sound
               if (eat4Sound.current) {
