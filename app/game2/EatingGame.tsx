@@ -1,4 +1,5 @@
 import { Asset } from 'expo-asset';
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,6 +20,9 @@ const EatingGame = () => {
   
   // Eye tracking state
   const [eyeDirection, setEyeDirection] = useState('center'); // 'center', 'left', 'right', 'up', 'down'
+  
+  // Audio ref for nguya sound
+  const nguyaSound = useRef<Audio.Sound | null>(null);
   
   const router = useRouter();
 
@@ -63,6 +67,27 @@ const EatingGame = () => {
       require('./EatGame/Water.png'),
       require('./EatGame/Water1.png'),
     ]);
+
+    // Load nguya sound
+    const loadSound = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('./EatGame/Nguya.mp3')
+        );
+        nguyaSound.current = sound;
+      } catch (error) {
+        console.log('Error loading nguya sound:', error);
+      }
+    };
+
+    loadSound();
+
+    // Cleanup sound on unmount
+    return () => {
+      if (nguyaSound.current) {
+        nguyaSound.current.unloadAsync();
+      }
+    };
   }, []);
 
   // Listen to food position changes and update eye direction
@@ -202,6 +227,13 @@ const EatingGame = () => {
       // After food disappears, start chewing animation
       setTimeout(() => {
         setChildMouth('chewing');
+        
+        // Play nguya sound for rice, chicken, and vegi (not water)
+        if (currentStage !== 3 && nguyaSound.current) {
+          nguyaSound.current.replayAsync().catch(error => {
+            console.log('Error playing nguya sound:', error);
+          });
+        }
         
         // After chewing, slide plate out and bring next food
         setTimeout(() => {
