@@ -350,3 +350,26 @@ export async function getUserFirstProgressDate(): Promise<Date | null> {
   
   return new Date(data.day_date);
 }
+
+// Get earliest progress date per routine for current user
+// Returns a mapping of routine_id -> YYYY-MM-DD (string)
+export async function getUserFirstProgressDatesByRoutine(): Promise<Record<number, string>> {
+  const userId = await getCurrentUserId();
+
+  // Fetch all progress rows ordered by day_date asc; reduce to first occurrence per routine
+  const { data, error } = await supabase
+    .from("user_routine_progress")
+    .select("routine_id, day_date")
+    .eq("user_id", userId)
+    .order("day_date", { ascending: true });
+
+  if (error) throw error;
+
+  const result: Record<number, string> = {};
+  for (const row of (data ?? []) as Array<{ routine_id: number; day_date: string }>) {
+    if (row && typeof row.routine_id === 'number' && !result[row.routine_id]) {
+      result[row.routine_id] = row.day_date;
+    }
+  }
+  return result;
+}
