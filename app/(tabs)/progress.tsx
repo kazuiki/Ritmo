@@ -21,7 +21,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
-import { getRoutinesForCurrentUser, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
+import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
@@ -50,6 +50,7 @@ export default function Progress() {
 	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
 	const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
 
 	// Week range (Monday to Sunday)
 	const weekInfo = useMemo(() => {
@@ -89,8 +90,19 @@ export default function Progress() {
 	const tasks = useMemo(() => {
 		if (!routines || routines.length === 0) return [];
 
-		// Find the first date a routine existed for this user (created_at or earliest progress row)
+		// Find the first date a routine existed for this user (created_at or earliest progress row across all time)
 		const firstActiveDateByRoutine = new Map<number, Date>();
+
+		// Seed from globally earliest progress dates (not limited to current week)
+		Object.entries(earliestProgressByRoutine).forEach(([rid, dateStr]) => {
+			const id = Number(rid);
+			if (!id || !dateStr) return;
+			const [y, m, d] = dateStr.split('-').map(Number);
+			const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+			dt.setHours(0,0,0,0);
+			const existing = firstActiveDateByRoutine.get(id);
+			if (!existing || dt < existing) firstActiveDateByRoutine.set(id, dt);
+		});
 		progressData.forEach((p) => {
 			if (!p.day_date) return;
 			const [py, pm, pd] = p.day_date.split('-').map(Number);
@@ -180,7 +192,10 @@ export default function Progress() {
 				const firstActive = firstActiveDateByRoutine.get(routine.id);
 				if (firstActive) return formatDate(firstActive);
 				if (routine.created_at) return formatDate(new Date(routine.created_at));
-				return formatDate(new Date());
+				// As a last resort, try earliestProgressByRoutine directly if map above had parsing issues
+				const raw = earliestProgressByRoutine[routine.id];
+				if (raw) return raw.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2-$3-$1'); // YYYY-MM-DD -> MM-DD-YYYY
+				return ''; // Avoid showing today's date incorrectly
 			})();
 			const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
 			const timestamp = `${addedDate}/${timeStr}`;
@@ -193,7 +208,7 @@ export default function Progress() {
 				days: routine.days || [0,1,2,3,4,5,6]
 			};
 		});
-	}, [routines, progressData, weekInfo.weekDates, weekInfo.weekDays, currentTime]);
+	}, [routines, progressData, weekInfo.weekDates, weekInfo.weekDays, currentTime, earliestProgressByRoutine]);
 
 	// Metrics
 	const totals = useMemo(() => {
@@ -235,12 +250,13 @@ export default function Progress() {
 					const { data: { user } } = await supabase.auth.getUser();
 					if (!user) return;
 
-				const [routinesData, progressForWeek] = await Promise.all([
+				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
 					getRoutinesForCurrentUser(),
 					getUserProgressForRange({
 						from: weekInfo.monday,
 						to: weekInfo.sunday,
-					})
+					}),
+					getUserFirstProgressDatesByRoutine(),
 				]);
 				
 				// Load days info from AsyncStorage (user-specific)
@@ -258,6 +274,7 @@ export default function Progress() {
 					
 					setRoutines(routinesWithDays);
 					setProgressData(progressForWeek);
+					setEarliestProgressByRoutine(firstDatesMap || {});
 				} catch (error) {
 					console.error('Failed to refresh data on focus:', error);
 				}
@@ -313,12 +330,16 @@ export default function Progress() {
 				
 				setRoutines(routinesWithDays);
 
-				// Fetch progress for the current week
-				const progressForWeek = await getUserProgressForRange({
+				// Fetch progress for the current week and earliest progress per routine
+				const [progressForWeek, firstDatesMap] = await Promise.all([
+					getUserProgressForRange({
 					from: weekInfo.monday,
 					to: weekInfo.sunday,
-				});
+					}),
+					getUserFirstProgressDatesByRoutine(),
+				]);
 				setProgressData(progressForWeek);
+				setEarliestProgressByRoutine(firstDatesMap || {});
 
 				// Subscribe to real-time changes in user_routine_progress table
 				progressSubscription = supabase
