@@ -53,7 +53,8 @@ export default function SignUp() {
   const [agreementRequiredModalVisible, setAgreementRequiredModalVisible] = useState(false);
   const [completeDetailsModalVisible, setCompleteDetailsModalVisible] = useState(false);
   const [privacyPolicyModalVisible, setPrivacyPolicyModalVisible] = useState(false);
-
+  const [verificationModalVisible, setVerificationModalVisible] = useState(false);
+  const [accountCreatedModalVisible, setAccountCreatedModalVisible] = useState(false);
 
   // Local network failure detection for authentication
   const [localNetworkFailure, setLocalNetworkFailure] = useState(false);
@@ -232,21 +233,25 @@ export default function SignUp() {
     }
   };
 
-  // === Combined Send Code and Verify Function ===
-  const handleSendCodeOrVerify = async () => {
-    // If no verification code sent yet, send code
-    if (!sentVerificationCode) {
-      await handleSendVerificationCode();
-    } else {
-      // If code already sent, verify the entered code
-      handleVerifyCode();
+  // === Create Account Handler (Step 1: Send Verification Code) ===
+  const handleCreateAccount = async () => {
+    if (!email || !password || !confirmPassword) {
+      setFillFieldsModalVisible(true);
+      return;
     }
-  };
 
-  // === Send Verification Code Function ===
-  const handleSendVerificationCode = async () => {
-    if (!email) {
-      setEmailRequiredModalVisible(true);
+    if (password.length < 6) {
+      setPasswordLengthModalVisible(true);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordMismatchModalVisible(true);
+      return;
+    }
+
+    if (!agreed) {
+      setAgreementRequiredModalVisible(true);
       return;
     }
 
@@ -266,105 +271,90 @@ export default function SignUp() {
     setSendingCode(true);
 
     try {
-      // Generate a random 6-digit verification code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setSentVerificationCode(code);
-      
-      // In a real app, you would send this code via email service
-      // For now, we'll just log it and show success
-      console.log('📧 Verification code sent:', code);
-      
+      // Use Supabase default mailer to send OTP to the provided email (valid for 15 minutes)
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: undefined,
+        },
+      });
+
       setSendingCode(false);
-      alert(`Verification code sent to ${email}: ${code}`);
-      
-    } catch (error) {
-      setSendingCode(false);
-      console.log('❌ Error sending verification code:', (error as any).message);
-      setLocalNetworkFailure(true);
-    }
-  };
-
-  // === Verify Code Function ===
-  const handleVerifyCode = () => {
-    if (!verificationCode) {
-      setVerificationErrorModalVisible(true);
-      return;
-    }
-
-    if (verificationCode === sentVerificationCode) {
-      setIsEmailVerified(true);
-      setVerificationSuccessModalVisible(true);
-    } else {
-      setVerificationErrorModalVisible(true);
-    }
-  };
-
-  // === SignUp Function ===
-  const handleSignUp = async () => {
-    if (!isEmailVerified) {
-      setVerificationErrorModalVisible(true);
-      return;
-    }
-    if (!agreed) {
-      setAgreementRequiredModalVisible(true);
-      return;
-    }
-    if (!email || !password || !confirmPassword) {
-      setFillFieldsModalVisible(true);
-      return;
-    }
-
-    if (password.length < 6) {
-      setPasswordLengthModalVisible(true);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setPasswordMismatchModalVisible(true);
-      return;
-    }
-
-    // Check network connectivity before attempting signup
-    console.log('🔍 Checking network connectivity for signup...');
-    const isConnected = await isNetworkConnected();
-    console.log('📡 Network connectivity result:', isConnected);
-    
-    if (!isConnected) {
-      console.log('❌ No network connection - signup blocked');
-      setLocalNetworkFailure(true);
-      return;
-    }
-    
-    console.log('✅ Network connection available, proceeding with signup');
-
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      setLoading(false);
 
       if (error) {
-        // Check if it's a network-related error
-        if (error.message.includes('Network request failed') || 
-            error.message.includes('fetch') ||
-            error.message.includes('network') ||
-            error.name === 'TypeError') {
-          console.log('❌ Network error during signup:', error.message);
+        console.log('❌ Error sending verification code via Supabase:', error.message);
+        if (
+          error.message.includes('Network request failed') ||
+          error.message.toLowerCase().includes('network') ||
+          (error as any).name === 'TypeError'
+        ) {
           setLocalNetworkFailure(true);
           return;
         }
-        
         setEmailErrorMessage(error.message);
         setEmailErrorModalVisible(true);
         return;
       }
 
-      setConfirmEmailModalVisible(true);
-    } catch (networkError) {
-      setLoading(false);
-      console.log('❌ Caught network error during signup:', (networkError as any).message);
+      // Mark that a code has been sent and show verification modal
+      setSentVerificationCode('SENT');
+      setVerificationModalVisible(true);
+    } catch (error) {
+      setSendingCode(false);
+      console.log('❌ Error sending verification code (catch):', (error as any)?.message);
       setLocalNetworkFailure(true);
+    }
+  };
+
+  // === Verify Code Function (Modal Verification) ===
+  const handleVerifyCodeFromModal = async () => {
+    if (!verificationCode) {
+      setVerificationErrorModalVisible(true);
       return;
+    }
+
+    try {
+      // Verify the OTP sent to the user's email
+      const { data, error } = await supabase.auth.verifyOtp({
+        type: 'email',
+        email,
+        token: verificationCode,
+      });
+
+      if (error) {
+        console.log('❌ Error verifying OTP:', error.message);
+        setVerificationErrorModalVisible(true);
+        return;
+      }
+
+      // On success, the user is signed in (and created if not existing)
+      console.log('✅ OTP verified. Session established:', Boolean(data?.session));
+      
+      // Set the password for the user
+      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      
+      if (passwordError) {
+        if (
+          passwordError.message.includes('Network request failed') ||
+          passwordError.message.toLowerCase().includes('network') ||
+          (passwordError as any).name === 'TypeError'
+        ) {
+          console.log('❌ Network error while setting password:', passwordError.message);
+          setLocalNetworkFailure(true);
+          return;
+        }
+        setEmailErrorMessage(passwordError.message);
+        setEmailErrorModalVisible(true);
+        return;
+      }
+
+      // Password set successfully, close verification modal and show account created modal
+      setVerificationModalVisible(false);
+      setAccountCreatedModalVisible(true);
+    } catch (error) {
+      console.log('❌ Error verifying OTP (catch):', (error as any)?.message);
+      setVerificationErrorModalVisible(true);
     }
   };
 
@@ -428,106 +418,66 @@ export default function SignUp() {
                 autoCapitalize="none"
               />
 
-              {!isEmailVerified && (
-                <>
-                  <Text style={styles.label}>Verification Code:</Text>
-                  <View style={styles.inputRow}>
-                    <TextInput
-                      style={styles.inputFlex}
-                      placeholder="Enter verification code:"
-                      value={verificationCode}
-                      onChangeText={setVerificationCode}
-                      keyboardType="numeric"
-                      maxLength={6}
-                    />
-                    <TouchableOpacity
-                      style={styles.combinedButton}
-                      onPress={handleSendCodeOrVerify}
-                      disabled={Boolean(sendingCode || (!email && !sentVerificationCode) || (sentVerificationCode && !verificationCode))}
-                    >
-                      <Text style={styles.combinedButtonText}>
-                        {sendingCode 
-                          ? "Sending..." 
-                          : !sentVerificationCode 
-                          ? "SEND CODE" 
-                          : "VERIFY"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
+              <Text style={styles.label}>Password:</Text>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.inputFlex}
+                  placeholder="Enter password here:"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#276a63"
+                  />
+                </TouchableOpacity>
+              </View>
 
-              {isEmailVerified && (
-                <View style={styles.verifiedContainer}>
-                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  <Text style={styles.verifiedText}>Email Verified!</Text>
-                </View>
-              )}
+              <Text style={styles.label}>Confirm Password:</Text>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.inputFlex}
+                  placeholder="Re-enter password:"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={showConfirmPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#276a63"
+                  />
+                </TouchableOpacity>
+              </View>
 
-              {isEmailVerified && (
-                <>
-                  <Text style={styles.label}>Password:</Text>
-                  <View style={styles.inputRow}>
-                    <TextInput
-                      style={styles.inputFlex}
-                      placeholder="Enter password here:"
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeButton}
-                    >
-                      <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color="#276a63"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* ✅ Confirm Password */}
-                  <Text style={styles.label}>Confirm Password:</Text>
-                  <View style={styles.inputRow}>
-                    <TextInput
-                      style={styles.inputFlex}
-                      placeholder="Re-enter password:"
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry={!showConfirmPassword}
-                      autoCapitalize="none"
-                    />
-                    <TouchableOpacity
-                      onPress={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      style={styles.eyeButton}
-                    >
-                      <Ionicons
-                        name={showConfirmPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color="#276a63"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Agreement checkbox + text */}
-                  <View style={styles.agreeRow}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        // Require fields filled before proceeding to Terms
-                        if (!email || !password || !confirmPassword) {
-                          setCompleteDetailsModalVisible(true);
-                          return;
-                        }
-                        // Persist current inputs so they are restored after returning
-                        AsyncStorage.multiSet([
-                          ['@signupEmail', email],
-                          ['@signupPassword', password],
+              {/* Agreement checkbox + text */}
+              <View style={styles.agreeRow}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Require fields filled before proceeding to Terms
+                    if (!email || !password || !confirmPassword) {
+                      setCompleteDetailsModalVisible(true);
+                      return;
+                    }
+                    // Persist current inputs so they are restored after returning
+                    AsyncStorage.multiSet([
+                      ['@signupEmail', email],
+                      ['@signupPassword', password],
                       ['@signupConfirm', confirmPassword],
-                      ['@signupVerificationCode', verificationCode],
                       ['@termsAccepted', 'false'],
                     ]).catch(() => {});
                     setAgreed(false);
@@ -548,7 +498,7 @@ export default function SignUp() {
                 </TouchableOpacity>
               </View>
 
-              {/* Animated sign-up button */}
+              {/* Animated Create Account button */}
               <MotiView
                 from={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -557,16 +507,14 @@ export default function SignUp() {
               >
                 <TouchableOpacity
                   style={styles.button}
-                  onPress={handleSignUp}
-                  disabled={loading}
+                  onPress={handleCreateAccount}
+                  disabled={sendingCode}
                 >
                   <Text style={styles.buttonText}>
-                    {loading ? "Signing up..." : "SIGN UP"}
+                    {sendingCode ? "Sending Code..." : "CREATE ACCOUNT"}
                   </Text>
                 </TouchableOpacity>
               </MotiView>
-                </>
-              )}
             </MotiView>
 
             {/* Link back to login */}
@@ -896,25 +844,69 @@ export default function SignUp() {
         </View>
       </Modal>
 
-      {/* Verification Success Modal */}
+      {/* Verification Code Modal */}
       <Modal
         animationType="fade"
         transparent={true}
-        visible={verificationSuccessModalVisible}
-        onRequestClose={() => setVerificationSuccessModalVisible(false)}
+        visible={verificationModalVisible}
+        onRequestClose={() => setVerificationModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Mail.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Enter Verification Code</Text>
+            <Text style={styles.errorModalMessage}>
+              A verification code has been sent to {email}
+            </Text>
+            
+            <TextInput
+              style={[styles.input, { marginTop: 16, textAlign: 'center' }]}
+              placeholder="Enter 6-digit code:"
+              value={verificationCode}
+              onChangeText={setVerificationCode}
+              keyboardType="numeric"
+              maxLength={6}
+            />
+            
+            <TouchableOpacity
+              style={[styles.errorOkButton, { marginTop: 20 }]}
+              onPress={handleVerifyCodeFromModal}
+              disabled={!verificationCode || verificationCode.length !== 6}
+            >
+              <Text style={styles.errorOkButtonText}>VERIFY</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Account Created Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={accountCreatedModalVisible}
+        onRequestClose={() => setAccountCreatedModalVisible(false)}
       >
         <View style={styles.confirmEmailModalOverlay}>
           <View style={styles.confirmEmailModalContainer}>
             <View style={styles.confirmEmailIconCircle}>
               <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
             </View>
-            <Text style={styles.confirmEmailModalTitle}>Email Verified!</Text>
+            <Text style={styles.confirmEmailModalTitle}>Account Created!</Text>
             <Text style={styles.confirmEmailModalMessage}>
-              Your email has been successfully verified. You can now continue with your registration.
+              Your account has been successfully created. Let's get started with your child's routine!
             </Text>
             <TouchableOpacity
               style={styles.confirmEmailOkButton}
-              onPress={() => setVerificationSuccessModalVisible(false)}
+              onPress={() => {
+                setAccountCreatedModalVisible(false);
+                router.replace('/instruction');
+              }}
             >
               <Text style={styles.confirmEmailOkButtonText}>CONTINUE</Text>
             </TouchableOpacity>
