@@ -20,6 +20,14 @@ const { width, height } = Dimensions.get("window");
 const PAGES = [
   {
     id: 1,
+    title: "Welcome to Ritmo!",
+    description: "Your account has been successfully created.\n\nLet's get started on your child's journey\nto developing their daily RITMO.",
+    image: require("../assets/ritmo-logo.png"),
+    buttonLabel: "",
+    showButton: false,
+  },
+  {
+    id: 2,
     title: "Ritmo for Autism",
     description: "Made to empower children of\nAutism Spectrum to develop\ntheir daily RITMO.",
     image: require("../assets/ritmo-logo.png"),
@@ -27,7 +35,7 @@ const PAGES = [
     showButton: true,
   },
   {
-    id: 2,
+    id: 3,
     title: "How Ritmo Works",
     description: "Track your child daily and weekly\nroutines to support progress.",
     image: require("../assets/images/BoyQ.png"),
@@ -35,7 +43,7 @@ const PAGES = [
     showButton: true,
   },
   {
-    id: 3,
+    id: 4,
     title: "Ritmo is Fun",
     description: "Enhance child engagement with\ninteractive games and audio-visual\nbook guides.",
     images: [
@@ -46,7 +54,7 @@ const PAGES = [
     showButton: true,
   },
   {
-    id: 4,
+    id: 5,
     title: "Ritmo with Parents",
     description: "Parents are advised to guide and\nsupervise children when using Ritmo.",
     image: require("../assets/images/Parents.png"),
@@ -54,7 +62,7 @@ const PAGES = [
     showButton: true,
   },
   {
-    id: 5,
+    id: 6,
     title: "Ritmo with Therapist",
     description: "Ritmo provides therapists with\nPDF reports detailing the child's\nprogress.",
     image: require("../assets/images/Therapist.png"),
@@ -174,9 +182,12 @@ export default function InstructionPage() {
       <View style={styles.container}>
         {/* Header with Back and Next */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.headerButton} onPress={handleBack}>
-            <Text style={styles.headerButtonText}>Back</Text>
-          </TouchableOpacity>
+          {currentPage > 0 && (
+            <TouchableOpacity style={styles.headerButton} onPress={handleBack}>
+              <Text style={styles.headerButtonText}>Back</Text>
+            </TouchableOpacity>
+          )}
+          {currentPage === 0 && <View style={styles.headerButton} />}
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handleNext}
