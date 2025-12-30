@@ -570,12 +570,14 @@ export default function BathGame() {
     preloadAudio();
   }, []);
 
-  // When Bath2 completes, play victory animation then return to home
   useEffect(() => {
     if (!bath2Completed) return;
 
     const handleCompletion = async () => {
-      // Play victory zoom and fade animation
+      if (bgSoundRef.current) {
+        bgSoundRef.current.stopAsync().catch(() => {});
+      }
+
       Animated.parallel([
         Animated.timing(victoryScale, {
           toValue: 1.15,
