@@ -370,19 +370,6 @@ class YouTubeKidsService {
         channelIcon: "https://yt3.ggpht.com/ytc/AKedOLSKx4VgYmQqQjl7QGIoZKKedOLSKx4VgYmQqQjl7QGIoZKK=s88-c-k-c0x00ffffff-no-rj",
         description: "Classic nursery rhyme for kids",
         duration: "4:12"
-      },
-      {
-        id: '5',
-        title: "Learn Colors with Blippi | Educational Videos for Kids",
-        channel: "Blippi",
-        channelId: "UCPlwHry6Ew6-8zTtXnBuNwg",
-        views: "2.8M views",
-        publishedAt: "2 weeks ago",
-        youtubeId: "KqS7t_tjDSc",
-        thumbnail: "https://i.ytimg.com/vi/KqS7t_tjDSc/hqdefault.jpg",
-        channelIcon: "https://yt3.ggpht.com/ytc/AKedOLSKx4VgYmQqQjl7QGIoZKKedOLSKx4VgYmQqQjl7QGIoZKK=s88-c-k-c0x00ffffff-no-rj",
-        description: "Learn colors with Blippi in this fun educational video",
-        duration: "15:30"
       }
     ];
   }
