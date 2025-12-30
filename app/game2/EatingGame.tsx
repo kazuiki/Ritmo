@@ -288,13 +288,18 @@ const EatingGame = () => {
         
         // Play appropriate sound based on food type and get duration
         let chewingDuration = 2000; // default
+        
+        console.log('🔍 Current Stage:', currentStage, 'Is Water?', currentStage === 3);
+        
         if (currentStage === 3) {
           // Water stage - play higop sound ONLY
-          console.log('🚰 WATER STAGE - Playing Higop.mp3');
+          console.log('🚰 WATER STAGE - Should play Higop.mp3');
           if (higopSound.current) {
             higopSound.current.setPositionAsync(0).then(() => {
-              higopSound.current?.playAsync().catch(error => {
-                console.log('Error playing higop sound:', error);
+              higopSound.current?.playAsync().then(() => {
+                console.log('✅ Higop.mp3 NOW PLAYING');
+              }).catch(error => {
+                console.log('❌ Error playing higop sound:', error);
               });
             });
           } else {
@@ -303,11 +308,13 @@ const EatingGame = () => {
           chewingDuration = higopDuration;
         } else {
           // Food stages (rice, chicken, vegi) - play nguya sound ONLY
-          console.log('🍚 FOOD STAGE', currentStage, '- Playing Nguya.mp3');
+          console.log('🍚 FOOD STAGE', currentStage, '- Should play Nguya(Updated).mp3');
           if (nguyaSound.current) {
             nguyaSound.current.setPositionAsync(0).then(() => {
-              nguyaSound.current?.playAsync().catch(error => {
-                console.log('Error playing nguya sound:', error);
+              nguyaSound.current?.playAsync().then(() => {
+                console.log('✅ Nguya(Updated).mp3 NOW PLAYING');
+              }).catch(error => {
+                console.log('❌ Error playing nguya sound:', error);
               });
             });
           } else {
