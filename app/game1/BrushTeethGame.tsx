@@ -1,4 +1,5 @@
 import { Asset } from 'expo-asset';
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -14,6 +15,9 @@ const BrushTeethGame = () => {
     const [canClickPaste, setCanClickPaste] = useState(false);
     const [showCup, setShowCup] = useState(false);
     const [showTartars, setShowTartars] = useState(false);
+    const bgSoundRef = useRef<Audio.Sound | null>(null);
+    const brushHitSoundRef = useRef<Audio.Sound | null>(null); // looping brushing audio
+    const isBrushingLooping = useRef(false);
     
     
     // Cleaning state for all 24 tartars
@@ -101,6 +105,31 @@ const BrushTeethGame = () => {
     const tartarsOpacity = useRef(tartars.map(() => new Animated.Value(1))).current;
     const foamsOpacity = useRef(tartars.map(() => new Animated.Value(0))).current;
     const cleaningInProgress = useRef<boolean[]>(new Array(24).fill(false));
+
+    const updateBrushingLoop = async (active: boolean) => {
+        try {
+            if (active) {
+                if (!brushHitSoundRef.current) {
+                    const { sound } = await Audio.Sound.createAsync(require('./BrushGame/Brushing.mp3'));
+                    brushHitSoundRef.current = sound;
+                    await sound.setIsLoopingAsync(true);
+                    await sound.setVolumeAsync(1.0); // Hard-coded louder brushing volume
+                } else {
+                    await brushHitSoundRef.current.setVolumeAsync(1.0);
+                }
+                if (!isBrushingLooping.current && brushHitSoundRef.current) {
+                    await brushHitSoundRef.current.playAsync();
+                    isBrushingLooping.current = true;
+                }
+            } else if (isBrushingLooping.current && brushHitSoundRef.current) {
+                await brushHitSoundRef.current.stopAsync();
+                await brushHitSoundRef.current.setPositionAsync(0);
+                isBrushingLooping.current = false;
+            }
+        } catch (error) {
+            console.warn('Failed to control brushing loop sound', error);
+        }
+    };
     
     const handlePasteClick = () => {
         if (!canClickPaste || showOverlay) return; // Guard: only clickable once shaking started and overlay not visible
@@ -255,23 +284,26 @@ const BrushTeethGame = () => {
                 const collisionRadius = 10; // Adjust for sensitivity
                 
                 // Check collision with all tartars
+                let brushingContact = false;
+
                 tartars.forEach((tartar, index) => {
-                    // Skip if already cleaned or cleaning in progress
-                    if (tartarsCleaned[index] || cleaningInProgress.current[index]) {
-                        return;
-                    }
-                    
-                    // Calculate tartar center
+                    // Calculate tartar center (used for both tartar and foam contact)
                     const tartarCenterX = tartar.x + tartar.width / 2;
                     const tartarCenterY = tartar.y + tartar.height / 2;
-                    
-                    // Check if brush paste overlaps with tartar
+
                     const distance = Math.sqrt(
                         Math.pow(brushPasteX - tartarCenterX, 2) + 
                         Math.pow(brushPasteY - tartarCenterY, 2)
                     );
-                    
+
                     if (distance < collisionRadius) {
+                        brushingContact = true; // drive continuous loop
+
+                        // Skip cleaning logic if already cleaned or in progress
+                        if (tartarsCleaned[index] || cleaningInProgress.current[index]) {
+                            return;
+                        }
+
                         // Start cleaning animation for this tartar
                         cleaningInProgress.current[index] = true;
                         
@@ -305,12 +337,55 @@ const BrushTeethGame = () => {
                         });
                     }
                 });
+
+                // Drive continuous brushing loop while over tartar/foam
+                updateBrushingLoop(brushingContact);
             },
             onPanResponderRelease: () => {
                 // Keep the final position
+                updateBrushingLoop(false);
             },
         })
     ).current;
+
+    // Background music and brushing hit audio
+    useEffect(() => {
+        let isMounted = true;
+
+        const startBackgroundSound = async () => {
+            try {
+                const { sound } = await Audio.Sound.createAsync(
+                    require('./BrushGame/BrushGameBG.mp3'),
+                    { isLooping: true, volume: 0.5, shouldPlay: true }
+                );
+
+                if (!isMounted) {
+                    await sound.unloadAsync();
+                    return;
+                }
+
+                bgSoundRef.current = sound;
+                await sound.playAsync();
+            } catch (error) {
+                console.warn('Failed to start BrushGame background sound', error);
+            }
+        };
+
+        startBackgroundSound();
+
+        return () => {
+            isMounted = false;
+            if (bgSoundRef.current) {
+                bgSoundRef.current.unloadAsync();
+                bgSoundRef.current = null;
+            }
+            if (brushHitSoundRef.current) {
+                brushHitSoundRef.current.unloadAsync();
+                brushHitSoundRef.current = null;
+                isBrushingLooping.current = false;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         // Preload all images to avoid first-frame decode delays
