@@ -752,9 +752,9 @@ export default function addRoutines() {
 
                                 {/* Routine Name Input - non-editable if preset selected */}
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, selectedPresetId && styles.inputDisabled]}
                                     placeholder="Routine name"
-                                    placeholderTextColor="#999"
+                                    placeholderTextColor="#000000ff"
                                     value={routineName}
                                     onChangeText={setRoutineName}
                                     editable={!selectedPresetId}
@@ -818,6 +818,24 @@ export default function addRoutines() {
                             <TouchableOpacity key={p.id} style={styles.presetItem} onPress={() => selectPreset(p)}>
                                 <Image source={p.image} style={styles.presetImage} />
                                 <Text style={styles.presetItemText}>{p.name}</Text>
+                                <View style={styles.presetIconsContainer}>
+                                    <View style={styles.iconSlot}>
+                                        {p.hasBookGuide && (
+                                            <Image 
+                                                source={require("../../assets/images/BookGuide.png")} 
+                                                style={styles.presetIcon} 
+                                            />
+                                        )}
+                                    </View>
+                                    <View style={styles.iconSlot}>
+                                        {p.hasMiniGame && (
+                                            <Image 
+                                                source={require("../../assets/images/MiniGame.png")} 
+                                                style={styles.presetIcon} 
+                                            />
+                                        )}
+                                    </View>
+                                </View>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -859,12 +877,6 @@ export default function addRoutines() {
                                     selectedRingtone === 'alarm1' && styles.selectedRingtoneItem
                                 ]}
                             >
-                                <View style={styles.ringtoneInfo}>
-                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm1')}>
-                                        {selectedRingtone === 'alarm1' && <View style={styles.radioInner} />}
-                                    </TouchableOpacity>
-                                    <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
-                                </View>
                                 <TouchableOpacity
                                     style={styles.previewIconButton}
                                     onPress={(e) => { e.stopPropagation(); togglePreview('alarm1'); }}
@@ -874,6 +886,12 @@ export default function addRoutines() {
                                         style={styles.previewIcon}
                                     />
                                 </TouchableOpacity>
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
+                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm1')}>
+                                        {selectedRingtone === 'alarm1' && <View style={styles.radioInner} />}
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             {/* Gentle Wake */}
@@ -883,12 +901,6 @@ export default function addRoutines() {
                                     selectedRingtone === 'alarm2' && styles.selectedRingtoneItem
                                 ]}
                             >
-                                <View style={styles.ringtoneInfo}>
-                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm2')}>
-                                        {selectedRingtone === 'alarm2' && <View style={styles.radioInner} />}
-                                    </TouchableOpacity>
-                                    <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
-                                </View>
                                 <TouchableOpacity
                                     style={styles.previewIconButton}
                                     onPress={(e) => { e.stopPropagation(); togglePreview('alarm2'); }}
@@ -898,6 +910,12 @@ export default function addRoutines() {
                                         style={styles.previewIcon}
                                     />
                                 </TouchableOpacity>
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
+                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm2')}>
+                                        {selectedRingtone === 'alarm2' && <View style={styles.radioInner} />}
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             {/* Classic Chime */}
@@ -907,12 +925,6 @@ export default function addRoutines() {
                                     selectedRingtone === 'alarm3' && styles.selectedRingtoneItem
                                 ]}
                             >
-                                <View style={styles.ringtoneInfo}>
-                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm3')}>
-                                        {selectedRingtone === 'alarm3' && <View style={styles.radioInner} />}
-                                    </TouchableOpacity>
-                                    <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
-                                </View>
                                 <TouchableOpacity
                                     style={styles.previewIconButton}
                                     onPress={(e) => { e.stopPropagation(); togglePreview('alarm3'); }}
@@ -922,6 +934,12 @@ export default function addRoutines() {
                                         style={styles.previewIcon}
                                     />
                                 </TouchableOpacity>
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
+                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm3')}>
+                                        {selectedRingtone === 'alarm3' && <View style={styles.radioInner} />}
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </ScrollView>
                     </View>
@@ -1334,7 +1352,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         color: "#fff",
     },
     input: {
-        backgroundColor: "#F5F5F5",
+        backgroundColor: "#FFFFFF",
         borderRadius: scale.scaleBorderRadius(12),
         paddingVertical: scale.scaleSpacing(14),
         paddingHorizontal: scale.scaleSpacing(16),
@@ -1342,6 +1360,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         marginBottom: scale.scaleSpacing(16),
         borderWidth: 2,
         borderColor: "#B8E6D9",
+    },
+    inputDisabled: {
+        backgroundColor: "#F5F5F5",
     },
     ringtoneSelector: {
         backgroundColor: "#FFFFFF",
@@ -1420,6 +1441,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         flex: 1,
+        justifyContent: "space-between",
     },
     ringtoneIcon: {
         fontSize: scale.scaleFont(48),
@@ -1541,6 +1563,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontSize: scale.scaleFont(16),
         fontWeight: "700",
         color: "#244D4A",
+        flex: 1,
+    },
+    presetIconsContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: scale.scaleSpacing(8),
+    },
+    iconSlot: {
+        width: scale.scaleWidth(24),
+        height: scale.scaleHeight(24),
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    presetIcon: {
+        width: scale.scaleWidth(24),
+        height: scale.scaleHeight(24),
+        resizeMode: "contain",
     },
     routineCard: {
         backgroundColor: "#fff",
