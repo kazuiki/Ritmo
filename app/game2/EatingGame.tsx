@@ -1,4 +1,5 @@
 import { Asset } from 'expo-asset';
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,6 +20,17 @@ const EatingGame = () => {
   
   // Eye tracking state
   const [eyeDirection, setEyeDirection] = useState('center'); // 'center', 'left', 'right', 'up', 'down'
+  
+  // Audio refs for sounds
+  const nguyaSound = useRef<Audio.Sound | null>(null);
+  const higopSound = useRef<Audio.Sound | null>(null);
+  const eat4Sound = useRef<Audio.Sound | null>(null);
+  const bgMusic = useRef<Audio.Sound | null>(null);
+  
+  // Store audio durations
+  const [nguyaDuration, setNguyaDuration] = useState(2000); // default 2s
+  const [higopDuration, setHigopDuration] = useState(2000); // default 2s
+  const [eat4Duration, setEat4Duration] = useState(5000); // default 5s
   
   const router = useRouter();
 
@@ -56,6 +68,7 @@ const EatingGame = () => {
       require('./EatGame/Eat2.png'),
       require('./EatGame/Eat3.gif'),
       require('./EatGame/Eat4.gif'),
+      require('./EatGame/Higop.gif'),
       require('./EatGame/Plate.png'),
       require('./EatGame/Rice.png'),
       require('./EatGame/Chicken.png'),
@@ -63,6 +76,66 @@ const EatingGame = () => {
       require('./EatGame/Water.png'),
       require('./EatGame/Water1.png'),
     ]);
+
+    // Load sounds
+    const loadSounds = async () => {
+      try {
+        const { sound: nguyaSnd } = await Audio.Sound.createAsync(
+          require('./EatGame/Nguya(Updated).mp3')
+        );
+        nguyaSound.current = nguyaSnd;
+        const nguyaStatus = await nguyaSnd.getStatusAsync();
+        if (nguyaStatus.isLoaded && nguyaStatus.durationMillis) {
+          setNguyaDuration(nguyaStatus.durationMillis);
+        }
+
+        const { sound: higopSnd } = await Audio.Sound.createAsync(
+          require('./EatGame/Higop.mp3')
+        );
+        higopSound.current = higopSnd;
+        const higopStatus = await higopSnd.getStatusAsync();
+        if (higopStatus.isLoaded && higopStatus.durationMillis) {
+          setHigopDuration(higopStatus.durationMillis);
+        }
+
+        const { sound: eat4Snd } = await Audio.Sound.createAsync(
+          require('./EatGame/Eat4.mp3')
+        );
+        eat4Sound.current = eat4Snd;
+        const eat4Status = await eat4Snd.getStatusAsync();
+        if (eat4Status.isLoaded && eat4Status.durationMillis) {
+          setEat4Duration(eat4Status.durationMillis);
+        }
+
+        // Load and play background music
+        const { sound: bgMusicSnd } = await Audio.Sound.createAsync(
+          require('./EatGame/eatGameBG.mp3'),
+          { shouldPlay: true, isLooping: true }
+        );
+        bgMusic.current = bgMusicSnd;
+      } catch (error) {
+        console.log('Error loading sounds:', error);
+      }
+    };
+
+    loadSounds();
+
+    // Cleanup sounds on unmount
+    return () => {
+      if (nguyaSound.current) {
+        nguyaSound.current.unloadAsync();
+      }
+      if (higopSound.current) {
+        higopSound.current.unloadAsync();
+      }
+      if (eat4Sound.current) {
+        eat4Sound.current.unloadAsync();
+      }
+      if (bgMusic.current) {
+        bgMusic.current.stopAsync();
+        bgMusic.current.unloadAsync();
+      }
+    };
   }, []);
 
   // Listen to food position changes and update eye direction
@@ -190,6 +263,8 @@ const EatingGame = () => {
     if (isEatingSequence.current) return;
     isEatingSequence.current = true;
 
+    console.log('🍽️ HANDLE FOOD EATEN - Current Stage:', currentStage, stages[currentStage].name);
+
     // First show open mouth (eat2.png)
     setChildMouth('open');
 
@@ -203,7 +278,53 @@ const EatingGame = () => {
       setTimeout(() => {
         setChildMouth('chewing');
         
+        // Stop all sounds first
+        if (nguyaSound.current) {
+          nguyaSound.current.stopAsync().catch(() => {});
+        }
+        if (higopSound.current) {
+          higopSound.current.stopAsync().catch(() => {});
+        }
+        
+        // Play appropriate sound based on food type and get duration
+        let chewingDuration = 2000; // default
+        
+        console.log('🔍 Current Stage:', currentStage, 'Is Water?', currentStage === 3);
+        
+        if (currentStage === 3) {
+          // Water stage - play higop sound ONLY
+          console.log('🚰 WATER STAGE - Should play Higop.mp3');
+          if (higopSound.current) {
+            higopSound.current.setPositionAsync(0).then(() => {
+              higopSound.current?.playAsync().then(() => {
+                console.log('✅ Higop.mp3 NOW PLAYING');
+              }).catch(error => {
+                console.log('❌ Error playing higop sound:', error);
+              });
+            });
+          } else {
+            console.log('❌ ERROR: higopSound is null!');
+          }
+          chewingDuration = higopDuration;
+        } else {
+          // Food stages (rice, chicken, vegi) - play nguya sound ONLY
+          console.log('🍚 FOOD STAGE', currentStage, '- Should play Nguya(Updated).mp3');
+          if (nguyaSound.current) {
+            nguyaSound.current.setPositionAsync(0).then(() => {
+              nguyaSound.current?.playAsync().then(() => {
+                console.log('✅ Nguya(Updated).mp3 NOW PLAYING');
+              }).catch(error => {
+                console.log('❌ Error playing nguya sound:', error);
+              });
+            });
+          } else {
+            console.log('❌ ERROR: nguyaSound is null!');
+          }
+          chewingDuration = nguyaDuration; // Use updated nguya duration
+        }
+        
         // After chewing, slide plate out and bring next food
+        // Use the actual audio duration for timing
         setTimeout(() => {
           setChildMouth('closed');
           
@@ -243,14 +364,30 @@ const EatingGame = () => {
               setAllFoodEaten(true);
               setShowCelebration(true);
               isEatingSequence.current = false;
+              
+              // Stop background music
+              if (bgMusic.current) {
+                bgMusic.current.stopAsync().catch(error => {
+                  console.log('Error stopping bg music:', error);
+                });
+              }
+              
+              // Play eat4 celebration sound
+              if (eat4Sound.current) {
+                eat4Sound.current.replayAsync().catch(error => {
+                  console.log('Error playing eat4 sound:', error);
+                });
+              }
+              
+              // Show celebration for 10 seconds
               setTimeout(() => {
                 router.back();
-              }, 3000);
+              }, 10000);
               
               return prevStage; // Keep current stage if complete
             }
           });
-        }, 1500); // Show chewing for 1.5 seconds
+        }, chewingDuration); // Use dynamic chewing duration based on audio
       }, 500); // Show open mouth for 0.5 seconds before chewing
     });
   };
@@ -308,7 +445,13 @@ const EatingGame = () => {
   ).current;
 
   const getChildImage = () => {
-    if (childMouth === 'chewing') return require('./EatGame/Eat3.gif');
+    if (childMouth === 'chewing') {
+      // Use Higop.gif for water, Eat3.gif for food
+      if (currentStage === 3) {
+        return require('./EatGame/Higop.gif');
+      }
+      return require('./EatGame/Eat3.gif');
+    }
     if (childMouth === 'open') return require('./EatGame/Eat2.png');
     return require('./EatGame/Eat1.png');
   };
