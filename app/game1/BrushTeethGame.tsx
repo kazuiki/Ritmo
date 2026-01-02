@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'expo-asset';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
@@ -12,12 +13,17 @@ const BrushTeethGame = () => {
     const [swipeProgress, setSwipeProgress] = useState(0);
     const [pasteComplete, setPasteComplete] = useState(false);
     const [showDraggableBrush, setShowDraggableBrush] = useState(false);
+    const [brushHasFoam, setBrushHasFoam] = useState(false); // Persistent foam flag
     const [canClickPaste, setCanClickPaste] = useState(false);
     const [showCup, setShowCup] = useState(false);
     const [showTartars, setShowTartars] = useState(false);
+    const [showCompletion, setShowCompletion] = useState(false);
+    const [allCleaned, setAllCleaned] = useState(false);
+    const [brush6Triggered, setBrush6Triggered] = useState(false);
+    const [brush6Completed, setBrush6Completed] = useState(false);
     const bgSoundRef = useRef<Audio.Sound | null>(null);
-    const brushHitSoundRef = useRef<Audio.Sound | null>(null); // looping brushing audio
-    const isBrushingLooping = useRef(false);
+    const brush6SoundRef = useRef<Audio.Sound | null>(null);
+
     
     
     // Cleaning state for all 24 tartars
@@ -100,36 +106,24 @@ const BrushTeethGame = () => {
     // Draggable toothbrush with paste
     const brushPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
     const overlayFade = useRef(new Animated.Value(1)).current;
+    const draggableBrushFoamOpacity = useRef(new Animated.Value(0)).current;
+    
+    // Completion fade animations
+    const brushesFadeOut = useRef(new Animated.Value(1)).current;
+    const draggableBrushFadeOut = useRef(new Animated.Value(1)).current;
+    const cupFadeOut = useRef(new Animated.Value(1)).current;
+    const completionGifFadeIn = useRef(new Animated.Value(0)).current;
     
     // Cleaning animation values for all 24 tartars
     const tartarsOpacity = useRef(tartars.map(() => new Animated.Value(1))).current;
     const foamsOpacity = useRef(tartars.map(() => new Animated.Value(0))).current;
     const cleaningInProgress = useRef<boolean[]>(new Array(24).fill(false));
 
-    const updateBrushingLoop = async (active: boolean) => {
-        try {
-            if (active) {
-                if (!brushHitSoundRef.current) {
-                    const { sound } = await Audio.Sound.createAsync(require('./BrushGame/Brushing.mp3'));
-                    brushHitSoundRef.current = sound;
-                    await sound.setIsLoopingAsync(true);
-                    await sound.setVolumeAsync(1.0); // Hard-coded louder brushing volume
-                } else {
-                    await brushHitSoundRef.current.setVolumeAsync(1.0);
-                }
-                if (!isBrushingLooping.current && brushHitSoundRef.current) {
-                    await brushHitSoundRef.current.playAsync();
-                    isBrushingLooping.current = true;
-                }
-            } else if (isBrushingLooping.current && brushHitSoundRef.current) {
-                await brushHitSoundRef.current.stopAsync();
-                await brushHitSoundRef.current.setPositionAsync(0);
-                isBrushingLooping.current = false;
-            }
-        } catch (error) {
-            console.warn('Failed to control brushing loop sound', error);
-        }
-    };
+    // Victory transition animation
+    const victoryScale = useRef(new Animated.Value(1)).current;
+    const victoryOpacity = useRef(new Animated.Value(0)).current;
+
+
     
     const handlePasteClick = () => {
         if (!canClickPaste || showOverlay) return; // Guard: only clickable once shaking started and overlay not visible
@@ -298,6 +292,17 @@ const BrushTeethGame = () => {
 
                     if (distance < collisionRadius) {
                         brushingContact = true; // drive continuous loop
+                        
+                        // Set permanent foam flag on first contact
+                        if (!brushHasFoam) {
+                            setBrushHasFoam(true);
+                            // Gradually fade in foam on draggable brush
+                            Animated.timing(draggableBrushFoamOpacity, {
+                                toValue: 1,
+                                duration: 1000,
+                                useNativeDriver: true,
+                            }).start();
+                        }
 
                         // Skip cleaning logic if already cleaned or in progress
                         if (tartarsCleaned[index] || cleaningInProgress.current[index]) {
@@ -318,32 +323,40 @@ const BrushTeethGame = () => {
                         Animated.parallel([
                             Animated.timing(tartarsOpacity[index], {
                                 toValue: 0,
-                                duration: 2000,
+                                duration: 5000,
                                 useNativeDriver: true,
                             }),
                             Animated.timing(foamsOpacity[index], {
                                 toValue: 1,
-                                duration: 2000,
+                                duration: 5000,
                                 useNativeDriver: true,
                             })
                         ]).start(() => {
-                            // After animation completes, mark as cleaned
-                            setTartarsCleaned(prev => {
-                                const newState = [...prev];
-                                newState[index] = true;
-                                return newState;
+                            // After foam forms, wait 2 seconds then make it disappear (cleaning effect)
+                            Animated.sequence([
+                                Animated.delay(1000),
+                                Animated.timing(foamsOpacity[index], {
+                                    toValue: 0,
+                                    duration: 1000,
+                                    useNativeDriver: true,
+                                })
+                            ]).start(() => {
+                                // After foam disappears, mark as cleaned
+                                setTartarsCleaned(prev => {
+                                    const newState = [...prev];
+                                    newState[index] = true;
+                                    return newState;
+                                });
+                                cleaningInProgress.current[index] = false;
                             });
-                            cleaningInProgress.current[index] = false;
                         });
                     }
                 });
 
-                // Drive continuous brushing loop while over tartar/foam
-                updateBrushingLoop(brushingContact);
+
             },
             onPanResponderRelease: () => {
                 // Keep the final position
-                updateBrushingLoop(false);
             },
         })
     ).current;
@@ -379,14 +392,116 @@ const BrushTeethGame = () => {
                 bgSoundRef.current.unloadAsync();
                 bgSoundRef.current = null;
             }
-            if (brushHitSoundRef.current) {
-                brushHitSoundRef.current.unloadAsync();
-                brushHitSoundRef.current = null;
-                isBrushingLooping.current = false;
+            if (brush6SoundRef.current) {
+                brush6SoundRef.current.setOnPlaybackStatusUpdate(null);
+                brush6SoundRef.current.stopAsync().catch(() => {});
+                brush6SoundRef.current.unloadAsync().catch(() => {});
+                brush6SoundRef.current = null;
             }
         };
     }, []);
 
+    // Detect when all tartars are cleaned and trigger completion
+    useEffect(() => {
+        const allCleanedNow = tartarsCleaned.every(cleaned => cleaned);
+        
+        if (allCleanedNow && !allCleaned) {
+            setAllCleaned(true);
+            
+            // Start completion sequence
+            const startCompletion = async () => {
+                try {
+                    setBrush6Triggered(true);
+                    setBrush6Completed(false);
+                    
+                    // Load and play Brush6.mp3
+                    const { sound } = await Audio.Sound.createAsync(
+                        require('./BrushGame/Brush6.mp3'),
+                        { shouldPlay: false, volume: 1.0 }
+                    );
+                    brush6SoundRef.current = sound;
+                    
+                    // Set up playback status listener
+                    sound.setOnPlaybackStatusUpdate((status) => {
+                        if (status.isLoaded && status.didJustFinish) {
+                            setBrush6Completed(true);
+                        }
+                    });
+                    
+                    // Show completion gif immediately
+                    setShowCompletion(true);
+                    
+                    // Smooth fade out all elements and fade in completion gif simultaneously
+                    Animated.parallel([
+                        Animated.timing(brushesFadeOut, {
+                            toValue: 0,
+                            duration: 300,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(draggableBrushFadeOut, {
+                            toValue: 0,
+                            duration: 800,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(cupFadeOut, {
+                            toValue: 0,
+                            duration: 800,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(completionGifFadeIn, {
+                            toValue: 1,
+                            duration: 300,
+                            useNativeDriver: true,
+                        }),
+                    ]).start(() => {
+                        // Start playing audio after fade animations complete
+                        sound.playAsync().catch((error) => {
+                            console.error('Error playing Brush6.mp3:', error);
+                            setBrush6Completed(true);
+                        });
+                    });
+                    
+                } catch (error) {
+                    console.warn('Failed to play Brush6 audio:', error);
+                    setBrush6Completed(true);
+                }
+            };
+            
+            startCompletion();
+        }
+    }, [tartarsCleaned, allCleaned]);
+
+    // Handle success scene after Brush6 completes
+    useEffect(() => {
+        if (!brush6Completed) return;
+
+        const handleCompletion = async () => {
+            if (bgSoundRef.current) {
+                bgSoundRef.current.stopAsync().catch(() => {});
+            }
+
+            Animated.parallel([
+                Animated.timing(victoryScale, {
+                    toValue: 1.15,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(victoryOpacity, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                })
+            ]).start(() => {
+                // After animation completes, set completion flag and navigate
+                AsyncStorage.setItem('@minigameCompleted', 'true')
+                    .catch((error) => console.error('Error setting completion flag:', error))
+                    .finally(() => router.back());
+            });
+        };
+
+        handleCompletion();
+    }, [brush6Completed, router, victoryScale, victoryOpacity]);
+    
     useEffect(() => {
         // Preload all images to avoid first-frame decode delays
         Asset.loadAsync([
@@ -524,6 +639,12 @@ const BrushTeethGame = () => {
 
   return (
     <View style={styles.container}>
+            <Animated.View style={[
+                styles.gameContentWrapper,
+                {
+                    transform: [{ scale: victoryScale }]
+                }
+            ]}>
             <Image source={require('./BrushGame/BrushBG.png')} style={styles.background} />
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()}>
@@ -531,13 +652,21 @@ const BrushTeethGame = () => {
                 </TouchableOpacity>
             </View>
             {/* All brush images stacked on top of each other with varying opacity */}
-            <Animated.Image source={brushes[0]} style={[styles.brush, { opacity: opacity1 }]} />
-            <Animated.Image source={brushes[1]} style={[styles.brush, { opacity: opacity2 }]} />
-            <Animated.Image source={brushes[2]} style={[styles.brush, { opacity: opacity3 }]} />
-            <Animated.Image source={brushes[3]} style={[styles.brush, { opacity: opacity4 }]} />
+            <Animated.Image source={brushes[0]} style={[styles.brush, { opacity: Animated.multiply(opacity1, brushesFadeOut) }]} />
+            <Animated.Image source={brushes[1]} style={[styles.brush, { opacity: Animated.multiply(opacity2, brushesFadeOut) }]} />
+            <Animated.Image source={brushes[2]} style={[styles.brush, { opacity: Animated.multiply(opacity3, brushesFadeOut) }]} />
+            <Animated.Image source={brushes[3]} style={[styles.brush, { opacity: Animated.multiply(opacity4, brushesFadeOut) }]} />
+            
+            {/* Completion GIF - appears when all cleaning is done */}
+            {showCompletion && (
+                <Animated.Image 
+                    source={require('./BrushGame/Brush6.gif')} 
+                    style={[styles.brush6, { opacity: completionGifFadeIn }]} 
+                />
+            )}
             
             {/* Tartars on teeth - appear all at once when Brush4 appears */}
-            {showTartars && tartars.map((tartar, index) => {
+            {showTartars && !allCleaned && tartars.map((tartar, index) => {
                 const tartarImage = tartarImages[tartar.type];
                 
                 return (
@@ -565,17 +694,17 @@ const BrushTeethGame = () => {
             })}
             
             {/* Foams rendered separately so they're not constrained by tartar opacity */}
-            {showTartars && tartars.map((tartar, index) => 
+            {showTartars && !allCleaned && tartars.map((tartar, index) => 
                 tartarsCleaning[index] ? (
                     <Animated.Image
                         key={`foam-${tartar.id}`}
                         source={require('./BrushGame/Foam.png')}
                         style={{
                             position: 'absolute',
-                            left: tartar.x - 15,
-                            top: tartar.y - 15,
-                            width: 60,
-                            height: 60,
+                            left: tartar.x - 25,
+                            top: tartar.y - 25,
+                            width: 80,
+                            height: 80,
                             opacity: foamsOpacity[index],
                             resizeMode: 'contain',
                             zIndex: 36,
@@ -585,7 +714,7 @@ const BrushTeethGame = () => {
             )}
             
             {/* BrushPaste or Cup on main page */}
-            {!showCup ? (
+            {!allCleaned && (!showCup ? (
                 <TouchableOpacity 
                     onPress={handlePasteClick}
                     style={styles.pasteButton}
@@ -606,13 +735,13 @@ const BrushTeethGame = () => {
                     />
                 </TouchableOpacity>
             ) : (
-                <View style={styles.pasteButton}>
+                <Animated.View style={[styles.pasteButton, { opacity: cupFadeOut }]}>
                     <Image 
                         source={require('./BrushGame/Cup.png')} 
                         style={styles.cup}
                     />
-                </View>
-            )}
+                </Animated.View>
+            ))}
             
             {/* Red Arrow pointing to BrushPaste */}
             {showArrow && !showOverlay && !showCup && (
@@ -707,15 +836,19 @@ const BrushTeethGame = () => {
                 </Animated.View>
             )}
             
+            </Animated.View>
+            
             {/* Draggable Toothbrush with Paste on Main Page */}
-            {showDraggableBrush && (
+            {showDraggableBrush && !allCleaned && (
                 <Animated.View
                     style={[
                         styles.draggableBrushContainer,
                         {
+                            opacity: Animated.multiply(draggableBrushFadeOut, Animated.subtract(1, victoryOpacity)),
                             transform: [
                                 { translateX: brushPosition.x },
-                                { translateY: brushPosition.y }
+                                { translateY: brushPosition.y },
+                                { scale: victoryScale }
                             ]
                         }
                     ]}
@@ -730,9 +863,30 @@ const BrushTeethGame = () => {
                             source={require('./BrushGame/Paste.png')} 
                             style={styles.draggablePaste}
                         />
+                        {/* Persistent foam that appears after first contact */}
+                        {brushHasFoam && (
+                            <Animated.Image 
+                                source={require('./BrushGame/Foam.png')} 
+                                style={[styles.draggableBrushFoam, { opacity: draggableBrushFoamOpacity }]}
+                            />
+                        )}
                     </View>
                 </Animated.View>
             )}
+            
+            {/* Victory white fade overlay */}
+            <Animated.View 
+                pointerEvents="none"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: '#FFFFFF',
+                    opacity: victoryOpacity,
+                }}
+            />
     </View>
   );
 };
@@ -742,6 +896,11 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    gameContentWrapper: {
+        flex: 1,
+        width: '100%',
+        height: '100%',
     },
     background: {
         position: 'absolute',
@@ -773,6 +932,14 @@ const styles = StyleSheet.create({
         left: '-3%', 
         width: 390,
         height: 390,
+        resizeMode: 'contain',
+    },
+    brush6: {
+        position: 'absolute',
+        top: '18.5%', 
+        left: '-28%', 
+        width: 575,
+        height: 575,
         resizeMode: 'contain',
     },
     paste: {
@@ -902,6 +1069,15 @@ const styles = StyleSheet.create({
         height: 47,
         resizeMode: 'contain',
         transform: [{ rotate: '-12deg' }],
+    },
+    draggableBrushFoam: {
+        position: 'absolute',
+        top: -20,
+        left: 34,
+        width: 90,
+        height: 90,
+        resizeMode: 'contain',
+        zIndex: 49,
     },
     tartar: {
         position: 'absolute',

@@ -340,12 +340,6 @@ export default function WeeklyHistoryDetail() {
 
   return (
     <View style={styles.outerContainer}>
-      {/* Background Image */}
-      <Image
-        source={require('../../assets/background.png')}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      />
       <Animated.View 
         style={[styles.container, { 
           transform: [{ translateX: slideX }] 
@@ -353,6 +347,12 @@ export default function WeeklyHistoryDetail() {
         renderToHardwareTextureAndroid={true} // Hardware acceleration
         shouldRasterizeIOS={true} // iOS rasterization
       >
+      {/* Background Image */}
+      <Image
+        source={require('../../assets/background.png')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <TouchableOpacity onPress={handleBack}>

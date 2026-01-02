@@ -243,8 +243,12 @@ export default function PrivacyPolicy() {
               <Text style={styles.termsText}>
                 If you have questions or concerns about this Privacy Policy, you may contact us at:
               </Text>
-              <Text style={styles.termsBullet}>• Email:</Text>
-              <Text style={styles.termsBullet}>• Developer:</Text>
+              <View style={styles.termsContactItem}>
+                <Text style={styles.termsBullet}>• Email: </Text>
+                <TouchableOpacity disabled={true} activeOpacity={1}>
+                  <Text style={[styles.termsLink, styles.termsLinkDisabled]}>Ritmokids1123@gmail.com</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -355,6 +359,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 6,
     fontFamily: 'Fredoka_500Medium',
+  },
+  termsContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    flexWrap: 'wrap',
+  },
+  termsLink: {
+    fontSize: 14,
+    color: '#0066CC',
+    textDecorationLine: 'underline',
+    fontFamily: 'Fredoka_500Medium',
+  },
+  termsLinkDisabled: {
+    color: '#0066CC',
   },
   privacyAccordionHeader: {
     marginTop: 12,

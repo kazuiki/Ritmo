@@ -14,6 +14,7 @@ import {
   Alert,
   Image,
   ImageBackground,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -857,8 +858,18 @@ export default function Settings() {
 
               <Text style={styles.termsSectionTitle}>12. Contact Information</Text>
               <Text style={styles.termsText}>For questions, support, or feedback, you can reach us at:</Text>
-              <Text style={styles.termsBullet}>• Email:</Text>
-              <Text style={styles.termsBullet}>• Website:</Text>
+              <View style={styles.termsContactItem}>
+                <Text style={styles.termsBullet}>• Email: </Text>
+                <TouchableOpacity disabled={true} activeOpacity={1}>
+                  <Text style={[styles.termsLink, styles.termsLinkDisabled]}>Ritmokids1123@gmail.com</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.termsContactItem}>
+                <Text style={styles.termsBullet}>• Website: </Text>
+                <TouchableOpacity onPress={() => Linking.openURL('https://www.ritmokids.online/')}>
+                  <Text style={styles.termsLink}>https://www.ritmokids.online/</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -1089,8 +1100,12 @@ export default function Settings() {
                   <Text style={styles.termsText}>
                     If you have questions or concerns about this Privacy Policy, you may contact us at:
                   </Text>
-                  <Text style={styles.termsBullet}>• Email:</Text>
-                  <Text style={styles.termsBullet}>• Developer:</Text>
+                  <View style={styles.termsContactItem}>
+                    <Text style={styles.termsBullet}>• Email: </Text>
+                    <TouchableOpacity disabled={true} activeOpacity={1}>
+                      <Text style={[styles.termsLink, styles.termsLinkDisabled]}>Ritmokids1123@gmail.com</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 
@@ -1994,6 +2009,22 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginLeft: scale.scaleSpacing(10),
     textAlign: "justify",
     fontFamily: "Fredoka_400Regular",
+  },
+  termsContactItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(8),
+    marginLeft: scale.scaleSpacing(10),
+    flexWrap: "wrap",
+  },
+  termsLink: {
+    fontSize: scale.scaleFont(15),
+    color: "#0066CC",
+    textDecorationLine: "underline",
+    fontFamily: "Fredoka_400Regular",
+  },
+  termsLinkDisabled: {
+    color: "#0066CC",
   },
   termsButtonContainer: {
     flexDirection: "row",
