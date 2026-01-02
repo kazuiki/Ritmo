@@ -181,12 +181,6 @@ export default function History() {
 
   return (
     <View style={styles.container}>
-      {/* Background Image */}
-      <Image
-        source={require("../assets/background.png")}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      />
       <Animated.View 
         style={[{ 
           flex: 1, 
@@ -195,6 +189,12 @@ export default function History() {
         renderToHardwareTextureAndroid={true}
         shouldRasterizeIOS={true}
       >
+      {/* Background Image */}
+      <Image
+        source={require("../assets/background.png")}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
       {/* Top bar: Back + Title + Sort */}
       <View style={styles.topRow}>
         <TouchableOpacity onPress={handleBack}>
