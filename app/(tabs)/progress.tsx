@@ -6,17 +6,17 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-	Alert,
-	Image,
-	ImageBackground,
-	Modal,
-	Pressable,
-	ScrollView,
-	StyleSheet,
-	Text,
-	TextInput,
-	TouchableOpacity,
-	View
+    Alert,
+    Image,
+    ImageBackground,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
@@ -310,7 +310,10 @@ export default function Progress() {
 		const loadData = async () => {
 			try {
 				const { data: { user } } = await supabase.auth.getUser();
-				if (!user) return;
+				if (!user) {
+					console.log('User not authenticated, skipping data load');
+					return;
+				}
 
 			// Fetch routines from Supabase
 			const routinesData = await getRoutinesForCurrentUser();
@@ -422,6 +425,10 @@ export default function Progress() {
 
 			} catch (error) {
 				console.error('Failed to load progress data:', error);
+				// If not authenticated, this is expected - user will be redirected to login
+				if (error instanceof Error && error.message.includes('Not authenticated')) {
+					console.log('User authentication required to load progress data');
+				}
 			}
 		};
 

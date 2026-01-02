@@ -3,7 +3,7 @@ import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function TermsAndConditions() {
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
@@ -165,8 +165,18 @@ export default function TermsAndConditions() {
 
           <Text style={styles.termsSectionTitle}>12. Contact Information</Text>
           <Text style={styles.termsText}>For questions, support, or feedback, you can reach us at:</Text>
-          <Text style={styles.termsBullet}>• Email:</Text>
-          <Text style={styles.termsBullet}>• Website:</Text>
+          <View style={styles.termsContactItem}>
+            <Text style={styles.termsBullet}>• Email: </Text>
+            <TouchableOpacity disabled={true} activeOpacity={1}>
+              <Text style={[styles.termsLink, styles.termsLinkDisabled]}>Ritmokids1123@gmail.com</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.termsContactItem}>
+            <Text style={styles.termsBullet}>• Website: </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://www.ritmokids.online/')}>
+              <Text style={styles.termsLink}>https://www.ritmokids.online/</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Bottom Buttons - At the end of scrollable content */}
           <View style={styles.termsButtonContainer}>
@@ -353,6 +363,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 6,
     fontFamily: 'Fredoka_500Medium',
+  },
+  termsContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  termsLink: {
+    fontSize: 14,
+    color: '#0066CC',
+    textDecorationLine: 'underline',
+    fontFamily: 'Fredoka_500Medium',
+  },
+  termsLinkDisabled: {
+    color: '#0066CC',
   },
   termsButtonContainer: {
     flexDirection: 'row',
