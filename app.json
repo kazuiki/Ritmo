@@ -62,16 +62,19 @@
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
-          "color": "#5BDFC9",
-          "sounds": [
-            "./assets/ringtone/rooster.mp3"
-          ]
+          "color": "#5BDFC9"
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "16649808-bfbd-4683-8214-3eb6fac88af8"
+      }
     }
   }
 }

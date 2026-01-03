@@ -2,7 +2,6 @@ import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
-import NotificationService from "../src/notificationService";
 import { supabase } from "../src/supabaseClient";
 import { setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
@@ -89,7 +88,6 @@ export default function RootLayout() {
     notificationListener = Notifications.addNotificationReceivedListener(async notification => {
       console.log('Notification received:', notification);
       // Play ringtone for 10 seconds
-      await NotificationService.playRingtone('rooster');
     });
 
     authListener = supabase.auth.onAuthStateChange((event, session) => {
