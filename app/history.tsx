@@ -175,7 +175,9 @@ export default function History() {
       isInteraction: false,
     }).start(() => {
       setIsAnimating(false);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      }
     });
   };
 

@@ -42,7 +42,11 @@ export default function TermsAndConditions() {
 
       <View style={styles.termsModalContainer}>
         {/* Back Button */}
-        <TouchableOpacity style={styles.termsBackButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.termsBackButton} onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          }
+        }}>
           <Text style={styles.termsBackButtonText}>Back</Text>
         </TouchableOpacity>
 
@@ -198,8 +202,14 @@ export default function TermsAndConditions() {
         visible={acceptModalVisible}
         onRequestClose={() => {
           setAcceptModalVisible(false);
-          router.back();
-          setTimeout(() => router.back(), 0);
+          if (router.canGoBack()) {
+            router.back();
+            setTimeout(() => {
+              if (router.canGoBack()) {
+                router.back();
+              }
+            }, 0);
+          }
         }}
       >
         <View style={styles.alertModalOverlay}>
@@ -219,8 +229,14 @@ export default function TermsAndConditions() {
               style={styles.alertOkButton}
               onPress={() => {
                 setAcceptModalVisible(false);
-                router.back();
-                setTimeout(() => router.back(), 0);
+                if (router.canGoBack()) {
+                  router.back();
+                  setTimeout(() => {
+                    if (router.canGoBack()) {
+                      router.back();
+                    }
+                  }, 0);
+                }
               }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>
@@ -236,8 +252,14 @@ export default function TermsAndConditions() {
         visible={declineModalVisible}
         onRequestClose={() => {
           setDeclineModalVisible(false);
-          router.back();
-          setTimeout(() => router.back(), 0);
+          if (router.canGoBack()) {
+            router.back();
+            setTimeout(() => {
+              if (router.canGoBack()) {
+                router.back();
+              }
+            }, 0);
+          }
         }}
       >
         <View style={styles.alertModalOverlay}>
@@ -257,8 +279,14 @@ export default function TermsAndConditions() {
               style={styles.alertOkButtonDecline}
               onPress={() => {
                 setDeclineModalVisible(false);
-                router.back();
-                setTimeout(() => router.back(), 0);
+                if (router.canGoBack()) {
+                  router.back();
+                  setTimeout(() => {
+                    if (router.canGoBack()) {
+                      router.back();
+                    }
+                  }, 0);
+                }
               }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>

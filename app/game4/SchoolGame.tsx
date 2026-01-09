@@ -1,16 +1,59 @@
-// app/game4/SchoolGame.tsx
+﻿// app/game4/SchoolGame.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Image, PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SchoolGame() {
   const router = useRouter();
   const [cabinetOpen, setCabinetOpen] = useState(false);
+  const [poloshirtPlaced, setPoloshirtPlaced] = useState(false);
+  const [vestPlacedOnSchool2, setVestPlacedOnSchool2] = useState(false);
+  const [pantsPlaced, setPantsPlaced] = useState(false);
+  const [shoesPlaced, setShoesPlaced] = useState(false);
+  const [isDragging, setIsDragging] = useState<string | null>(null);
+  const [bagContainersOpen, setBagContainersOpen] = useState(false);
+  const [bagClickable, setBagClickable] = useState(false);
+  const [backgroundAnimationPlayed, setBackgroundAnimationPlayed] = useState(false);
+  const [bagContainersClosing, setBagContainersClosing] = useState(false);
+  const [tumblerPlaced, setTumblerPlaced] = useState(false);
+  const [notebookPlaced, setNotebookPlaced] = useState(false);
+  const [pouchPlaced, setPouchPlaced] = useState(false);
+  const [lunchboxPlaced, setLunchboxPlaced] = useState(false);
+  const [draggingBagItem, setDraggingBagItem] = useState<string | null>(null);
+  const [school6AudioPlayed, setSchool6AudioPlayed] = useState(false);
+  const [school8AudioPlayed, setSchool8AudioPlayed] = useState(false);
+  const [school9AudioPlayed, setSchool9AudioPlayed] = useState(false);
+  const [school9Completed, setSchool9Completed] = useState(false);
+  
   const cabinetOpacity = useRef(new Animated.Value(1)).current;
   const cabinet1Opacity = useRef(new Animated.Value(0)).current;
 
+  const school1Opacity = useRef(new Animated.Value(1)).current;
+  const school2Opacity = useRef(new Animated.Value(0)).current;
+  const school3Opacity = useRef(new Animated.Value(0)).current;
+  const school4Opacity = useRef(new Animated.Value(0)).current;
+  const school5Opacity = useRef(new Animated.Value(0)).current;
+  const school6Opacity = useRef(new Animated.Value(0)).current;
+  const school5Page2Opacity = useRef(new Animated.Value(0)).current;
+  const school8Opacity = useRef(new Animated.Value(0)).current;
+  const school9Opacity = useRef(new Animated.Value(0)).current;
+  
+  const poloshirtOpacity = useRef(new Animated.Value(1)).current;
+  const vestOpacity = useRef(new Animated.Value(1)).current;
+  const pantsOpacity = useRef(new Animated.Value(1)).current;
+  const shoesOpacity = useRef(new Animated.Value(1)).current;
+
+  // Bag container animations
+  const bagOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const bagOpacity = useRef(new Animated.Value(1)).current;
+  const container1ScaleAnim = useRef(new Animated.Value(0)).current;
+  const container2ScaleAnim = useRef(new Animated.Value(0)).current;
+
+  // Clothing item positions
   const poloshirtX = useRef(new Animated.Value(0)).current;
   const poloshirtY = useRef(new Animated.Value(0)).current;
   const vestX = useRef(new Animated.Value(0)).current;
@@ -19,84 +62,58 @@ export default function SchoolGame() {
   const pantsY = useRef(new Animated.Value(0)).current;
   const shoesX = useRef(new Animated.Value(0)).current;
   const shoesY = useRef(new Animated.Value(0)).current;
-  const tumblerX = useRef(new Animated.Value(0)).current;
-  const tumblerY = useRef(new Animated.Value(0)).current;
-  const notebookX = useRef(new Animated.Value(0)).current;
-  const notebookY = useRef(new Animated.Value(0)).current;
-  const pouchX = useRef(new Animated.Value(0)).current;
-  const pouchY = useRef(new Animated.Value(0)).current;
+
+  // Bag item positions and opacities
   const lunchboxX = useRef(new Animated.Value(0)).current;
   const lunchboxY = useRef(new Animated.Value(0)).current;
+  const lunchbox1X = useRef(new Animated.Value(0)).current;
+  const lunchbox1Y = useRef(new Animated.Value(0)).current;
+  const notebookX = useRef(new Animated.Value(0)).current;
+  const notebookY = useRef(new Animated.Value(0)).current;
+  const notebook1X = useRef(new Animated.Value(0)).current;
+  const notebook1Y = useRef(new Animated.Value(0)).current;
+  const pouchX = useRef(new Animated.Value(0)).current;
+  const pouchY = useRef(new Animated.Value(0)).current;
+  const pouch1X = useRef(new Animated.Value(0)).current;
+  const pouch1Y = useRef(new Animated.Value(0)).current;
+  const tumblerX = useRef(new Animated.Value(0)).current;
+  const tumblerY = useRef(new Animated.Value(0)).current;
+  const tumbler1X = useRef(new Animated.Value(0)).current;
+  const tumbler1Y = useRef(new Animated.Value(0)).current;
 
-  const [isDragging, setIsDragging] = useState<string | null>(null);
-  const [gifKey, setGifKey] = useState(0);
-  const [bagClicked, setBagClicked] = useState(false);
-
-  // Bag animation values
-  const bagScale = useRef(new Animated.Value(1)).current;
-  const bagOpacity = useRef(new Animated.Value(1)).current;
-  const bag1Opacity = useRef(new Animated.Value(0)).current;
-  const bagVisibility = useRef(new Animated.Value(0)).current; // Controls when bag appears
-
-  // Opacity for School images
-  const school1Opacity = useRef(new Animated.Value(1)).current;
-  const school2Opacity = useRef(new Animated.Value(0)).current;
-  const school3Opacity = useRef(new Animated.Value(0)).current;
-  const school4Opacity = useRef(new Animated.Value(0)).current;
-  const school5Opacity = useRef(new Animated.Value(0)).current;
-  const school6Opacity = useRef(new Animated.Value(0.001)).current; // Pre-load gif
-  const school7Opacity = useRef(new Animated.Value(0)).current;
-
-  // Background animation values
-  const schoolBG2TranslateX = useRef(new Animated.Value(0)).current;
-  const schoolBG4TranslateX = useRef(new Animated.Value(SCREEN_WIDTH)).current; // Start off-screen to the right
-  const schoolBG4Opacity = useRef(new Animated.Value(1)).current;
-  const cabinetContainerOpacity = useRef(new Animated.Value(1)).current;
-
-  // Opacity for draggable items
-  const poloshirtOpacity = useRef(new Animated.Value(1)).current;
-  const vestOpacity = useRef(new Animated.Value(1)).current;
-  const pantsOpacity = useRef(new Animated.Value(1)).current;
-  const shoesOpacity = useRef(new Animated.Value(1)).current;
-  const tumblerOpacity = useRef(new Animated.Value(1)).current;
-  const tumbler1Opacity = useRef(new Animated.Value(0)).current;
+  const lunchboxOpacity = useRef(new Animated.Value(1)).current;
+  const lunchbox1Opacity = useRef(new Animated.Value(0)).current;
   const notebookOpacity = useRef(new Animated.Value(1)).current;
   const notebook1Opacity = useRef(new Animated.Value(0)).current;
   const pouchOpacity = useRef(new Animated.Value(1)).current;
   const pouch1Opacity = useRef(new Animated.Value(0)).current;
-  const lunchboxOpacity = useRef(new Animated.Value(1)).current;
-  const lunchbox1Opacity = useRef(new Animated.Value(0)).current;
+  const tumblerOpacity = useRef(new Animated.Value(1)).current;
+  const tumbler1Opacity = useRef(new Animated.Value(0)).current;
 
-  // Pulse animation for all clothing items
+  // Pulse animations
   const poloshirtPulseAnim = useRef(new Animated.Value(1)).current;
   const vestPulseAnim = useRef(new Animated.Value(1)).current;
   const pantsPulseAnim = useRef(new Animated.Value(1)).current;
   const shoesPulseAnim = useRef(new Animated.Value(1)).current;
-  const tumblerPulseAnim = useRef(new Animated.Value(1)).current;
-  const notebookPulseAnim = useRef(new Animated.Value(1)).current;
-  const pouchPulseAnim = useRef(new Animated.Value(1)).current;
-  const lunchboxPulseAnim = useRef(new Animated.Value(1)).current;
+
   const poloshirtPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
   const vestPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
   const pantsPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
   const shoesPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const tumblerPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const notebookPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const pouchPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const lunchboxPulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Track which items have been placed
-  const [vestPlaced, setVestPlaced] = useState(false);
-  const [pantsPlaced, setPantsPlaced] = useState(false);
-  const [shoesPlaced, setShoesPlaced] = useState(false);
-  const [poloshirtPlaced, setPoloshirtPlaced] = useState(false);
-  const [tumblerPlaced, setTumblerPlaced] = useState(false);
-  const [tumblerPlacedInBag, setTumblerPlacedInBag] = useState(false);
-  const [vestPlacedOnSchool2, setVestPlacedOnSchool2] = useState(false);
-  const [tumblerDraggedOut, setTumblerDraggedOut] = useState(false);
-  const [notebookDraggedOut, setNotebookDraggedOut] = useState(false);
-  const [pouchDraggedOut, setPouchDraggedOut] = useState(false);
-  const [lunchboxDraggedOut, setLunchboxDraggedOut] = useState(false);
+  // Background pan animation
+  const bgScrollX = useRef(new Animated.Value(0)).current;
+
+  // Audio refs
+  const bgSoundRef = useRef<Audio.Sound | null>(null);
+  const school6SoundRef = useRef<Audio.Sound | null>(null);
+  const school8SoundRef = useRef<Audio.Sound | null>(null);
+  const school9SoundRef = useRef<Audio.Sound | null>(null);
+  const cabinetSoundRef = useRef<Audio.Sound | null>(null);
+
+  // Victory transition animation
+  const victoryScale = useRef(new Animated.Value(1)).current;
+  const victoryOpacity = useRef(new Animated.Value(0)).current;
 
   // Track current position values
   const poloshirtX_value = useRef(0);
@@ -107,31 +124,63 @@ export default function SchoolGame() {
   const pantsY_value = useRef(0);
   const shoesX_value = useRef(0);
   const shoesY_value = useRef(0);
-  const tumblerX_value = useRef(0);
-  const tumblerY_value = useRef(0);
-  const notebookX_value = useRef(0);
-  const notebookY_value = useRef(0);
-  const pouchX_value = useRef(0);
-  const pouchY_value = useRef(0);
-  const lunchboxX_value = useRef(0);
-  const lunchboxY_value = useRef(0);
 
-  // Dynamic zIndex for bag based on School6 visibility
-  const [bagZIndex, setBagZIndex] = useState(1050);
-  
-  // Update bag zIndex when School6 opacity changes
+  // Background music
   useEffect(() => {
-    const listener = school6Opacity.addListener(({ value }) => {
-      // When School6 is visible (opacity > 0.5), lower bag zIndex so School6 appears in front
-      if (value > 0.5) {
-        setBagZIndex(900); // Lower than School6
-      } else {
-        setBagZIndex(1050); // Normal zIndex behind School5
+    let isMounted = true;
+
+    const startBackgroundSound = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('./SchoolGame/SchoolBG.mp3'),
+          { isLooping: true, volume: 0.5, shouldPlay: true }
+        );
+
+        if (!isMounted) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        bgSoundRef.current = sound;
+        await sound.playAsync();
+      } catch (error) {
+        console.warn('Failed to start SchoolGame background sound', error);
       }
-    });
-    
-    return () => school6Opacity.removeListener(listener);
+    };
+
+    startBackgroundSound();
+
+    return () => {
+      isMounted = false;
+      if (bgSoundRef.current) {
+        bgSoundRef.current.unloadAsync();
+        bgSoundRef.current = null;
+      }
+      if (cabinetSoundRef.current) {
+        cabinetSoundRef.current.stopAsync().catch(() => {});
+        cabinetSoundRef.current.unloadAsync().catch(() => {});
+        cabinetSoundRef.current = null;
+      }
+      if (school6SoundRef.current) {
+        school6SoundRef.current.stopAsync().catch(() => {});
+        school6SoundRef.current.unloadAsync().catch(() => {});
+        school6SoundRef.current = null;
+      }
+      if (school8SoundRef.current) {
+        school8SoundRef.current.stopAsync().catch(() => {});
+        school8SoundRef.current.unloadAsync().catch(() => {});
+        school8SoundRef.current = null;
+      }
+      if (school9SoundRef.current) {
+        school9SoundRef.current.setOnPlaybackStatusUpdate(null);
+        school9SoundRef.current.stopAsync().catch(() => {});
+        school9SoundRef.current.unloadAsync().catch(() => {});
+        school9SoundRef.current = null;
+      }
+    };
   }, []);
+
+  // Setup position listeners
   useEffect(() => {
     const poloshirtXListener = poloshirtX.addListener(({ value }) => { poloshirtX_value.current = value; });
     const poloshirtYListener = poloshirtY.addListener(({ value }) => { poloshirtY_value.current = value; });
@@ -141,14 +190,6 @@ export default function SchoolGame() {
     const pantsYListener = pantsY.addListener(({ value }) => { pantsY_value.current = value; });
     const shoesXListener = shoesX.addListener(({ value }) => { shoesX_value.current = value; });
     const shoesYListener = shoesY.addListener(({ value }) => { shoesY_value.current = value; });
-    const tumblerXListener = tumblerX.addListener(({ value }) => { tumblerX_value.current = value; });
-    const tumblerYListener = tumblerY.addListener(({ value }) => { tumblerY_value.current = value; });
-    const notebookXListener = notebookX.addListener(({ value }) => { notebookX_value.current = value; });
-    const notebookYListener = notebookY.addListener(({ value }) => { notebookY_value.current = value; });
-    const pouchXListener = pouchX.addListener(({ value }) => { pouchX_value.current = value; });
-    const pouchYListener = pouchY.addListener(({ value }) => { pouchY_value.current = value; });
-    const lunchboxXListener = lunchboxX.addListener(({ value }) => { lunchboxX_value.current = value; });
-    const lunchboxYListener = lunchboxY.addListener(({ value }) => { lunchboxY_value.current = value; });
 
     return () => {
       poloshirtX.removeListener(poloshirtXListener);
@@ -159,65 +200,10 @@ export default function SchoolGame() {
       pantsY.removeListener(pantsYListener);
       shoesX.removeListener(shoesXListener);
       shoesY.removeListener(shoesYListener);
-      tumblerX.removeListener(tumblerXListener);
-      tumblerY.removeListener(tumblerYListener);
-      notebookX.removeListener(notebookXListener);
-      notebookY.removeListener(notebookYListener);
-      pouchX.removeListener(pouchXListener);
-      pouchY.removeListener(pouchYListener);
-      lunchboxX.removeListener(lunchboxXListener);
-      lunchboxY.removeListener(lunchboxYListener);
     };
   }, []);
 
-  // Proper sequence: poloshirt → vest → pants → shoes
-  useEffect(() => {
-    // Start with poloshirt pulsing when game begins (no items placed yet)
-    if (!poloshirtPlaced && !vestPlacedOnSchool2 && !pantsPlaced && !shoesPlaced) {
-      startPoloshirtPulse();
-    }
-  }, []);
-
-  // After poloshirt is placed, start vest pulsing
-  useEffect(() => {
-    if (poloshirtPlaced && !vestPlacedOnSchool2) {
-      startVestPulse();
-    }
-  }, [poloshirtPlaced, vestPlacedOnSchool2]);
-
-  // After vest is placed, start pants pulsing
-  useEffect(() => {
-    console.log(`Pants pulse check: poloshirt=${poloshirtPlaced}, vest=${vestPlacedOnSchool2}, pants=${pantsPlaced}`);
-    if (poloshirtPlaced && vestPlacedOnSchool2 && !pantsPlaced) {
-      console.log('Starting pants pulse');
-      startPantsPulse();
-    }
-  }, [poloshirtPlaced, vestPlacedOnSchool2, pantsPlaced]);
-
-  // After pants is placed, start shoes pulsing
-  useEffect(() => {
-    console.log(`Shoes pulse check: poloshirt=${poloshirtPlaced}, vest=${vestPlacedOnSchool2}, pants=${pantsPlaced}, shoes=${shoesPlaced}`);
-    if (poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced && !shoesPlaced) {
-      console.log('Starting shoes pulse');
-      startShoesPulse();
-    }
-  }, [poloshirtPlaced, vestPlacedOnSchool2, pantsPlaced, shoesPlaced]);
-
-  // Start all bag items pulsing when bag is opened
-  useEffect(() => {
-    if (bagClicked) {
-      startTumblerPulse();
-      startNotebookPulse();
-      startPouchPulse();
-      startLunchboxPulse();
-    } else {
-      stopTumblerPulse();
-      stopNotebookPulse();
-      stopPouchPulse();
-      stopLunchboxPulse();
-    }
-  }, [bagClicked]);
-
+  // PULSE FUNCTIONS FOR CLOTHING ITEMS
   const startPoloshirtPulse = () => {
     if (poloshirtPulseAnimationRef.current) {
       poloshirtPulseAnimationRef.current.stop();
@@ -358,142 +344,493 @@ export default function SchoolGame() {
     }).start();
   };
 
-  const startTumblerPulse = () => {
-    if (tumblerPulseAnimationRef.current) {
-      tumblerPulseAnimationRef.current.stop();
-    }
+  // No auto-pulsing - items only pulse when other items are being dragged
 
-    tumblerPulseAnimationRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(tumblerPulseAnim, {
+  // HANDLE BAG CONTAINERS CLOSE
+  const handleCloseBagContainers = () => {
+    setBagContainersClosing(true);
+    
+    Animated.parallel([
+      Animated.timing(bagOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.spring(container1ScaleAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: false,
+      }),
+      Animated.spring(container2ScaleAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      setBagContainersOpen(false);
+      setBagContainersClosing(false);
+    });
+  };
+  const handleBagClick = () => {
+    if (bagContainersOpen || bagContainersClosing) return; // Prevent clicks during open or closing
+    
+    setBagContainersOpen(true);
+    
+    // Animate overlay and containers appearance with spring for nice popup effect
+    Animated.parallel([
+      Animated.timing(bagOverlayOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: false,
+      }),
+      Animated.spring(container1ScaleAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 80,
+        useNativeDriver: false,
+      }),
+      Animated.spring(container2ScaleAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 80,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  // BAG ITEMS COLLISION DETECTION - Check if draggable item is near its target in Bag1.png
+  const checkBagItemCollision = (itemName: string, x: number, y: number): boolean => {
+    // Container 2 is positioned below Container 1
+    // Just check if item is dragged downward significantly (below Container 1 which is ~90px tall + margins)
+    // This makes the drop zone span the entire Container 2 width for smooth interactions
+    return y > 100;
+  };
+
+  // BAG ITEMS PAN RESPONDERS
+  const createBagItemPanResponder = (
+    itemName: string,
+    animX: Animated.Value,
+    animY: Animated.Value,
+    itemOpacity: Animated.Value,
+    targetOpacity: Animated.Value,
+    setPlaced: (placed: boolean) => void,
+    placed: boolean
+  ) => {
+    return useMemo(() => {
+      return PanResponder.create({
+        onStartShouldSetPanResponder: () => !placed,
+        onMoveShouldSetPanResponder: () => !placed,
+        onPanResponderGrant: () => {
+          setDraggingBagItem(itemName);
+          animX.extractOffset();
+          animY.extractOffset();
+        },
+        onPanResponderMove: (_, gesture) => {
+          animX.setValue(gesture.dx);
+          animY.setValue(gesture.dy);
+
+          // Use gesture values directly for collision detection
+          // gesture.dx and gesture.dy represent the current drag offset
+          if (checkBagItemCollision(itemName, gesture.dx, gesture.dy)) {
+            Animated.timing(targetOpacity, {
+              toValue: 0.8,
+              duration: 150,
+              useNativeDriver: false,
+            }).start();
+          } else {
+            Animated.timing(targetOpacity, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: false,
+            }).start();
+          }
+        },
+        onPanResponderRelease: (_, gesture) => {
+          setDraggingBagItem(null);
+          animX.flattenOffset();
+          animY.flattenOffset();
+
+          // Check if item was dropped in correct position using gesture values
+          if (checkBagItemCollision(itemName, gesture.dx, gesture.dy)) {
+            // Success! Place the item
+            setPlaced(true);
+            
+            // Fade out the draggable item
+            Animated.timing(itemOpacity, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: false,
+            }).start();
+
+            // Make target item fully visible
+            Animated.timing(targetOpacity, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: false,
+            }).start();
+
+            // Keep item in final position
+            animX.setValue(gesture.dx);
+            animY.setValue(gesture.dy);
+          } else {
+            // Spring back to original position with moderate, smooth effect
+            Animated.spring(animX, {
+              toValue: 0,
+              friction: 11,
+              tension: 65,
+              useNativeDriver: false,
+            }).start();
+            
+            Animated.spring(animY, {
+              toValue: 0,
+              friction: 11,
+              tension: 65,
+              useNativeDriver: false,
+            }).start();
+
+            // Hide target item opacity
+            Animated.timing(targetOpacity, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: false,
+            }).start();
+          }
+        },
+      });
+    }, [placed, itemName, animX, animY, itemOpacity, targetOpacity, setPlaced]);
+  };
+
+  // Create PanResponders for each bag item
+  const tumblerPan = createBagItemPanResponder('tumbler', tumblerX, tumblerY, tumblerOpacity, tumbler1Opacity, setTumblerPlaced, tumblerPlaced);
+  const notebookPan = createBagItemPanResponder('notebook', notebookX, notebookY, notebookOpacity, notebook1Opacity, setNotebookPlaced, notebookPlaced);
+  const pouchPan = createBagItemPanResponder('pouch', pouchX, pouchY, pouchOpacity, pouch1Opacity, setPouchPlaced, pouchPlaced);
+  const lunchboxPan = createBagItemPanResponder('lunchbox', lunchboxX, lunchboxY, lunchboxOpacity, lunchbox1Opacity, setLunchboxPlaced, lunchboxPlaced);
+
+  // Trigger background pan and School6.gif appearance 1 second after shoes placed
+  useEffect(() => {
+    if (shoesPlaced && !backgroundAnimationPlayed) {
+      setBackgroundAnimationPlayed(true);
+      // Wait 1 second, then start background slide AND show School6.gif together
+      setTimeout(() => {
+        // Ensure no prior native-driven animations are attached
+        bgScrollX.stopAnimation();
+        Animated.parallel([
+          // Animate background from page 1 to page 2 over 8 seconds with smooth easing
+          Animated.timing(bgScrollX, {
+            toValue: -SCREEN_WIDTH,
+            duration: 8000,
+            useNativeDriver: false,
+            easing: (t) => {
+              // Cubic ease-in-out for smooth motion
+              return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            },
+          }),
+          // Hide School5.png page 1 while showing School6.gif
+          Animated.timing(school5Opacity, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: false,
+            easing: (t) => {
+              // Cubic ease-in-out
+              return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            },
+          }),
+          // Show School6.gif at the same time (plays once on page 1)
+          Animated.timing(school6Opacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: false,
+            easing: (t) => {
+              // Cubic ease-in-out
+              return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            },
+          }),
+        ]).start(() => {
+          // After background finishes sliding (8 seconds), smoothly transition from School6.gif to School5.png on page 2
+          Animated.parallel([
+            // Fade out School6.gif completely - it should not play again
+            Animated.timing(school6Opacity, {
+              toValue: 0,
+              duration: 600,
+              useNativeDriver: false,
+              easing: (t) => {
+                // Cubic ease-in-out
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+              },
+            }),
+            // Fade in School5.png (page 2)
+            Animated.timing(school5Page2Opacity, {
+              toValue: 1,
+              duration: 600,
+              useNativeDriver: false,
+              easing: (t) => {
+                // Cubic ease-in-out
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+              },
+            }),
+          ]).start(() => {
+            // After transition completes, make bag clickable
+            setBagClickable(true);
+          });
+        });
+      }, 1000); // 1 second delay
+    }
+  }, [shoesPlaced, backgroundAnimationPlayed]);
+
+  // POP OUT BAG CONTAINERS AND TRANSITION TO SCHOOL8.GIF after all items are placed
+  useEffect(() => {
+    if (tumblerPlaced && notebookPlaced && pouchPlaced && lunchboxPlaced && bagContainersOpen) {
+      // All items are placed! Close the bag containers with pop-out effect
+      setTimeout(() => {
+        // Pop out animation - scale up then fade out
+        Animated.parallel([
+          Animated.timing(bagOverlayOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: false,
+            easing: (t) => {
+              // Cubic ease-out
+              return 1 - Math.pow(1 - t, 3);
+            },
+          }),
+          Animated.spring(container1ScaleAnim, {
+            toValue: 0,
+            friction: 6,
+            tension: 100,
+            useNativeDriver: false,
+          }),
+          Animated.spring(container2ScaleAnim, {
+            toValue: 0,
+            friction: 6,
+            tension: 100,
+            useNativeDriver: false,
+          }),
+        ]).start(() => {
+          // After pop-out completes, close the modal
+          setBagContainersOpen(false);
+          setBagContainersClosing(false);
+
+          // Wait 1 second, then transition from School5Page2 to School8Gif
+          setTimeout(() => {
+            Animated.parallel([
+              // Fade out School5Page2
+              Animated.timing(school5Page2Opacity, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: false,
+                easing: (t) => {
+                  // Cubic ease-in-out
+                  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                },
+              }),
+              // Fade in School8Gif
+              Animated.timing(school8Opacity, {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: false,
+                easing: (t) => {
+                  // Cubic ease-in-out
+                  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                },
+              }),
+            ]).start();
+          }, 1000); // 1 second wait after pop-out
+        });
+      }, 300); // Small delay before starting pop-out
+    }
+  }, [tumblerPlaced, notebookPlaced, pouchPlaced, lunchboxPlaced, bagContainersOpen]);
+
+  // FADE OUT BAG.PNG 2 seconds after School8.gif starts
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    // Check if School8 is visible (opacity > 0)
+    school8Opacity.addListener(({ value }) => {
+      if (value > 0.5) {
+        // School8 is showing, start the 1-second timer
+        timeoutId = setTimeout(() => {
+          Animated.timing(bagOpacity, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: false,
+            easing: (t) => {
+              // Cubic ease-out
+              return 1 - Math.pow(1 - t, 3);
+            },
+          }).start();
+        }, 1000); // 1 second after School8 is visible
+      }
+    });
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [school8Opacity, bagOpacity]);
+
+  // Play School6.mp3 when School6.gif appears
+  useEffect(() => {
+    const listenerId = school6Opacity.addListener(({ value }) => {
+      if (value > 0.5 && !school6AudioPlayed) {
+        setSchool6AudioPlayed(true);
+        // School6 is visible, play School6.mp3
+        (async () => {
+          try {
+            const { sound } = await Audio.Sound.createAsync(
+              require('./SchoolGame/School6.mp3'),
+              { shouldPlay: true, volume: 1.0 }
+            );
+            school6SoundRef.current = sound;
+          } catch (error) {
+            console.warn('Failed to play School6 audio', error);
+          }
+        })();
+      }
+    });
+
+    return () => {
+      school6Opacity.removeListener(listenerId);
+    };
+  }, [school6Opacity, school6AudioPlayed]);
+
+  // Play School8.mp3 when School8.gif appears
+  useEffect(() => {
+    const listenerId = school8Opacity.addListener(({ value }) => {
+      if (value > 0.5 && !school8AudioPlayed) {
+        setSchool8AudioPlayed(true);
+        // School8 is visible, play School8.mp3
+        (async () => {
+          try {
+            const { sound } = await Audio.Sound.createAsync(
+              require('./SchoolGame/School8.mp3'),
+              { shouldPlay: true, volume: 1.0 }
+            );
+            school8SoundRef.current = sound;
+          } catch (error) {
+            console.warn('Failed to play School8 audio', error);
+          }
+        })();
+      }
+    });
+
+    return () => {
+      school8Opacity.removeListener(listenerId);
+    };
+  }, [school8Opacity, school8AudioPlayed]);
+
+  // Play School9.mp3 when School9.gif appears
+  useEffect(() => {
+    const listenerId = school9Opacity.addListener(({ value }) => {
+      if (value > 0.5 && !school9AudioPlayed) {
+        setSchool9AudioPlayed(true);
+        setSchool9Completed(false);
+        // School9 is visible, play School9.mp3
+        (async () => {
+          try {
+            const { sound } = await Audio.Sound.createAsync(
+              require('./SchoolGame/School9.mp3'),
+              { shouldPlay: false, volume: 1.0 }
+            );
+            school9SoundRef.current = sound;
+
+            sound.setOnPlaybackStatusUpdate((status) => {
+              if (status.isLoaded && status.didJustFinish) {
+                setSchool9Completed(true);
+              }
+            });
+
+            await sound.playAsync().catch(() => {
+              setSchool9Completed(true);
+            });
+          } catch (error) {
+            console.warn('Failed to play School9 audio', error);
+            setSchool9Completed(true);
+          }
+        })();
+      }
+    });
+
+    return () => {
+      school9Opacity.removeListener(listenerId);
+    };
+  }, [school9Opacity, school9AudioPlayed]);
+
+  // Success scene after School9 finishes playing
+  useEffect(() => {
+    if (!school9Completed) return;
+
+    const handleCompletion = async () => {
+      if (bgSoundRef.current) {
+        bgSoundRef.current.stopAsync().catch(() => {});
+      }
+
+      Animated.parallel([
+        Animated.timing(victoryScale, {
           toValue: 1.15,
-          duration: 300,
-          useNativeDriver: false,
+          duration: 400,
+          useNativeDriver: true,
         }),
-        Animated.timing(tumblerPulseAnim, {
+        Animated.timing(victoryOpacity, {
           toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
+          duration: 400,
+          useNativeDriver: true,
         }),
-      ])
-    );
+      ]).start(() => {
+        AsyncStorage.setItem('@minigameCompleted', 'true')
+          .catch((error) => console.error('Error setting completion flag:', error))
+          .finally(() => {
+            if (router.canGoBack()) {
+              router.back();
+            }
+          });
+      });
+    };
 
-    tumblerPulseAnimationRef.current.start();
-  };
+    handleCompletion();
+  }, [bgSoundRef, router, school9Completed, victoryOpacity, victoryScale]);
 
-  const stopTumblerPulse = () => {
-    if (tumblerPulseAnimationRef.current) {
-      tumblerPulseAnimationRef.current.stop();
-      tumblerPulseAnimationRef.current = null;
-    }
-    Animated.timing(tumblerPulseAnim, {
-      toValue: 1,
-      duration: 100,
-      useNativeDriver: false,
-    }).start();
-  };
+  // Crossfade: School8 fades out while School9 fades in
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const listenerId = school8Opacity.addListener(({ value }) => {
+      if (value > 0.9) {
+        // School8 is fully visible; start a timer then crossfade to School9
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(school8Opacity, {
+              toValue: 0,
+              duration: 700,
+              useNativeDriver: false,
+              easing: (t) => {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+              },
+            }),
+            Animated.timing(school9Opacity, {
+              toValue: 1,
+              duration: 700,
+              useNativeDriver: false,
+              easing: (t) => {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+              },
+            }),
+          ]).start();
+        }, 4000); // allow School8 to play, then crossfade to School9
+      }
+    });
 
-  const startNotebookPulse = () => {
-    if (notebookPulseAnimationRef.current) {
-      notebookPulseAnimationRef.current.stop();
-    }
-    notebookPulseAnimationRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(notebookPulseAnim, {
-          toValue: 1.15,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(notebookPulseAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    notebookPulseAnimationRef.current.start();
-  };
-  const stopNotebookPulse = () => {
-    if (notebookPulseAnimationRef.current) {
-      notebookPulseAnimationRef.current.stop();
-      notebookPulseAnimationRef.current = null;
-    }
-    Animated.timing(notebookPulseAnim, {
-      toValue: 1,
-      duration: 100,
-      useNativeDriver: false,
-    }).start();
-  };
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      school8Opacity.removeListener(listenerId);
+    };
+  }, [school8Opacity, school9Opacity]);
 
-  const startPouchPulse = () => {
-    if (pouchPulseAnimationRef.current) {
-      pouchPulseAnimationRef.current.stop();
-    }
-    pouchPulseAnimationRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pouchPulseAnim, {
-          toValue: 1.15,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pouchPulseAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    pouchPulseAnimationRef.current.start();
-  };
-  const stopPouchPulse = () => {
-    if (pouchPulseAnimationRef.current) {
-      pouchPulseAnimationRef.current.stop();
-      pouchPulseAnimationRef.current = null;
-    }
-    Animated.timing(pouchPulseAnim, {
-      toValue: 1,
-      duration: 100,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const startLunchboxPulse = () => {
-    if (lunchboxPulseAnimationRef.current) {
-      lunchboxPulseAnimationRef.current.stop();
-    }
-    lunchboxPulseAnimationRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lunchboxPulseAnim, {
-          toValue: 1.15,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(lunchboxPulseAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    lunchboxPulseAnimationRef.current.start();
-  };
-  const stopLunchboxPulse = () => {
-    if (lunchboxPulseAnimationRef.current) {
-      lunchboxPulseAnimationRef.current.stop();
-      lunchboxPulseAnimationRef.current = null;
-    }
-    Animated.timing(lunchboxPulseAnim, {
-      toValue: 1,
-      duration: 100,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  // Check if item is on School1 (boy position)
+  // COLLISION DETECTION FOR CLOTHING ITEMS
   const checkCollisionWithBoy = (itemX: number, itemY: number, itemSize: number): boolean => {
     const boyLeft = SCREEN_WIDTH * 1 - 5 - (SCREEN_WIDTH * 0.4); // right: -5 converted to left
     const boyTop = SCREEN_HEIGHT - 85 - (SCREEN_HEIGHT * 0.4); // bottom: 85 converted to top
-    const boyWidth = SCREEN_WIDTH * 0.4;
+    const boyWidth = SCREEN_WIDTH * 0.4; 
     const boyHeight = SCREEN_HEIGHT * 0.4;
 
     const itemLeft = itemX;
@@ -507,161 +844,19 @@ export default function SchoolGame() {
     return !(itemRight < boyLeft || itemLeft > boyRight || itemBottom < boyTop || itemTop > boyBottom);
   };
 
-  // Check if item is on School2 (boy2 position)
-  const checkCollisionWithBoy2 = (itemX: number, itemY: number, itemSize: number): boolean => {
-    const boy2Left = SCREEN_WIDTH * 1 - 5 - (SCREEN_WIDTH * 0.4); // right: -5 converted to left
-    const boy2Top = SCREEN_HEIGHT - 80 - (SCREEN_HEIGHT * 0.4 + 5); // bottom: 80 converted to top
-    const boy2Width = SCREEN_WIDTH * 0.4;
-    const boy2Height = SCREEN_HEIGHT * 0.4 + 5;
-
-    const itemLeft = itemX;
-    const itemRight = itemX + itemSize;
-    const itemTop = itemY;
-    const itemBottom = itemY + itemSize;
-
-    const boy2Right = boy2Left + boy2Width;
-    const boy2Bottom = boy2Top + boy2Height;
-
-    return !(itemRight < boy2Left || itemLeft > boy2Right || itemBottom < boy2Top || itemTop > boy2Bottom);
+  // ITEM POSITIONS IN CABINET
+  const itemPositions = {
+    poloshirt: { top: SCREEN_HEIGHT * 0.35, left: SCREEN_WIDTH * 0.20, size: 110 },
+    vest: { top: SCREEN_HEIGHT * 0.35, left: SCREEN_WIDTH * 0.47, size: 110 },
+    pants: { top: SCREEN_HEIGHT * 0.51, left: SCREEN_WIDTH * 0.20, size: 110 },
+    shoes: { top: SCREEN_HEIGHT * 0.57, left: SCREEN_WIDTH * 0.50, size: 85 },
   };
 
-  // Check if tumbler is on Tumbler1 position in bag
-  const checkCollisionWithTumbler1 = (itemX: number, itemY: number): boolean => {
-    // Simplified collision: large area on the left side of the screen when bag is open
-    // Make it easy to hit for testing - cover full screen height and wider area
-    const tumbler1Left = 0; // Left edge of screen
-    const tumbler1Top = 0; // Top of screen
-    const tumbler1Width = SCREEN_WIDTH * 0.6; // Left 60% of screen width (wider)
-    const tumbler1Height = SCREEN_HEIGHT; // Full screen height
-
-    const itemLeft = itemX;
-    const itemRight = itemX + 70; // tumbler size
-    const itemTop = itemY;
-    const itemBottom = itemY + 70;
-
-    const tumbler1Right = tumbler1Left + tumbler1Width;
-    const tumbler1Bottom = tumbler1Top + tumbler1Height;
-
-    const isColliding = !(itemRight < tumbler1Left || itemLeft > tumbler1Right || itemBottom < tumbler1Top || itemTop > tumbler1Bottom);
-    
-    // Debug collision detection
-    console.log('Extra Wide Collision Debug:');
-    console.log(`Item: x=${itemX}, y=${itemY}, right=${itemRight}, bottom=${itemBottom}`);
-    console.log(`Tumbler1 EXTRA WIDE: left=${tumbler1Left}, top=${tumbler1Top}, right=${tumbler1Right}, bottom=${tumbler1Bottom}`);
-    console.log(`X check: ${itemLeft} >= ${tumbler1Left} && ${itemRight} <= ${tumbler1Right} = ${itemLeft >= tumbler1Left && itemRight <= tumbler1Right}`);
-    console.log(`Collision result: ${isColliding}`);
-    
-    return isColliding;
-  };
-
-  // Check collisions for other bag items (using right side of screen for now)
-  const checkCollisionWithNotebook1 = (itemX: number, itemY: number): boolean => {
-    const notebook1Left = SCREEN_WIDTH * 0.3;
-    const notebook1Width = SCREEN_WIDTH * 0.7;
-    const itemRight = itemX + 70;
-    return itemX >= notebook1Left && itemRight <= (notebook1Left + notebook1Width);
-  };
-
-  const checkCollisionWithPouch1 = (itemX: number, itemY: number): boolean => {
-    const pouch1Left = SCREEN_WIDTH * 0.3;
-    const pouch1Width = SCREEN_WIDTH * 0.7;
-    const itemRight = itemX + 70;
-    return itemX >= pouch1Left && itemRight <= (pouch1Left + pouch1Width);
-  };
-
-  const checkCollisionWithLunchbox1 = (itemX: number, itemY: number): boolean => {
-    const lunchbox1Left = SCREEN_WIDTH * 0.3; // Start at 30% instead of 40%
-    const lunchbox1Width = SCREEN_WIDTH * 0.7; // Cover 70% of screen width
-    const itemRight = itemX + 70;
-    const isColliding = itemX >= lunchbox1Left && itemRight <= (lunchbox1Left + lunchbox1Width);
-    
-    // Debug lunchbox collision
-    console.log('Lunchbox Collision Debug:');
-    console.log(`Item: x=${itemX}, right=${itemRight}`);
-    console.log(`Lunchbox1 area: left=${lunchbox1Left}, right=${lunchbox1Left + lunchbox1Width}`);
-    console.log(`Collision result: ${isColliding}`);
-    
-    return isColliding;
-  };
-
-  const handleBagClick = () => {
-    console.log('Bag clicked!', bagClicked);
-    if (bagClicked) return;
-    setBagClicked(true);
-    
-    // Zoom in animation
-    Animated.sequence([
-      Animated.timing(bagScale, {
-        toValue: 1.3,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.parallel([
-        Animated.timing(bagOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: false,
-        }),
-        Animated.timing(bag1Opacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: false,
-        }),
-      ]),
-    ]).start(() => {
-      console.log('Bag animation completed');
-    });
-  };
-
-  const handleBagDialogClose = () => {
-    console.log('Bag dialog closing');
-    // Close bag dialog and return to Bag.png
-    Animated.parallel([
-      Animated.timing(bag1Opacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-      Animated.timing(bagOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-      Animated.timing(bagScale, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: false,
-      }),
-    ]).start(() => {
-      setBagClicked(false);
-      console.log('Bag dialog closed');
-    });
-  };
-
-  const handleCabinetClick = () => {
-    setCabinetOpen(!cabinetOpen);
-    Animated.parallel([
-      Animated.timing(cabinetOpacity, { toValue: cabinetOpen ? 1 : 0, duration: 300, useNativeDriver: false }),
-      Animated.timing(cabinet1Opacity, { toValue: cabinetOpen ? 0 : 1, duration: 300, useNativeDriver: false })
-    ]).start();
-  };
-
+  // PAN RESPONDER FOR CLOTHING ITEMS
   const makePanResponder = (itemType: string, x: Animated.Value, y: Animated.Value) =>
     PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => {
-        // For tumbler, always capture the touch immediately
-        if (itemType === 'tumbler') {
-          return true;
-        }
-        return true;
-      },
+      onStartShouldSetPanResponder: (evt, gestureState) => true,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // For tumbler, activate pan immediately - no movement threshold needed
-        if (itemType === 'tumbler') {
-          return true;
-        }
         return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
       },
       onPanResponderGrant: (evt, gestureState) => {
@@ -671,8 +866,46 @@ export default function SchoolGame() {
         x.setValue(0);
         y.setValue(0);
 
-        // If poloshirt is being dragged, show School2 at 80% and hide School1
+        // Stop the pulse animation of the item being dragged (if it was pulsing)
+        if (itemType === 'poloshirt') {
+          stopPoloshirtPulse();
+        } else if (itemType === 'vest') {
+          stopVestPulse();
+        } else if (itemType === 'pants') {
+          stopPantsPulse();
+        } else if (itemType === 'shoes') {
+          stopShoesPulse();
+        }
+
+        // Reset opacity values to ensure they're at full visibility when starting drag
         if (itemType === 'poloshirt' && !poloshirtPlaced) {
+          poloshirtOpacity.setValue(1);
+        } else if (itemType === 'vest' && !vestPlacedOnSchool2) {
+          vestOpacity.setValue(1);
+        } else if (itemType === 'pants' && !pantsPlaced) {
+          pantsOpacity.setValue(1);
+        } else if (itemType === 'shoes' && !shoesPlaced) {
+          shoesOpacity.setValue(1);
+        }
+
+        // Start pulsing the target item when dragging others
+        if (itemType === 'vest' && !poloshirtPlaced) {
+          startPoloshirtPulse(); // Poloshirt pulses when dragging vest
+        } else if (itemType === 'pants' && !poloshirtPlaced) {
+          startPoloshirtPulse(); // Poloshirt pulses when dragging pants
+        } else if (itemType === 'pants' && poloshirtPlaced && !vestPlacedOnSchool2) {
+          startVestPulse(); // Vest pulses when dragging pants
+        } else if (itemType === 'shoes' && !poloshirtPlaced) {
+          startPoloshirtPulse(); // Poloshirt pulses when dragging shoes
+        } else if (itemType === 'shoes' && poloshirtPlaced && !vestPlacedOnSchool2) {
+          startVestPulse(); // Vest pulses when dragging shoes
+        } else if (itemType === 'shoes' && poloshirtPlaced && vestPlacedOnSchool2 && !pantsPlaced) {
+          startPantsPulse(); // Pants pulses when dragging shoes
+        }
+
+        // Show next School image preview when dragging starts
+        if (itemType === 'poloshirt' && !poloshirtPlaced) {
+          // When poloshirt is dragged, show School2 preview and hide School1
           Animated.parallel([
             Animated.timing(school2Opacity, {
               toValue: 0.8,
@@ -687,8 +920,8 @@ export default function SchoolGame() {
           ]).start();
         }
 
-        // If vest is being dragged (after poloshirt placed), show School3 at 80% and hide School2 (don't fade vest yet)
         if (itemType === 'vest' && poloshirtPlaced && !vestPlacedOnSchool2) {
+          // When vest is dragged (after poloshirt placed), show School3 preview and hide School2
           Animated.parallel([
             Animated.timing(school3Opacity, {
               toValue: 0.8,
@@ -703,24 +936,8 @@ export default function SchoolGame() {
           ]).start();
         }
 
-        // If vest is being dragged (after poloshirt placed), show School3 at 80% and hide School2 (don't fade vest yet)
-        if (itemType === 'vest' && poloshirtPlaced && !vestPlacedOnSchool2) {
-          Animated.parallel([
-            Animated.timing(school3Opacity, {
-              toValue: 0.8,
-              duration: 200,
-              useNativeDriver: false,
-            }),
-            Animated.timing(school2Opacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: false,
-            }),
-          ]).start();
-        }
-
-        // If pants is being dragged (after vest placed), show School4 at 80% and hide School3
         if (itemType === 'pants' && poloshirtPlaced && vestPlacedOnSchool2 && !pantsPlaced) {
+          // When pants is dragged (after vest placed), show School4 preview and hide School3
           Animated.parallel([
             Animated.timing(school4Opacity, {
               toValue: 0.8,
@@ -735,8 +952,8 @@ export default function SchoolGame() {
           ]).start();
         }
 
-        // If shoes is being dragged (after pants placed), show School5 at 80% and hide School4
         if (itemType === 'shoes' && poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced && !shoesPlaced) {
+          // When shoes is dragged (after pants placed), show School5 preview and hide School4
           Animated.parallel([
             Animated.timing(school5Opacity, {
               toValue: 0.8,
@@ -750,51 +967,14 @@ export default function SchoolGame() {
             }),
           ]).start();
         }
-        
-        // If tumbler is being dragged, show Tumbler1 at 50% opacity as preview
-        if (itemType === 'tumbler' && !tumblerPlacedInBag) {
-          Animated.timing(tumbler1Opacity, {
-            toValue: 0.5,
-            duration: 200,
-            useNativeDriver: false,
-          }).start();
-        }
-        
-        // If notebook is being dragged, show Notebook1 at 50% opacity as preview
-        if (itemType === 'notebook' && !notebookDraggedOut) {
-          Animated.timing(notebook1Opacity, {
-            toValue: 0.5,
-            duration: 200,
-            useNativeDriver: false,
-          }).start();
-        }
-        
-        // If pouch is being dragged, show Pouch1 at 50% opacity as preview
-        if (itemType === 'pouch' && !pouchDraggedOut) {
-          Animated.timing(pouch1Opacity, {
-            toValue: 0.5,
-            duration: 200,
-            useNativeDriver: false,
-          }).start();
-        }
-        
-        // If lunchbox is being dragged, show Lunchbox1 at 50% opacity as preview
-        if (itemType === 'lunchbox' && !lunchboxDraggedOut) {
-          console.log('Starting lunchbox drag - showing preview');
-          Animated.timing(lunchbox1Opacity, {
-            toValue: 0.5,
-            duration: 200,
-            useNativeDriver: false,
-          }).start();
-        }
-        
-        // If bag items are being dragged, show them as dragged out
-        // Removed for static bag items
       },
       onPanResponderMove: Animated.event([null, { dx: x, dy: y }], { useNativeDriver: false }),
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt, gestureState) => {
         x.flattenOffset();
         y.flattenOffset();
+
+        // Check if user actually dragged (moved more than 10 pixels)
+        const wasDragged = Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
 
         // Get item position
         const itemPosition = itemPositions[itemType as keyof typeof itemPositions];
@@ -813,104 +993,74 @@ export default function SchoolGame() {
         } else if (itemType === 'shoes') {
           currentX = itemPosition.left + shoesX_value.current;
           currentY = itemPosition.top + shoesY_value.current;
-        } else if (itemType === 'tumbler') {
-          // Tumbler is inside the bag container, calculate position relative to screen
-          const containerCenterX = SCREEN_WIDTH / 2;
-          const containerCenterY = SCREEN_HEIGHT * 0.1 + (SCREEN_HEIGHT * 0.5);
-          currentX = containerCenterX + tumblerX_value.current - 35;
-          currentY = containerCenterY + tumblerY_value.current - 35;
-          console.log(`Container center: x=${containerCenterX}, y=${containerCenterY}`);
-          console.log(`Tumbler offset: x=${tumblerX_value.current}, y=${tumblerY_value.current}`);
-        } else if (itemType === 'notebook') {
-          const containerCenterX = SCREEN_WIDTH / 2;
-          const containerCenterY = SCREEN_HEIGHT * 0.1 + (SCREEN_HEIGHT * 0.5);
-          currentX = containerCenterX + notebookX_value.current - 35;
-          currentY = containerCenterY + notebookY_value.current - 35;
-        } else if (itemType === 'pouch') {
-          const containerCenterX = SCREEN_WIDTH / 2;
-          const containerCenterY = SCREEN_HEIGHT * 0.1 + (SCREEN_HEIGHT * 0.5);
-          currentX = containerCenterX + pouchX_value.current - 35;
-          currentY = containerCenterY + pouchY_value.current - 35;
-        } else if (itemType === 'lunchbox') {
-          const containerCenterX = SCREEN_WIDTH / 2;
-          const containerCenterY = SCREEN_HEIGHT * 0.1 + (SCREEN_HEIGHT * 0.5);
-          currentX = containerCenterX + lunchboxX_value.current - 35;
-          currentY = containerCenterY + lunchboxY_value.current - 35;
-        }
-        // Removed bag item position logic for static items
-
-        const isOnBoy = checkCollisionWithBoy(currentX, currentY, itemPosition.size);
-        const isOnBoy2 = checkCollisionWithBoy2(currentX, currentY, itemPosition.size);
-        const isOnTumbler1 = itemType === 'tumbler' ? checkCollisionWithTumbler1(currentX, currentY) : false;
-        const isOnNotebook1 = itemType === 'notebook' ? checkCollisionWithNotebook1(currentX, currentY) : false;
-        const isOnPouch1 = itemType === 'pouch' ? checkCollisionWithPouch1(currentX, currentY) : false;
-        const isOnLunchbox1 = itemType === 'lunchbox' ? checkCollisionWithLunchbox1(currentX, currentY) : false;
-
-        console.log(`Item: ${itemType}, currentX: ${currentX}, currentY: ${currentY}, isOnBoy: ${isOnBoy}, isOnBoy2: ${isOnBoy2}, isOnTumbler1: ${isOnTumbler1}, poloshirtPlaced: ${poloshirtPlaced}, vestPlacedOnSchool2: ${vestPlacedOnSchool2}, pantsPlaced: ${pantsPlaced}, shoesPlaced: ${shoesPlaced}`);
-
-        if (itemType === 'tumbler') {
-          console.log(`Tumbler collision check: currentX=${currentX}, currentY=${currentY}, isOnTumbler1=${isOnTumbler1}`);
-          
-          // Check if tumbler has been moved significantly (at least 30 pixels) to prevent accidental clicks
-          const moveDistance = Math.sqrt(Math.pow(tumblerX_value.current, 2) + Math.pow(tumblerY_value.current, 2));
-          console.log(`Tumbler move distance: ${moveDistance}`);
-          
-          if (moveDistance < 30) {
-            console.log('Tumbler not moved enough - preventing placement');
-            // Reset Tumbler1 preview if it was shown
-            if ((tumbler1Opacity as any)._value > 0) {
-              Animated.timing(tumbler1Opacity, {
-                toValue: 0,
-                duration: 200,
-                useNativeDriver: false,
-              }).start();
-            }
-            return; // Don't allow placement if not moved enough
-          }
         }
 
-        // Similar checks for other bag items
-        if (itemType === 'notebook') {
-          const moveDistance = Math.sqrt(Math.pow(notebookX_value.current, 2) + Math.pow(notebookY_value.current, 2));
-          if (moveDistance < 30) {
-            if ((notebook1Opacity as any)._value > 0) {
-              Animated.timing(notebook1Opacity, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-            }
-            return;
-          }
-        }
+        const isOnBoy = wasDragged && checkCollisionWithBoy(currentX, currentY, itemPosition.size);
 
-        if (itemType === 'pouch') {
-          const moveDistance = Math.sqrt(Math.pow(pouchX_value.current, 2) + Math.pow(pouchY_value.current, 2));
-          if (moveDistance < 30) {
-            if ((pouch1Opacity as any)._value > 0) {
-              Animated.timing(pouch1Opacity, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-            }
-            return;
-          }
-        }
-
-        if (itemType === 'lunchbox') {
-          const moveDistance = Math.sqrt(Math.pow(lunchboxX_value.current, 2) + Math.pow(lunchboxY_value.current, 2));
-          console.log(`Lunchbox move distance: ${moveDistance}, currentX: ${currentX}, currentY: ${currentY}, isOnLunchbox1: ${isOnLunchbox1}`);
-          if (moveDistance < 30) {
-            console.log('Lunchbox not moved enough');
-            if ((lunchbox1Opacity as any)._value > 0) {
-              Animated.timing(lunchbox1Opacity, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-            }
-            return;
-          }
-        }
+        // Track if placement was successful
+        let placementSuccessful = false;
 
         if (isOnBoy) {
-          // Item placed on School1
-          if (itemType === 'vest' && !vestPlaced && poloshirtPlaced && !vestPlacedOnSchool2) {
-            console.log('VEST PLACED ON SCHOOL1 - Starting School3 animation!');
-            setVestPlacedOnSchool2(true);
+          // Item placed on boy (School1 position)
+          if (itemType === 'poloshirt' && !poloshirtPlaced) {
+            // POLOSHIRT PLACEMENT LOGIC
+            placementSuccessful = true;
+            setPoloshirtPlaced(true);
+            
+            // Stop ALL pulse animations and reset scales immediately
+            stopPoloshirtPulse();
             stopVestPulse();
+            stopPantsPulse();
+            stopShoesPulse();
 
-            // Transition: School3 to 100%, Vest fades out smoothly (same as poloshirt logic)
+            // Stop any running animations on these values to prevent conflicts
+            school1Opacity.stopAnimation();
+            school2Opacity.stopAnimation();
+            poloshirtOpacity.stopAnimation();
+
+            // Transition: School1 to 0%, School2 to 100%, Poloshirt fades out
             Animated.parallel([
+              Animated.timing(school1Opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              Animated.timing(school2Opacity, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              Animated.timing(poloshirtOpacity, {
+                toValue: 0,
+                duration: 800,
+                useNativeDriver: false,
+              }),
+            ]).start(() => {
+              console.log('Poloshirt placed, School2 now fully visible');
+            });
+          } else if (itemType === 'vest' && poloshirtPlaced && !vestPlacedOnSchool2) {
+            // VEST PLACEMENT LOGIC (after poloshirt)
+            placementSuccessful = true;
+            setVestPlacedOnSchool2(true);
+            
+            // Stop ALL pulse animations and reset scales immediately
+            stopPoloshirtPulse();
+            stopVestPulse();
+            stopPantsPulse();
+            stopShoesPulse();
+
+            // Stop any running animations on these values to prevent conflicts
+            school2Opacity.stopAnimation();
+            school3Opacity.stopAnimation();
+            vestOpacity.stopAnimation();
+
+            // Transition: School2 to 0%, School3 to 100%, Vest fades out
+            Animated.parallel([
+              Animated.timing(school2Opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
               Animated.timing(school3Opacity, {
                 toValue: 1,
                 duration: 300,
@@ -918,21 +1068,35 @@ export default function SchoolGame() {
               }),
               Animated.timing(vestOpacity, {
                 toValue: 0,
-                duration: 500,
+                duration: 800,
                 useNativeDriver: false,
               }),
             ]).start(() => {
-              console.log('Vest animation completed from School1');
+              console.log('Vest placed, School3 now fully visible');
             });
-          } else if (itemType === 'vest' && !vestPlaced) {
-            setVestPlaced(true);
-          } else if (itemType === 'pants' && !pantsPlaced && poloshirtPlaced && vestPlacedOnSchool2) {
-            console.log('PANTS PLACED ON SCHOOL1 - Starting School4 animation!');
+          } else if (itemType === 'pants' && poloshirtPlaced && vestPlacedOnSchool2 && !pantsPlaced) {
+            // PANTS PLACEMENT LOGIC (after vest)
+            placementSuccessful = true;
             setPantsPlaced(true);
+            
+            // Stop ALL pulse animations and reset scales immediately
+            stopPoloshirtPulse();
+            stopVestPulse();
             stopPantsPulse();
+            stopShoesPulse();
 
-            // Transition: School4 to 100%, Pants fades out smoothly (same as poloshirt/vest logic)
+            // Stop any running animations on these values to prevent conflicts
+            school3Opacity.stopAnimation();
+            school4Opacity.stopAnimation();
+            pantsOpacity.stopAnimation();
+
+            // Transition: School3 to 0%, School4 to 100%, Pants fades out
             Animated.parallel([
+              Animated.timing(school3Opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
               Animated.timing(school4Opacity, {
                 toValue: 1,
                 duration: 300,
@@ -940,20 +1104,29 @@ export default function SchoolGame() {
               }),
               Animated.timing(pantsOpacity, {
                 toValue: 0,
-                duration: 500,
+                duration: 800,
                 useNativeDriver: false,
               }),
             ]).start(() => {
-              console.log('Pants animation completed from School1');
+              console.log('Pants placed, School4 now fully visible');
             });
-          } else if (itemType === 'pants' && !pantsPlaced) {
-            setPantsPlaced(true);
-          } else if (itemType === 'shoes' && !shoesPlaced && poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced) {
-            console.log('SHOES PLACED ON SCHOOL1 - Starting School5 animation!');
+          } else if (itemType === 'shoes' && poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced && !shoesPlaced) {
+            // SHOES PLACEMENT LOGIC (final clothing item)
+            placementSuccessful = true;
             setShoesPlaced(true);
+            
+            // Stop ALL pulse animations and reset scales immediately
+            stopPoloshirtPulse();
+            stopVestPulse();
+            stopPantsPulse();
             stopShoesPulse();
 
-            // Transition: School5 to 100%, Shoes fades out smoothly (same as other items logic)
+            // Stop any running animations on these values to prevent conflicts
+            school4Opacity.stopAnimation();
+            school5Opacity.stopAnimation();
+            shoesOpacity.stopAnimation();
+
+            // Transition: School5 to 100%, Shoes fades out smoothly
             Animated.parallel([
               Animated.timing(school4Opacity, {
                 toValue: 0,
@@ -967,316 +1140,21 @@ export default function SchoolGame() {
               }),
               Animated.timing(shoesOpacity, {
                 toValue: 0,
-                duration: 500,
+                duration: 800,
                 useNativeDriver: false,
               }),
             ]).start(() => {
-              console.log('Shoes animation completed from School1 - School5 should be at 100% opacity');
+              console.log('Shoes placed, School5 now fully visible - all clothing items placed');
               
-              // After 2 seconds, start School6 transition with background change
-              setTimeout(() => {
-                console.log('Starting School6 and background transition');
-                
-                // Force gif to restart by changing key
-                setGifKey(prev => prev + 1);
-                
-                // Reset and immediately start School6 transition
-                school6Opacity.setValue(0);
-                
-                // Smooth transition: School6 appears instantly when backgrounds start moving
-                Animated.parallel([
-                  // School5 fades out very quickly
-                  Animated.timing(school5Opacity, {
-                    toValue: 0,
-                    duration: 150,
-                    easing: Easing.out(Easing.quad),
-                    useNativeDriver: false,
-                  }),
-                  // School6 appears instantly as School5 fades out - gif walking synced
-                  Animated.timing(school6Opacity, {
-                    toValue: 1,
-                    duration: 150,
-                    easing: Easing.in(Easing.quad),
-                    useNativeDriver: false,
-                  }),
-                  // Background transition: SchoolBG2 slides left (8 seconds)
-                  Animated.timing(schoolBG2TranslateX, {
-                    toValue: -SCREEN_WIDTH,
-                    duration: 8000,
-                    useNativeDriver: false,
-                  }),
-                  // SchoolBG4 slides in from right (8 seconds)
-                  Animated.timing(schoolBG4TranslateX, {
-                    toValue: 0,
-                    duration: 8000,
-                    useNativeDriver: false,
-                  }),
-                ]).start(() => {
-                  console.log('School6 and background transition completed in 8 seconds');
-                  
-                  // Hide cabinet now that we're fully on page 2
-                  Animated.timing(cabinetContainerOpacity, {
-                    toValue: 0,
-                    duration: 500,
-                    useNativeDriver: false,
-                  }).start();
-                  
-                  // Transition School6 back to School5 after background transition completes
-                  Animated.parallel([
-                    Animated.timing(school6Opacity, {
-                      toValue: 0,
-                      duration: 500,
-                      useNativeDriver: false,
-                    }),
-                    Animated.timing(school5Opacity, {
-                      toValue: 1,
-                      duration: 500,
-                      useNativeDriver: false,
-                    }),
-                    // Show bag when School5 appears
-                    Animated.timing(bagVisibility, {
-                      toValue: 1,
-                      duration: 500,
-                      useNativeDriver: false,
-                    }),
-                  ]).start(() => {
-                    console.log('School6 to School5 transition completed - bag is now visible');
-                  });
-                });
-              }, 2000);
+              // GAME COMPLETED - STOP HERE AT SCHOOL5.PNG
+              // No further transitions to School6.gif or bag
             });
-          } else if (itemType === 'poloshirt' && !poloshirtPlaced) {
-            setPoloshirtPlaced(true);
-            stopPoloshirtPulse();
-
-            // Transition: School2 to 100%, Poloshirt fades out smoothly
-            Animated.parallel([
-              Animated.timing(school2Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(poloshirtOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start();
-          }
-        } else if (isOnBoy2 && poloshirtPlaced) {
-          // Item placed on School2  
-          if (itemType === 'vest' && !vestPlacedOnSchool2) {
-            console.log('VEST PLACED ON SCHOOL2 - Starting animation!');
-            setVestPlacedOnSchool2(true);
-            stopVestPulse();
-
-            // Transition: School3 to 100%, Vest fades out smoothly (same as poloshirt logic)
-            Animated.parallel([
-              Animated.timing(school3Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(vestOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Vest animation completed');
-            });
-          } else if (itemType === 'pants' && !pantsPlaced) {
-            setPantsPlaced(true);
-          }
-        } else if (isOnBoy2 && poloshirtPlaced) {
-          // Item placed on School1
-          if (itemType === 'vest' && !vestPlaced && poloshirtPlaced && !vestPlacedOnSchool2) {
-            console.log('VEST PLACED ON SCHOOL1 - Starting School3 animation!');
-            setVestPlacedOnSchool2(true);
-            stopVestPulse();
-
-            // Transition: School3 to 100%, Vest fades out smoothly (same as poloshirt logic)
-            Animated.parallel([
-              Animated.timing(school3Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(vestOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Vest animation completed from School1');
-            });
-          } else if (itemType === 'vest' && !vestPlaced) {
-            setVestPlaced(true);
-          } else if (itemType === 'pants' && !pantsPlaced && poloshirtPlaced && vestPlacedOnSchool2) {
-            console.log('PANTS PLACED ON SCHOOL1 - Starting School4 animation!');
-            setPantsPlaced(true);
-            stopPantsPulse();
-
-            // Transition: School4 to 100%, Pants fades out smoothly (same as poloshirt/vest logic)
-            Animated.parallel([
-              Animated.timing(school4Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(pantsOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Pants animation completed from School1');
-            });
-          } else if (itemType === 'pants' && !pantsPlaced) {
-            setPantsPlaced(true);
-          } else if (itemType === 'shoes' && !shoesPlaced && poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced) {
-            console.log('SHOES PLACED ON SCHOOL1 - Starting School5 animation!');
-            setShoesPlaced(true);
-            stopShoesPulse();
-
-            // Transition: School5 to 100%, Shoes fades out smoothly (same as other items logic)
-            Animated.parallel([
-              Animated.timing(school4Opacity, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(school5Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(shoesOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Shoes animation completed from School1 - School5 should be at 100% opacity');
-              
-              // After 2 seconds, start School6 transition with background change
-              setTimeout(() => {
-                console.log('Starting School6 and background transition');
-                
-                // Force gif to restart by changing key
-                setGifKey(prev => prev + 1);
-                
-                // Reset and immediately start School6 transition
-                school6Opacity.setValue(0);
-                
-                // Smooth transition: School6 appears instantly when backgrounds start moving
-                Animated.parallel([
-                  // School5 fades out very quickly
-                  Animated.timing(school5Opacity, {
-                    toValue: 0,
-                    duration: 150,
-                    easing: Easing.out(Easing.quad),
-                    useNativeDriver: false,
-                  }),
-                  // School6 appears instantly as School5 fades out - gif walking synced
-                  Animated.timing(school6Opacity, {
-                    toValue: 1,
-                    duration: 150,
-                    easing: Easing.in(Easing.quad),
-                    useNativeDriver: false,
-                  }),
-                  // Background transition: SchoolBG2 slides left (8 seconds)
-                  Animated.timing(schoolBG2TranslateX, {
-                    toValue: -SCREEN_WIDTH,
-                    duration: 8000,
-                    useNativeDriver: false,
-                  }),
-                  // SchoolBG4 slides in from right (8 seconds)
-                  Animated.timing(schoolBG4TranslateX, {
-                    toValue: 0,
-                    duration: 8000,
-                    useNativeDriver: false,
-                  }),
-                ]).start(() => {
-                  console.log('School6 and background transition completed in 8 seconds');
-                  
-                  // Hide cabinet now that we're fully on page 2
-                  Animated.timing(cabinetContainerOpacity, {
-                    toValue: 0,
-                    duration: 500,
-                    useNativeDriver: false,
-                  }).start();
-                  
-                  // Transition School6 back to School5 after background transition completes
-                  Animated.parallel([
-                    Animated.timing(school6Opacity, {
-                      toValue: 0,
-                      duration: 500,
-                      useNativeDriver: false,
-                    }),
-                    Animated.timing(school5Opacity, {
-                      toValue: 1,
-                      duration: 500,
-                      useNativeDriver: false,
-                    }),
-                    // Show bag when School5 appears
-                    Animated.timing(bagVisibility, {
-                      toValue: 1,
-                      duration: 500,
-                      useNativeDriver: false,
-                    }),
-                  ]).start(() => {
-                    console.log('School6 to School5 transition completed - bag is now visible');
-                  });
-                });
-              }, 2000);
-            });
-          } else if (itemType === 'poloshirt' && !poloshirtPlaced) {
-            setPoloshirtPlaced(true);
-            stopPoloshirtPulse();
-
-            // Transition: School2 to 100%, Poloshirt fades out smoothly
-            Animated.parallel([
-              Animated.timing(school2Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(poloshirtOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start();
-          }
-        } else if (isOnBoy2 && poloshirtPlaced) {
-          // Item placed on School2  
-          if (itemType === 'vest' && !vestPlacedOnSchool2) {
-            console.log('VEST PLACED ON SCHOOL2 - Starting animation!');
-            setVestPlacedOnSchool2(true);
-            stopVestPulse();
-
-            // Transition: School3 to 100%, Vest fades out smoothly (same as poloshirt logic)
-            Animated.parallel([
-              Animated.timing(school3Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(vestOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Vest animation completed');
-            });
-          } else if (itemType === 'pants' && !pantsPlaced) {
-            setPantsPlaced(true);
           }
         } else {
-          // If poloshirt was being dragged but not placed, restore School1 and hide School2
+          // Item NOT placed on boy - reset to previous state
+          
           if (itemType === 'poloshirt' && !poloshirtPlaced) {
+            // Restore School1 and hide School2 preview
             Animated.parallel([
               Animated.timing(school2Opacity, {
                 toValue: 0,
@@ -1291,8 +1169,24 @@ export default function SchoolGame() {
             ]).start();
           }
           
-          // If pants was being dragged but not placed, restore School3 and hide School4
+          if (itemType === 'vest' && poloshirtPlaced && !vestPlacedOnSchool2) {
+            // Restore School2 and hide School3 preview
+            Animated.parallel([
+              Animated.timing(school3Opacity, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: false,
+              }),
+              Animated.timing(school2Opacity, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: false,
+              }),
+            ]).start();
+          }
+
           if (itemType === 'pants' && poloshirtPlaced && vestPlacedOnSchool2 && !pantsPlaced) {
+            // Restore School3 and hide School4 preview
             Animated.parallel([
               Animated.timing(school4Opacity, {
                 toValue: 0,
@@ -1307,8 +1201,8 @@ export default function SchoolGame() {
             ]).start();
           }
 
-          // If shoes was being dragged but not placed, restore School4 and hide School5
           if (itemType === 'shoes' && poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced && !shoesPlaced) {
+            // Restore School4 and hide School5 preview
             Animated.parallel([
               Animated.timing(school5Opacity, {
                 toValue: 0,
@@ -1322,150 +1216,41 @@ export default function SchoolGame() {
               }),
             ]).start();
           }
-
-          // If tumbler was dragged but not placed anywhere special, check if placed on Tumbler1
-          if (itemType === 'tumbler' && isOnTumbler1 && !tumblerPlacedInBag) {
-            console.log('TUMBLER PLACED IN BAG - Starting animation!');
-            console.log('Tumbler1 opacity before:', (tumbler1Opacity as any)._value);
-            console.log('Tumbler opacity before:', (tumblerOpacity as any)._value);
-            setTumblerPlacedInBag(true);
-            stopTumblerPulse();
-
-            // Transition: Tumbler1 becomes visible, Tumbler fades out (like poloshirt behavior)
-            Animated.parallel([
-              Animated.timing(tumbler1Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(tumblerOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Tumbler placed in bag animation completed - tumbler permanently hidden like poloshirt');
-              console.log('Tumbler1 opacity after:', (tumbler1Opacity as any)._value);
-              console.log('Tumbler opacity after:', (tumblerOpacity as any)._value);
-            });
-            // No other special placement logic for tumbler
-          } else if (itemType === 'tumbler' && !tumblerPlacedInBag) {
-            // If tumbler was dragged but not placed on Tumbler1, hide the preview
-            Animated.timing(tumbler1Opacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: false,
-            }).start();
-          }
-
-          // Notebook placement logic
-          if (itemType === 'notebook' && isOnNotebook1 && !notebookDraggedOut) {
-            console.log('NOTEBOOK PLACED - Starting animation!');
-            setNotebookDraggedOut(true);
-            stopNotebookPulse();
-
-            Animated.parallel([
-              Animated.timing(notebook1Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(notebookOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Notebook placed animation completed');
-            });
-          } else if (itemType === 'notebook' && !notebookDraggedOut) {
-            Animated.timing(notebook1Opacity, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-          }
-
-          // Pouch placement logic
-          if (itemType === 'pouch' && isOnPouch1 && !pouchDraggedOut) {
-            console.log('POUCH PLACED - Starting animation!');
-            setPouchDraggedOut(true);
-            stopPouchPulse();
-
-            Animated.parallel([
-              Animated.timing(pouch1Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(pouchOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Pouch placed animation completed');
-            });
-          } else if (itemType === 'pouch' && !pouchDraggedOut) {
-            Animated.timing(pouch1Opacity, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-          }
-
-          // Lunchbox placement logic
-          if (itemType === 'lunchbox' && isOnLunchbox1 && !lunchboxDraggedOut) {
-            console.log('LUNCHBOX PLACED - Starting animation!');
-            setLunchboxDraggedOut(true);
-            stopLunchboxPulse();
-
-            Animated.parallel([
-              Animated.timing(lunchbox1Opacity, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(lunchboxOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              console.log('Lunchbox placed animation completed');
-            });
-          } else if (itemType === 'lunchbox' && !lunchboxDraggedOut) {
-            Animated.timing(lunchbox1Opacity, { toValue: 0, duration: 200, useNativeDriver: false }).start();
-          }
         }
 
-        Animated.spring(x, { toValue: 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
-        Animated.spring(y, { toValue: 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
-        setIsDragging(null);
+        // Return item to original position ONLY if placement was NOT successful
+        if (!placementSuccessful) {
+          Animated.spring(x, { toValue: 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
+          Animated.spring(y, { toValue: 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
+        }
         
-        // Removed bag items reset logic for static items
+        setIsDragging(null);
+
+        // Stop all pulsing when drag ends
+        stopPoloshirtPulse();
+        stopVestPulse();
+        stopPantsPulse();
+        stopShoesPulse();
       },
       onPanResponderTerminate: () => {
         setIsDragging(null);
+        
+        // Stop all pulsing when drag is terminated
+        stopPoloshirtPulse();
+        stopVestPulse();
+        stopPantsPulse();
+        stopShoesPulse(); 
       }
     });
 
-  const poloshirtPan = makePanResponder('poloshirt', poloshirtX, poloshirtY);
-  const vestPan = makePanResponder('vest', vestX, vestY);
-  const pantsPan = makePanResponder('pants', pantsX, pantsY);
-  const shoesPan = makePanResponder('shoes', shoesX, shoesY);
-  const tumblerPan = makePanResponder('tumbler', tumblerX, tumblerY);
-  const notebookPan = makePanResponder('notebook', notebookX, notebookY);
-  const pouchPan = makePanResponder('pouch', pouchX, pouchY);
-  const lunchboxPan = makePanResponder('lunchbox', lunchboxX, lunchboxY);
+  // CREATE PAN RESPONDERS FOR EACH CLOTHING ITEM (memoized but with state dependencies)
+  const poloshirtPan = useMemo(() => makePanResponder('poloshirt', poloshirtX, poloshirtY), [poloshirtPlaced, vestPlacedOnSchool2, pantsPlaced, shoesPlaced]);
+  const vestPan = useMemo(() => makePanResponder('vest', vestX, vestY), [poloshirtPlaced, vestPlacedOnSchool2, pantsPlaced, shoesPlaced]);
+  const pantsPan = useMemo(() => makePanResponder('pants', pantsX, pantsY), [poloshirtPlaced, vestPlacedOnSchool2, pantsPlaced, shoesPlaced]);
+  const shoesPan = useMemo(() => makePanResponder('shoes', shoesX, shoesY), [poloshirtPlaced, vestPlacedOnSchool2, pantsPlaced, shoesPlaced]);
 
-  const itemPositions = {
-    poloshirt: { top: SCREEN_HEIGHT * 0.35, left: SCREEN_WIDTH * 0.20, size: 110 },
-    vest: { top: SCREEN_HEIGHT * 0.35, left: SCREEN_WIDTH * 0.47, size: 110 },
-    pants: { top: SCREEN_HEIGHT * 0.51, left: SCREEN_WIDTH * 0.20, size: 110 },
-    shoes: { top: SCREEN_HEIGHT * 0.57, left: SCREEN_WIDTH * 0.50, size: 85 },
-    tumbler: { top: SCREEN_HEIGHT * 0.57, left: SCREEN_WIDTH * 0.75, size: 85 },
-    notebook: { top: SCREEN_HEIGHT * 0.57, left: SCREEN_WIDTH * 0.75, size: 85 },
-    pouch: { top: SCREEN_HEIGHT * 0.57, left: SCREEN_WIDTH * 0.75, size: 85 },
-    lunchbox: { top: SCREEN_HEIGHT * 0.57, left: SCREEN_WIDTH * 0.75, size: 85 },
-  };
-
+  // RENDER DRAGGABLE CLOTHING ITEMS
   const renderDraggable = (name: string, source: any, x: Animated.Value, y: Animated.Value, pan: any, position: any, opacityAnim: Animated.Value, pulseAnim?: Animated.Value) => {
-    // For shoes, don't apply opacity fade when School5 is visible (shoes should remain fully visible when dragging)
-    const shouldApplyOpacity = name !== 'shoes' || !(poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced && !shoesPlaced);
-    
     return (
       <Animated.View
         {...pan.panHandlers}
@@ -1485,7 +1270,7 @@ export default function SchoolGame() {
           overflow: 'hidden',
           justifyContent: 'center',
           alignItems: 'center',
-          opacity: shouldApplyOpacity ? opacityAnim : 1,
+          opacity: opacityAnim,
         }}
       >
         <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
@@ -1493,293 +1278,221 @@ export default function SchoolGame() {
     );
   };
 
+  const handleCabinetClick = () => {
+    // Play Cabinet.mp3 on every tap/click
+    (async () => {
+      try {
+        // Stop and unload any previous instance to avoid overlap
+        if (cabinetSoundRef.current) {
+          await cabinetSoundRef.current.stopAsync().catch(() => {});
+          await cabinetSoundRef.current.unloadAsync().catch(() => {});
+          cabinetSoundRef.current = null;
+        }
+
+        const { sound } = await Audio.Sound.createAsync(
+          require('./SchoolGame/Cabinet.mp3'),
+          { shouldPlay: true, volume: 1.0, isLooping: false }
+        );
+        cabinetSoundRef.current = sound;
+      } catch (error) {
+        console.warn('Failed to play Cabinet.mp3', error);
+      }
+    })();
+
+    setCabinetOpen(!cabinetOpen);
+    
+    if (!cabinetOpen) {
+      // Opening: Cabinet.png -> Cabinet1.png
+      Animated.parallel([
+        Animated.timing(cabinetOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(cabinet1Opacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else {
+      // Closing: Cabinet1.png -> Cabinet.png
+      Animated.parallel([
+        Animated.timing(cabinetOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(cabinet1Opacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }
+  };
+
+  // Create animated TouchableOpacity component
+  const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
   return (
     <View style={styles.container}>
-      {/* Animated backgrounds */}
+      <Animated.View
+        style={[styles.gameContentWrapper, { transform: [{ scale: victoryScale }] }]}
+      >
       <Animated.Image 
         source={require('./SchoolGame/SchoolBG2.png')} 
         style={[
-          styles.bg, 
-          { 
-            transform: [{ translateX: schoolBG2TranslateX }]
+          styles.bg,
+          {
+            transform: [{ translateX: bgScrollX }],
           }
         ]} 
         resizeMode="cover" 
       />
-      <Animated.Image 
-        source={require('./SchoolGame/SchoolBG4.png')} 
-        style={[
-          styles.bg, 
-          { 
-            position: 'absolute',
-            opacity: schoolBG4Opacity,
-            transform: [{ translateX: schoolBG4TranslateX }]
-          }
-        ]} 
-        resizeMode="cover" 
-      />
-      {/* Bag on couch in SchoolBG4 - Bag.png behind School5 */}
-      <Animated.View
-        style={[
-          styles.bagOnCouch, 
-          { 
-            opacity: bagVisibility,
-            transform: [
-              { translateX: schoolBG4TranslateX },
-              { scale: bagScale }
-            ],
-            zIndex: 1000,
-          }
-        ]}
-        pointerEvents="box-none"
-      >
-        <TouchableOpacity 
-          onPress={handleBagClick}
-          style={{ width: '100%', height: '100%' }}
-          activeOpacity={0.7}
-        >
-          <Animated.Image 
-            source={require('./SchoolGame/Bag.png')} 
-            style={[{ width: '100%', height: '100%', opacity: bagOpacity, zIndex: bagZIndex }]} 
-            resizeMode="contain" 
-          />
-        </TouchableOpacity>
-      </Animated.View>
-      
-      {/* Bag1.png as full-screen dialog overlay on Page 2 */}
-      <Animated.View
-        style={[
-          styles.bag1Dialog, 
-          { 
-            opacity: bag1Opacity,
-            zIndex: 2500,
-          }
-        ]}
-        pointerEvents={bagClicked ? "auto" : "none"}
-      >
-        {/* Background overlay - clickable to close dialog */}
-        <View 
-          style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', paddingTop: SCREEN_HEIGHT * 0.1 }}
-        >
-          {/* Yellow container above Bag1 */}
-          <View
-            style={{
-              backgroundColor: '#F7C238',
-              borderRadius: 15,
-              borderWidth: 3,
-              borderColor: '#634E16',
-              paddingHorizontal: 30,
-              paddingVertical: 12,
-              marginBottom: 60,
-              marginTop: -100,
-              width: '90%',
-              height: '10%',
-              justifyContent: 'center',
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.3,
-              shadowRadius: 4,
-              elevation: 5,
-              zIndex: 4000,
-              overflow: 'visible',
-            }}
-          >
-            {/* Container content - school items */}
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-start', width: '100%', alignItems: 'center', height: '100%', marginLeft: -40, gap: 10, overflow: 'visible' }}>
-              {/* Draggable tumbler - stays in container */}
-              <Animated.View
-                {...tumblerPan.panHandlers}
-                style={{
-                  width: 70,
-                  height: 70,
-                  opacity: tumblerOpacity,
-                  transform: [
-                    { translateX: tumblerX },
-                    { translateY: tumblerY },
-                    { scale: tumblerPulseAnim }
-                  ],
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: isDragging === 'tumbler' ? 5000 : 100,
-                }}
-              >
-                <Image source={require('./SchoolGame/Tumbler.png')} style={{ width: 60, height: 60 }} resizeMode="contain" />
-              </Animated.View>
-              
-              {/* Draggable Notebook - stays in container */}
-              <Animated.View
-                {...notebookPan.panHandlers}
-                style={{
-                  width: 70,
-                  height: 70,
-                  opacity: notebookOpacity,
-                  transform: [
-                    { translateX: notebookX },
-                    { translateY: notebookY },
-                    { scale: notebookPulseAnim }
-                  ],
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: isDragging === 'notebook' ? 5000 : 100,
-                }}
-              >
-                <Image source={require('./SchoolGame/Notebook.png')} style={{ width: 60, height: 60 }} resizeMode="contain" />
-              </Animated.View>
 
-              {/* Draggable Pouch - stays in container */}
-              <Animated.View
-                {...pouchPan.panHandlers}
-                style={{
-                  width: 70,
-                  height: 70,
-                  opacity: pouchOpacity,
-                  transform: [
-                    { translateX: pouchX },
-                    { translateY: pouchY },
-                    { scale: pouchPulseAnim }
-                  ],
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: isDragging === 'pouch' ? 5000 : 100,
-                }}
-              >
-                <Image source={require('./SchoolGame/Pouch.png')} style={{ width: 60, height: 60 }} resizeMode="contain" />
-              </Animated.View>
-
-              {/* Draggable Lunchbox - stays in container */}
-              <Animated.View
-                {...lunchboxPan.panHandlers}
-                style={{
-                  width: 70,
-                  height: 70,
-                  opacity: lunchboxOpacity,
-                  transform: [
-                    { translateX: lunchboxX },
-                    { translateY: lunchboxY },
-                    { scale: lunchboxPulseAnim }
-                  ],
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: isDragging === 'lunchbox' ? 5000 : 100,
-                }}
-              >
-                <Image source={require('./SchoolGame/Lunchbox.png')} style={{ width: 60, height: 60 }} resizeMode="contain" />
-              </Animated.View>
-            </View>
-          </View>
-          
-          {/* Bag1 content */}
-          <TouchableOpacity 
-            onPress={handleBagDialogClose}
-            style={{
-              width: '70%',
-              height: '70%',
-            }}
-            activeOpacity={0.8}
-          >
-            <Animated.View
-              style={{
-                transform: [{ scale: bagScale }],
-                width: '100%',
-                height: '100%',
-                zIndex: 2000, // Lower than dragging tumbler (3000)
-                position: 'relative',
-              }}
-            >
-              <Animated.Image 
-                source={require('./SchoolGame/Bag1.png')} 
-                style={[{ width: '100%', height: '100%' }]} 
-                resizeMode="contain" 
-              />
-              
-              {/* Items inside Bag1 compartments */}
-              <View style={{ position: 'absolute', width: '100%', height: '100%', top: 0, left: 0 }}>
-                {/* Tumbler in left compartment - centered vertically */}
-                <Animated.Image 
-                  source={require('./SchoolGame/Tumbler1.png')} 
-                  style={{ 
-                    position: 'absolute', 
-                    width: 180, 
-                    height: 280, 
-                    top: '30%', 
-                    left: '-10%',
-                    opacity: tumbler1Opacity
-                  }} 
-                  resizeMode="contain" 
-                />
-                
-                {/* Lunchbox in top right compartment - centered */}
-                <Animated.Image 
-                  source={require('./SchoolGame/Lunchbox1.png')} 
-                  style={{ 
-                    position: 'absolute', 
-                    width: 140, 
-                    height: 80, 
-                    top: '19%', 
-                    right: '5%',
-                    opacity: lunchbox1Opacity
-                  }} 
-                  resizeMode="contain" 
-                />
-                
-                {/* Pouch in middle right compartment - centered */}
-                <Animated.Image 
-                  source={require('./SchoolGame/Pouch1.png')} 
-                  style={{ 
-                    position: 'absolute', 
-                    width: 140, 
-                    height: 60, 
-                    top: '37%', 
-                    right: '5%',
-                    opacity: pouch1Opacity
-                  }} 
-                  resizeMode="contain" 
-                />
-                
-                {/* Notebook in bottom right compartment - centered */}
-                <Animated.Image 
-                  source={require('./SchoolGame/Notebook1.png')} 
-                  style={{ 
-                    position: 'absolute', 
-                    width: 120, 
-                    height: 160, 
-                    top: '54%', 
-                    right: '7%',
-                    opacity: notebook1Opacity
-                  }} 
-                  resizeMode="contain" 
-                />
-              </View>
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => {
+        if (router.canGoBack()) {
+          router.back();
+        }
+      }}>
         <Text style={styles.backText}>Back</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.cabinetContainer} onPress={handleCabinetClick} activeOpacity={1}>
-        <Animated.View style={{ opacity: cabinetContainerOpacity }}>
-          <Animated.Image source={require('./SchoolGame/Cabinet.png')} style={[styles.cabinet, { opacity: cabinetOpacity }]} resizeMode="contain" />
-          <Animated.Image 
-            source={require('./SchoolGame/Cabinet1.png')} 
-            style={[
-              styles.cabinet, 
-              { 
-                position: 'absolute', 
-                opacity: cabinet1Opacity,
-                transform: [{ translateX: schoolBG2TranslateX }]
-              }
-            ]} 
-            resizeMode="contain" 
-          />
-        </Animated.View>
-      </TouchableOpacity>
+      <AnimatedTouchableOpacity
+        style={[
+          styles.cabinetContainer,
+          {
+            transform: [{ translateX: bgScrollX }],
+          }
+        ]} 
+        onPress={handleCabinetClick} 
+        activeOpacity={1}
+      >
+        <Animated.Image 
+          source={require('./SchoolGame/Cabinet.png')} 
+          style={[
+            styles.cabinet, 
+            { 
+              opacity: cabinetOpacity,
+            }
+          ]} 
+          resizeMode="contain" 
+        />
+        <Animated.Image 
+          source={require('./SchoolGame/Cabinet1.png')} 
+          style={[
+            styles.cabinet, 
+            { 
+              position: 'absolute', 
+              opacity: cabinet1Opacity,
+            }
+          ]} 
+          resizeMode="contain" 
+        />
+      </AnimatedTouchableOpacity>
 
-      {cabinetOpen && !(poloshirtPlaced && vestPlacedOnSchool2 && pantsPlaced && shoesPlaced) && (
-        <View style={styles.cabinetContents} pointerEvents="box-none">
+      <Animated.Image 
+        source={require('./SchoolGame/School1.png')} 
+        style={[styles.schoolChar, { opacity: school1Opacity }]} 
+        resizeMode="contain"
+      />
+      <Animated.Image 
+        source={require('./SchoolGame/School2.png')} 
+        style={[styles.schoolChar, { opacity: school2Opacity }]} 
+        resizeMode="contain"
+      />
+      <Animated.Image 
+        source={require('./SchoolGame/School3.png')} 
+        style={[styles.schoolChar, { opacity: school3Opacity }]} 
+        resizeMode="contain"
+      />
+      <Animated.Image 
+        source={require('./SchoolGame/School4.png')} 
+        style={[styles.schoolChar, { opacity: school4Opacity }]} 
+        resizeMode="contain"
+      />
+      <Animated.Image 
+        source={require('./SchoolGame/School5.png')} 
+        style={[styles.schoolChar, { opacity: school5Opacity }]} 
+        resizeMode="contain"
+      />
+      
+      <Animated.View
+        pointerEvents={bagClickable && !bagContainersOpen && !bagContainersClosing ? 'auto' : 'none'}
+        style={[
+          styles.bag,
+          {
+            transform: [{ translateX: bgScrollX }],
+            opacity: bagOpacity,
+          }
+        ]}
+      >
+        <Pressable 
+          onPress={handleBagClick}
+          disabled={!bagClickable || bagContainersOpen || bagContainersClosing}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <Image 
+            source={require('./SchoolGame/Bag.png')} 
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.school5Page2,
+          {
+            transform: [{ translateX: bgScrollX }],
+            opacity: school5Page2Opacity,
+          },
+        ]}
+      >
+        <Animated.Image 
+          source={require('./SchoolGame/School5.png')} 
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="contain"
+        />
+      </Animated.View>
+      
+      <Animated.View pointerEvents="none" style={[styles.schoolGif, { opacity: school6Opacity }]}>
+        <Animated.Image 
+          source={require('./SchoolGame/School6.gif')} 
+          style={{ width: '100%', height: '100%' }} 
+          resizeMode="contain"
+        />
+      </Animated.View>
+      
+      <Animated.View pointerEvents="none" style={[styles.school8Gif, { opacity: school8Opacity }]}>
+        <Animated.Image 
+          source={require('./SchoolGame/School8.gif')} 
+          style={{ width: '100%', height: '100%' }} 
+          resizeMode="contain"
+        />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.school9Gif,
+          {
+            transform: [{ translateX: bgScrollX }],
+            opacity: school9Opacity,
+          },
+        ]}
+      >
+        <Animated.Image 
+          source={require('./SchoolGame/School9.gif')} 
+          style={{ width: '100%', height: '100%' }} 
+          resizeMode="contain"
+        />
+      </Animated.View>
+
+      {cabinetOpen && (
+        <View style={styles.clothingContainer} pointerEvents="box-none">
           {renderDraggable('poloshirt', require('./SchoolGame/Poloshirt.png'), poloshirtX, poloshirtY, poloshirtPan, itemPositions.poloshirt, poloshirtOpacity, poloshirtPulseAnim)}
           {renderDraggable('vest', require('./SchoolGame/Vest.png'), vestX, vestY, vestPan, itemPositions.vest, vestOpacity, vestPulseAnim)}
           {renderDraggable('pants', require('./SchoolGame/Pants.png'), pantsX, pantsY, pantsPan, itemPositions.pants, pantsOpacity, pantsPulseAnim)}
@@ -1787,37 +1500,390 @@ export default function SchoolGame() {
         </View>
       )}
 
-      <Animated.Image source={require('./SchoolGame/School1.png')} style={[styles.boy, { opacity: school1Opacity }]} resizeMode="contain"/>
-      <Animated.Image source={require('./SchoolGame/School2.png')} style={[styles.boy2, { opacity: school2Opacity }]} resizeMode="contain"/>
-      <Animated.Image source={require('./SchoolGame/School3.png')} style={[styles.boy3, { opacity: school3Opacity }]} resizeMode="contain"/>
-      <Animated.Image source={require('./SchoolGame/School4.png')} style={[styles.boy4, { opacity: school4Opacity }]} resizeMode="contain"/>
-      <Animated.Image source={require('./SchoolGame/School5.png')} style={[styles.boy5, { opacity: school5Opacity, zIndex: 1100 }]} resizeMode="contain"/>
-      <Animated.Image 
-        key={`school6-${gifKey}`}
-        source={require('./SchoolGame/School6.gif')} 
-        style={[styles.boy6, { opacity: school6Opacity }]} 
-        resizeMode="contain"
+      {bagContainersOpen && (
+        <>
+          {/* Grayish overlay */}
+          <Animated.View 
+            pointerEvents={bagContainersClosing ? 'none' : 'auto'}
+            style={[styles.bagOverlay, { opacity: bagOverlayOpacity }]} 
+          />
+          
+          {/* Back button for bag containers */}
+          <TouchableOpacity 
+            style={[styles.backButton, { zIndex: 1002 }]} 
+            onPress={handleCloseBagContainers}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          
+          {/* Bag containers modal */}
+          <Animated.View 
+            style={[
+              styles.bagContainersModal,
+              {
+                opacity: bagOverlayOpacity,
+              }
+            ]}
+            pointerEvents="box-none"
+          >
+            {/* Container 1 - Top container with items without "1" */}
+            <Animated.View
+              style={[
+                styles.bagContainer1,
+                {
+                  transform: [{ scale: container1ScaleAnim }],
+                }
+              ]}
+            >
+              {/* Tumbler, Notebook, Pouch, Lunchbox - in that order, now draggable */}
+              <Animated.View 
+                style={[
+                  styles.bagContainer1Item,
+                  {
+                    opacity: tumblerOpacity,
+                    transform: [
+                      { translateX: tumblerX },
+                      { translateY: tumblerY },
+                    ],
+                    zIndex: draggingBagItem === 'tumbler' ? 1000 : 1,
+                  }
+                ]}
+                {...tumblerPan.panHandlers}
+              >
+                <Image source={require('./SchoolGame/Tumbler.png')} style={styles.bagItem} resizeMode="contain" />
+              </Animated.View>
+
+              <Animated.View 
+                style={[
+                  styles.bagContainer1Item, 
+                  { 
+                    marginLeft: -20,
+                    opacity: notebookOpacity,
+                    transform: [
+                      { translateX: notebookX },
+                      { translateY: notebookY },
+                    ],
+                    zIndex: draggingBagItem === 'notebook' ? 1000 : 1,
+                  }
+                ]}
+                {...notebookPan.panHandlers}
+              >
+                <Image source={require('./SchoolGame/Notebook.png')} style={styles.bagItem} resizeMode="contain" />
+              </Animated.View>
+
+              <Animated.View 
+                style={[
+                  styles.bagContainer1Item, 
+                  { 
+                    marginLeft: -2,
+                    opacity: pouchOpacity,
+                    transform: [
+                      { translateX: pouchX },
+                      { translateY: pouchY },
+                    ],
+                    zIndex: draggingBagItem === 'pouch' ? 1000 : 1,
+                  }
+                ]}
+                {...pouchPan.panHandlers}
+              >
+                <Image source={require('./SchoolGame/Pouch.png')} style={styles.bagItem} resizeMode="contain" />
+              </Animated.View>
+
+              <Animated.View 
+                style={[
+                  styles.bagContainer1Item,
+                  {
+                    opacity: lunchboxOpacity,
+                    transform: [
+                      { translateX: lunchboxX },
+                      { translateY: lunchboxY },
+                    ],
+                    zIndex: draggingBagItem === 'lunchbox' ? 1000 : 1,
+                  }
+                ]}
+                {...lunchboxPan.panHandlers}
+              >
+                <Image source={require('./SchoolGame/Lunchbox.png')} style={styles.bagItem} resizeMode="contain" />
+              </Animated.View>
+            </Animated.View>
+
+            {/* Container 2 - Bag1.png with items inside */}
+            <Animated.View
+              style={[
+                styles.bagContainer2,
+                {
+                  transform: [{ scale: container2ScaleAnim }],
+                }
+              ]}
+            >
+              {/* Bag1.png as background */}
+              <Image 
+                source={require('./SchoolGame/Bag1.png')} 
+                style={styles.bag1Image}
+                resizeMode="contain"
+              />
+              
+              {/* Items inside the bag - absolute positioning for independent sizing */}
+              <View style={styles.bagItemsContainer}>
+                {/* Tumbler1 - independently positioned and sized */}
+                <Animated.Image 
+                  source={require('./SchoolGame/Tumbler1.png')} 
+                  style={[styles.tumbler1Image, { opacity: tumbler1Opacity }]}
+                  resizeMode="contain"
+                />
+                
+                {/* Lunchbox1 - independently positioned and sized */}
+                <Animated.Image 
+                  source={require('./SchoolGame/Lunchbox1.png')} 
+                  style={[styles.lunchbox1Image, { opacity: lunchbox1Opacity }]}
+                  resizeMode="contain"
+                />
+                
+                {/* Pouch1 - independently positioned and sized */}
+                <Animated.Image 
+                  source={require('./SchoolGame/Pouch1.png')} 
+                  style={[styles.pouch1Image, { opacity: pouch1Opacity }]}
+                  resizeMode="contain"
+                />
+                
+                {/* Notebook1 - independently positioned and sized */}
+                <Animated.Image 
+                  source={require('./SchoolGame/Notebook1.png')} 
+                  style={[styles.notebook1Image, { opacity: notebook1Opacity }]}
+                  resizeMode="contain"
+                />
+              </View>
+            </Animated.View>
+          </Animated.View>
+        </>
+      )}
+      </Animated.View>
+      <Animated.View 
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#FFFFFF',
+          opacity: victoryOpacity,
+        }}
       />
-      <Animated.Image source={require('./SchoolGame/School7.png')} style={[styles.boy7, { opacity: school7Opacity }]} resizeMode="contain"/>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#C8E6E2' },
-  bg: { position: 'absolute', width: '100%', height: '100%' },
-  backButton: { position: 'absolute', top: 40, left: 16, paddingBottom: 8, zIndex: 10 },
-  backText: { fontSize: 20, color: '#244D4A', textDecorationLine: 'underline', fontWeight: '700' },
-  cabinetContainer: { position: 'absolute', bottom: -85, left: -42, width: SCREEN_WIDTH * 0.95, height: SCREEN_HEIGHT * 1.0 },
-  cabinet: { width: SCREEN_WIDTH * 0.95, height: SCREEN_HEIGHT * 1.0 },
-  cabinetContents: { position: 'absolute', bottom: -85, left: -42, width: SCREEN_WIDTH * 0.95, height: SCREEN_HEIGHT * 1.0 },
-  boy: { position: 'absolute', bottom: 85, right: -5, width: SCREEN_WIDTH * 0.4, height: SCREEN_HEIGHT * 0.4 },
-  boy2: { position: 'absolute', bottom: 80, right: -5, width: SCREEN_WIDTH * 0.4, height: SCREEN_HEIGHT * 0.4 + 5 },
-  boy3: { position: 'absolute', bottom: 77, right: -22, width: SCREEN_WIDTH * 0.5, height: SCREEN_HEIGHT * 0.4 + 6 },
-  boy4: { position: 'absolute', bottom: 80, right: -20, width: SCREEN_WIDTH * 0.5, height: SCREEN_HEIGHT * 0.4 + 6 },
-  boy5: { position: 'absolute', bottom: 80, right: -24, width: SCREEN_WIDTH * 0.5, height: SCREEN_HEIGHT * 0.4 + 3 },
-  boy6: { position: 'absolute', bottom: -10, right: -50, width: SCREEN_WIDTH * 0.75, height: SCREEN_HEIGHT * 0.6 },
-  boy7: { position: 'absolute', bottom: 80, right: -60, width: SCREEN_WIDTH * 0.85, height: SCREEN_HEIGHT * 0.45 },
-  bagOnCouch: { position: 'absolute', bottom: -SCREEN_HEIGHT * 0.045, left: -SCREEN_WIDTH * 0.025, width: SCREEN_WIDTH * 0.7, height: SCREEN_HEIGHT * 0.7 },
-  bag1Dialog: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: 'center', alignItems: 'center' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#C8E6E2' 
+  },
+  gameContentWrapper: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  bg: { 
+    position: 'absolute', 
+    width: SCREEN_WIDTH * 2,
+    height: '100%',
+    overflow: 'hidden',
+  },
+  backButton: { 
+    position: 'absolute', 
+    top: 40, 
+    left: 16, 
+    paddingBottom: 8, 
+    zIndex: 10 
+  },
+  backText: { 
+    fontSize: 20, 
+    color: '#244D4A', 
+    textDecorationLine: 'underline', 
+    fontWeight: '700' 
+  },
+  cabinetContainer: { 
+    position: 'absolute', 
+    bottom: -85, 
+    left: -42, 
+    width: SCREEN_WIDTH * 0.95, 
+    height: SCREEN_HEIGHT * 1.0 
+  },
+  cabinet: { 
+    width: SCREEN_WIDTH * 0.95, 
+    height: SCREEN_HEIGHT * 1.0 
+  },
+  clothingContainer: {
+    position: 'absolute',
+    bottom: -85,
+    left: -42,
+    width: SCREEN_WIDTH * 0.95,
+    height: SCREEN_HEIGHT * 1.0,
+  },
+  poloshirt: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    top: SCREEN_HEIGHT * 0.35,
+    left: SCREEN_WIDTH * 0.20,
+  },
+  vest: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    top: SCREEN_HEIGHT * 0.35,
+    left: SCREEN_WIDTH * 0.47,
+  },
+  pants: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    top: SCREEN_HEIGHT * 0.51,
+    left: SCREEN_WIDTH * 0.20,
+  },
+  shoes: {
+    position: 'absolute',
+    width: 85,
+    height: 85,
+    top: SCREEN_HEIGHT * 0.57,
+    left: SCREEN_WIDTH * 0.50,
+  },
+  schoolChar: { 
+    position: 'absolute', 
+    bottom: 105, 
+    right: -5, 
+    width: SCREEN_WIDTH * 0.430, 
+    height: SCREEN_HEIGHT * 0.430 
+  },
+  schoolGif: { 
+    position: 'absolute', 
+    bottom: -8, 
+    right: -37, 
+    width: SCREEN_WIDTH * 0.745, 
+    height: SCREEN_HEIGHT * 0.745 
+  },
+  school5Page2: {
+    position: 'absolute',
+    bottom: 105,
+    left: SCREEN_WIDTH * 1.60,
+    width: SCREEN_WIDTH * 0.430,
+    height: SCREEN_HEIGHT * 0.430,
+  },
+  school8Gif: { 
+    position: 'absolute', 
+    bottom: -395, 
+    right: -175, 
+    width: SCREEN_WIDTH * 1.8, 
+    height: SCREEN_HEIGHT * 1.8 
+  },
+  school9Gif: {
+    position: 'absolute',
+    bottom: -393,
+    left: SCREEN_WIDTH * 0.68,
+    width: SCREEN_WIDTH * 1.80,
+    height: SCREEN_HEIGHT * 1.80,
+  },
+  bag: { 
+    position: 'absolute', 
+    bottom: 3, 
+    left: SCREEN_WIDTH * 1.01, 
+    width: SCREEN_WIDTH * 0.66, 
+    height: SCREEN_HEIGHT * 0.66 
+  },
+  bagOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 1000,
+  },
+  bagContainersModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1001,
+    paddingHorizontal: 20,
+    paddingTop: 80,
+  },
+  bagContainer1: {
+    backgroundColor: '#F7C238',
+    borderColor: '#634E16',
+    borderWidth: 4,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 2,
+    width: '100%',
+    maxWidth: 380,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 90,
+    gap: 0,
+    zIndex: 100,
+  },
+  bagContainer1Item: {
+    width: 65,
+    height: 65,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bagContainer2: {
+    width: '100%',
+    aspectRatio: 0.55,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    zIndex: 1,
+  },
+  bag1Image: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  bagItemsContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  tumbler1Image: {
+    position: 'absolute',
+    width: '35%',
+    height: '75%',
+    left: '6.5%',
+    top: '15%',
+  },
+  lunchbox1Image: {
+    position: 'absolute',
+    width: '38%',
+    height: '25%',
+    right: '12%',
+    top: '11.5%',
+  },
+  pouch1Image: {
+    position: 'absolute',
+    width: '43%',
+    height: '31%',
+    right: '9%',
+    top: '26.5%',
+  },
+  notebook1Image: {
+    position: 'absolute',
+    width: '43%',
+    height: '53%',
+    right: '9%',
+    bottom: '3%',
+  },
+  bagItem: {
+    width: 65,
+    height: 65,
+  },
 });
