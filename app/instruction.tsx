@@ -2,17 +2,17 @@ import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fon
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");
@@ -104,7 +104,9 @@ export default function InstructionPage() {
       setCurrentPage(prevPage);
       scrollViewRef.current?.scrollTo({ x: prevPage * width, animated: true });
     } else {
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      }
     }
   };
 

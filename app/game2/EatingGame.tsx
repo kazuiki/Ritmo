@@ -381,7 +381,9 @@ const EatingGame = () => {
               
               // Show celebration for 10 seconds
               setTimeout(() => {
-                router.back();
+                if (router.canGoBack()) {
+                  router.back();
+                }
               }, 10000);
               
               return prevStage; // Keep current stage if complete
@@ -506,7 +508,11 @@ const EatingGame = () => {
     <View style={styles.container}>
       <Image source={require('./EatGame/EatBG.png')} style={styles.background} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          }
+        }}>
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
       </View>
