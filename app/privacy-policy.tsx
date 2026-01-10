@@ -30,7 +30,11 @@ export default function PrivacyPolicy() {
         {/* Back Button */}
         <TouchableOpacity 
           style={styles.termsBackButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            }
+          }}
         >
           <Text style={styles.termsBackButtonText}>Back</Text>
         </TouchableOpacity>

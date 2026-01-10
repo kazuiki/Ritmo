@@ -63,7 +63,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
         audio: getAudioIfExists('brushStep1.mp3')
       },
       { 
-        label: 'Put some toothpaste into the toothbrush', 
+        label: 'Put some toothpaste onto the toothbrush', 
         gif: require('../assets/gifs/brushStep2.gif'), 
         audio: getAudioIfExists('brushStep2.mp3')
       },
@@ -138,7 +138,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
         audio: getAudioIfExists('clotheStep1.mp3')
       },
       { 
-        label: 'Put shirt on over your head and arms', 
+        label: 'Put the shirt over your head and arms', 
         gif: require('../assets/gifs/clothesStep2.gif'), 
         audio: getAudioIfExists('clotheStep2.mp3')
       },
@@ -183,7 +183,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     title: 'Bedtime Prep',
     steps: [
       { 
-        label: 'Preparing to change into pajamas', 
+        label: 'Prepare to change into pajamas', 
         gif: require('../assets/gifs/pajamaStep1.gif'), 
         audio: getAudioIfExists('pajamaStep1.mp3')
       },
@@ -198,7 +198,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
         audio: getAudioIfExists('pajamaStep3.mp3')
       },
       { 
-        label: 'Fully dressed in pajamas and ready for bedtime', 
+        label: 'You are now fully dressed and ready for bedtime', 
         gif: require('../assets/gifs/pajamaStep4.gif'), 
         audio: getAudioIfExists('pajamaStep4.mp3')
       },

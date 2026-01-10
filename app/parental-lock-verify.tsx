@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
-  Alert,
-  ImageBackground,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    ImageBackground,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
 import { createResponsiveStyles, useResponsiveDimensions } from '../src/utils/responsive';
@@ -47,7 +47,9 @@ export default function ParentalLockVerify() {
       
       if (isValid) {
         // PIN is correct, go back to the previous screen
-        router.back();
+        if (router.canGoBack()) {
+          router.back();
+        }
       } else {
         // PIN is incorrect, show alert and reset
         Alert.alert("Incorrect PIN", "Please try again.");
