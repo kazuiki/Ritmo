@@ -80,8 +80,13 @@ export default function Home() {
   const successAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const goodJobSoundRef = useRef<Audio.Sound | null>(null); // Track GoodJob.mp3 separately for cleanup
   // Background audio refs for specific playbook presets
-  const sleepBGSoundRef = useRef<Audio.Sound | null>(null);
-  const dressBGSoundRef = useRef<Audio.Sound | null>(null);
+  const sleepBGSoundRef = useRef<Audio.Sound | null>(null); // Go to Sleep (7)
+  const dressBGSoundRef = useRef<Audio.Sound | null>(null); // Dress Up Time (4)
+  const bathBGSoundRef = useRef<Audio.Sound | null>(null); // Bath Time (3)
+  const brushBGSoundRef = useRef<Audio.Sound | null>(null); // Brush My Teeth (1)
+  const eatBGSoundRef = useRef<Audio.Sound | null>(null); // Let's Eat (2)
+  const pajamaBGSoundRef = useRef<Audio.Sound | null>(null); // Bedtime Prep (6)
+  const schoolBGSoundRef = useRef<Audio.Sound | null>(null); // Go to School (5)
   const bgAudioPlayedRef = useRef(false); // Track if BG audio has played in current session
   // Track minigame completion
   const minigameStartedRef = useRef(false); // Set to true when launching a minigame
@@ -655,6 +660,41 @@ export default function Home() {
         );
         dressBGSoundRef.current = dressBGSound;
 
+        // Preload BathBG.mp3 for "Bath Time" (preset 3)
+        const { sound: bathBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/BathBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        bathBGSoundRef.current = bathBGSound;
+
+        // Preload BrushBG.mp3 for "Brush My Teeth" (preset 1)
+        const { sound: brushBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/BrushBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        brushBGSoundRef.current = brushBGSound;
+
+        // Preload EatBG.mp3 for "Let's Eat" (preset 2)
+        const { sound: eatBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/EatBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        eatBGSoundRef.current = eatBGSound;
+
+        // Preload PajamaBG.mp3 for "Bedtime Prep" (preset 6)
+        const { sound: pajamaBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/PajamaBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        pajamaBGSoundRef.current = pajamaBGSound;
+
+        // Preload SchoolBG.mp3 for "Go to School" (preset 5)
+        const { sound: schoolBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/SchoolBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        schoolBGSoundRef.current = schoolBGSound;
+
         console.log('Background audio preloaded successfully');
       } catch (error) {
         console.error('Failed to preload background audio:', error);
@@ -671,6 +711,21 @@ export default function Home() {
       if (dressBGSoundRef.current) {
         dressBGSoundRef.current.unloadAsync().catch(console.error);
       }
+      if (bathBGSoundRef.current) {
+        bathBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (brushBGSoundRef.current) {
+        brushBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (eatBGSoundRef.current) {
+        eatBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (pajamaBGSoundRef.current) {
+        pajamaBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (schoolBGSoundRef.current) {
+        schoolBGSoundRef.current.unloadAsync().catch(console.error);
+      }
     };
   }, []);
 
@@ -684,15 +739,40 @@ export default function Home() {
         try {
           // Check if this preset has background audio
           if (activePreset.id === 7 && sleepBGSoundRef.current) {
-            // "Go to Sleep" - play SleepBG.mp3
+            // Go to Sleep
             await sleepBGSoundRef.current.playAsync();
             bgAudioPlayedRef.current = true;
             console.log('Playing SleepBG.mp3 background audio');
           } else if (activePreset.id === 4 && dressBGSoundRef.current) {
-            // "Dress Up Time" - play DressBG.mp3
+            // Dress Up Time
             await dressBGSoundRef.current.playAsync();
             bgAudioPlayedRef.current = true;
             console.log('Playing DressBG.mp3 background audio');
+          } else if (activePreset.id === 3 && bathBGSoundRef.current) {
+            // Bath Time
+            await bathBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing BathBG.mp3 background audio');
+          } else if (activePreset.id === 1 && brushBGSoundRef.current) {
+            // Brush My Teeth
+            await brushBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing BrushBG.mp3 background audio');
+          } else if (activePreset.id === 2 && eatBGSoundRef.current) {
+            // Let's Eat
+            await eatBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing EatBG.mp3 background audio');
+          } else if (activePreset.id === 6 && pajamaBGSoundRef.current) {
+            // Bedtime Prep
+            await pajamaBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing PajamaBG.mp3 background audio');
+          } else if (activePreset.id === 5 && schoolBGSoundRef.current) {
+            // Go to School
+            await schoolBGSoundRef.current.playAsync();
+            bgAudioPlayedRef.current = true;
+            console.log('Playing SchoolBG.mp3 background audio');
           }
         } catch (error) {
           console.error('Failed to play background audio:', error);
@@ -712,6 +792,41 @@ export default function Home() {
             if (status.isLoaded && status.isPlaying) {
               await dressBGSoundRef.current.stopAsync();
               console.log('Stopped DressBG.mp3');
+            }
+          }
+          if (bathBGSoundRef.current) {
+            const status = await bathBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await bathBGSoundRef.current.stopAsync();
+              console.log('Stopped BathBG.mp3');
+            }
+          }
+          if (brushBGSoundRef.current) {
+            const status = await brushBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await brushBGSoundRef.current.stopAsync();
+              console.log('Stopped BrushBG.mp3');
+            }
+          }
+          if (eatBGSoundRef.current) {
+            const status = await eatBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await eatBGSoundRef.current.stopAsync();
+              console.log('Stopped EatBG.mp3');
+            }
+          }
+          if (pajamaBGSoundRef.current) {
+            const status = await pajamaBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await pajamaBGSoundRef.current.stopAsync();
+              console.log('Stopped PajamaBG.mp3');
+            }
+          }
+          if (schoolBGSoundRef.current) {
+            const status = await schoolBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await schoolBGSoundRef.current.stopAsync();
+              console.log('Stopped SchoolBG.mp3');
             }
           }
           // Reset flag when modal closes

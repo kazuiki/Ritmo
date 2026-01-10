@@ -593,7 +593,11 @@ export default function BathGame() {
         // After animation completes, set completion flag and navigate
         AsyncStorage.setItem('@minigameCompleted', 'true')
           .catch((error) => console.error('Error setting completion flag:', error))
-          .finally(() => router.back());
+          .finally(() => {
+            if (router.canGoBack()) {
+              router.back();
+            }
+          });
       });
     };
 
@@ -641,9 +645,13 @@ export default function BathGame() {
           // so home won't show success modal on early exit
           if (typeof window !== 'undefined') {
             // For React Native, we use a different approach
-            router.back();
+            if (router.canGoBack()) {
+              router.back();
+            }
           } else {
-            router.back();
+            if (router.canGoBack()) {
+              router.back();
+            }
           }
         }}>
           <Text style={styles.backText}>Back</Text>

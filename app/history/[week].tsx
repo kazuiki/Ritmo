@@ -367,7 +367,9 @@ export default function WeeklyHistoryDetail() {
       isInteraction: false,
     }).start(() => {
       setIsAnimating(false);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      }
     });
   };
 
