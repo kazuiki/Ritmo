@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
-import { supabase } from "../src/supabaseClient";
+import { LogoutService, supabase } from "../src/supabaseClient";
 import { setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
 import NetworkFailureModal from "./components/NetworkFailureModal";
@@ -33,7 +33,17 @@ export default function RootLayout() {
       const { data: { session } } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
 
-      if (!session) {
+      // Check if user manually logged out previously
+      const wasManualLogout = await LogoutService.isManualLogout();
+
+      if (!session || wasManualLogout) {
+        // Clear manual logout flag if it was set
+        if (wasManualLogout) {
+          await LogoutService.clearManualLogout();
+          // Ensure session is cleared
+          await supabase.auth.signOut();
+        }
+        
         // Only redirect to login if not already on an auth page
         if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
           hasRedirectedRef.current = true;
@@ -94,6 +104,8 @@ export default function RootLayout() {
       if (event === 'SIGNED_IN') {
         hasRedirectedRef.current = false; // allow a fresh redirect on new sign-in
         isNavigatingRef.current = false; // reset navigation flag
+        // Clear manual logout flag on successful login
+        LogoutService.clearManualLogout();
       }
       if (event === 'SIGNED_OUT') {
         hasRedirectedRef.current = false; // allow redirect to login on logout
