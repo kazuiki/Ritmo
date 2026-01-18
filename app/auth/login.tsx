@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -47,6 +48,8 @@ function createScaler(width: number, height: number) {
 
 export default function Login() {
   const router = useRouter();
+  // Ensure auth session can complete (required by expo-web-browser)
+  WebBrowser.maybeCompleteAuthSession();
 
   // Responsive layout state (updates on rotate / size change)
   const [layout, setLayout] = useState(() => Dimensions.get("window"));
@@ -99,29 +102,11 @@ export default function Login() {
       console.log('Auth state changed:', event);
       
       if (event === "SIGNED_IN" && session) {
-        console.log('User signed in via OAuth, checking user data...');
+        console.log('User signed in via OAuth, clearing manual logout flag...');
         // Clear manual logout flag when user successfully logs in
         await LogoutService.clearManualLogout();
-        
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          console.error('Error fetching user:', userError);
-          setAlertMessage(userError.message);
-          setAlertModalVisible(true);
-          return;
-        }
-
-        const loggedInUser = userData.user;
-        const childName = (loggedInUser?.user_metadata as any)?.child_name;
-
-        console.log('Child name:', childName);
-        if (!childName) {
-          console.log('No child name, routing to instruction');
-          router.replace("/instruction");
-        } else {
-          console.log('Child name exists, routing to greetings');
-          navigateToGreetingsWithNetworkCheck(router);
-        }
+        // Note: Navigation is handled in handleGoogleSignIn after setSession
+        // to avoid duplicate navigation attempts
       }
     });
 
@@ -367,6 +352,8 @@ export default function Login() {
         provider: 'google',
         options: {
           redirectTo,
+          // Prevent supabase from auto-opening the browser; we handle it
+          skipBrowserRedirect: true,
         },
       });
 
@@ -390,8 +377,77 @@ export default function Login() {
       }
 
       if (data?.url) {
-        console.log('Opening OAuth URL:', data.url);
-        await Linking.openURL(data.url);
+        console.log('Opening OAuth URL via WebBrowser auth session:', data.url);
+        // Open an auth session that automatically closes on redirect
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+        console.log('Auth session result:', result.type, result);
+        
+        if (result.type === 'success') {
+          console.log('Auth session completed, checking for session...');
+          setLoading(true);
+          
+          // Check if the result contains a URL we can process
+          if ('url' in result && result.url) {
+            console.log('Processing URL from auth session result:', result.url);
+            // Extract tokens from the URL
+            const url = result.url;
+            const hashPart = url.includes('#') ? url.split('#')[1] : url.split('?')[1];
+            if (hashPart) {
+              const params = new URLSearchParams(hashPart);
+              const access_token = params.get('access_token');
+              const refresh_token = params.get('refresh_token');
+              
+              if (access_token && refresh_token) {
+                console.log('Found tokens in URL, setting session...');
+                const { error: setError } = await supabase.auth.setSession({
+                  access_token,
+                  refresh_token,
+                });
+                
+                if (setError) {
+                  console.error('❌ Error setting session:', setError.message);
+                  setAlertMessage('Sign-in failed. Please try again.');
+                  setAlertModalVisible(true);
+                  setLoading(false);
+                  return;
+                }
+                
+                console.log('✅ Session set successfully, proceeding to get user...');
+                
+                // Get user data and navigate
+                const { data: userData, error: userError } = await supabase.auth.getUser();
+                
+                if (userError) {
+                  console.error('❌ Error fetching user:', userError.message);
+                  setAlertMessage(userError.message);
+                  setAlertModalVisible(true);
+                  setLoading(false);
+                  return;
+                }
+                
+                console.log('✅ User data fetched');
+                const childName = (userData?.user?.user_metadata as any)?.child_name;
+                if (!childName) {
+                  router.replace('/instruction');
+                } else {
+                  navigateToGreetingsWithNetworkCheck(router);
+                }
+                setLoading(false);
+                return;
+              }
+            }
+          }
+          
+          // Fallback: if no URL or tokens, show error
+          console.error('❌ No tokens found in auth session result');
+          setAlertMessage('Sign-in failed. Please try again.');
+          setAlertModalVisible(true);
+          setLoading(false);
+        } else if (result.type === 'cancel') {
+          console.log('User cancelled OAuth');
+        } else {
+          console.log('OAuth result:', result.type);
+        }
       }
 
     } catch (err) {
