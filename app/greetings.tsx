@@ -1,27 +1,33 @@
 // app/greeting.tsx
 import {
-  Fredoka_400Regular,
-  Fredoka_600SemiBold,
-  useFonts,
+    Fredoka_400Regular,
+    Fredoka_600SemiBold,
+    useFonts,
 } from "@expo-google-fonts/fredoka";
 import { Audio } from 'expo-av';
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Easing,
-  Image,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
 } from "react-native";
 import { supabase } from "../src/supabaseClient";
 
 export default function Greeting() {
   const [name, setName] = useState<string>("Kid");
   const [isExiting, setIsExiting] = useState(false);
+  
+  // Get screen dimensions for responsive layout
+  const { width, height } = Dimensions.get('window');
+  const scaleFont = (size: number) => Math.round((width / 390) * size);
+  const scaleSize = (size: number) => (width / 390) * size;
   
   // Determine time of day ONCE on mount and don't change it
   const [isEvening] = useState(() => {
@@ -437,10 +443,10 @@ export default function Greeting() {
         </Animated.View>
 
         <Animated.View style={{ opacity: fadeText, alignItems: "center", width: '100%', paddingHorizontal: 20 }}>
-          <Text style={styles.greetingText} numberOfLines={1}>{greetingText}</Text>
-          <Text style={styles.nameText} numberOfLines={1} adjustsFontSizeToFit>{name}</Text>
-          <Pressable onPress={handleExit}>
-            <Text style={styles.nextText}>Next</Text>
+          <Text style={[styles.greetingText, { fontSize: scaleFont(34) }]} numberOfLines={1}>{greetingText}</Text>
+          <Text style={[styles.nameText, { fontSize: scaleFont(46) }]} numberOfLines={1} adjustsFontSizeToFit>{name}</Text>
+          <Pressable onPress={handleExit} style={{ paddingHorizontal: 20 }}>
+            <Text style={[styles.nextText, { fontSize: scaleFont(22), marginTop: scaleSize(80) }]}>Next</Text>
           </Pressable>
         </Animated.View>
       </ImageBackground>
@@ -457,7 +463,6 @@ const styles = StyleSheet.create({
   sun: { width: 300, height: 300, zIndex: 10 },
   greetingText: { 
     fontFamily: "Fredoka_600SemiBold", 
-    fontSize: 34, 
     marginTop: -20, 
     color: "#2A3B4D",
     textAlign: "center",
@@ -466,7 +471,6 @@ const styles = StyleSheet.create({
   },
   nameText: { 
     fontFamily: "Fredoka_600SemiBold", 
-    fontSize: 46, 
     textDecorationLine: "underline", 
     marginVertical: 10, 
     color: "#1F3A7A",
@@ -474,11 +478,11 @@ const styles = StyleSheet.create({
     maxWidth: '90%',
   },
   nextText: { 
-    marginTop: 80, 
     fontFamily: "Fredoka_400Regular", 
-    fontSize: 22, 
     color: "#2A3B4D", 
     textDecorationLine: "underline",
     textAlign: "center",
+    minWidth: 80,
+    paddingHorizontal: 10,
   },
 });
