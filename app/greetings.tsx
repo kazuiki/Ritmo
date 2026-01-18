@@ -437,7 +437,7 @@ export default function Greeting() {
         </Animated.View>
 
         <Animated.View style={{ opacity: fadeText, alignItems: "center", width: '100%', paddingHorizontal: 20 }}>
-          <Text style={styles.greetingText}>{greetingText}</Text>
+          <Text style={styles.greetingText} numberOfLines={1}>{greetingText}</Text>
           <Text style={styles.nameText} numberOfLines={1} adjustsFontSizeToFit>{name}</Text>
           <Pressable onPress={handleExit}>
             <Text style={styles.nextText}>Next</Text>
@@ -461,6 +461,8 @@ const styles = StyleSheet.create({
     marginTop: -20, 
     color: "#2A3B4D",
     textAlign: "center",
+    width: '100%',
+    flexShrink: 0,
   },
   nameText: { 
     fontFamily: "Fredoka_600SemiBold", 

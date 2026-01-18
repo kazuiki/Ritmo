@@ -3,20 +3,21 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -265,18 +266,25 @@ export default function ForgotPassword() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.outer}
+    <ImageBackground
+      source={require("../../assets/background.png")}
+      style={styles.background}
+      resizeMode="cover"
     >
-      <Stack.Screen options={{ title: "Forgot Password", headerShown: false }} />
-      <ImageBackground
-        source={require("../../assets/background.png")}
-        style={styles.background}
-        resizeMode="cover"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.outer}
+        keyboardVerticalOffset={0}
       >
-        <TouchableWithoutFeedback onPress={togglePause}>
-          <View style={styles.container}>
+        <Stack.Screen options={{ title: "Forgot Password", headerShown: false }} />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <TouchableWithoutFeedback onPress={togglePause}>
+            <View style={styles.container}>
             {/* Background bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -332,6 +340,7 @@ export default function ForgotPassword() {
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email here:"
+                placeholderTextColor="#888"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -343,6 +352,7 @@ export default function ForgotPassword() {
                 <TextInput
                   style={styles.inputFlex}
                   placeholder="Enter new password:"
+                  placeholderTextColor="#888"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -364,8 +374,7 @@ export default function ForgotPassword() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Re-enter new password:"
-                  value={confirmPassword}
+                  placeholder="Re-enter new password:"                  placeholderTextColor="#888"                  value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
@@ -415,7 +424,8 @@ export default function ForgotPassword() {
             </MotiView>
           </View>
         </TouchableWithoutFeedback>
-      </ImageBackground>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Verification Code Modal */}
       <Modal
@@ -441,6 +451,7 @@ export default function ForgotPassword() {
             <TextInput
               style={[styles.input, { marginTop: 16, textAlign: 'center' }]}
               placeholder="Enter 6-digit code:"
+              placeholderTextColor="#888"
               value={verificationCode}
               onChangeText={setVerificationCode}
               keyboardType="numeric"
@@ -619,19 +630,27 @@ export default function ForgotPassword() {
         visible={localNetworkFailure} 
         onRetry={handleLocalNetworkRetry} 
       />
-    </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   outer: { flex: 1 },
+  background: { 
+    position: 'absolute',
+    width: "100%", 
+    height: "100%",
+    top: 0,
+    left: 0,
+  },
   container: {
     flex: 1,
     paddingHorizontal: 28,
+    paddingVertical: 20,
     justifyContent: "center",
     alignItems: "center",
+    minHeight: 700,
   },
-  background: { flex: 1, width: "100%", height: "100%" },
   logo: {
     width: 260,
     height: 220,
@@ -672,6 +691,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     fontSize: 15,
+    color: "#333",
   },
   inputRow: {
     width: "100%",
@@ -687,7 +707,8 @@ const styles = StyleSheet.create({
   inputFlex: { 
     flex: 1, 
     paddingVertical: 12, 
-    fontSize: 15 
+    fontSize: 15,
+    color: "#333"
   },
   eyeButton: { 
     paddingHorizontal: 4, 

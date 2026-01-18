@@ -26,7 +26,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
-import { supabase } from "../../src/supabaseClient";
+import { LogoutService, supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 export default function Settings() {
@@ -274,6 +274,8 @@ export default function Settings() {
 
   const confirmLogout = async () => {
     setLogoutConfirmVisible(false);
+    // Set manual logout flag before signing out
+    await LogoutService.setManualLogout(true);
     await supabase.auth.signOut();
   };
 

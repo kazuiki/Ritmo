@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
@@ -9,10 +10,10 @@ import {
   Image,
   ImageBackground,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   PixelRatio,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,7 +21,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { supabase } from "../../src/supabaseClient";
+import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 import NetworkFailureModal from "../components/NetworkFailureModal";
@@ -99,6 +100,9 @@ export default function Login() {
       
       if (event === "SIGNED_IN" && session) {
         console.log('User signed in via OAuth, checking user data...');
+        // Clear manual logout flag when user successfully logs in
+        await LogoutService.clearManualLogout();
+        
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) {
           console.error('Error fetching user:', userError);
@@ -357,10 +361,12 @@ export default function Login() {
 
       // User not signed in, start OAuth flow
       console.log('Starting OAuth flow...');
+      const redirectTo = Linking.createURL('/auth/callback');
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'ritmo://auth/callback',
+          redirectTo,
         },
       });
 
@@ -413,11 +419,17 @@ export default function Login() {
   const bubbleBase = bubbleBaseRef.current;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.outer}>
-      <Stack.Screen options={{ title: "Log in", headerShown: false }} />
-      <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
-        <TouchableWithoutFeedback onPress={togglePause}>
-          <View style={styles.container}>
+    <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.outer} keyboardVerticalOffset={0}>
+        <Stack.Screen options={{ title: "Log in", headerShown: false }} />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <TouchableWithoutFeedback onPress={togglePause}>
+            <View style={styles.container}>
             {/* Animated bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -517,7 +529,8 @@ export default function Login() {
             </MotiView>
           </View>
         </TouchableWithoutFeedback>
-      </ImageBackground>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Alert Modal */}
       <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
@@ -542,7 +555,7 @@ export default function Login() {
         visible={localNetworkFailure} 
         onRetry={handleLocalNetworkRetry} 
       />
-    </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
@@ -553,11 +566,20 @@ export default function Login() {
 function createStyles({ scale, vscale, scaleFont, width, height }: any) {
   return StyleSheet.create({
     outer: { flex: 1 },
+    background: { 
+      position: 'absolute',
+      width: "100%", 
+      height: "100%",
+      top: 0,
+      left: 0,
+    },
     container: {
       flex: 1,
       paddingHorizontal: scale(20),
+      paddingVertical: vscale(20),
       justifyContent: "center",
       alignItems: "center",
+      minHeight: Math.max(vscale(700), height),
     },
     logo: {
       width: Math.min(scale(300), width * 0.78),
@@ -584,6 +606,7 @@ function createStyles({ scale, vscale, scaleFont, width, height }: any) {
       shadowRadius: scale(4),
       elevation: 2,
       fontSize: scaleFont(15),
+      color: "#333",
     },
     inputRow: {
       width: "100%",
@@ -596,9 +619,8 @@ function createStyles({ scale, vscale, scaleFont, width, height }: any) {
       marginTop: vscale(10),
       elevation: 2,
     },
-    inputFlex: { flex: 1, paddingVertical: vscale(10), fontSize: scaleFont(15) },
+    inputFlex: { flex: 1, paddingVertical: vscale(10), fontSize: scaleFont(15), color: "#333" },
     eyeButton: { paddingHorizontal: scale(6), paddingVertical: vscale(6) },
-    background: { flex: 1, width: "100%", height: "100%" },
     button: {
       marginTop: vscale(22),
       backgroundColor: "#2D7778",

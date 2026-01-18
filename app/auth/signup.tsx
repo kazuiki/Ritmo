@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -359,17 +360,24 @@ export default function SignUp() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.outer}
+    <ImageBackground
+      source={require("../../assets/background.png")}
+      style={styles.background}
+      resizeMode="cover"
     >
-      <ImageBackground
-        source={require("../../assets/background.png")}
-        style={styles.background}
-        resizeMode="cover"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.outer}
+        keyboardVerticalOffset={0}
       >
-        <TouchableWithoutFeedback onPress={togglePause}>
-          <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <TouchableWithoutFeedback onPress={togglePause}>
+            <View style={styles.container}>
             {/* Background bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -412,6 +420,7 @@ export default function SignUp() {
               <TextInput
                 style={styles.input}
                 placeholder="Enter email here:"
+                placeholderTextColor="#888"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -423,6 +432,7 @@ export default function SignUp() {
                 <TextInput
                   style={styles.inputFlex}
                   placeholder="Enter password here:"
+                  placeholderTextColor="#888"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -445,6 +455,7 @@ export default function SignUp() {
                 <TextInput
                   style={styles.inputFlex}
                   placeholder="Re-enter password:"
+                  placeholderTextColor="#888"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
@@ -531,7 +542,8 @@ export default function SignUp() {
             </MotiView>
           </View>
         </TouchableWithoutFeedback>
-      </ImageBackground>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Email Confirmation Modal */}
       <Modal
@@ -868,6 +880,7 @@ export default function SignUp() {
             <TextInput
               style={[styles.input, { marginTop: 16, textAlign: 'center' }]}
               placeholder="Enter 6-digit code:"
+              placeholderTextColor="#888"
               value={verificationCode}
               onChangeText={setVerificationCode}
               keyboardType="numeric"
@@ -920,19 +933,30 @@ export default function SignUp() {
         onRetry={handleLocalNetworkRetry} 
       />
 
-    </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = createResponsiveStyles((scale) => StyleSheet.create({
   outer: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  background: { 
+    position: 'absolute',
+    width: "100%", 
+    height: "100%",
+    top: 0,
+    left: 0,
+  },
   container: {
     flex: 1,
     paddingHorizontal: scale.scaleSpacing(28),
+    paddingVertical: scale.scaleSpacing(20),
     justifyContent: "center",
     alignItems: "center",
+    minHeight: scale.scaleHeight(700),
   },
-  background: { flex: 1, width: "100%", height: "100%" },
   logo: {
     width: scale.scaleWidth(260),
     height: scale.scaleHeight(220),
@@ -958,6 +982,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     fontSize: scale.scaleFont(15),
+    color: "#333",
   },
   inputDisabled: {
     backgroundColor: "#f5f5f5",
@@ -974,7 +999,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginTop: scale.scaleSpacing(10),
     elevation: 2,
   },
-  inputFlex: { flex: 1, paddingVertical: scale.scaleSpacing(12), fontSize: scale.scaleFont(15) },
+  inputFlex: { flex: 1, paddingVertical: scale.scaleSpacing(12), fontSize: scale.scaleFont(15), color: "#333" },
   eyeButton: { paddingHorizontal: scale.scaleSpacing(4), paddingVertical: scale.scaleSpacing(4) },
   button: {
     marginTop: scale.scaleSpacing(22),
