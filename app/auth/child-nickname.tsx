@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, ImageBackground, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Image, ImageBackground, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
@@ -46,39 +46,53 @@ export default function ChildNickname() {
       style={styles.background}
       resizeMode="cover"
     >
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/instruction")}>
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.select({ ios: "padding", android: "height" })}
+        keyboardVerticalOffset={Platform.select({ ios: 50, android: 0 })}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Back Button */}
+            <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/instruction")}>
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
 
-        <View style={styles.container}>
-          {/* Ritmo Logo */}
-          <View style={styles.logoContainer}>
-            <Image 
-              source={require("../../assets/ritmo-logo.png")} 
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
+            <View style={styles.container}>
+              {/* Ritmo Logo */}
+              <View style={styles.logoContainer}>
+                <Image 
+                  source={require("../../assets/ritmo-logo.png")} 
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
 
-          {/* Title */}
-          <Text style={styles.title}>Set child's nickname</Text>
+              {/* Title */}
+              <Text style={styles.title}>Set child's nickname</Text>
 
-          {/* Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Enter child's nickname here"
-            value={child}
-            onChangeText={setChild}
-            placeholderTextColor="#999"
-          />
+              {/* Input */}
+              <TextInput
+                style={styles.input}
+                placeholder="Enter child's nickname here"
+                value={child}
+                onChangeText={setChild}
+                placeholderTextColor="#999"
+                returnKeyType="done"
+                onSubmitEditing={handleSaveChild}
+              />
 
-          {/* Save Button */}
-          <TouchableOpacity style={styles.save} onPress={handleSaveChild} disabled={loading}>
-            <Text style={styles.saveButtonText}>{loading ? "SAVING..." : "SAVE"}</Text>
-          </TouchableOpacity>
-        </View>
+              {/* Save Button */}
+              <TouchableOpacity style={styles.save} onPress={handleSaveChild} disabled={loading}>
+                <Text style={styles.saveButtonText}>{loading ? "SAVING..." : "SAVE"}</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
 
         {/* Alert Modal */}
         <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
@@ -106,10 +120,19 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  flex: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
   backButton: {
     position: "absolute",
-    top: 50,
-    left: 16,
+    top: Platform.select({ ios: 50, android: 32 }),
+    left: 8,
     zIndex: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -122,18 +145,19 @@ const styles = StyleSheet.create({
   },
   container: { 
     flex: 1, 
-    padding: 22, 
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 10,
+    paddingTop: 20,
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 32,
   },
   logo: {
-    width: 280,
-    height: 280,
+    width: "70%",
+    maxWidth: 260,
+    height: undefined,
+    aspectRatio: 1,
   },
   title: { 
     fontSize: 18, 
@@ -148,9 +172,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, 
     paddingVertical: 14, 
     marginBottom: 20,
-    width: "90%",
-    maxWidth: 350,
-    fontSize: 15,
+    width: "100%",
+    maxWidth: 400,
+    fontSize: 16,
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
@@ -159,8 +183,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14, 
     borderRadius: 20, 
     alignItems: "center", 
-    width: "80%",
-    maxWidth: 250,
+    width: "75%",
+    maxWidth: 260,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
