@@ -3,21 +3,21 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -246,13 +246,17 @@ export default function ForgotPassword() {
 
       // Update password
       const { error: passwordError } = await supabase.auth.updateUser({ password });
-      setLoading(false);
       
       if (passwordError) {
+        setLoading(false);
         setErrorMessage(passwordError.message);
         setErrorModalVisible(true);
         return;
       }
+
+      // Sign out the user immediately to prevent auto-redirect to greetings
+      await supabase.auth.signOut();
+      setLoading(false);
 
       // Success - close verification modal and show success modal
       setVerificationModalVisible(false);
@@ -435,8 +439,8 @@ export default function ForgotPassword() {
         onRequestClose={() => setVerificationModalVisible(false)}
       >
         <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
+          <View style={styles.verificationModalContainer}>
+            <View style={styles.verificationIconCircle}>
               <Image
                 source={require("../../assets/images/Mail.png")}
                 style={styles.errorIcon}
@@ -449,8 +453,8 @@ export default function ForgotPassword() {
             </Text>
             
             <TextInput
-              style={[styles.input, { marginTop: 16, textAlign: 'center' }]}
-              placeholder="Enter 6-digit code:"
+              style={[styles.input, { marginTop: 16, textAlign: 'center', paddingHorizontal: 18 }]}
+              placeholder="Enter 6-digit code"
               placeholderTextColor="#888"
               value={verificationCode}
               onChangeText={setVerificationCode}
@@ -459,11 +463,11 @@ export default function ForgotPassword() {
             />
             
             <TouchableOpacity
-              style={[styles.errorOkButton, { marginTop: 20 }]}
+              style={[styles.verifyButton, { marginTop: 20 }]}
               onPress={handleVerifyCode}
               disabled={!verificationCode || verificationCode.length !== 6 || loading}
             >
-              <Text style={styles.errorOkButtonText}>
+              <Text style={styles.verifyButtonText}>
                 {loading ? "VERIFYING..." : "VERIFY"}
               </Text>
             </TouchableOpacity>
@@ -770,10 +774,11 @@ const styles = StyleSheet.create({
   },
   emailModalTitle: {
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#1A1A1A",
     marginBottom: 8,
-    fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_600SemiBold",
+    textAlign: "center",
   },
   emailModalMessage: {
     fontSize: 14,
@@ -810,49 +815,99 @@ const styles = StyleSheet.create({
   },
   errorModalContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    width: "80%",
+    borderRadius: 18,
+    padding: 18,
+    width: "82%",
+    maxWidth: 420,
     alignItems: "center",
-    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
     borderColor: "#FFB3BA",
   },
   errorIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFE1E4",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FFE5E7",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  verificationModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 18,
+    width: "82%",
+    maxWidth: 420,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  verificationIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   errorIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    resizeMode: "contain",
   },
   errorModalTitle: {
-    fontSize: 18,
-    fontFamily: "Fredoka_700Bold",
-    color: "#000",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1A1A1A",
     marginBottom: 8,
-    textAlign: "center",
+    fontFamily: "Fredoka_700Bold",
   },
   errorModalMessage: {
     fontSize: 14,
-    fontFamily: "Fredoka_400Regular",
-    color: "#333",
+    color: "#4A4A4A",
     textAlign: "center",
-    marginBottom: 20,
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+    fontFamily: "Fredoka_400Regular",
   },
   errorOkButton: {
-    backgroundColor: "#FF6F79",
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 110,
+  },
+  errorOkButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  verifyButton: {
+    backgroundColor: "#4CAF50",
     paddingVertical: 10,
     paddingHorizontal: 40,
     borderRadius: 20,
   },
-  errorOkButtonText: {
+  verifyButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
     fontFamily: "Fredoka_600SemiBold",
   },
 });
