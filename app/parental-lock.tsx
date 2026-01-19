@@ -267,14 +267,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     paddingTop: scale.scaleSpacing(60),
   },
   backButton: {
-    marginBottom: scale.scaleSpacing(30),
+    alignSelf: 'flex-start',
+    marginTop: scale.scaleSpacing(-10),
+    marginLeft: scale.scaleSpacing(-4),
+    marginBottom: scale.scaleSpacing(6),
   },
   backButtonText: {
     fontSize: scale.scaleFont(18),
-    color: "#276a63",
-    fontWeight: "600",
-    fontFamily: "ITIM",
-    textDecorationLine: "underline",
+    color: '#333',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   card: {
     backgroundColor: "#FFFFFF",
