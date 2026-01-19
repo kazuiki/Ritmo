@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -6,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
     Image,
-    ImageBackground,
     Modal,
     ScrollView,
     StyleSheet,
@@ -17,8 +15,6 @@ import {
 } from "react-native";
 import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
 import NotificationService from "../../src/notificationService";
-import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
-import { ParentalLockService } from "../../src/parentalLockService";
 import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
@@ -64,12 +60,6 @@ export default function addRoutines() {
 
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
-    
-    // Parental lock modal state
-    const [showParentalLockModal, setShowParentalLockModal] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('addRoutines'));
-    const [pin, setPin] = useState(['', '', '', '']);
-    const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
@@ -96,17 +86,9 @@ export default function addRoutines() {
         };
         initNotifications();
         
-        checkParentalLock();
-        
-        // Listen to authentication changes
-        const authListener = (isAuth: boolean) => {
-            setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('addRoutines'));
-        };
-        
-        ParentalLockAuthService.addListener(authListener);
+        // Listen to authentication changes (kept for future use)
         
         return () => {
-            ParentalLockAuthService.removeListener(authListener);
             // CLEANUP: Stop any playing sounds when component unmounts
             NotificationService.stopRingtone().catch(console.error);
             // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
@@ -117,64 +99,6 @@ export default function addRoutines() {
         };
     }, []);
 
-    useFocusEffect(
-        React.useCallback(() => {
-            // Update authentication state and check parental lock when focusing on this tab
-            setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('addRoutines'));
-            checkParentalLock();
-        }, [])
-    );
-
-    const checkParentalLock = async () => {
-        const isEnabled = await ParentalLockService.isEnabled();
-        const isTabAuth = ParentalLockAuthService.isTabAuthenticated('addRoutines');
-        if (isEnabled && !isTabAuth) {
-            setShowParentalLockModal(true);
-            return;
-        }
-    };
-
-    const handlePinInput = (index: number, value: string) => {
-        if (value.length > 1) return;
-        
-        const newPin = [...pin];
-        newPin[index] = value;
-        setPin(newPin);
-
-        if (value && index < 3) {
-            pinRefs[index + 1].current?.focus();
-        }
-    };
-
-    const handleBackspace = (index: number, value: string) => {
-        if (value === '' && index > 0) {
-            pinRefs[index - 1].current?.focus();
-        }
-    };
-
-    const unlockAccess = async () => {
-        if (pin.every(digit => digit !== '')) {
-            const inputPin = pin.join('');
-            const isValid = await ParentalLockService.verifyPin(inputPin);
-            
-            if (isValid) {
-                ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
-                setShowParentalLockModal(false);
-                setPin(['', '', '', '']);
-            } else {
-                Alert.alert("Incorrect PIN", "Please try again.");
-                setPin(['', '', '', '']);
-                pinRefs[0].current?.focus();
-            }
-        } else {
-            Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
-        }
-    };
-
-    const cancelAccess = () => {
-        setPin(['', '', '', '']);
-        router.replace("/(tabs)/home");
-    };
 
     const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
         ref.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
@@ -497,14 +421,13 @@ export default function addRoutines() {
                 style={styles.backgroundImage}
                 resizeMode="cover"
             />
-            
-            {/* Brand logo */}
-            <View style={styles.header}>
-                <Image
-                    source={require("../../assets/images/ritmoNameLogo.png")}
-                    style={styles.brandLogo}
-                />
-            </View>
+
+            <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => router.push("/(tabs)/settings")}
+            >
+                <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
 
             {/* Title row with plus button */}
             <View style={styles.titleRow}>
@@ -519,7 +442,7 @@ export default function addRoutines() {
             </View>
 
         {/* Routines List */}
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 12, paddingBottom: 100 }}>
             {routines.map((routine) => {
                 // Get preset from database imageUrl or fallback to presetId
                 const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
@@ -947,82 +870,6 @@ export default function addRoutines() {
             </Modal>
 
             {/* Parental Lock Modal */}
-            <Modal
-                animationType="none"
-                transparent={true}
-                visible={showParentalLockModal}
-                onRequestClose={cancelAccess}
-                statusBarTranslucent={true}
-            >
-                <View style={styles.parentalLockModalOverlay}>
-                    <ImageBackground
-                        source={require("../../assets/background.png")}
-                        style={styles.parentalLockModalBackground}
-                        resizeMode="cover"
-                    >
-                        <View style={styles.parentalLockModalContainer}>
-                            <View style={styles.parentalLockModalContent}>
-                                <View style={styles.parentalLockIconContainer}>
-                                    <Ionicons name="lock-closed" size={48} color="#4A5568" />
-                                </View>
-                                
-                                <Text style={styles.parentalLockModalTitle}>Parental Lock</Text>
-                                <Text style={styles.parentalLockModalSubtitle}>
-                                    Access restricted to parents{'\n'}or guardians only
-                                </Text>
-
-                                <Text style={styles.parentalLockModalContentTitle}>
-                                    Please enter your 4-digit PIN to continue
-                                </Text>
-                                
-                                <View style={styles.parentalLockPinContainer}>
-                                    {pin.map((digit, index) => (
-                                        <TextInput
-                                            key={index}
-                                            ref={pinRefs[index]}
-                                            style={[
-                                                styles.parentalLockPinInput,
-                                                digit ? styles.parentalLockPinInputFilled : null
-                                            ]}
-                                            value={digit}
-                                            onChangeText={(value) => handlePinInput(index, value)}
-                                            onKeyPress={({ nativeEvent }) => {
-                                                if (nativeEvent.key === 'Backspace') {
-                                                    handleBackspace(index, digit);
-                                                }
-                                            }}
-                                            keyboardType="numeric"
-                                            maxLength={1}
-                                            secureTextEntry
-                                            textAlign="center"
-                                            selectTextOnFocus={true}
-                                            autoFocus={index === 0}
-                                        />
-                                    ))}
-                                </View>
-
-                                <TouchableOpacity 
-                                    style={styles.parentalLockForgotPin}
-                                    onPress={() => {
-                                        router.push('/parental-lock-new-pin');
-                                    }}
-                                >
-                                    <Text style={styles.parentalLockForgotPinText}>Forgot PIN?</Text>
-                                </TouchableOpacity>
-                                
-                                <View style={styles.parentalLockButtonContainer}>
-                                    <TouchableOpacity style={styles.parentalLockUnlockButton} onPress={unlockAccess}>
-                                        <Text style={styles.parentalLockUnlockText}>Unlock Access</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.parentalLockCancelButton} onPress={cancelAccess}>
-                                        <Text style={styles.parentalLockCancelText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-                    </ImageBackground>
-                </View>
-            </Modal>
 
             {/* Delete Confirmation Modal */}
             <Modal
@@ -1200,6 +1047,18 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-evenly",
+    },
+    backButton: {
+        alignSelf: 'flex-start',
+        marginTop: scale.scaleSpacing(50),
+        marginLeft: scale.scaleSpacing(16),
+        marginBottom: scale.scaleSpacing(6),
+    },
+    backButtonText: {
+        fontSize: scale.scaleFont(18),
+        color: '#333',
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
     titleText: {
         fontSize: scale.scaleFont(28),

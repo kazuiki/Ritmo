@@ -1,26 +1,18 @@
 import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+	Alert,
+	Image,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TouchableOpacity,
+	View
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
-import { ParentalLockService } from "../../src/parentalLockService";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
@@ -32,7 +24,6 @@ interface RoutineWithDays extends Routine {
 
 export default function Progress() {
 	const router = useRouter();
-	const insets = useSafeAreaInsets();
 	const tabBarHeight = useBottomTabBarHeight();
 	const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
 	const [fontsLoaded] = useFonts({
@@ -41,16 +32,12 @@ export default function Progress() {
 		Fredoka_600SemiBold,
 		Fredoka_700Bold,
 	});
-	const [showParentalLockModal, setShowParentalLockModal] = useState(false);
-	const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('progress'));
-	const [pin, setPin] = useState(['', '', '', '']);
-	const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
-	const printableRef = useRef<View>(null);
+	const printableRef = useRef<View | null>(null);
 	const [childName, setChildName] = useState<string>("Kid");
 	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
 	const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
+	const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
 
 	// Week range (Monday to Sunday)
 	const weekInfo = useMemo(() => {
@@ -222,33 +209,12 @@ export default function Progress() {
 		return { totalTasks, completed, rate, perTaskDone };
 	}, [tasks]);
 
-	// Check parental lock on component mount and when focused
+	// Reload data when tab is focused to ensure fresh data
 	useEffect(() => {
-		checkParentalLock();
-		
-		// Listen to authentication changes
-		const authListener = (isAuth: boolean) => {
-			setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('progress'));
-		};
-		
-		ParentalLockAuthService.addListener(authListener);
-		
-		return () => {
-			ParentalLockAuthService.removeListener(authListener);
-		};
-	}, []);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			// Update authentication state and check parental lock when focusing on this tab
-			setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('progress'));
-			checkParentalLock();
-			
-			// Reload data when tab is focused to ensure fresh data
-			const refreshData = async () => {
-				try {
-					const { data: { user } } = await supabase.auth.getUser();
-					if (!user) return;
+		const refreshData = async () => {
+			try {
+				const { data: { user } } = await supabase.auth.getUser();
+				if (!user) return;
 
 				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
 					getRoutinesForCurrentUser(),
@@ -263,26 +229,25 @@ export default function Progress() {
 				const storageKey = `@routines_${user.id}`;
 				const stored = await AsyncStorage.getItem(storageKey);
 				const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
-				const storedMap = new Map(storedRoutines.map(r => [r.id, r]));					// Merge days info with routines data
-					const routinesWithDays: RoutineWithDays[] = routinesData.map(routine => {
-						const storedRoutine = storedMap.get(routine.id);
-						return {
-							...routine,
-							days: storedRoutine?.days || [0,1,2,3,4,5,6]
-						};
-					});
-					
-					setRoutines(routinesWithDays);
-					setProgressData(progressForWeek);
-					setEarliestProgressByRoutine(firstDatesMap || {});
-				} catch (error) {
-					console.error('Failed to refresh data on focus:', error);
-				}
-			};
-			
-			refreshData();
-		}, [weekInfo.monday, weekInfo.sunday])
-	);
+				const storedMap = new Map(storedRoutines.map(r => [r.id, r])); // Merge days info with routines data
+				const routinesWithDays: RoutineWithDays[] = routinesData.map(routine => {
+					const storedRoutine = storedMap.get(routine.id);
+					return {
+						...routine,
+						days: storedRoutine?.days || [0,1,2,3,4,5,6]
+					};
+				});
+				
+				setRoutines(routinesWithDays);
+				setProgressData(progressForWeek);
+				setEarliestProgressByRoutine(firstDatesMap || {});
+			} catch (error) {
+				console.error('Failed to refresh data on focus:', error);
+			}
+		};
+
+		refreshData();
+	}, [weekInfo.monday, weekInfo.sunday]);
 
 	// Load child name from auth profile
 	useEffect(() => {
@@ -445,56 +410,11 @@ export default function Progress() {
 		};
 	}, [weekInfo.monday, weekInfo.sunday]);
 
-	const checkParentalLock = async () => {
-		const isEnabled = await ParentalLockService.isEnabled();
-		const isTabAuth = ParentalLockAuthService.isTabAuthenticated('progress');
-		if (isEnabled && !isTabAuth) {
-			setShowParentalLockModal(true);
-			return;
-		}
-	};
+	// Prevent rendering before fonts load to avoid layout shift
+	if (!fontsLoaded) {
+		return null;
+	}
 
-	const handlePinInput = (index: number, value: string) => {
-		if (value.length > 1) return;
-		
-		const newPin = [...pin];
-		newPin[index] = value;
-		setPin(newPin);
-
-		if (value && index < 3) {
-			pinRefs[index + 1].current?.focus();
-		}
-	};
-
-	const handleBackspace = (index: number, value: string) => {
-		if (value === '' && index > 0) {
-			pinRefs[index - 1].current?.focus();
-		}
-	};
-
-	const unlockAccess = async () => {
-		if (pin.every(digit => digit !== '')) {
-			const inputPin = pin.join('');
-			const isValid = await ParentalLockService.verifyPin(inputPin);
-			
-			if (isValid) {
-				ParentalLockAuthService.setAuthenticated(true, 'progress');
-				setShowParentalLockModal(false);
-				setPin(['', '', '', '']);
-			} else {
-				Alert.alert("Incorrect PIN", "Please try again.");
-				setPin(['', '', '', '']);
-				pinRefs[0].current?.focus();
-			}
-		} else {
-			Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
-		}
-	};
-
-	const cancelAccess = () => {
-		setPin(['', '', '', '']);
-		router.replace("/(tabs)/home");
-	};
 
 	return (
 		<View style={styles.container}>
@@ -504,13 +424,13 @@ export default function Progress() {
 				style={styles.backgroundImage}
 				resizeMode="cover"
 			/>
-            
-			<View style={styles.header}>
-				<Image
-					source={require("../../assets/images/ritmoNameLogo.png")}
-					style={styles.brandLogo}
-				/>
-			</View>
+
+			<TouchableOpacity
+				style={styles.backButton}
+				onPress={() => router.push("/(tabs)/settings")}
+			>
+				<Text style={styles.backButtonText}>Back</Text>
+			</TouchableOpacity>
 			<ScrollView 
 				style={styles.scrollView}
 				contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 16 }]}
@@ -641,89 +561,11 @@ export default function Progress() {
 					</View>
 				</TouchableOpacity>
 			</ScrollView>
-
-			{/* Parental Lock Modal */}
-			<Modal
-				animationType="none"
-				transparent={true}
-				visible={showParentalLockModal}
-				onRequestClose={cancelAccess}
-				statusBarTranslucent={true}
-			>
-				<View style={styles.modalOverlay}>
-					<ImageBackground
-						source={require("../../assets/background.png")}
-						style={styles.modalBackground}
-						resizeMode="cover"
-					>
-						<View style={styles.modalContainer}>
-							<View style={styles.modalContent}>
-								<View style={styles.lockIconContainer}>
-									<Ionicons name="lock-closed" size={48} color="#4A5568" />
-								</View>
-								
-								<Text style={styles.modalTitle}>Parental Lock</Text>
-								<Text style={styles.modalSubtitle}>
-									Access restricted to parents{'\n'}or guardians only
-								</Text>
-
-								<Text style={styles.modalContentTitle}>
-									Please enter your 4-digit PIN to continue
-								</Text>
-								
-								<View style={styles.pinContainer}>
-									{pin.map((digit, index) => (
-										<TextInput
-											key={index}
-											ref={pinRefs[index]}
-											style={[
-												styles.pinInput,
-												digit ? styles.pinInputFilled : null
-											]}
-											value={digit}
-											onChangeText={(value) => handlePinInput(index, value)}
-											onKeyPress={({ nativeEvent }) => {
-												if (nativeEvent.key === 'Backspace') {
-													handleBackspace(index, digit);
-												}
-											}}
-											keyboardType="numeric"
-											maxLength={1}
-											secureTextEntry
-											textAlign="center"
-											selectTextOnFocus={true}
-											autoFocus={index === 0}
-										/>
-									))}
-								</View>
-
-								<TouchableOpacity 
-									style={styles.forgotPin}
-									onPress={() => {
-										router.push('/parental-lock-new-pin');
-									}}
-								>
-									<Text style={styles.forgotPinText}>Forgot PIN?</Text>
-								</TouchableOpacity>
-								
-								<View style={styles.buttonContainer}>
-									<TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
-										<Text style={styles.unlockText}>Unlock Access</Text>
-									</TouchableOpacity>
-									<TouchableOpacity style={styles.cancelButton} onPress={cancelAccess}>
-										<Text style={styles.cancelText}>Cancel</Text>
-									</TouchableOpacity>
-								</View>
-							</View>
-						</View>
-					</ImageBackground>
-				</View>
-			</Modal>
 		</View>
-	);
-}
+		);
+	}
 
-const styles = createResponsiveStyles((scale) => StyleSheet.create({
+	const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	backgroundImage: {
 		position: "absolute",
 		width: "100%",
@@ -743,11 +585,24 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		marginLeft: scale.scaleSpacing(-22),
 		marginTop: scale.scaleSpacing(-20),
 	},
+	backButton: {
+		alignSelf: 'flex-start',
+		marginTop: scale.scaleSpacing(50),
+		marginLeft: scale.scaleSpacing(16),
+		marginBottom: scale.scaleSpacing(6),
+	},
+	backButtonText: {
+		fontSize: scale.scaleFont(18),
+		color: '#333',
+		fontWeight: '600',
+		textDecorationLine: 'underline',
+	},
 	scrollView: {
 		flex: 1,
 	},
 	scrollContent: {
 		paddingHorizontal: scale.scaleSpacing(16),
+		paddingTop: scale.scaleSpacing(12),
 	},
 	card: {
 		backgroundColor: '#FFFFFF',
