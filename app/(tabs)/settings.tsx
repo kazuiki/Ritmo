@@ -7,8 +7,9 @@ import {
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -22,14 +23,13 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 export default function Settings() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const tabBarHeight = useBottomTabBarHeight();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const [fontsLoaded] = useFonts({
@@ -81,6 +81,23 @@ export default function Settings() {
       setShowChangePasswordModal(false);
     };
   }, []);
+
+  // Hide the tab bar while on Settings and restore when leaving
+  useFocusEffect(
+    useCallback(() => {
+      const parent = navigation.getParent?.();
+      const tabsParent = parent?.getParent?.();
+      const targetNav = tabsParent || parent;
+      if (targetNav) {
+        targetNav.setOptions({ tabBarStyle: { display: 'none' } });
+      }
+      return () => {
+        if (targetNav) {
+          targetNav.setOptions({ tabBarStyle: undefined });
+        }
+      };
+    }, [navigation])
+  );
 
 
 
@@ -261,13 +278,13 @@ export default function Settings() {
         style={styles.backgroundImage}
         resizeMode="cover"
       />
-      
-      <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/ritmoNameLogo.png")}
-          style={styles.brandLogo}
-        />
-      </View>
+
+      <TouchableOpacity
+        style={styles.screenBackButton}
+        onPress={() => router.push("/(tabs)/home")}
+      >
+        <Text style={styles.screenBackButtonText}>Back</Text>
+      </TouchableOpacity>
 
       <ScrollView 
         style={styles.scrollView}
@@ -1162,23 +1179,24 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: scale.scaleSpacing(50),
-    paddingHorizontal: scale.scaleSpacing(16),
-  },
-  brandLogo: {
-    width: scale.scaleWidth(120),
-    height: scale.scaleHeight(30),
-    resizeMode: "contain",
-    marginLeft: scale.scaleSpacing(-22),
-    marginTop: scale.scaleSpacing(-20),
-  },
   scrollView: {
     flex: 1,
   },
   contentView: {
     padding: scale.scaleSpacing(16),
     paddingTop: scale.scaleSpacing(16),
+  },
+  screenBackButton: {
+    alignSelf: 'flex-start',
+    marginTop: scale.scaleSpacing(50),
+    marginLeft: scale.scaleSpacing(16),
+    marginBottom: scale.scaleSpacing(6),
+  },
+  screenBackButtonText: {
+    fontSize: scale.scaleFont(18),
+    color: '#333',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   inputContainer: {
     backgroundColor: "#FFFFFF",

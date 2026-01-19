@@ -15,21 +15,27 @@ export default function TabsLayout() {
   const responsive = useResponsiveDimensions();
   const { scaleFont } = responsive;
 
+  const baseTabBarStyle = {
+    backgroundColor: "#2F7C72",
+    borderTopWidth: 0,
+    height: 90 + (isAndroid ? insets.bottom : 20),
+    paddingBottom: isAndroid ? insets.bottom : 15,
+    paddingTop: 15,
+  } as const;
+
+  const hiddenTabBarStyle = { display: "none" } as const;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#E8FFFA" }}>
       <Tabs
-        screenOptions={{
+        screenOptions={({ route }) => ({
           headerShown: false,
-          tabBarStyle: {
-            backgroundColor: "#2F7C72",
-            borderTopWidth: 0,
-            height: 90 + (isAndroid ? insets.bottom : 20),
-            paddingBottom: isAndroid ? insets.bottom : 15,
-            paddingTop: 15,
-          },
+          tabBarStyle: ["settings", "addRoutines", "progress", "account-setting"].includes(route.name)
+            ? hiddenTabBarStyle
+            : baseTabBarStyle,
           tabBarActiveTintColor: "#fff",
           tabBarInactiveTintColor: "#fff",
-        }}
+        })}
       >
         {/* Home */}
         <Tabs.Screen
