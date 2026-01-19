@@ -5,13 +5,15 @@ import { MotiView } from "moti";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { miniGames } from "../../constants/minigames";
 
+import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { router } from "expo-router";
-import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Animated, Easing, Image, ImageBackground, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
+import { ParentalLockService } from "../../src/parentalLockService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
 import { supabase } from "../../src/supabaseClient";
@@ -94,6 +96,10 @@ export default function Home() {
   const successModalFadeAnim = useRef(new Animated.Value(0)).current;
   // Loading state to prevent content flash during minigame return check
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  // Parental Lock Modal states
+  const [showParentalLockModal, setShowParentalLockModal] = useState(false);
+  const [pin, setPin] = useState(['', '', '', '']);
+  const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
   const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
@@ -101,6 +107,59 @@ export default function Home() {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
+
+  const handleParentMode = async () => {
+    const isEnabled = await ParentalLockService.isEnabled();
+    if (isEnabled) {
+      setShowParentalLockModal(true);
+    } else {
+      router.push("/(tabs)/settings");
+    }
+  };
+
+  const handlePinInput = (index: number, value: string) => {
+    if (value.length > 1) return;
+    
+    const newPin = [...pin];
+    newPin[index] = value;
+    setPin(newPin);
+
+    if (value && index < 3) {
+      pinRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handleBackspace = (index: number, value: string) => {
+    if (value === '' && index > 0) {
+      pinRefs[index - 1].current?.focus();
+    }
+  };
+
+  const unlockAccess = async () => {
+    if (pin.every(digit => digit !== '')) {
+      const inputPin = pin.join('');
+      const isValid = await ParentalLockService.verifyPin(inputPin);
+      
+      if (isValid) {
+        // Authenticate the settings tab BEFORE navigating to prevent modal from appearing again
+        ParentalLockAuthService.setAuthenticated(true, 'settings');
+        setShowParentalLockModal(false);
+        setPin(['', '', '', '']);
+        router.push("/(tabs)/settings");
+      } else {
+        Alert.alert("Incorrect PIN", "Please try again.");
+        setPin(['', '', '', '']);
+        pinRefs[0].current?.focus();
+      }
+    } else {
+      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
+    }
+  };
+
+  const cancelAccess = () => {
+    setPin(['', '', '', '']);
+    setShowParentalLockModal(false);
+  };
 
   // Autoplay step audio and gate Next until clip finishes
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
@@ -901,6 +960,17 @@ export default function Home() {
           source={require("../../assets/images/ritmoNameLogo.png")}
           style={styles.brandLogo}
         />
+        <TouchableOpacity
+          style={styles.parentModeButton}
+          onPress={handleParentMode}
+          activeOpacity={0.7}
+        >
+          <Image
+            source={require("../../assets/images/Parents.png")}
+            style={styles.parentIcon}
+          />
+          <Text style={styles.parentModeText}>Parent mode</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Daily Progress tracker - Fixed */}
@@ -1559,6 +1629,75 @@ export default function Home() {
           </View>
         </View>
       </Modal>
+
+      {/* Parental Lock Modal */}
+      <Modal
+        visible={showParentalLockModal}
+        transparent={true}
+        animationType="none"
+        statusBarTranslucent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <ImageBackground
+            source={require("../../assets/background.png")}
+            style={styles.modalBackground}
+            resizeMode="cover"
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <View style={styles.lockIconContainer}>
+                  <Ionicons name="lock-closed" size={48} color="#4A5568" />
+                </View>
+                
+                <Text style={styles.modalTitle}>Parental Lock</Text>
+                <Text style={styles.modalSubtitle}>
+                  Access restricted to parents{'\n'}or guardians only
+                </Text>
+
+                <Text style={styles.modalContentTitle}>
+                  Please enter your 4-digit PIN to continue
+                </Text>
+                
+                <View style={styles.pinContainer}>
+                  {pin.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={pinRefs[index]}
+                      style={[
+                        styles.pinBox,
+                        digit ? styles.pinBoxFilled : null
+                      ]}
+                      value={digit}
+                      onChangeText={(value) => handlePinInput(index, value)}
+                      onKeyPress={({ nativeEvent }) => {
+                        if (nativeEvent.key === 'Backspace') {
+                          handleBackspace(index, digit);
+                        }
+                      }}
+                      keyboardType="numeric"
+                      maxLength={1}
+                      textAlign="center"
+                      secureTextEntry={true}
+                      selectTextOnFocus={true}
+                      autoFocus={index === 0}
+                    />
+                  ))}
+                </View>
+
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
+                    <Text style={styles.unlockText}>Unlock Access</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.cancelButton} onPress={cancelAccess}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </ImageBackground>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1580,7 +1719,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   header: { 
     paddingTop: scale.scaleHeight(50), 
-    paddingHorizontal: scale.scaleSpacing(16) 
+    paddingHorizontal: scale.scaleSpacing(16),
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   brand: { 
     fontSize: scale.scaleFont(22), 
@@ -1595,6 +1737,25 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginLeft: scale.scaleSpacing(-22), 
     marginTop: scale.scaleSpacing(-20), 
     marginBottom: scale.scaleSpacing(12) 
+  },
+  parentModeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(12),
+    marginTop: scale.scaleSpacing(-20),
+  },
+  parentIcon: {
+    width: scale.scaleWidth(20),
+    height: scale.scaleWidth(20),
+    tintColor: "#2F7C72",
+    marginRight: scale.scaleSpacing(6),
+  },
+  parentModeText: {
+    color: "#2F7C72",
+    fontSize: scale.scaleFont(13),
+    fontWeight: "600",
+    fontFamily: "Fredoka_600SemiBold",
   },
   progressCard: {
     backgroundColor: "#fff",
@@ -2285,5 +2446,126 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
+  },
+  // Parental Lock Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modalBackground: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: scale.scaleSpacing(20),
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 2,
+    borderColor: "#CFF6EB",
+    padding: scale.scaleSpacing(35),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(8) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 12,
+    width: "90%",
+    maxWidth: scale.scaleWidth(350),
+  },
+  lockIconContainer: {
+    marginBottom: scale.scaleSpacing(20),
+    opacity: 0.7,
+  },
+  modalTitle: {
+    fontSize: scale.scaleFont(28),
+    fontWeight: "700",
+    fontFamily: "ITIM",
+    color: "#333",
+    marginBottom: scale.scaleSpacing(8),
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "400",
+    fontFamily: "ITIM",
+    color: "#666",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(25),
+    lineHeight: scale.scaleHeight(22),
+  },
+  modalContentTitle: {
+    fontSize: scale.scaleFont(14),
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    color: "#555",
+    marginBottom: scale.scaleSpacing(25),
+    textAlign: "center",
+    lineHeight: scale.scaleHeight(20),
+  },
+  pinContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: scale.scaleSpacing(25),
+    gap: scale.scaleSpacing(12),
+  },
+  pinBox: {
+    width: scale.scaleWidth(55),
+    height: scale.scaleHeight(55),
+    borderRadius: scale.scaleBorderRadius(12),
+    backgroundColor: "#F7F7F7",
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    textAlign: "center",
+    fontSize: scale.scaleFont(24),
+    fontWeight: "600",
+    color: "#333",
+    fontFamily: "ITIM",
+  },
+  pinBoxFilled: {
+    backgroundColor: "#E8F5E8",
+    borderColor: "#4CAF50",
+  },
+  buttonContainer: {
+    width: "100%",
+    gap: scale.scaleSpacing(12),
+  },
+  unlockButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: scale.scaleSpacing(15),
+    paddingHorizontal: scale.scaleSpacing(25),
+    borderRadius: scale.scaleBorderRadius(25),
+    alignItems: "center",
+    shadowColor: "#4CAF50",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(8),
+    elevation: 6,
+  },
+  unlockText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: "ITIM",
+  },
+  cancelButton: {
+    backgroundColor: "transparent",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(25),
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    alignItems: "center",
+  },
+  cancelText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    color: "#666",
   },
 }));

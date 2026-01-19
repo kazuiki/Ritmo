@@ -7,9 +7,8 @@ import {
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -25,7 +24,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
-import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
@@ -44,9 +42,6 @@ export default function Settings() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("********");
   const [loading, setLoading] = useState(true);
-  const [showParentalLockModal, setShowParentalLockModal] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('settings'));
-  const [pin, setPin] = useState(['', '', '', '']);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [tempNickname, setTempNickname] = useState("");
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -75,22 +70,10 @@ export default function Settings() {
   const [instructionModalVisible, setInstructionModalVisible] = useState(false);
   const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
-  
-  const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
-  // Check parental lock on component mount and when focused
+  // Cleanup modals on unmount
   useEffect(() => {
-    checkParentalLock();
-    
-    // Listen to authentication changes
-    const authListener = (isAuth: boolean) => {
-      setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('settings'));
-    };
-    
-    ParentalLockAuthService.addListener(authListener);
-    
     return () => {
-      ParentalLockAuthService.removeListener(authListener);
       // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
       setLogoutConfirmVisible(false);
       setErrorModalVisible(false);
@@ -99,22 +82,7 @@ export default function Settings() {
     };
   }, []);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      // Update authentication state and check parental lock when focusing on this tab
-      setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('settings'));
-      checkParentalLock();
-    }, [])
-  );
 
-  const checkParentalLock = async () => {
-    const isEnabled = await ParentalLockService.isEnabled();
-    const isTabAuth = ParentalLockAuthService.isTabAuthenticated('settings');
-    if (isEnabled && !isTabAuth) {
-      setShowParentalLockModal(true);
-      return;
-    }
-  };
 
   useEffect(() => {
     fetchUserData();
@@ -140,47 +108,7 @@ export default function Settings() {
     }
   };
 
-  const handlePinInput = (index: number, value: string) => {
-    if (value.length > 1) return;
-    
-    const newPin = [...pin];
-    newPin[index] = value;
-    setPin(newPin);
 
-    if (value && index < 3) {
-      pinRefs[index + 1].current?.focus();
-    }
-  };
-
-  const handleBackspace = (index: number, value: string) => {
-    if (value === '' && index > 0) {
-      pinRefs[index - 1].current?.focus();
-    }
-  };
-
-  const unlockAccess = async () => {
-    if (pin.every(digit => digit !== '')) {
-      const inputPin = pin.join('');
-      const isValid = await ParentalLockService.verifyPin(inputPin);
-      
-      if (isValid) {
-        ParentalLockAuthService.setAuthenticated(true, 'settings');
-        setShowParentalLockModal(false);
-        setPin(['', '', '', '']);
-      } else {
-        Alert.alert("Incorrect PIN", "Please try again.");
-        setPin(['', '', '', '']);
-        pinRefs[0].current?.focus();
-      }
-    } else {
-      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
-    }
-  };
-
-  const cancelAccess = () => {
-    setPin(['', '', '', '']);
-    router.replace("/(tabs)/home");
-  };
 
   const startEditingNickname = () => {
     setTempNickname(childNickname);
@@ -279,6 +207,18 @@ export default function Settings() {
     await supabase.auth.signOut();
   };
 
+  const handleAccountSetting = () => {
+    router.push("/(tabs)/account-setting");
+  };
+
+  const handleSetRoutine = () => {
+    router.push("/(tabs)/addRoutines");
+  };
+
+  const handleProgress = () => {
+    router.push("/(tabs)/progress");
+  };
+
   const handleParentalLock = () => {
     router.push("/parental-lock");
   };
@@ -337,78 +277,32 @@ export default function Settings() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Child Nickname */}
-        <View style={styles.inputContainer}>
-          <View style={styles.row}>
-            <Text style={styles.labelInline}>Child Nickname:</Text>
-            <View style={styles.valueContainer}>
-              {isEditingNickname ? (
-                <>
-                  <TextInput
-                    style={styles.directEditInput}
-                    value={tempNickname}
-                    onChangeText={setTempNickname}
-                    onBlur={saveNickname}
-                    onSubmitEditing={saveNickname}
-                    autoFocus
-                    maxLength={50}
-                    returnKeyType="done"
-                  />
-                  <TouchableOpacity style={styles.editButton} onPress={() => setIsEditingNickname(false)}>
-                    <Ionicons name="pencil" size={16} color="#666" />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text 
-                    style={styles.valueText}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {childNickname || "—"}
-                  </Text>
-                  <TouchableOpacity style={styles.editButton} onPress={startEditingNickname}>
-                    <Ionicons name="pencil" size={16} color="#666" />
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </View>
 
-        {/* Email */}
-        <View style={styles.inputContainer}>
-          <View style={styles.row}>
-            <Text style={styles.labelInline}>Email:</Text>
-            <View style={styles.valueContainer}>
-              <Text 
-                style={styles.valueText}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {email || "—"}
-              </Text>
-            </View>
-          </View>
-        </View>
+        {/* Set Routine */}
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={handleSetRoutine}
+        >
+          <Text style={styles.menuButtonText}>Set Routine</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
+        </TouchableOpacity>
 
-        {/* Password */}
-        <TouchableOpacity style={styles.inputContainer} onPress={handleChangePassword}>
-          <View style={styles.row}>
-            <Text style={styles.labelInline}>Password:</Text>
-            <View style={styles.valueContainer}>
-              <Text 
-                style={styles.valueText}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {password}
-              </Text>
-              <TouchableOpacity style={styles.editButton} onPress={handleChangePassword}>
-                <Ionicons name="pencil" size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
-          </View>
+        {/* Progress */}
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={handleProgress}
+        >
+          <Text style={styles.menuButtonText}>Progress</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
+        </TouchableOpacity>
+
+        {/* Account Setting */}
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={handleAccountSetting}
+        >
+          <Text style={styles.menuButtonText}>Account Setting</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
 
         {/* Parental Lock */}
@@ -453,83 +347,7 @@ export default function Settings() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Parental Lock Modal */}
-      <Modal
-        visible={showParentalLockModal}
-        transparent={true}
-        animationType="none"
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="cover"
-          >
-            <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                <View style={styles.lockIconContainer}>
-                  <Ionicons name="lock-closed" size={48} color="#4A5568" />
-                </View>
-                
-                <Text style={styles.modalTitle}>Parental Lock</Text>
-                <Text style={styles.modalSubtitle}>
-                  Access restricted to parents{'\n'}or guardians only
-                </Text>
 
-                <Text style={styles.modalContentTitle}>
-                  Please enter your 4-digit PIN to continue
-                </Text>
-                
-                <View style={styles.pinContainer}>
-                  {pin.map((digit, index) => (
-                    <TextInput
-                      key={index}
-                      ref={pinRefs[index]}
-                      style={[
-                        styles.pinBox,
-                        digit ? styles.pinBoxFilled : null
-                      ]}
-                      value={digit}
-                      onChangeText={(value) => handlePinInput(index, value)}
-                      onKeyPress={({ nativeEvent }) => {
-                        if (nativeEvent.key === 'Backspace') {
-                          handleBackspace(index, digit);
-                        }
-                      }}
-                      keyboardType="numeric"
-                      maxLength={1}
-                      textAlign="center"
-                      secureTextEntry={true}
-                      selectTextOnFocus={true}
-                      autoFocus={index === 0}
-                    />
-                  ))}
-                </View>
-
-                <TouchableOpacity 
-                  style={styles.forgotPin}
-                  onPress={() => {
-                    router.push('/parental-lock-new-pin');
-                  }}
-                >
-                  <Text style={styles.forgotPinText}>Forgot PIN?</Text>
-                </TouchableOpacity>
-
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
-                    <Text style={styles.unlockText}>Unlock Access</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.cancelButton} onPress={cancelAccess}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </ImageBackground>
-        </View>
-      </Modal>
 
       {/* Change Password Modal */}
       <Modal
