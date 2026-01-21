@@ -7,7 +7,7 @@ import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNaviga
 
 export default function AuthCallback() {
   const router = useRouter();
-  const [message, setMessage] = useState("Signing you in...");
+  const [message, setMessage] = useState("Logging in...");
   const responsive = useResponsiveDimensions();
 
   useEffect(() => {
