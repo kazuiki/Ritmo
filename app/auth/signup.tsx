@@ -35,15 +35,25 @@ export default function SignUp() {
   const [sentVerificationCode, setSentVerificationCode] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState(""); // ✅ new state
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // ✅ new toggle
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    minLength: false,
+    hasNumber: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasSpecial: false,
+    noSpaces: false,
+  });
   const [loading, setLoading] = useState(false);
   const [paused, setPaused] = useState(false);
   const [confirmEmailModalVisible, setConfirmEmailModalVisible] = useState(false);
   const [fillFieldsModalVisible, setFillFieldsModalVisible] = useState(false);
   const [passwordMismatchModalVisible, setPasswordMismatchModalVisible] = useState(false);
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
+  const [invalidEmailModalVisible, setInvalidEmailModalVisible] = useState(false);
+  const [weakPasswordModalVisible, setWeakPasswordModalVisible] = useState(false);
   const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState("");
   const [verificationErrorModalVisible, setVerificationErrorModalVisible] = useState(false);
@@ -87,9 +97,13 @@ export default function SignUp() {
   }, []);
 
   // Restore saved inputs when returning to an already-mounted screen (after Privacy/Terms)
+  const hasRestoredRef = useRef(false);
   useFocusEffect(
     (() => {
       const restoreIfMounted = async () => {
+        // Only restore once after mounting, not every focus
+        if (hasRestoredRef.current) return;
+        
         try {
           const savedEmail = await AsyncStorage.getItem('@signupEmail');
           const savedPassword = await AsyncStorage.getItem('@signupPassword');
@@ -99,6 +113,7 @@ export default function SignUp() {
           if (savedPassword) setPassword(savedPassword);
           if (savedConfirm) setConfirmPassword(savedConfirm);
           if (savedVerificationCode) setVerificationCode(savedVerificationCode);
+          hasRestoredRef.current = true;
         } catch {}
       };
       restoreIfMounted();
@@ -234,6 +249,47 @@ export default function SignUp() {
     }
   };
 
+  // === Email Validation ===
+  const validateEmail = (email: string): boolean => {
+    return email.toLowerCase().endsWith('@gmail.com');
+  };
+
+  // === Password Validation with Details ===
+  const validatePasswordDetails = (password: string) => {
+    const requirements = {
+      minLength: password.length >= 8,
+      hasNumber: /[0-9]/.test(password),
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasSpecial: /[!@#$%^&*()_+]/.test(password),
+      noSpaces: !/\s/.test(password),
+    };
+    return requirements;
+  };
+
+  // === Password Validation ===
+  const validatePassword = (password: string): { isValid: boolean; message?: string } => {
+    if (password.length < 8) {
+      return { isValid: false, message: 'Password must be at least 8 characters long' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 uppercase letter' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 lowercase letter' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 number' };
+    }
+    if (!/[!@#$%^&*()_+]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 special character (!@#$%^&*()_+)' };
+    }
+    if (/\s/.test(password)) {
+      return { isValid: false, message: 'Password must not contain spaces' };
+    }
+    return { isValid: true };
+  };
+
   // === Create Account Handler (Step 1: Send Verification Code) ===
   const handleCreateAccount = async () => {
     if (!email || !password || !confirmPassword) {
@@ -241,8 +297,17 @@ export default function SignUp() {
       return;
     }
 
-    if (password.length < 6) {
-      setPasswordLengthModalVisible(true);
+    // Validate email format
+    if (!validateEmail(email)) {
+      setInvalidEmailModalVisible(true);
+      return;
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      setEmailErrorMessage(passwordValidation.message || 'Invalid password');
+      setWeakPasswordModalVisible(true);
       return;
     }
 
@@ -351,6 +416,8 @@ export default function SignUp() {
       }
 
       // Password set successfully, close verification modal and show account created modal
+      // Sign out to avoid automatic redirects (user must log in manually)
+      await supabase.auth.signOut();
       setVerificationModalVisible(false);
       setAccountCreatedModalVisible(true);
     } catch (error) {
@@ -419,7 +486,7 @@ export default function SignUp() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here:"
+                placeholder="Enter email here"
                 placeholderTextColor="#888"
                 value={email}
                 onChangeText={setEmail}
@@ -431,10 +498,13 @@ export default function SignUp() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here:"
+                  placeholder="Enter password here"
                   placeholderTextColor="#888"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setPasswordRequirements(validatePasswordDetails(text));
+                  }}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
@@ -454,7 +524,7 @@ export default function SignUp() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Re-enter password:"
+                  placeholder="Re-enter password"
                   placeholderTextColor="#888"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -478,22 +548,27 @@ export default function SignUp() {
               {/* Agreement checkbox + text */}
               <View style={styles.agreeRow}>
                 <TouchableOpacity
-                  onPress={() => {
-                    // Require fields filled before proceeding to Terms
-                    if (!email || !password || !confirmPassword) {
-                      setCompleteDetailsModalVisible(true);
-                      return;
+                  onPress={async () => {
+                    if (!agreed) {
+                      // Require fields filled before proceeding to Terms
+                      if (!email || !password || !confirmPassword) {
+                        setCompleteDetailsModalVisible(true);
+                        return;
+                      }
+                      // Persist current inputs so they are restored after returning
+                      await AsyncStorage.multiSet([
+                        ['@signupEmail', email],
+                        ['@signupPassword', password],
+                        ['@signupConfirm', confirmPassword],
+                        ['@termsAccepted', 'false'],
+                      ]).catch(() => {});
+                      // Open Privacy Policy first, then Terms
+                      router.push('/privacy-policy');
+                    } else {
+                      // Uncheck if already checked
+                      setAgreed(false);
+                      AsyncStorage.setItem('@termsAccepted', 'false').catch(() => {});
                     }
-                    // Persist current inputs so they are restored after returning
-                    AsyncStorage.multiSet([
-                      ['@signupEmail', email],
-                      ['@signupPassword', password],
-                      ['@signupConfirm', confirmPassword],
-                      ['@termsAccepted', 'false'],
-                    ]).catch(() => {});
-                    setAgreed(false);
-                    // Open Privacy Policy first, then Terms
-                    router.push('/privacy-policy');
                   }}
                   style={[styles.checkbox, agreed && styles.checkboxChecked]}
                 >
@@ -634,6 +709,120 @@ export default function SignUp() {
             <TouchableOpacity
               style={styles.errorOkButton}
               onPress={() => setPasswordMismatchModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Invalid Email Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={invalidEmailModalVisible}
+        onRequestClose={() => setInvalidEmailModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Invalid Email</Text>
+            <Text style={styles.errorModalMessage}>
+              Please use a valid Gmail address (@gmail.com)
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setInvalidEmailModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Weak Password Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={weakPasswordModalVisible}
+        onRequestClose={() => setWeakPasswordModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Weak Password</Text>
+            <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 8, marginBottom: 8 }}>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.minLength ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must be at least 8 characters!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasNumber ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 number!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasUppercase ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 uppercase!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasLowercase ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 lowercase!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasSpecial ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 special character!
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setWeakPasswordModalVisible(false)}
             >
               <Text style={styles.errorOkButtonText}>OK</Text>
             </TouchableOpacity>
@@ -864,8 +1053,8 @@ export default function SignUp() {
         onRequestClose={() => setVerificationModalVisible(false)}
       >
         <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
+          <View style={styles.verificationModalContainer}>
+            <View style={styles.verificationIconCircle}>
               <Image
                 source={require("../../assets/images/Mail.png")}
                 style={styles.errorIcon}
@@ -878,8 +1067,8 @@ export default function SignUp() {
             </Text>
             
             <TextInput
-              style={[styles.input, { marginTop: 16, textAlign: 'center' }]}
-              placeholder="Enter 6-digit code:"
+              style={[styles.input, { marginTop: 16, textAlign: 'center', paddingHorizontal: 18 }]}
+              placeholder="Enter 6-digit code"
               placeholderTextColor="#888"
               value={verificationCode}
               onChangeText={setVerificationCode}
@@ -888,11 +1077,11 @@ export default function SignUp() {
             />
             
             <TouchableOpacity
-              style={[styles.errorOkButton, { marginTop: 20 }]}
+              style={[styles.verifyButton, { marginTop: 20, paddingVertical: 10, paddingHorizontal: 40, borderRadius: 20 }]}
               onPress={handleVerifyCodeFromModal}
               disabled={!verificationCode || verificationCode.length !== 6}
             >
-              <Text style={styles.errorOkButtonText}>VERIFY</Text>
+              <Text style={styles.verifyButtonText}>VERIFY</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -905,23 +1094,23 @@ export default function SignUp() {
         visible={accountCreatedModalVisible}
         onRequestClose={() => setAccountCreatedModalVisible(false)}
       >
-        <View style={styles.confirmEmailModalOverlay}>
-          <View style={styles.confirmEmailModalContainer}>
-            <View style={styles.confirmEmailIconCircle}>
+        <View style={styles.accountModalOverlay}>
+          <View style={styles.accountModalContainer}>
+            <View style={styles.accountIconCircle}>
               <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
             </View>
-            <Text style={styles.confirmEmailModalTitle}>Account Created!</Text>
-            <Text style={styles.confirmEmailModalMessage}>
-              Your account has been successfully created. Let's get started with your child's routine!
+            <Text style={styles.accountModalTitle}>Account Created!</Text>
+            <Text style={styles.accountModalMessage}>
+              Your account has been successfully created. Please log in to continue.
             </Text>
             <TouchableOpacity
-              style={styles.confirmEmailOkButton}
+              style={styles.accountOkButton}
               onPress={() => {
                 setAccountCreatedModalVisible(false);
-                router.replace('/instruction');
+                router.replace('/auth/login');
               }}
             >
-              <Text style={styles.confirmEmailOkButtonText}>CONTINUE</Text>
+              <Text style={styles.accountOkButtonText}>GO TO LOGIN</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -967,7 +1156,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#276a63",
     marginTop: scale.scaleSpacing(8),
     fontSize: scale.scaleFont(14),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_400Regular",
   },
   input: {
     width: "100%",
@@ -1087,7 +1276,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   confirmEmailModalTitle: {
     fontSize: scale.scaleFont(18),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_700Bold",
     fontWeight: "700",
     color: "#000",
     marginBottom: scale.scaleSpacing(8),
@@ -1095,7 +1284,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   confirmEmailModalMessage: {
     fontSize: scale.scaleFont(14),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_400Regular",
     color: "#666",
     textAlign: "center",
     marginBottom: scale.scaleSpacing(20),
@@ -1109,8 +1298,73 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   confirmEmailOkButtonText: {
     color: "#fff",
     fontSize: scale.scaleFont(16),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_700Bold",
     fontWeight: "600",
+  },
+
+  // Account Created Modal (match forgot-password success style)
+  accountModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  accountModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(20),
+    padding: scale.scaleSpacing(24),
+    width: "80%",
+    maxWidth: scale.scaleWidth(360),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  accountIconCircle: {
+    width: scale.scaleWidth(70),
+    height: scale.scaleHeight(70),
+    borderRadius: scale.scaleBorderRadius(35),
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(16),
+  },
+  accountModalTitle: {
+    fontSize: scale.scaleFont(24),
+    fontWeight: "600",
+    color: "#1A1A1A",
+    marginBottom: scale.scaleSpacing(8),
+    fontFamily: "Fredoka_600SemiBold",
+    textAlign: "center",
+  },
+  accountModalMessage: {
+    fontSize: scale.scaleFont(14),
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: scale.scaleFont(20),
+    marginBottom: scale.scaleSpacing(20),
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: scale.scaleSpacing(8),
+    flexWrap: "wrap",
+  },
+  accountOkButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(50),
+    borderRadius: scale.scaleBorderRadius(50),
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: scale.scaleWidth(140),
+  },
+  accountOkButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
   },
   
   // Error Modal Styles (pink theme)
@@ -1144,6 +1398,30 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: "center",
     marginBottom: scale.scaleSpacing(12),
   },
+  verificationModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(18),
+    padding: scale.scaleSpacing(18),
+    width: "82%",
+    maxWidth: scale.scaleWidth(420),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  verificationIconCircle: {
+    width: scale.scaleWidth(64),
+    height: scale.scaleHeight(64),
+    borderRadius: scale.scaleBorderRadius(32),
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(12),
+  },
   errorIcon: {
     width: scale.scaleWidth(36),
     height: scale.scaleHeight(36),
@@ -1154,7 +1432,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontWeight: "700",
     color: "#1A1A1A",
     marginBottom: scale.scaleSpacing(8),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_700Bold",
   },
   errorModalMessage: {
     fontSize: scale.scaleFont(14),
@@ -1164,7 +1442,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginBottom: scale.scaleSpacing(16),
     paddingHorizontal: scale.scaleSpacing(8),
     flexWrap: "wrap",
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_400Regular",
   },
   errorOkButton: {
     backgroundColor: "#FF6B7A",
@@ -1179,7 +1457,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(15),
     fontWeight: "600",
     color: "#FFFFFF",
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_600SemiBold",
   },
   sendCodeButton: {
     backgroundColor: "#2D7778",
@@ -1192,7 +1470,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: scale.scaleFont(13),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_400Regular",
   },
   verifyButton: {
     backgroundColor: "#4CAF50",
@@ -1204,8 +1482,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   verifyButtonText: {
     color: "#fff",
     fontWeight: "600",
-    fontSize: scale.scaleFont(12),
-    fontFamily: "ITIM",
+    fontSize: scale.scaleFont(16),
+    fontFamily: "Fredoka_600SemiBold",
   },
   verifiedContainer: {
     flexDirection: "row",
@@ -1221,7 +1499,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#4CAF50",
     fontWeight: "600",
     fontSize: scale.scaleFont(14),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_400Regular",
     marginLeft: scale.scaleSpacing(8),
   },
   combinedButton: {
@@ -1235,6 +1513,19 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: scale.scaleFont(12),
-    fontFamily: "ITIM",
+    fontFamily: "Fredoka_400Regular",
+  },
+  requirementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: scale.scaleSpacing(8),
+  },
+  requirementIcon: {
+    marginRight: scale.scaleSpacing(8),
+  },
+  requirementText: {
+    fontSize: scale.scaleFont(12),
+    fontFamily: "Fredoka_400Regular",
+    flex: 1,
   },
 }));
