@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useMode } from "../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../src/parentalLockAuthService";
 import { ParentalLockService } from "../src/parentalLockService";
 import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
@@ -21,6 +22,7 @@ const backgroundImage = require("../assets/background.png");
 export default function ParentalLock() {
   const router = useRouter();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+  const { enterParentMode } = useMode();
   const [isEnabled, setIsEnabled] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
@@ -114,6 +116,11 @@ export default function ParentalLock() {
         setIsEnabled(true);
         setShowPinModal(false);
         setPin(['', '', '', '']); // Reset PIN input
+        // Authenticate all parent tabs and enter parent mode
+        ParentalLockAuthService.setAuthenticated(true, 'progress');
+        ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
+        ParentalLockAuthService.setAuthenticated(true, 'settings');
+        enterParentMode();
       }
     }
   };
