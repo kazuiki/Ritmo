@@ -3,7 +3,12 @@ import { supabase } from './supabaseClient';
 const isAuthParseError = (error: unknown) => {
   if (!error) return false;
   const message = (error as any)?.message;
-  return typeof message === 'string' && message.includes('JSON Parse error');
+  const errorName = (error as any)?.name;
+  return (
+    (typeof message === 'string' && message.includes('JSON Parse error')) ||
+    (typeof message === 'string' && message.includes('Auth session missing')) ||
+    errorName === 'AuthSessionMissingError'
+  );
 };
 
 export const ParentalLockService = {
