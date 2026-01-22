@@ -59,6 +59,10 @@ export default function addRoutines() {
     
     // Save confirmation modal
     const [saveConfirmVisible, setSaveConfirmVisible] = useState(false);
+    
+    // Add and Edit success modals
+    const [addSuccessVisible, setAddSuccessVisible] = useState(false);
+    const [editSuccessVisible, setEditSuccessVisible] = useState(false);
 
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
@@ -96,6 +100,8 @@ export default function addRoutines() {
             setDeleteSuccessVisible(false);
             setSaveConfirmVisible(false);
             setSelectDaysModalVisible(false);
+            setAddSuccessVisible(false);
+            setEditSuccessVisible(false);
         };
     }, []);
 
@@ -287,10 +293,10 @@ export default function addRoutines() {
                         days: selectedDays,
                     }).catch(err => console.error('Error scheduling notification:', err));
                     await loadRoutinesFromDb();
+                    closeModal();
+                    setAddSuccessVisible(true);
                 })
                 .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
-                
-                closeModal();
             }
         } else if (!editingRoutineId) {
             // Only close modal for Add (no editing), Edit has its own close in confirmation
@@ -390,6 +396,7 @@ export default function addRoutines() {
             }).catch(err => console.error('Error scheduling notification:', err));
             
             closeModal();
+            setEditSuccessVisible(true);
         }
     };
 
@@ -1023,6 +1030,64 @@ export default function addRoutines() {
                             onPress={() => setSelectDaysModalVisible(false)}
                         >
                             <Text style={styles.selectDaysOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Add Success Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={addSuccessVisible}
+                onRequestClose={() => setAddSuccessVisible(false)}
+            >
+                <View style={styles.successModalOverlay}>
+                    <View style={styles.successModalContainer}>
+                        <View style={styles.successIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Checkmark.png")}
+                                style={styles.successIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.successModalTitle}>Success!</Text>
+                        <Text style={styles.successModalMessage}>Routine added successfully</Text>
+                        
+                        <TouchableOpacity
+                            style={styles.successOkButton}
+                            onPress={() => setAddSuccessVisible(false)}
+                        >
+                            <Text style={styles.successOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Edit Success Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={editSuccessVisible}
+                onRequestClose={() => setEditSuccessVisible(false)}
+            >
+                <View style={styles.successModalOverlay}>
+                    <View style={styles.successModalContainer}>
+                        <View style={styles.successIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Checkmark.png")}
+                                style={styles.successIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.successModalTitle}>Success!</Text>
+                        <Text style={styles.successModalMessage}>Routine updated successfully</Text>
+                        
+                        <TouchableOpacity
+                            style={styles.successOkButton}
+                            onPress={() => setEditSuccessVisible(false)}
+                        >
+                            <Text style={styles.successOkButtonText}>OK</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
