@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -6,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
     Image,
-    ImageBackground,
     Modal,
     ScrollView,
     StyleSheet,
@@ -16,9 +14,8 @@ import {
     View
 } from "react-native";
 import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
+import { useMode } from "../../src/contexts/ModeContext";
 import NotificationService from "../../src/notificationService";
-import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
-import { ParentalLockService } from "../../src/parentalLockService";
 import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
@@ -39,6 +36,7 @@ const ITEM_HEIGHT = 48;
 export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+    const { mode, parentalLockEnabled, backToChildMode } = useMode();
     const [modalVisible, setModalVisible] = useState(false);
     const [routineName, setRoutineName] = useState("");
     const [hour, setHour] = useState("01");
@@ -64,12 +62,6 @@ export default function addRoutines() {
 
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
-    
-    // Parental lock modal state
-    const [showParentalLockModal, setShowParentalLockModal] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('addRoutines'));
-    const [pin, setPin] = useState(['', '', '', '']);
-    const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
@@ -96,17 +88,7 @@ export default function addRoutines() {
         };
         initNotifications();
         
-        checkParentalLock();
-        
-        // Listen to authentication changes
-        const authListener = (isAuth: boolean) => {
-            setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('addRoutines'));
-        };
-        
-        ParentalLockAuthService.addListener(authListener);
-        
         return () => {
-            ParentalLockAuthService.removeListener(authListener);
             // CLEANUP: Stop any playing sounds when component unmounts
             NotificationService.stopRingtone().catch(console.error);
             // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
@@ -119,62 +101,8 @@ export default function addRoutines() {
 
     useFocusEffect(
         React.useCallback(() => {
-            // Update authentication state and check parental lock when focusing on this tab
-            setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('addRoutines'));
-            checkParentalLock();
         }, [])
     );
-
-    const checkParentalLock = async () => {
-        const isEnabled = await ParentalLockService.isEnabled();
-        const isTabAuth = ParentalLockAuthService.isTabAuthenticated('addRoutines');
-        if (isEnabled && !isTabAuth) {
-            setShowParentalLockModal(true);
-            return;
-        }
-    };
-
-    const handlePinInput = (index: number, value: string) => {
-        if (value.length > 1) return;
-        
-        const newPin = [...pin];
-        newPin[index] = value;
-        setPin(newPin);
-
-        if (value && index < 3) {
-            pinRefs[index + 1].current?.focus();
-        }
-    };
-
-    const handleBackspace = (index: number, value: string) => {
-        if (value === '' && index > 0) {
-            pinRefs[index - 1].current?.focus();
-        }
-    };
-
-    const unlockAccess = async () => {
-        if (pin.every(digit => digit !== '')) {
-            const inputPin = pin.join('');
-            const isValid = await ParentalLockService.verifyPin(inputPin);
-            
-            if (isValid) {
-                ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
-                setShowParentalLockModal(false);
-                setPin(['', '', '', '']);
-            } else {
-                Alert.alert("Incorrect PIN", "Please try again.");
-                setPin(['', '', '', '']);
-                pinRefs[0].current?.focus();
-            }
-        } else {
-            Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
-        }
-    };
-
-    const cancelAccess = () => {
-        setPin(['', '', '', '']);
-        router.replace("/(tabs)/home");
-    };
 
     const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
         ref.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
@@ -504,6 +432,20 @@ export default function addRoutines() {
                     source={require("../../assets/images/ritmoNameLogo.png")}
                     style={styles.brandLogo}
                 />
+                {parentalLockEnabled && mode === 'parent' && (
+                    <TouchableOpacity
+                        style={styles.modeButton}
+                        onPress={() => {
+                            backToChildMode();
+                            router.push('/(tabs)/home');
+                        }}
+                    >
+                        <View style={styles.modeButtonContent}>
+                            <Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
+                            <Text style={styles.modeButtonText}>Back to Child Mode</Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* Title row with plus button */}
@@ -946,84 +888,6 @@ export default function addRoutines() {
                 </View>
             </Modal>
 
-            {/* Parental Lock Modal */}
-            <Modal
-                animationType="none"
-                transparent={true}
-                visible={showParentalLockModal}
-                onRequestClose={cancelAccess}
-                statusBarTranslucent={true}
-            >
-                <View style={styles.parentalLockModalOverlay}>
-                    <ImageBackground
-                        source={require("../../assets/background.png")}
-                        style={styles.parentalLockModalBackground}
-                        resizeMode="cover"
-                    >
-                        <View style={styles.parentalLockModalContainer}>
-                            <View style={styles.parentalLockModalContent}>
-                                <View style={styles.parentalLockIconContainer}>
-                                    <Ionicons name="lock-closed" size={48} color="#4A5568" />
-                                </View>
-                                
-                                <Text style={styles.parentalLockModalTitle}>Parental Lock</Text>
-                                <Text style={styles.parentalLockModalSubtitle}>
-                                    Access restricted to parents{'\n'}or guardians only
-                                </Text>
-
-                                <Text style={styles.parentalLockModalContentTitle}>
-                                    Please enter your 4-digit PIN to continue
-                                </Text>
-                                
-                                <View style={styles.parentalLockPinContainer}>
-                                    {pin.map((digit, index) => (
-                                        <TextInput
-                                            key={index}
-                                            ref={pinRefs[index]}
-                                            style={[
-                                                styles.parentalLockPinInput,
-                                                digit ? styles.parentalLockPinInputFilled : null
-                                            ]}
-                                            value={digit}
-                                            onChangeText={(value) => handlePinInput(index, value)}
-                                            onKeyPress={({ nativeEvent }) => {
-                                                if (nativeEvent.key === 'Backspace') {
-                                                    handleBackspace(index, digit);
-                                                }
-                                            }}
-                                            keyboardType="numeric"
-                                            maxLength={1}
-                                            secureTextEntry
-                                            textAlign="center"
-                                            selectTextOnFocus={true}
-                                            autoFocus={index === 0}
-                                        />
-                                    ))}
-                                </View>
-
-                                <TouchableOpacity 
-                                    style={styles.parentalLockForgotPin}
-                                    onPress={() => {
-                                        router.push('/parental-lock-new-pin');
-                                    }}
-                                >
-                                    <Text style={styles.parentalLockForgotPinText}>Forgot PIN?</Text>
-                                </TouchableOpacity>
-                                
-                                <View style={styles.parentalLockButtonContainer}>
-                                    <TouchableOpacity style={styles.parentalLockUnlockButton} onPress={unlockAccess}>
-                                        <Text style={styles.parentalLockUnlockText}>Unlock Access</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.parentalLockCancelButton} onPress={cancelAccess}>
-                                        <Text style={styles.parentalLockCancelText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-                    </ImageBackground>
-                </View>
-            </Modal>
-
             {/* Delete Confirmation Modal */}
             <Modal
                 animationType="fade"
@@ -1183,16 +1047,41 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         width: "100%",
         height: "100%",
     },
-    header: { 
-        paddingTop: scale.scaleSpacing(50), 
-        paddingHorizontal: scale.scaleSpacing(16) 
+    header: {
+        paddingTop: scale.scaleSpacing(30),
+        paddingHorizontal: scale.scaleSpacing(16),
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
     brandLogo: {
         width: scale.scaleWidth(120),
         height: scale.scaleHeight(30),
         resizeMode: "contain",
         marginLeft: scale.scaleSpacing(-22),
-        marginTop: scale.scaleSpacing(-20),
+    },
+    modeButton: {
+        backgroundColor: '#B8E6E1',
+        paddingHorizontal: scale.scaleSpacing(20),
+        paddingVertical: scale.scaleSpacing(12),
+        borderRadius: 20,
+        marginTop: scale.scaleSpacing(10),
+    },
+    modeButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: scale.scaleSpacing(8),
+    },
+    modeButtonText: {
+        color: '#2F7C72',
+        fontSize: scale.scaleFont(14),
+        fontWeight: '600',
+        textDecorationLine: 'underline',
+    },
+    modeButtonIcon: {
+        width: scale.scaleWidth(16),
+        height: scale.scaleHeight(16),
+        resizeMode: 'contain',
     },
     titleRow: {
         paddingHorizontal: scale.scaleSpacing(16),
@@ -1633,138 +1522,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontSize: scale.scaleFont(14),
         color: '#244D4A',
         marginTop: scale.scaleSpacing(2),
-    },
-    // Parental Lock Modal Styles
-    parentalLockModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    },
-    parentalLockModalBackground: {
-        flex: 1,
-        width: "100%",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    parentalLockModalContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: scale.scaleSpacing(20),
-    },
-    parentalLockModalContent: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: scale.scaleBorderRadius(25),
-        borderWidth: 2,
-        borderColor: "#CFF6EB",
-        padding: scale.scaleSpacing(35),
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: scale.scaleHeight(8) },
-        shadowOpacity: 0.3,
-        shadowRadius: scale.scaleSpacing(12),
-        elevation: 12,
-        width: "90%",
-        maxWidth: scale.scaleWidth(350),
-    },
-    parentalLockIconContainer: {
-        marginBottom: scale.scaleSpacing(20),
-        opacity: 0.7,
-    },
-    parentalLockModalTitle: {
-        fontSize: scale.scaleFont(28),
-        fontWeight: "700",
-        fontFamily: "ITIM",
-        color: "#333",
-        marginBottom: scale.scaleSpacing(8),
-        textAlign: "center",
-    },
-    parentalLockModalSubtitle: {
-        fontSize: scale.scaleFont(16),
-        fontWeight: "400",
-        fontFamily: "ITIM",
-        color: "#666",
-        textAlign: "center",
-        marginBottom: scale.scaleSpacing(25),
-        lineHeight: scale.scaleHeight(22),
-    },
-    parentalLockModalContentTitle: {
-        fontSize: scale.scaleFont(14),
-        fontWeight: "600",
-        fontFamily: "ITIM",
-        color: "#555",
-        marginBottom: scale.scaleSpacing(25),
-        textAlign: "center",
-        lineHeight: scale.scaleHeight(20),
-    },
-    parentalLockPinContainer: {
-        flexDirection: "row",
-        justifyContent: "center",
-        marginBottom: scale.scaleSpacing(25),
-        gap: scale.scaleSpacing(12),
-    },
-    parentalLockPinInput: {
-        width: scale.scaleWidth(55),
-        height: scale.scaleHeight(55),
-        borderRadius: scale.scaleBorderRadius(12),
-        backgroundColor: "#F7F7F7",
-        borderWidth: 2,
-        borderColor: "#E0E0E0",
-        textAlign: "center",
-        fontSize: scale.scaleFont(24),
-        fontWeight: "600",
-        color: "#333",
-        fontFamily: "ITIM",
-    },
-    parentalLockPinInputFilled: {
-        backgroundColor: "#E8F5E8",
-        borderColor: "#4CAF50",
-    },
-    parentalLockForgotPin: {
-        marginBottom: scale.scaleSpacing(30),
-    },
-    parentalLockForgotPinText: {
-        fontSize: scale.scaleFont(14),
-        fontWeight: "500",
-        color: "#007AFF",
-        textDecorationLine: "underline",
-        fontFamily: "ITIM",
-    },
-    parentalLockButtonContainer: {
-        width: "100%",
-        gap: scale.scaleSpacing(12),
-    },
-    parentalLockUnlockButton: {
-        backgroundColor: "#4CAF50",
-        paddingVertical: scale.scaleSpacing(15),
-        paddingHorizontal: scale.scaleSpacing(25),
-        borderRadius: scale.scaleBorderRadius(25),
-        alignItems: "center",
-        shadowColor: "#4CAF50",
-        shadowOffset: { width: 0, height: scale.scaleHeight(4) },
-        shadowOpacity: 0.3,
-        shadowRadius: scale.scaleSpacing(8),
-        elevation: 6,
-    },
-    parentalLockUnlockText: {
-        fontSize: scale.scaleFont(16),
-        fontWeight: "700",
-        color: "#FFFFFF",
-        fontFamily: "ITIM",
-    },
-    parentalLockCancelButton: {
-        backgroundColor: "transparent",
-        paddingVertical: scale.scaleSpacing(12),
-        paddingHorizontal: scale.scaleSpacing(25),
-        borderRadius: scale.scaleBorderRadius(25),
-        borderWidth: 2,
-        borderColor: "#E0E0E0",
-        alignItems: "center",
-    },
-    parentalLockCancelText: {
-        fontSize: scale.scaleFont(16),
-        fontWeight: "600",
-        color: "#666",
-        fontFamily: "ITIM",
     },
     
     // Delete Confirmation Modal Styles
