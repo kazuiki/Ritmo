@@ -428,7 +428,7 @@ export default function Login() {
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
                 if (!childName) {
-                  router.replace('/instruction');
+                  router.replace('/privacy-policy');
                 } else {
                   navigateToGreetingsWithNetworkCheck(router);
                 }

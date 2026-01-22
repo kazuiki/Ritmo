@@ -21,20 +21,16 @@ export default function RootLayout() {
   const hasRedirectedRef = useRef(false);
   const isNavigatingRef = useRef(false);
 
-  // --- 1. NEW: GAME-STYLE IMMERSIVE MODE & BACK HANDLER ---
   useEffect(() => {
     if (Platform.OS === 'android') {
-      // Hide the navigation bar (back/home buttons)
       NavigationBar.setVisibilityAsync("hidden");
 
-      // Intercept the universal back button/gesture
       const backAction = () => {
-        // You can customize this: e.g., only show alert if on certain screens
         Alert.alert("Exit Game", "Are you sure you want to close the app?", [
-          { text: "Cancel", onPress: () => null, style: "cancel" },
+          { text: "Cancel", style: "cancel" },
           { text: "YES", onPress: () => BackHandler.exitApp() }
         ]);
-        return true; // Prevents the default back action
+        return true;
       };
 
       const backHandler = BackHandler.addEventListener(
@@ -46,7 +42,6 @@ export default function RootLayout() {
     }
   }, []);
 
-  // --- 2. YOUR EXISTING AUTH & NOTIFICATION LOGIC ---
   useEffect(() => {
     let authListener: any;
     let notificationListener: any;
@@ -59,13 +54,17 @@ export default function RootLayout() {
       const currentPath = segments.join('/');
       const wasManualLogout = await LogoutService.isManualLogout();
 
+      if (currentPath.startsWith("auth")) {
+        return;
+      }
+
       if (!session || wasManualLogout) {
         if (wasManualLogout) {
           await LogoutService.clearManualLogout();
           await supabase.auth.signOut();
         }
-        
-        if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
+
+        if (!currentPath.startsWith("auth") && !hasRedirectedRef.current) {
           hasRedirectedRef.current = true;
           router.replace('/auth/login');
         }
@@ -75,24 +74,28 @@ export default function RootLayout() {
       if (!hasRedirectedRef.current && !isNavigatingRef.current) {
         hasRedirectedRef.current = true;
         isNavigatingRef.current = true;
-        
-        if (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') {
+
+        if (pathname === '/' || pathname === undefined || currentPath === '') {
           try {
             const { data: userData, error: userError } = await supabase.auth.getUser();
             const childName = (userData?.user?.user_metadata as any)?.child_name;
 
             if (userError) {
               isNavigatingRef.current = false;
-            } else if (!childName) {
-              router.replace('/instruction');
-              setTimeout(() => { isNavigatingRef.current = false; }, 1000);
+              return;
+            }
+
+            if (!childName) {
+              router.replace('/privacy-policy');
             } else {
-              navigateToGreetingsWithNetworkCheck(router).finally(() => {
-                setTimeout(() => { isNavigatingRef.current = false; }, 1000);
-              });
+              await navigateToGreetingsWithNetworkCheck(router);
             }
           } catch {
-            isNavigatingRef.current = false;
+            // ignore
+          } finally {
+            setTimeout(() => {
+              isNavigatingRef.current = false;
+            }, 800);
           }
         } else {
           isNavigatingRef.current = false;
@@ -102,20 +105,18 @@ export default function RootLayout() {
 
     handleSession();
 
-    notificationListener = Notifications.addNotificationReceivedListener(async notification => {
+    notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received:', notification);
     });
 
-    authListener = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        hasRedirectedRef.current = false;
-        isNavigatingRef.current = false;
-        LogoutService.clearManualLogout();
-      }
-      if (event === 'SIGNED_OUT') {
+    authListener = supabase.auth.onAuthStateChange((event) => {
+      console.log("Auth state changed:", event);
+
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         hasRedirectedRef.current = false;
         isNavigatingRef.current = false;
       }
+
       handleSession();
     });
 
@@ -128,7 +129,6 @@ export default function RootLayout() {
 
   return (
     <>
-      {/* 3. NEW: HIDES THE TOP CLOCK/BATTERY BAR */}
       <StatusBar hidden={true} />
 
       <Stack
@@ -141,6 +141,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
         <Stack.Screen
           name="history"
           options={{
@@ -151,6 +152,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: 'transparent' },
           }}
         />
+
         <Stack.Screen
           name="history/[week]"
           options={{
@@ -163,9 +165,9 @@ export default function RootLayout() {
         />
       </Stack>
 
-      <NetworkFailureModal 
-        visible={showNetworkFailureModal} 
-        onRetry={handleRetry} 
+      <NetworkFailureModal
+        visible={showNetworkFailureModal}
+        onRetry={handleRetry}
       />
     </>
   );

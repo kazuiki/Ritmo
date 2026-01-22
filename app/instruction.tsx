@@ -2,17 +2,17 @@ import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fon
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");

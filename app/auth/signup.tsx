@@ -495,18 +495,18 @@ export default function SignUp() {
                     ]).catch(() => {});
                     setAgreed(false);
                     // Open Privacy Policy first, then Terms
-                    router.push('/privacy-policy');
+                    router.push('/policy');
                   }}
                   style={[styles.checkbox, agreed && styles.checkboxChecked]}
                 >
                   {agreed && <View style={styles.checkboxInner} />}
                 </TouchableOpacity>
                 <Text style={styles.agreeText}> by signing up you agree to our </Text>
-                <TouchableOpacity onPress={() => router.push('/terms&conditions')}>
+                <TouchableOpacity onPress={() => router.push('/terms')}>
                   <Text style={styles.linkInline}>terms and conditions</Text>
                 </TouchableOpacity>
                 <Text style={styles.agreeText}> and </Text>
-                <TouchableOpacity onPress={() => router.push('/privacy-policy')}>
+                <TouchableOpacity onPress={() => router.push('/policy')}>
                   <Text style={styles.linkInline}>privacy policy</Text>
                 </TouchableOpacity>
               </View>
