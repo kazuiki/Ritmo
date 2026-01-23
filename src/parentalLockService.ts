@@ -3,7 +3,12 @@ import { supabase } from './supabaseClient';
 const isAuthParseError = (error: unknown) => {
   if (!error) return false;
   const message = (error as any)?.message;
-  return typeof message === 'string' && message.includes('JSON Parse error');
+  const errorName = (error as any)?.name;
+  return (
+    (typeof message === 'string' && message.includes('JSON Parse error')) ||
+    (typeof message === 'string' && message.includes('Auth session missing')) ||
+    errorName === 'AuthSessionMissingError'
+  );
 };
 
 export const ParentalLockService = {
@@ -77,6 +82,17 @@ export const ParentalLockService = {
       return savedPin === inputPin;
     } catch (error) {
       console.error('Error verifying PIN:', error);
+      return false;
+    }
+  },
+
+  // Check if PIN exists
+  async hasPin(): Promise<boolean> {
+    try {
+      const savedPin = await this.getSavedPin();
+      return savedPin !== null && savedPin !== '';
+    } catch (error) {
+      console.error('Error checking PIN:', error);
       return false;
     }
   }
