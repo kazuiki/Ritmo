@@ -7,9 +7,8 @@ import {
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -24,8 +23,8 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
-import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
@@ -34,6 +33,7 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+  const { mode, parentalLockEnabled, backToChildMode } = useMode();
   const [fontsLoaded] = useFonts({
     Fredoka_400Regular,
     Fredoka_500Medium,
@@ -44,9 +44,6 @@ export default function Settings() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("********");
   const [loading, setLoading] = useState(true);
-  const [showParentalLockModal, setShowParentalLockModal] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('settings'));
-  const [pin, setPin] = useState(['', '', '', '']);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [tempNickname, setTempNickname] = useState("");
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -76,46 +73,6 @@ export default function Settings() {
   const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   
-  const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
-
-  // Check parental lock on component mount and when focused
-  useEffect(() => {
-    checkParentalLock();
-    
-    // Listen to authentication changes
-    const authListener = (isAuth: boolean) => {
-      setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('settings'));
-    };
-    
-    ParentalLockAuthService.addListener(authListener);
-    
-    return () => {
-      ParentalLockAuthService.removeListener(authListener);
-      // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
-      setLogoutConfirmVisible(false);
-      setErrorModalVisible(false);
-      setPasswordSuccessVisible(false);
-      setShowChangePasswordModal(false);
-    };
-  }, []);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      // Update authentication state and check parental lock when focusing on this tab
-      setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('settings'));
-      checkParentalLock();
-    }, [])
-  );
-
-  const checkParentalLock = async () => {
-    const isEnabled = await ParentalLockService.isEnabled();
-    const isTabAuth = ParentalLockAuthService.isTabAuthenticated('settings');
-    if (isEnabled && !isTabAuth) {
-      setShowParentalLockModal(true);
-      return;
-    }
-  };
-
   useEffect(() => {
     fetchUserData();
   }, []);
@@ -140,47 +97,7 @@ export default function Settings() {
     }
   };
 
-  const handlePinInput = (index: number, value: string) => {
-    if (value.length > 1) return;
-    
-    const newPin = [...pin];
-    newPin[index] = value;
-    setPin(newPin);
 
-    if (value && index < 3) {
-      pinRefs[index + 1].current?.focus();
-    }
-  };
-
-  const handleBackspace = (index: number, value: string) => {
-    if (value === '' && index > 0) {
-      pinRefs[index - 1].current?.focus();
-    }
-  };
-
-  const unlockAccess = async () => {
-    if (pin.every(digit => digit !== '')) {
-      const inputPin = pin.join('');
-      const isValid = await ParentalLockService.verifyPin(inputPin);
-      
-      if (isValid) {
-        ParentalLockAuthService.setAuthenticated(true, 'settings');
-        setShowParentalLockModal(false);
-        setPin(['', '', '', '']);
-      } else {
-        Alert.alert("Incorrect PIN", "Please try again.");
-        setPin(['', '', '', '']);
-        pinRefs[0].current?.focus();
-      }
-    } else {
-      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
-    }
-  };
-
-  const cancelAccess = () => {
-    setPin(['', '', '', '']);
-    router.replace("/(tabs)/home");
-  };
 
   const startEditingNickname = () => {
     setTempNickname(childNickname);
@@ -327,6 +244,20 @@ export default function Settings() {
           source={require("../../assets/images/ritmoNameLogo.png")}
           style={styles.brandLogo}
         />
+        {parentalLockEnabled && mode === 'parent' && (
+          <TouchableOpacity
+            style={styles.modeButton}
+            onPress={() => {
+              backToChildMode();
+              router.push('/(tabs)/home');
+            }}
+          >
+            <View style={styles.modeButtonContent}>
+              <Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
+              <Text style={styles.modeButtonText}>Back to Child Mode</Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView 
@@ -452,84 +383,6 @@ export default function Settings() {
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Parental Lock Modal */}
-      <Modal
-        visible={showParentalLockModal}
-        transparent={true}
-        animationType="none"
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="cover"
-          >
-            <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                <View style={styles.lockIconContainer}>
-                  <Ionicons name="lock-closed" size={48} color="#4A5568" />
-                </View>
-                
-                <Text style={styles.modalTitle}>Parental Lock</Text>
-                <Text style={styles.modalSubtitle}>
-                  Access restricted to parents{'\n'}or guardians only
-                </Text>
-
-                <Text style={styles.modalContentTitle}>
-                  Please enter your 4-digit PIN to continue
-                </Text>
-                
-                <View style={styles.pinContainer}>
-                  {pin.map((digit, index) => (
-                    <TextInput
-                      key={index}
-                      ref={pinRefs[index]}
-                      style={[
-                        styles.pinBox,
-                        digit ? styles.pinBoxFilled : null
-                      ]}
-                      value={digit}
-                      onChangeText={(value) => handlePinInput(index, value)}
-                      onKeyPress={({ nativeEvent }) => {
-                        if (nativeEvent.key === 'Backspace') {
-                          handleBackspace(index, digit);
-                        }
-                      }}
-                      keyboardType="numeric"
-                      maxLength={1}
-                      textAlign="center"
-                      secureTextEntry={true}
-                      selectTextOnFocus={true}
-                      autoFocus={index === 0}
-                    />
-                  ))}
-                </View>
-
-                <TouchableOpacity 
-                  style={styles.forgotPin}
-                  onPress={() => {
-                    router.push('/parental-lock-new-pin');
-                  }}
-                >
-                  <Text style={styles.forgotPinText}>Forgot PIN?</Text>
-                </TouchableOpacity>
-
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
-                    <Text style={styles.unlockText}>Unlock Access</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.cancelButton} onPress={cancelAccess}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </ImageBackground>
-        </View>
-      </Modal>
 
       {/* Change Password Modal */}
       <Modal
@@ -1345,15 +1198,40 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: scale.scaleSpacing(50),
+    paddingTop: scale.scaleSpacing(30),
     paddingHorizontal: scale.scaleSpacing(16),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   brandLogo: {
     width: scale.scaleWidth(120),
     height: scale.scaleHeight(30),
     resizeMode: "contain",
     marginLeft: scale.scaleSpacing(-22),
-    marginTop: scale.scaleSpacing(-20),
+  },
+  modeButton: {
+    backgroundColor: '#B8E6E1',
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: 20,
+    marginTop: scale.scaleSpacing(10),
+  },
+  modeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(8),
+  },
+  modeButtonText: {
+    color: '#2F7C72',
+    fontSize: scale.scaleFont(14),
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  modeButtonIcon: {
+    width: scale.scaleWidth(16),
+    height: scale.scaleHeight(16),
+    resizeMode: 'contain',
   },
   scrollView: {
     flex: 1,
@@ -2272,3 +2150,4 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
 }));
+

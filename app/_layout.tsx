@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
+import { ModeProvider } from "../src/contexts/ModeContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { setupNetworkListener } from "../src/utils/networkUtils";
@@ -122,7 +123,7 @@ export default function RootLayout() {
   }, [pathname, segments]);
 
   return (
-    <>
+    <ModeProvider>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -166,6 +167,6 @@ export default function RootLayout() {
         visible={showNetworkFailureModal} 
         onRetry={handleRetry} 
       />
-    </>
+    </ModeProvider>
   );
 }

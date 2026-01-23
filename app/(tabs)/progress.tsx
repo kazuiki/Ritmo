@@ -1,26 +1,21 @@
 import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+	Alert,
+	Image,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TouchableOpacity,
+	View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
-import { ParentalLockService } from "../../src/parentalLockService";
+import { useMode } from "../../src/contexts/ModeContext";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
@@ -35,16 +30,13 @@ export default function Progress() {
 	const insets = useSafeAreaInsets();
 	const tabBarHeight = useBottomTabBarHeight();
 	const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+	const { mode, parentalLockEnabled, backToChildMode } = useMode();
 	const [fontsLoaded] = useFonts({
 		Fredoka_400Regular,
 		Fredoka_500Medium,
 		Fredoka_600SemiBold,
 		Fredoka_700Bold,
 	});
-	const [showParentalLockModal, setShowParentalLockModal] = useState(false);
-	const [isAuthenticated, setIsAuthenticated] = useState(ParentalLockAuthService.isTabAuthenticated('progress'));
-	const [pin, setPin] = useState(['', '', '', '']);
-	const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 	const printableRef = useRef<View>(null);
 	const [childName, setChildName] = useState<string>("Kid");
 	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
@@ -222,28 +214,8 @@ export default function Progress() {
 		return { totalTasks, completed, rate, perTaskDone };
 	}, [tasks]);
 
-	// Check parental lock on component mount and when focused
-	useEffect(() => {
-		checkParentalLock();
-		
-		// Listen to authentication changes
-		const authListener = (isAuth: boolean) => {
-			setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('progress'));
-		};
-		
-		ParentalLockAuthService.addListener(authListener);
-		
-		return () => {
-			ParentalLockAuthService.removeListener(authListener);
-		};
-	}, []);
-
 	useFocusEffect(
 		React.useCallback(() => {
-			// Update authentication state and check parental lock when focusing on this tab
-			setIsAuthenticated(ParentalLockAuthService.isTabAuthenticated('progress'));
-			checkParentalLock();
-			
 			// Reload data when tab is focused to ensure fresh data
 			const refreshData = async () => {
 				try {
@@ -445,57 +417,6 @@ export default function Progress() {
 		};
 	}, [weekInfo.monday, weekInfo.sunday]);
 
-	const checkParentalLock = async () => {
-		const isEnabled = await ParentalLockService.isEnabled();
-		const isTabAuth = ParentalLockAuthService.isTabAuthenticated('progress');
-		if (isEnabled && !isTabAuth) {
-			setShowParentalLockModal(true);
-			return;
-		}
-	};
-
-	const handlePinInput = (index: number, value: string) => {
-		if (value.length > 1) return;
-		
-		const newPin = [...pin];
-		newPin[index] = value;
-		setPin(newPin);
-
-		if (value && index < 3) {
-			pinRefs[index + 1].current?.focus();
-		}
-	};
-
-	const handleBackspace = (index: number, value: string) => {
-		if (value === '' && index > 0) {
-			pinRefs[index - 1].current?.focus();
-		}
-	};
-
-	const unlockAccess = async () => {
-		if (pin.every(digit => digit !== '')) {
-			const inputPin = pin.join('');
-			const isValid = await ParentalLockService.verifyPin(inputPin);
-			
-			if (isValid) {
-				ParentalLockAuthService.setAuthenticated(true, 'progress');
-				setShowParentalLockModal(false);
-				setPin(['', '', '', '']);
-			} else {
-				Alert.alert("Incorrect PIN", "Please try again.");
-				setPin(['', '', '', '']);
-				pinRefs[0].current?.focus();
-			}
-		} else {
-			Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
-		}
-	};
-
-	const cancelAccess = () => {
-		setPin(['', '', '', '']);
-		router.replace("/(tabs)/home");
-	};
-
 	return (
 		<View style={styles.container}>
 			{/* Background Image */}
@@ -510,8 +431,22 @@ export default function Progress() {
 					source={require("../../assets/images/ritmoNameLogo.png")}
 					style={styles.brandLogo}
 				/>
-			</View>
-			<ScrollView 
+			{parentalLockEnabled && mode === 'parent' && (
+				<TouchableOpacity
+					style={styles.modeButton}
+					onPress={() => {
+						backToChildMode();
+						router.push('/(tabs)/home');
+					}}
+				>
+					<View style={styles.modeButtonContent}>
+						<Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
+						<Text style={styles.modeButtonText}>Back to Child Mode</Text>
+					</View>
+				</TouchableOpacity>
+			)}
+		</View>
+		<ScrollView 
 				style={styles.scrollView}
 				contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 16 }]}
 				showsVerticalScrollIndicator={false}
@@ -641,85 +576,7 @@ export default function Progress() {
 					</View>
 				</TouchableOpacity>
 			</ScrollView>
-
-			{/* Parental Lock Modal */}
-			<Modal
-				animationType="none"
-				transparent={true}
-				visible={showParentalLockModal}
-				onRequestClose={cancelAccess}
-				statusBarTranslucent={true}
-			>
-				<View style={styles.modalOverlay}>
-					<ImageBackground
-						source={require("../../assets/background.png")}
-						style={styles.modalBackground}
-						resizeMode="cover"
-					>
-						<View style={styles.modalContainer}>
-							<View style={styles.modalContent}>
-								<View style={styles.lockIconContainer}>
-									<Ionicons name="lock-closed" size={48} color="#4A5568" />
-								</View>
-								
-								<Text style={styles.modalTitle}>Parental Lock</Text>
-								<Text style={styles.modalSubtitle}>
-									Access restricted to parents{'\n'}or guardians only
-								</Text>
-
-								<Text style={styles.modalContentTitle}>
-									Please enter your 4-digit PIN to continue
-								</Text>
-								
-								<View style={styles.pinContainer}>
-									{pin.map((digit, index) => (
-										<TextInput
-											key={index}
-											ref={pinRefs[index]}
-											style={[
-												styles.pinInput,
-												digit ? styles.pinInputFilled : null
-											]}
-											value={digit}
-											onChangeText={(value) => handlePinInput(index, value)}
-											onKeyPress={({ nativeEvent }) => {
-												if (nativeEvent.key === 'Backspace') {
-													handleBackspace(index, digit);
-												}
-											}}
-											keyboardType="numeric"
-											maxLength={1}
-											secureTextEntry
-											textAlign="center"
-											selectTextOnFocus={true}
-											autoFocus={index === 0}
-										/>
-									))}
-								</View>
-
-								<TouchableOpacity 
-									style={styles.forgotPin}
-									onPress={() => {
-										router.push('/parental-lock-new-pin');
-									}}
-								>
-									<Text style={styles.forgotPinText}>Forgot PIN?</Text>
-								</TouchableOpacity>
-								
-								<View style={styles.buttonContainer}>
-									<TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
-										<Text style={styles.unlockText}>Unlock Access</Text>
-									</TouchableOpacity>
-									<TouchableOpacity style={styles.cancelButton} onPress={cancelAccess}>
-										<Text style={styles.cancelText}>Cancel</Text>
-									</TouchableOpacity>
-								</View>
-							</View>
-						</View>
-					</ImageBackground>
-				</View>
-			</Modal>
-		</View>
+	</View>
 	);
 }
 
@@ -733,15 +590,40 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		flex: 1,
 	},
 	header: {
-		paddingTop: scale.scaleSpacing(50),
+		paddingTop: scale.scaleSpacing(30),
 		paddingHorizontal: scale.scaleSpacing(16),
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
 	},
 	brandLogo: {
 		width: scale.scaleWidth(120),
 		height: scale.scaleHeight(30),
 		resizeMode: "contain",
 		marginLeft: scale.scaleSpacing(-22),
-		marginTop: scale.scaleSpacing(-20),
+	},
+	modeButton: {
+		backgroundColor: '#B8E6E1',
+		paddingHorizontal: scale.scaleSpacing(20),
+		paddingVertical: scale.scaleSpacing(12),
+		borderRadius: 20,
+		marginTop: scale.scaleSpacing(10),
+	},
+	modeButtonContent: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: scale.scaleSpacing(8),
+	},
+	modeButtonText: {
+		color: '#2F7C72',
+		fontSize: scale.scaleFont(14),
+		fontWeight: '600',
+		textDecorationLine: 'underline',
+	},
+	modeButtonIcon: {
+		width: scale.scaleWidth(16),
+		height: scale.scaleHeight(16),
+		resizeMode: 'contain',
 	},
 	scrollView: {
 		flex: 1,
@@ -985,136 +867,5 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		fontWeight: '600',
 		color: '#5BDFC9',
 		fontFamily: 'Fredoka_600SemiBold',
-	},
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.7)',
-	},
-	modalBackground: {
-		flex: 1,
-		width: "100%",
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	modalContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-		padding: scale.scaleSpacing(20),
-	},
-	modalContent: {
-		backgroundColor: "#FFFFFF",
-		borderRadius: scale.scaleBorderRadius(25),
-		borderWidth: 2,
-		borderColor: "#CFF6EB",
-		padding: scale.scaleSpacing(35),
-		alignItems: "center",
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: scale.scaleHeight(8) },
-		shadowOpacity: 0.3,
-		shadowRadius: scale.scaleSpacing(12),
-		elevation: 12,
-		width: "90%",
-		maxWidth: scale.scaleWidth(350),
-	},
-	lockIconContainer: {
-		marginBottom: scale.scaleSpacing(20),
-		opacity: 0.7,
-	},
-	modalTitle: {
-		fontSize: scale.scaleFont(28),
-		fontWeight: "700",
-		fontFamily: "Fredoka_700Bold",
-		color: "#333",
-		marginBottom: scale.scaleSpacing(8),
-		textAlign: "center",
-	},
-	modalSubtitle: {
-		fontSize: scale.scaleFont(16),
-		fontWeight: "400",
-		fontFamily: "Fredoka_400Regular",
-		color: "#666",
-		textAlign: "center",
-		marginBottom: scale.scaleSpacing(25),
-		lineHeight: scale.scaleHeight(22),
-	},
-	modalContentTitle: {
-		fontSize: scale.scaleFont(14),
-		fontWeight: "600",
-		fontFamily: "Fredoka_600SemiBold",
-		color: "#555",
-		marginBottom: scale.scaleSpacing(25),
-		textAlign: "center",
-		lineHeight: scale.scaleHeight(20),
-	},
-	pinContainer: {
-		flexDirection: "row",
-		justifyContent: "center",
-		marginBottom: scale.scaleSpacing(25),
-		gap: scale.scaleSpacing(12),
-	},
-	pinInput: {
-		width: scale.scaleWidth(55),
-		height: scale.scaleHeight(55),
-		borderRadius: scale.scaleBorderRadius(12),
-		backgroundColor: "#F7F7F7",
-		borderWidth: 2,
-		borderColor: "#E0E0E0",
-		textAlign: "center",
-		fontSize: scale.scaleFont(24),
-		fontWeight: "600",
-		color: "#333",
-		fontFamily: "Fredoka_500Medium",
-	},
-	pinInputFilled: {
-		backgroundColor: "#E8F5E8",
-		borderColor: "#4CAF50",
-	},
-	forgotPin: {
-		marginBottom: scale.scaleSpacing(30),
-	},
-	forgotPinText: {
-		fontSize: scale.scaleFont(14),
-		fontWeight: "500",
-		color: "#007AFF",
-		textDecorationLine: "underline",
-		fontFamily: "Fredoka_700Bold",
-	},
-	buttonContainer: {
-		width: "100%",
-		gap: scale.scaleSpacing(12),
-	},
-	unlockButton: {
-		backgroundColor: "#4CAF50",
-		paddingVertical: scale.scaleSpacing(15),
-		paddingHorizontal: scale.scaleSpacing(25),
-		borderRadius: scale.scaleBorderRadius(25),
-		alignItems: "center",
-		shadowColor: "#4CAF50",
-		shadowOffset: { width: 0, height: scale.scaleHeight(4) },
-		shadowOpacity: 0.3,
-		shadowRadius: scale.scaleSpacing(8),
-		elevation: 6,
-	},
-	unlockText: {
-		fontSize: scale.scaleFont(16),
-		fontWeight: "700",
-		color: "#FFFFFF",
-		fontFamily: "Fredoka_600SemiBold",
-	},
-	cancelButton: {
-		backgroundColor: "transparent",
-		paddingVertical: scale.scaleSpacing(12),
-		paddingHorizontal: scale.scaleSpacing(25),
-		borderRadius: scale.scaleBorderRadius(25),
-		borderWidth: 2,
-		borderColor: "#E0E0E0",
-		alignItems: "center",
-	},
-	cancelText: {
-		fontSize: scale.scaleFont(16),
-		fontWeight: "600",
-		color: "#666",
-		fontFamily: "Fredoka_600SemiBold",
 	},
 }));

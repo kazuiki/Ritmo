@@ -3,21 +3,21 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -30,6 +30,14 @@ export default function ForgotPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    minLength: false,
+    hasNumber: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasSpecial: false,
+    noSpaces: false,
+  });
   const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
@@ -39,6 +47,8 @@ export default function ForgotPassword() {
   const [emptyFieldsModalVisible, setEmptyFieldsModalVisible] = useState(false);
   const [passwordMismatchModalVisible, setPasswordMismatchModalVisible] = useState(false);
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
+  const [invalidEmailModalVisible, setInvalidEmailModalVisible] = useState(false);
+  const [weakPasswordModalVisible, setWeakPasswordModalVisible] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const reduceMotionRef = useRef(false);
@@ -153,14 +163,64 @@ export default function ForgotPassword() {
     }
   };
 
+  // === Email Validation ===
+  const validateEmail = (email: string): boolean => {
+    return email.toLowerCase().endsWith('@gmail.com');
+  };
+
+  // === Password Validation with Details ===
+  const validatePasswordDetails = (password: string) => {
+    const requirements = {
+      minLength: password.length >= 8,
+      hasNumber: /[0-9]/.test(password),
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasSpecial: /[!@#$%^&*()_+]/.test(password),
+      noSpaces: !/\s/.test(password),
+    };
+    return requirements;
+  };
+
+  // === Password Validation ===
+  const validatePassword = (password: string): { isValid: boolean; message?: string } => {
+    if (password.length < 8) {
+      return { isValid: false, message: 'Password must be at least 8 characters long' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 uppercase letter' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 lowercase letter' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 number' };
+    }
+    if (!/[!@#$%^&*()_+]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 special character (!@#$%^&*()_+)' };
+    }
+    if (/\s/.test(password)) {
+      return { isValid: false, message: 'Password must not contain spaces' };
+    }
+    return { isValid: true };
+  };
+
   const handleConfirm = async () => {
     if (!email || !password || !confirmPassword) {
       setEmptyFieldsModalVisible(true);
       return;
     }
 
-    if (password.length < 6) {
-      setPasswordLengthModalVisible(true);
+    // Validate email format
+    if (!validateEmail(email)) {
+      setInvalidEmailModalVisible(true);
+      return;
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      setErrorMessage(passwordValidation.message || 'Invalid password');
+      setWeakPasswordModalVisible(true);
       return;
     }
 
@@ -246,13 +306,17 @@ export default function ForgotPassword() {
 
       // Update password
       const { error: passwordError } = await supabase.auth.updateUser({ password });
-      setLoading(false);
       
       if (passwordError) {
+        setLoading(false);
         setErrorMessage(passwordError.message);
         setErrorModalVisible(true);
         return;
       }
+
+      // Sign out the user immediately to prevent auto-redirect to greetings
+      await supabase.auth.signOut();
+      setLoading(false);
 
       // Success - close verification modal and show success modal
       setVerificationModalVisible(false);
@@ -339,7 +403,7 @@ export default function ForgotPassword() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email here:"
+                placeholder="Enter your email here"
                 placeholderTextColor="#888"
                 value={email}
                 onChangeText={setEmail}
@@ -351,10 +415,13 @@ export default function ForgotPassword() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter new password:"
+                  placeholder="Enter new password"
                   placeholderTextColor="#888"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setPasswordRequirements(validatePasswordDetails(text));
+                  }}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
@@ -374,7 +441,9 @@ export default function ForgotPassword() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Re-enter new password:"                  placeholderTextColor="#888"                  value={confirmPassword}
+                  placeholder="Re-enter new password"                  
+                  placeholderTextColor="#888"                  
+                  value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
@@ -435,8 +504,8 @@ export default function ForgotPassword() {
         onRequestClose={() => setVerificationModalVisible(false)}
       >
         <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
+          <View style={styles.verificationModalContainer}>
+            <View style={styles.verificationIconCircle}>
               <Image
                 source={require("../../assets/images/Mail.png")}
                 style={styles.errorIcon}
@@ -449,8 +518,8 @@ export default function ForgotPassword() {
             </Text>
             
             <TextInput
-              style={[styles.input, { marginTop: 16, textAlign: 'center' }]}
-              placeholder="Enter 6-digit code:"
+              style={[styles.input, { marginTop: 16, textAlign: 'center', paddingHorizontal: 18 }]}
+              placeholder="Enter 6-digit code"
               placeholderTextColor="#888"
               value={verificationCode}
               onChangeText={setVerificationCode}
@@ -459,11 +528,11 @@ export default function ForgotPassword() {
             />
             
             <TouchableOpacity
-              style={[styles.errorOkButton, { marginTop: 20 }]}
+              style={[styles.verifyButton, { marginTop: 20 }]}
               onPress={handleVerifyCode}
               disabled={!verificationCode || verificationCode.length !== 6 || loading}
             >
-              <Text style={styles.errorOkButtonText}>
+              <Text style={styles.verifyButtonText}>
                 {loading ? "VERIFYING..." : "VERIFY"}
               </Text>
             </TouchableOpacity>
@@ -535,6 +604,36 @@ export default function ForgotPassword() {
         </View>
       </Modal>
 
+      {/* Invalid Email Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={invalidEmailModalVisible}
+        onRequestClose={() => setInvalidEmailModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Invalid Email</Text>
+            <Text style={styles.errorModalMessage}>
+              Please use a valid Gmail address (@gmail.com)
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setInvalidEmailModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Password Mismatch Modal */}
       <Modal
         animationType="fade"
@@ -558,6 +657,90 @@ export default function ForgotPassword() {
             <TouchableOpacity
               style={styles.errorOkButton}
               onPress={() => setPasswordMismatchModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Weak Password Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={weakPasswordModalVisible}
+        onRequestClose={() => setWeakPasswordModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Weak Password</Text>
+            <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 8, marginBottom: 8 }}>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.minLength ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must be at least 8 characters!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasNumber ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 number!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasUppercase ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 uppercase!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasLowercase ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 lowercase!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasSpecial ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 special character!
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setWeakPasswordModalVisible(false)}
             >
               <Text style={styles.errorOkButtonText}>OK</Text>
             </TouchableOpacity>
@@ -770,10 +953,11 @@ const styles = StyleSheet.create({
   },
   emailModalTitle: {
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#1A1A1A",
     marginBottom: 8,
-    fontFamily: "Fredoka_700Bold",
+    fontFamily: "Fredoka_600SemiBold",
+    textAlign: "center",
   },
   emailModalMessage: {
     fontSize: 14,
@@ -810,49 +994,112 @@ const styles = StyleSheet.create({
   },
   errorModalContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    width: "80%",
+    borderRadius: 18,
+    padding: 18,
+    width: "82%",
+    maxWidth: 420,
     alignItems: "center",
-    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
     borderColor: "#FFB3BA",
   },
   errorIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFE1E4",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FFE5E7",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  verificationModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 18,
+    width: "82%",
+    maxWidth: 420,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#9FD19E",
+  },
+  verificationIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   errorIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    resizeMode: "contain",
   },
   errorModalTitle: {
-    fontSize: 18,
-    fontFamily: "Fredoka_700Bold",
-    color: "#000",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1A1A1A",
     marginBottom: 8,
-    textAlign: "center",
+    fontFamily: "Fredoka_700Bold",
   },
   errorModalMessage: {
     fontSize: 14,
-    fontFamily: "Fredoka_400Regular",
-    color: "#333",
+    color: "#4A4A4A",
     textAlign: "center",
-    marginBottom: 20,
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    flexWrap: "wrap",
+    fontFamily: "Fredoka_400Regular",
   },
   errorOkButton: {
-    backgroundColor: "#FF6F79",
+    backgroundColor: "#FF6B7A",
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 110,
+  },
+  errorOkButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  verifyButton: {
+    backgroundColor: "#4CAF50",
     paddingVertical: 10,
     paddingHorizontal: 40,
     borderRadius: 20,
   },
-  errorOkButtonText: {
+  verifyButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
     fontFamily: "Fredoka_600SemiBold",
+  },
+  requirementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  requirementIcon: {
+    marginRight: 8,
+  },
+  requirementText: {
+    fontSize: 12,
+    fontFamily: "Fredoka_400Regular",
+    flex: 1,
   },
 });
