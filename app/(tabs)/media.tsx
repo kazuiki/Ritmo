@@ -3,18 +3,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ImageBackground,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ImageBackground,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -207,10 +207,16 @@ export default function Media() {
       />
       
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/ritmoNameLogo.png")}
-          style={styles.brandLogo}
-        />
+        <TouchableOpacity 
+          onPress={() => router.push('/(tabs)/home')}
+          disabled={mode === 'parent'}
+          activeOpacity={mode === 'parent' ? 1 : 0.7}
+        >
+          <Image
+            source={require("../../assets/images/ritmoNameLogo.png")}
+            style={styles.brandLogo}
+          />
+        </TouchableOpacity>
         {parentalLockEnabled && (
           <TouchableOpacity
             style={styles.modeButton}

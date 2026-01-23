@@ -435,10 +435,16 @@ export default function addRoutines() {
             
             {/* Brand logo */}
             <View style={styles.header}>
-                <Image
-                    source={require("../../assets/images/ritmoNameLogo.png")}
-                    style={styles.brandLogo}
-                />
+                <TouchableOpacity 
+                    onPress={() => router.push('/(tabs)/home')}
+                    disabled={mode === 'parent'}
+                    activeOpacity={mode === 'parent' ? 1 : 0.7}
+                >
+                    <Image
+                        source={require("../../assets/images/ritmoNameLogo.png")}
+                        style={styles.brandLogo}
+                    />
+                </TouchableOpacity>
                 {parentalLockEnabled && mode === 'parent' && (
                     <TouchableOpacity
                         style={styles.modeButton}
