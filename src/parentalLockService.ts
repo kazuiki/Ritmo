@@ -79,5 +79,16 @@ export const ParentalLockService = {
       console.error('Error verifying PIN:', error);
       return false;
     }
+  },
+
+  // Check if PIN exists
+  async hasPin(): Promise<boolean> {
+    try {
+      const savedPin = await this.getSavedPin();
+      return savedPin !== null && savedPin !== '';
+    } catch (error) {
+      console.error('Error checking PIN:', error);
+      return false;
+    }
   }
 };
