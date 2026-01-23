@@ -1,26 +1,26 @@
 import {
-  Fredoka_400Regular,
-  Fredoka_500Medium,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+    useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
-  Image,
-  ImageBackground,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Image,
+    ImageBackground,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -240,10 +240,16 @@ export default function Settings() {
       />
       
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/ritmoNameLogo.png")}
-          style={styles.brandLogo}
-        />
+        <TouchableOpacity 
+          onPress={() => router.push('/(tabs)/home')}
+          disabled={mode === 'parent'}
+          activeOpacity={mode === 'parent' ? 1 : 0.7}
+        >
+          <Image
+            source={require("../../assets/images/ritmoNameLogo.png")}
+            style={styles.brandLogo}
+          />
+        </TouchableOpacity>
         {parentalLockEnabled && mode === 'parent' && (
           <TouchableOpacity
             style={styles.modeButton}
