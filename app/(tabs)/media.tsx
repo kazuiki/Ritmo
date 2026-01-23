@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Image,
     ImageBackground,
@@ -14,6 +15,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
+    View,
     Vibration,
     View
 } from "react-native";
@@ -225,10 +227,16 @@ export default function Media() {
       />
       
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/ritmoNameLogo.png")}
-          style={styles.brandLogo}
-        />
+        <TouchableOpacity 
+          onPress={() => router.push('/(tabs)/home')}
+          disabled={mode === 'parent'}
+          activeOpacity={mode === 'parent' ? 1 : 0.7}
+        >
+          <Image
+            source={require("../../assets/images/ritmoNameLogo.png")}
+            style={styles.brandLogo}
+          />
+        </TouchableOpacity>
         {parentalLockEnabled && (
           <TouchableOpacity
             style={styles.modeButton}
