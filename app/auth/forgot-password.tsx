@@ -30,6 +30,14 @@ export default function ForgotPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    minLength: false,
+    hasNumber: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasSpecial: false,
+    noSpaces: false,
+  });
   const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
@@ -39,6 +47,8 @@ export default function ForgotPassword() {
   const [emptyFieldsModalVisible, setEmptyFieldsModalVisible] = useState(false);
   const [passwordMismatchModalVisible, setPasswordMismatchModalVisible] = useState(false);
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
+  const [invalidEmailModalVisible, setInvalidEmailModalVisible] = useState(false);
+  const [weakPasswordModalVisible, setWeakPasswordModalVisible] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const reduceMotionRef = useRef(false);
@@ -153,14 +163,64 @@ export default function ForgotPassword() {
     }
   };
 
+  // === Email Validation ===
+  const validateEmail = (email: string): boolean => {
+    return email.toLowerCase().endsWith('@gmail.com');
+  };
+
+  // === Password Validation with Details ===
+  const validatePasswordDetails = (password: string) => {
+    const requirements = {
+      minLength: password.length >= 8,
+      hasNumber: /[0-9]/.test(password),
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasSpecial: /[!@#$%^&*()_+]/.test(password),
+      noSpaces: !/\s/.test(password),
+    };
+    return requirements;
+  };
+
+  // === Password Validation ===
+  const validatePassword = (password: string): { isValid: boolean; message?: string } => {
+    if (password.length < 8) {
+      return { isValid: false, message: 'Password must be at least 8 characters long' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 uppercase letter' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 lowercase letter' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 number' };
+    }
+    if (!/[!@#$%^&*()_+]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least 1 special character (!@#$%^&*()_+)' };
+    }
+    if (/\s/.test(password)) {
+      return { isValid: false, message: 'Password must not contain spaces' };
+    }
+    return { isValid: true };
+  };
+
   const handleConfirm = async () => {
     if (!email || !password || !confirmPassword) {
       setEmptyFieldsModalVisible(true);
       return;
     }
 
-    if (password.length < 6) {
-      setPasswordLengthModalVisible(true);
+    // Validate email format
+    if (!validateEmail(email)) {
+      setInvalidEmailModalVisible(true);
+      return;
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      setErrorMessage(passwordValidation.message || 'Invalid password');
+      setWeakPasswordModalVisible(true);
       return;
     }
 
@@ -343,7 +403,7 @@ export default function ForgotPassword() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email here:"
+                placeholder="Enter your email here"
                 placeholderTextColor="#888"
                 value={email}
                 onChangeText={setEmail}
@@ -355,10 +415,13 @@ export default function ForgotPassword() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter new password:"
+                  placeholder="Enter new password"
                   placeholderTextColor="#888"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setPasswordRequirements(validatePasswordDetails(text));
+                  }}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
@@ -378,7 +441,9 @@ export default function ForgotPassword() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Re-enter new password:"                  placeholderTextColor="#888"                  value={confirmPassword}
+                  placeholder="Re-enter new password"                  
+                  placeholderTextColor="#888"                  
+                  value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
@@ -539,6 +604,36 @@ export default function ForgotPassword() {
         </View>
       </Modal>
 
+      {/* Invalid Email Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={invalidEmailModalVisible}
+        onRequestClose={() => setInvalidEmailModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Invalid Email</Text>
+            <Text style={styles.errorModalMessage}>
+              Please use a valid Gmail address (@gmail.com)
+            </Text>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setInvalidEmailModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Password Mismatch Modal */}
       <Modal
         animationType="fade"
@@ -562,6 +657,90 @@ export default function ForgotPassword() {
             <TouchableOpacity
               style={styles.errorOkButton}
               onPress={() => setPasswordMismatchModalVisible(false)}
+            >
+              <Text style={styles.errorOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Weak Password Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={weakPasswordModalVisible}
+        onRequestClose={() => setWeakPasswordModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContainer}>
+            <View style={styles.errorIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.errorIcon}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.errorModalTitle}>Weak Password</Text>
+            <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 8, marginBottom: 8 }}>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.minLength ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must be at least 8 characters!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasNumber ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 number!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasUppercase ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 uppercase!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasLowercase ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 lowercase!
+                </Text>
+              </View>
+              <View style={styles.requirementRow}>
+                <Ionicons 
+                  name={passwordRequirements.hasSpecial ? "checkmark-circle" : "close-circle"} 
+                  size={18} 
+                  color={passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A"}
+                  style={styles.requirementIcon}
+                />
+                <Text style={[styles.requirementText, { color: passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A" }]}>
+                  Must contain at least 1 special character!
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.errorOkButton}
+              onPress={() => setWeakPasswordModalVisible(false)}
             >
               <Text style={styles.errorOkButtonText}>OK</Text>
             </TouchableOpacity>
@@ -909,5 +1088,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     fontFamily: "Fredoka_600SemiBold",
+  },
+  requirementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  requirementIcon: {
+    marginRight: 8,
+  },
+  requirementText: {
+    fontSize: 12,
+    fontFamily: "Fredoka_400Regular",
+    flex: 1,
   },
 });

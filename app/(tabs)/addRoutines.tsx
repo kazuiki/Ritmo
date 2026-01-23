@@ -14,6 +14,7 @@ import {
     View
 } from "react-native";
 import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
+import { useMode } from "../../src/contexts/ModeContext";
 import NotificationService from "../../src/notificationService";
 import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
@@ -35,6 +36,7 @@ const ITEM_HEIGHT = 48;
 export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+    const { mode, parentalLockEnabled, backToChildMode } = useMode();
     const [modalVisible, setModalVisible] = useState(false);
     const [routineName, setRoutineName] = useState("");
     const [hour, setHour] = useState("01");
@@ -57,6 +59,10 @@ export default function addRoutines() {
     
     // Save confirmation modal
     const [saveConfirmVisible, setSaveConfirmVisible] = useState(false);
+    
+    // Add and Edit success modals
+    const [addSuccessVisible, setAddSuccessVisible] = useState(false);
+    const [editSuccessVisible, setEditSuccessVisible] = useState(false);
 
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
@@ -86,8 +92,10 @@ export default function addRoutines() {
         };
         initNotifications();
         
+
         // Listen to authentication changes (kept for future use)
         
+
         return () => {
             // CLEANUP: Stop any playing sounds when component unmounts
             NotificationService.stopRingtone().catch(console.error);
@@ -96,8 +104,16 @@ export default function addRoutines() {
             setDeleteSuccessVisible(false);
             setSaveConfirmVisible(false);
             setSelectDaysModalVisible(false);
+            setAddSuccessVisible(false);
+            setEditSuccessVisible(false);
         };
     }, []);
+
+
+    useFocusEffect(
+        React.useCallback(() => {
+        }, [])
+    );
 
 
     const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
@@ -283,10 +299,10 @@ export default function addRoutines() {
                         days: selectedDays,
                     }).catch(err => console.error('Error scheduling notification:', err));
                     await loadRoutinesFromDb();
+                    closeModal();
+                    setAddSuccessVisible(true);
                 })
                 .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
-                
-                closeModal();
             }
         } else if (!editingRoutineId) {
             // Only close modal for Add (no editing), Edit has its own close in confirmation
@@ -386,6 +402,7 @@ export default function addRoutines() {
             }).catch(err => console.error('Error scheduling notification:', err));
             
             closeModal();
+            setEditSuccessVisible(true);
         }
     };
 
@@ -422,12 +439,37 @@ export default function addRoutines() {
                 resizeMode="cover"
             />
 
+
             <TouchableOpacity
                 style={styles.backButton}
                 onPress={() => router.push("/(tabs)/settings")}
             >
                 <Text style={styles.backButtonText}>Back</Text>
             </TouchableOpacity>
+
+            
+            {/* Brand logo */}
+            <View style={styles.header}>
+                <Image
+                    source={require("../../assets/images/ritmoNameLogo.png")}
+                    style={styles.brandLogo}
+                />
+                {parentalLockEnabled && mode === 'parent' && (
+                    <TouchableOpacity
+                        style={styles.modeButton}
+                        onPress={() => {
+                            backToChildMode();
+                            router.push('/(tabs)/home');
+                        }}
+                    >
+                        <View style={styles.modeButtonContent}>
+                            <Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
+                            <Text style={styles.modeButtonText}>Back to Child Mode</Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
+            </View>
+
 
             {/* Title row with plus button */}
             <View style={styles.titleRow}>
@@ -869,6 +911,7 @@ export default function addRoutines() {
                 </View>
             </Modal>
 
+
             {/* Parental Lock Modal */}
 
             {/* Delete Confirmation Modal */}
@@ -1010,6 +1053,64 @@ export default function addRoutines() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Add Success Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={addSuccessVisible}
+                onRequestClose={() => setAddSuccessVisible(false)}
+            >
+                <View style={styles.successModalOverlay}>
+                    <View style={styles.successModalContainer}>
+                        <View style={styles.successIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Checkmark.png")}
+                                style={styles.successIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.successModalTitle}>Success!</Text>
+                        <Text style={styles.successModalMessage}>Routine added successfully</Text>
+                        
+                        <TouchableOpacity
+                            style={styles.successOkButton}
+                            onPress={() => setAddSuccessVisible(false)}
+                        >
+                            <Text style={styles.successOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Edit Success Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={editSuccessVisible}
+                onRequestClose={() => setEditSuccessVisible(false)}
+            >
+                <View style={styles.successModalOverlay}>
+                    <View style={styles.successModalContainer}>
+                        <View style={styles.successIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Checkmark.png")}
+                                style={styles.successIcon}
+                            />
+                        </View>
+                        
+                        <Text style={styles.successModalTitle}>Success!</Text>
+                        <Text style={styles.successModalMessage}>Routine updated successfully</Text>
+                        
+                        <TouchableOpacity
+                            style={styles.successOkButton}
+                            onPress={() => setEditSuccessVisible(false)}
+                        >
+                            <Text style={styles.successOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -1030,16 +1131,41 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         width: "100%",
         height: "100%",
     },
-    header: { 
-        paddingTop: scale.scaleSpacing(50), 
-        paddingHorizontal: scale.scaleSpacing(16) 
+    header: {
+        paddingTop: scale.scaleSpacing(30),
+        paddingHorizontal: scale.scaleSpacing(16),
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
     brandLogo: {
         width: scale.scaleWidth(120),
         height: scale.scaleHeight(30),
         resizeMode: "contain",
         marginLeft: scale.scaleSpacing(-22),
-        marginTop: scale.scaleSpacing(-20),
+    },
+    modeButton: {
+        backgroundColor: '#B8E6E1',
+        paddingHorizontal: scale.scaleSpacing(20),
+        paddingVertical: scale.scaleSpacing(12),
+        borderRadius: 20,
+        marginTop: scale.scaleSpacing(10),
+    },
+    modeButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: scale.scaleSpacing(8),
+    },
+    modeButtonText: {
+        color: '#2F7C72',
+        fontSize: scale.scaleFont(14),
+        fontWeight: '600',
+        textDecorationLine: 'underline',
+    },
+    modeButtonIcon: {
+        width: scale.scaleWidth(16),
+        height: scale.scaleHeight(16),
+        resizeMode: 'contain',
     },
     titleRow: {
         paddingHorizontal: scale.scaleSpacing(16),
@@ -1492,138 +1618,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontSize: scale.scaleFont(14),
         color: '#244D4A',
         marginTop: scale.scaleSpacing(2),
-    },
-    // Parental Lock Modal Styles
-    parentalLockModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    },
-    parentalLockModalBackground: {
-        flex: 1,
-        width: "100%",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    parentalLockModalContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: scale.scaleSpacing(20),
-    },
-    parentalLockModalContent: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: scale.scaleBorderRadius(25),
-        borderWidth: 2,
-        borderColor: "#CFF6EB",
-        padding: scale.scaleSpacing(35),
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: scale.scaleHeight(8) },
-        shadowOpacity: 0.3,
-        shadowRadius: scale.scaleSpacing(12),
-        elevation: 12,
-        width: "90%",
-        maxWidth: scale.scaleWidth(350),
-    },
-    parentalLockIconContainer: {
-        marginBottom: scale.scaleSpacing(20),
-        opacity: 0.7,
-    },
-    parentalLockModalTitle: {
-        fontSize: scale.scaleFont(28),
-        fontWeight: "700",
-        fontFamily: "ITIM",
-        color: "#333",
-        marginBottom: scale.scaleSpacing(8),
-        textAlign: "center",
-    },
-    parentalLockModalSubtitle: {
-        fontSize: scale.scaleFont(16),
-        fontWeight: "400",
-        fontFamily: "ITIM",
-        color: "#666",
-        textAlign: "center",
-        marginBottom: scale.scaleSpacing(25),
-        lineHeight: scale.scaleHeight(22),
-    },
-    parentalLockModalContentTitle: {
-        fontSize: scale.scaleFont(14),
-        fontWeight: "600",
-        fontFamily: "ITIM",
-        color: "#555",
-        marginBottom: scale.scaleSpacing(25),
-        textAlign: "center",
-        lineHeight: scale.scaleHeight(20),
-    },
-    parentalLockPinContainer: {
-        flexDirection: "row",
-        justifyContent: "center",
-        marginBottom: scale.scaleSpacing(25),
-        gap: scale.scaleSpacing(12),
-    },
-    parentalLockPinInput: {
-        width: scale.scaleWidth(55),
-        height: scale.scaleHeight(55),
-        borderRadius: scale.scaleBorderRadius(12),
-        backgroundColor: "#F7F7F7",
-        borderWidth: 2,
-        borderColor: "#E0E0E0",
-        textAlign: "center",
-        fontSize: scale.scaleFont(24),
-        fontWeight: "600",
-        color: "#333",
-        fontFamily: "ITIM",
-    },
-    parentalLockPinInputFilled: {
-        backgroundColor: "#E8F5E8",
-        borderColor: "#4CAF50",
-    },
-    parentalLockForgotPin: {
-        marginBottom: scale.scaleSpacing(30),
-    },
-    parentalLockForgotPinText: {
-        fontSize: scale.scaleFont(14),
-        fontWeight: "500",
-        color: "#007AFF",
-        textDecorationLine: "underline",
-        fontFamily: "ITIM",
-    },
-    parentalLockButtonContainer: {
-        width: "100%",
-        gap: scale.scaleSpacing(12),
-    },
-    parentalLockUnlockButton: {
-        backgroundColor: "#4CAF50",
-        paddingVertical: scale.scaleSpacing(15),
-        paddingHorizontal: scale.scaleSpacing(25),
-        borderRadius: scale.scaleBorderRadius(25),
-        alignItems: "center",
-        shadowColor: "#4CAF50",
-        shadowOffset: { width: 0, height: scale.scaleHeight(4) },
-        shadowOpacity: 0.3,
-        shadowRadius: scale.scaleSpacing(8),
-        elevation: 6,
-    },
-    parentalLockUnlockText: {
-        fontSize: scale.scaleFont(16),
-        fontWeight: "700",
-        color: "#FFFFFF",
-        fontFamily: "ITIM",
-    },
-    parentalLockCancelButton: {
-        backgroundColor: "transparent",
-        paddingVertical: scale.scaleSpacing(12),
-        paddingHorizontal: scale.scaleSpacing(25),
-        borderRadius: scale.scaleBorderRadius(25),
-        borderWidth: 2,
-        borderColor: "#E0E0E0",
-        alignItems: "center",
-    },
-    parentalLockCancelText: {
-        fontSize: scale.scaleFont(16),
-        fontWeight: "600",
-        color: "#666",
-        fontFamily: "ITIM",
     },
     
     // Delete Confirmation Modal Styles

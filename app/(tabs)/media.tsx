@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -15,8 +16,26 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ImageBackground,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
+import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
@@ -36,6 +55,8 @@ export default function Media() {
   // Get responsive dimensions and scaling functions
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
+  const router = useRouter();
+  const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
   const [search, setSearch] = useState("");
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -45,6 +66,7 @@ export default function Media() {
   const [error, setError] = useState<string | null>(null);
   const [searchTimeout, setSearchTimeout] = useState<number | null>(null);
   const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
+
   // Parental Lock Modal states
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
@@ -109,6 +131,12 @@ export default function Media() {
     setPin(['', '', '', '']);
     setShowParentalLockModal(false);
   };
+
+  // Parental Lock Modal
+  const [showParentalLockModal, setShowParentalLockModal] = useState(false);
+  const [pin, setPin] = useState(['', '', '', '']);
+  const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -205,6 +233,55 @@ export default function Media() {
 
   const filteredVideos = videos;
 
+  // Parental Lock PIN handlers
+  const handlePinInput = (index: number, value: string) => {
+    if (value.length > 1) return;
+    
+    const newPin = [...pin];
+    newPin[index] = value;
+    setPin(newPin);
+
+    if (value && index < 3) {
+      pinRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handleBackspace = (index: number, value: string) => {
+    if (value === '' && index > 0) {
+      pinRefs[index - 1].current?.focus();
+    }
+  };
+
+  const unlockAccess = async () => {
+    if (pin.every(digit => digit !== '')) {
+      const inputPin = pin.join('');
+      const isValid = await ParentalLockService.verifyPin(inputPin);
+      
+      if (isValid) {
+        setShowParentalLockModal(false);
+        setPin(['', '', '', '']);
+        // Authenticate all parent tabs to trigger mode switch
+        ParentalLockAuthService.setAuthenticated(true, 'progress');
+        ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
+        ParentalLockAuthService.setAuthenticated(true, 'settings');
+        enterParentMode();
+        // Navigate to addRoutines page
+        router.push('/(tabs)/addRoutines');
+      } else {
+        Alert.alert("Incorrect PIN", "Please try again.");
+        setPin(['', '', '', '']);
+        pinRefs[0].current?.focus();
+      }
+    } else {
+      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
+    }
+  };
+
+  const cancelAccess = () => {
+    setShowParentalLockModal(false);
+    setPin(['', '', '', '']);
+  };
+
   return (
     <View style={styles.container}>
       {/* Background Image */}
@@ -219,6 +296,7 @@ export default function Media() {
           source={require("../../assets/images/ritmoNameLogo.png")}
           style={styles.brandLogo}
         />
+
         <TouchableOpacity
           style={styles.parentModeButton}
           onPress={handleParentMode}
@@ -230,6 +308,30 @@ export default function Media() {
           />
           <Text style={styles.parentModeText}>Parent mode</Text>
         </TouchableOpacity>
+
+        {parentalLockEnabled && (
+          <TouchableOpacity
+            style={styles.modeButton}
+            onPress={() => {
+              if (mode === 'child') {
+                setShowParentalLockModal(true);
+              } else {
+                backToChildMode();
+              }
+            }}
+          >
+            <View style={styles.modeButtonContent}>
+              <Image 
+                source={mode === 'child' ? require("../../assets/images/user 2.png") : require("../../assets/images/BoyQ.png")} 
+                style={styles.modeButtonIcon}
+              />
+              <Text style={styles.modeButtonText}>
+                {mode === 'child' ? 'Parent Mode' : 'Back to Child Mode'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
       </View>
 
       {/* 🔍 Search Bar */}
@@ -325,9 +427,16 @@ export default function Media() {
 
       {/* Parental Lock Modal */}
       <Modal
+
         visible={showParentalLockModal}
         transparent={true}
         animationType="none"
+
+        animationType="none"
+        transparent={true}
+        visible={showParentalLockModal}
+        onRequestClose={cancelAccess}
+
         statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
@@ -357,8 +466,13 @@ export default function Media() {
                       key={index}
                       ref={pinRefs[index]}
                       style={[
+
                         styles.pinBox,
                         digit ? styles.pinBoxFilled : null
+
+                        styles.pinInput,
+                        digit ? styles.pinInputFilled : null
+
                       ]}
                       value={digit}
                       onChangeText={(value) => handlePinInput(index, value)}
@@ -369,13 +483,29 @@ export default function Media() {
                       }}
                       keyboardType="numeric"
                       maxLength={1}
+
                       textAlign="center"
                       secureTextEntry={true}
+
+                      secureTextEntry
+                      textAlign="center"
+
                       selectTextOnFocus={true}
                       autoFocus={index === 0}
                     />
                   ))}
                 </View>
+
+
+                <TouchableOpacity 
+                  style={styles.forgotPin}
+                  onPress={() => {
+                    router.push('/parental-lock-new-pin');
+                  }}
+                >
+                  <Text style={styles.forgotPinText}>Forgot PIN?</Text>
+                </TouchableOpacity>
+                
 
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
@@ -405,19 +535,46 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: scale.scaleSpacing(50),
+    paddingTop: scale.scaleSpacing(30),
     paddingHorizontal: scale.scaleSpacing(16),
+
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+
   },
   brandLogo: {
     width: scale.scaleWidth(120),
     height: scale.scaleHeight(30),
     resizeMode: "contain",
     marginLeft: scale.scaleSpacing(-22),
-    marginTop: scale.scaleSpacing(-20),
-    marginBottom: scale.scaleSpacing(12),
+  },
+  modeButton: {
+    backgroundColor: '#B8E6E1',
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: 20,
+    marginTop: scale.scaleSpacing(10),
+  },
+  modeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(8),
+  },
+  modeButtonText: {
+    color: '#2F7C72',
+    fontSize: scale.scaleFont(14),
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  modeButtonIcon: {
+    width: scale.scaleWidth(16),
+    height: scale.scaleHeight(16),
+    resizeMode: 'contain',
   },
   parentModeButton: {
     flexDirection: "row",
@@ -587,7 +744,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   modalTitle: {
     fontSize: scale.scaleFont(28),
     fontWeight: "700",
+
     fontFamily: "ITIM",
+
+    fontFamily: "Fredoka_700Bold",
+
     color: "#333",
     marginBottom: scale.scaleSpacing(8),
     textAlign: "center",
@@ -595,7 +756,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   modalSubtitle: {
     fontSize: scale.scaleFont(16),
     fontWeight: "400",
+
     fontFamily: "ITIM",
+
+    fontFamily: "Fredoka_400Regular",
+
     color: "#666",
     textAlign: "center",
     marginBottom: scale.scaleSpacing(25),
@@ -604,7 +769,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   modalContentTitle: {
     fontSize: scale.scaleFont(14),
     fontWeight: "600",
+
     fontFamily: "ITIM",
+
+    fontFamily: "Fredoka_600SemiBold",
+
     color: "#555",
     marginBottom: scale.scaleSpacing(25),
     textAlign: "center",
@@ -616,7 +785,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginBottom: scale.scaleSpacing(25),
     gap: scale.scaleSpacing(12),
   },
+
   pinBox: {
+
+  pinInput: {
+
     width: scale.scaleWidth(55),
     height: scale.scaleHeight(55),
     borderRadius: scale.scaleBorderRadius(12),
@@ -627,12 +800,31 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(24),
     fontWeight: "600",
     color: "#333",
+
     fontFamily: "ITIM",
   },
   pinBoxFilled: {
     backgroundColor: "#E8F5E8",
     borderColor: "#4CAF50",
   },
+
+    fontFamily: "Fredoka_500Medium",
+  },
+  pinInputFilled: {
+    backgroundColor: "#E8F5E8",
+    borderColor: "#4CAF50",
+  },
+  forgotPin: {
+    marginBottom: scale.scaleSpacing(30),
+  },
+  forgotPinText: {
+    fontSize: scale.scaleFont(14),
+    fontWeight: "500",
+    color: "#007AFF",
+    textDecorationLine: "underline",
+    fontFamily: "Fredoka_700Bold",
+  },
+
   buttonContainer: {
     width: "100%",
     gap: scale.scaleSpacing(12),
@@ -653,7 +845,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(16),
     fontWeight: "700",
     color: "#FFFFFF",
+
     fontFamily: "ITIM",
+
+    fontFamily: "Fredoka_600SemiBold",
+
   },
   cancelButton: {
     backgroundColor: "transparent",
@@ -668,5 +864,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(16),
     fontWeight: "600",
     color: "#666",
+
+    fontFamily: "Fredoka_600SemiBold",
+
   },
 }));

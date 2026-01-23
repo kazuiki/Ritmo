@@ -13,6 +13,10 @@ import {
 	TouchableOpacity,
 	View
 } from "react-native";
+
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMode } from "../../src/contexts/ModeContext";
+
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
@@ -26,13 +30,18 @@ export default function Progress() {
 	const router = useRouter();
 	const tabBarHeight = useBottomTabBarHeight();
 	const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+	const { mode, parentalLockEnabled, backToChildMode } = useMode();
 	const [fontsLoaded] = useFonts({
 		Fredoka_400Regular,
 		Fredoka_500Medium,
 		Fredoka_600SemiBold,
 		Fredoka_700Bold,
 	});
+
 	const printableRef = useRef<View | null>(null);
+
+	const printableRef = useRef<View>(null);
+
 	const [childName, setChildName] = useState<string>("Kid");
 	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
@@ -209,12 +218,21 @@ export default function Progress() {
 		return { totalTasks, completed, rate, perTaskDone };
 	}, [tasks]);
 
+
 	// Reload data when tab is focused to ensure fresh data
 	useEffect(() => {
 		const refreshData = async () => {
 			try {
 				const { data: { user } } = await supabase.auth.getUser();
 				if (!user) return;
+
+	useFocusEffect(
+		React.useCallback(() => {
+			// Reload data when tab is focused to ensure fresh data
+			const refreshData = async () => {
+				try {
+					const { data: { user } } = await supabase.auth.getUser();
+					if (!user) return;
 
 				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
 					getRoutinesForCurrentUser(),
@@ -410,10 +428,12 @@ export default function Progress() {
 		};
 	}, [weekInfo.monday, weekInfo.sunday]);
 
+
 	// Prevent rendering before fonts load to avoid layout shift
 	if (!fontsLoaded) {
 		return null;
 	}
+
 
 
 	return (
@@ -425,6 +445,7 @@ export default function Progress() {
 				resizeMode="cover"
 			/>
 
+
 			<TouchableOpacity
 				style={styles.backButton}
 				onPress={() => router.push("/(tabs)/settings")}
@@ -432,6 +453,30 @@ export default function Progress() {
 				<Text style={styles.backButtonText}>Back</Text>
 			</TouchableOpacity>
 			<ScrollView 
+
+            
+			<View style={styles.header}>
+				<Image
+					source={require("../../assets/images/ritmoNameLogo.png")}
+					style={styles.brandLogo}
+				/>
+			{parentalLockEnabled && mode === 'parent' && (
+				<TouchableOpacity
+					style={styles.modeButton}
+					onPress={() => {
+						backToChildMode();
+						router.push('/(tabs)/home');
+					}}
+				>
+					<View style={styles.modeButtonContent}>
+						<Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
+						<Text style={styles.modeButtonText}>Back to Child Mode</Text>
+					</View>
+				</TouchableOpacity>
+			)}
+		</View>
+		<ScrollView 
+
 				style={styles.scrollView}
 				contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 16 }]}
 				showsVerticalScrollIndicator={false}
@@ -561,9 +606,15 @@ export default function Progress() {
 					</View>
 				</TouchableOpacity>
 			</ScrollView>
+
 		</View>
 		);
 	}
+
+	</View>
+	);
+}
+
 
 	const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	backgroundImage: {
@@ -575,15 +626,40 @@ export default function Progress() {
 		flex: 1,
 	},
 	header: {
-		paddingTop: scale.scaleSpacing(50),
+		paddingTop: scale.scaleSpacing(30),
 		paddingHorizontal: scale.scaleSpacing(16),
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
 	},
 	brandLogo: {
 		width: scale.scaleWidth(120),
 		height: scale.scaleHeight(30),
 		resizeMode: "contain",
 		marginLeft: scale.scaleSpacing(-22),
-		marginTop: scale.scaleSpacing(-20),
+	},
+	modeButton: {
+		backgroundColor: '#B8E6E1',
+		paddingHorizontal: scale.scaleSpacing(20),
+		paddingVertical: scale.scaleSpacing(12),
+		borderRadius: 20,
+		marginTop: scale.scaleSpacing(10),
+	},
+	modeButtonContent: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: scale.scaleSpacing(8),
+	},
+	modeButtonText: {
+		color: '#2F7C72',
+		fontSize: scale.scaleFont(14),
+		fontWeight: '600',
+		textDecorationLine: 'underline',
+	},
+	modeButtonIcon: {
+		width: scale.scaleWidth(16),
+		height: scale.scaleHeight(16),
+		resizeMode: 'contain',
 	},
 	backButton: {
 		alignSelf: 'flex-start',
@@ -840,136 +916,5 @@ export default function Progress() {
 		fontWeight: '600',
 		color: '#5BDFC9',
 		fontFamily: 'Fredoka_600SemiBold',
-	},
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.7)',
-	},
-	modalBackground: {
-		flex: 1,
-		width: "100%",
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	modalContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-		padding: scale.scaleSpacing(20),
-	},
-	modalContent: {
-		backgroundColor: "#FFFFFF",
-		borderRadius: scale.scaleBorderRadius(25),
-		borderWidth: 2,
-		borderColor: "#CFF6EB",
-		padding: scale.scaleSpacing(35),
-		alignItems: "center",
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: scale.scaleHeight(8) },
-		shadowOpacity: 0.3,
-		shadowRadius: scale.scaleSpacing(12),
-		elevation: 12,
-		width: "90%",
-		maxWidth: scale.scaleWidth(350),
-	},
-	lockIconContainer: {
-		marginBottom: scale.scaleSpacing(20),
-		opacity: 0.7,
-	},
-	modalTitle: {
-		fontSize: scale.scaleFont(28),
-		fontWeight: "700",
-		fontFamily: "Fredoka_700Bold",
-		color: "#333",
-		marginBottom: scale.scaleSpacing(8),
-		textAlign: "center",
-	},
-	modalSubtitle: {
-		fontSize: scale.scaleFont(16),
-		fontWeight: "400",
-		fontFamily: "Fredoka_400Regular",
-		color: "#666",
-		textAlign: "center",
-		marginBottom: scale.scaleSpacing(25),
-		lineHeight: scale.scaleHeight(22),
-	},
-	modalContentTitle: {
-		fontSize: scale.scaleFont(14),
-		fontWeight: "600",
-		fontFamily: "Fredoka_600SemiBold",
-		color: "#555",
-		marginBottom: scale.scaleSpacing(25),
-		textAlign: "center",
-		lineHeight: scale.scaleHeight(20),
-	},
-	pinContainer: {
-		flexDirection: "row",
-		justifyContent: "center",
-		marginBottom: scale.scaleSpacing(25),
-		gap: scale.scaleSpacing(12),
-	},
-	pinInput: {
-		width: scale.scaleWidth(55),
-		height: scale.scaleHeight(55),
-		borderRadius: scale.scaleBorderRadius(12),
-		backgroundColor: "#F7F7F7",
-		borderWidth: 2,
-		borderColor: "#E0E0E0",
-		textAlign: "center",
-		fontSize: scale.scaleFont(24),
-		fontWeight: "600",
-		color: "#333",
-		fontFamily: "Fredoka_500Medium",
-	},
-	pinInputFilled: {
-		backgroundColor: "#E8F5E8",
-		borderColor: "#4CAF50",
-	},
-	forgotPin: {
-		marginBottom: scale.scaleSpacing(30),
-	},
-	forgotPinText: {
-		fontSize: scale.scaleFont(14),
-		fontWeight: "500",
-		color: "#007AFF",
-		textDecorationLine: "underline",
-		fontFamily: "Fredoka_700Bold",
-	},
-	buttonContainer: {
-		width: "100%",
-		gap: scale.scaleSpacing(12),
-	},
-	unlockButton: {
-		backgroundColor: "#4CAF50",
-		paddingVertical: scale.scaleSpacing(15),
-		paddingHorizontal: scale.scaleSpacing(25),
-		borderRadius: scale.scaleBorderRadius(25),
-		alignItems: "center",
-		shadowColor: "#4CAF50",
-		shadowOffset: { width: 0, height: scale.scaleHeight(4) },
-		shadowOpacity: 0.3,
-		shadowRadius: scale.scaleSpacing(8),
-		elevation: 6,
-	},
-	unlockText: {
-		fontSize: scale.scaleFont(16),
-		fontWeight: "700",
-		color: "#FFFFFF",
-		fontFamily: "Fredoka_600SemiBold",
-	},
-	cancelButton: {
-		backgroundColor: "transparent",
-		paddingVertical: scale.scaleSpacing(12),
-		paddingHorizontal: scale.scaleSpacing(25),
-		borderRadius: scale.scaleBorderRadius(25),
-		borderWidth: 2,
-		borderColor: "#E0E0E0",
-		alignItems: "center",
-	},
-	cancelText: {
-		fontSize: scale.scaleFont(16),
-		fontWeight: "600",
-		color: "#666",
-		fontFamily: "Fredoka_600SemiBold",
 	},
 }));

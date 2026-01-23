@@ -7,9 +7,14 @@ import {
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
+
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+
 import {
   Alert,
   Image,
@@ -23,6 +28,10 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMode } from "../../src/contexts/ModeContext";
+
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
@@ -32,6 +41,7 @@ export default function Settings() {
   const navigation = useNavigation<any>();
   const tabBarHeight = useBottomTabBarHeight();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+  const { mode, parentalLockEnabled, backToChildMode } = useMode();
   const [fontsLoaded] = useFonts({
     Fredoka_400Regular,
     Fredoka_500Medium,
@@ -71,6 +81,7 @@ export default function Settings() {
   const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
 
+
   // Cleanup modals on unmount
   useEffect(() => {
     return () => {
@@ -98,6 +109,7 @@ export default function Settings() {
       };
     }, [navigation])
   );
+
 
 
 
@@ -279,12 +291,36 @@ export default function Settings() {
         resizeMode="cover"
       />
 
+
       <TouchableOpacity
         style={styles.screenBackButton}
         onPress={() => router.push("/(tabs)/home")}
       >
         <Text style={styles.screenBackButtonText}>Back</Text>
       </TouchableOpacity>
+
+      
+      <View style={styles.header}>
+        <Image
+          source={require("../../assets/images/ritmoNameLogo.png")}
+          style={styles.brandLogo}
+        />
+        {parentalLockEnabled && mode === 'parent' && (
+          <TouchableOpacity
+            style={styles.modeButton}
+            onPress={() => {
+              backToChildMode();
+              router.push('/(tabs)/home');
+            }}
+          >
+            <View style={styles.modeButtonContent}>
+              <Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
+              <Text style={styles.modeButtonText}>Back to Child Mode</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
+
 
       <ScrollView 
         style={styles.scrollView}
@@ -363,7 +399,6 @@ export default function Settings() {
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
-
 
 
       {/* Change Password Modal */}
@@ -1179,6 +1214,44 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   container: {
     flex: 1,
   },
+
+  header: {
+    paddingTop: scale.scaleSpacing(30),
+    paddingHorizontal: scale.scaleSpacing(16),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandLogo: {
+    width: scale.scaleWidth(120),
+    height: scale.scaleHeight(30),
+    resizeMode: "contain",
+    marginLeft: scale.scaleSpacing(-22),
+  },
+  modeButton: {
+    backgroundColor: '#B8E6E1',
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: 20,
+    marginTop: scale.scaleSpacing(10),
+  },
+  modeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(8),
+  },
+  modeButtonText: {
+    color: '#2F7C72',
+    fontSize: scale.scaleFont(14),
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  modeButtonIcon: {
+    width: scale.scaleWidth(16),
+    height: scale.scaleHeight(16),
+    resizeMode: 'contain',
+  },
+
   scrollView: {
     flex: 1,
   },
@@ -2108,3 +2181,4 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
 }));
+

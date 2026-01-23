@@ -3,7 +3,11 @@ import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from "react";
+
 import { Alert, BackHandler, Platform } from "react-native";
+
+
+import { ModeProvider } from "../src/contexts/ModeContext";
 
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
@@ -128,8 +132,12 @@ export default function RootLayout() {
   }, [pathname, segments]);
 
   return (
+
     <>
       <StatusBar hidden={true} />
+
+
+    <ModeProvider>
 
       <Stack
         screenOptions={{
@@ -169,6 +177,6 @@ export default function RootLayout() {
         visible={showNetworkFailureModal}
         onRetry={handleRetry}
       />
-    </>
+    </ModeProvider>
   );
 }
