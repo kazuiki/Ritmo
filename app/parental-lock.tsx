@@ -3,6 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   ImageBackground,
   Modal,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Vibration,
   View
 } from "react-native";
 import { useMode } from "../src/contexts/ModeContext";
@@ -30,6 +32,7 @@ export default function ParentalLock() {
   const [showPin, setShowPin] = useState(false);
   const [isVerifyingToDisable, setIsVerifyingToDisable] = useState(false);
   const [pinError, setPinError] = useState('');
+  const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
   // Load parental lock state on mount
@@ -88,6 +91,16 @@ export default function ParentalLock() {
     }
   };
 
+  const triggerPinShake = () => {
+    pinShake.setValue(0);
+    Animated.sequence([
+      Animated.timing(pinShake, { toValue: -6, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: 6, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: -4, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
   const savePinAndEnable = async () => {
     // Check if all PIN digits are filled
     if (pin.every(digit => digit !== '')) {
@@ -106,6 +119,8 @@ export default function ParentalLock() {
         } else {
           // PIN is incorrect, show error message
           setPinError('PIN Incorrect');
+          Vibration.vibrate(150);
+          triggerPinShake();
           setPin(['', '', '', '']); // Reset PIN input for retry
         }
       } else {
@@ -196,12 +211,12 @@ export default function ParentalLock() {
               {isVerifyingToDisable ? 'Enter PIN to disable' : 'Set a 4-digit PIN code'}
             </Text>
             
-            <View style={styles.pinContainer as any}>
+            <Animated.View style={[styles.pinContainer as any, pinError ? { transform: [{ translateX: pinShake }] } : null]}>
               {pin.map((digit, index) => (
                 <TextInput
                   key={index}
                   ref={pinRefs[index]}
-                  style={[styles.pinBox, digit && styles.pinBoxFilled] as any}
+                  style={[styles.pinBox, digit && styles.pinBoxFilled, pinError && styles.pinBoxError] as any}
                   value={digit ? '•' : ''}
                   onChangeText={(value) => {
                     if (value.length > 0 && /^\d$/.test(value)) {
@@ -242,7 +257,7 @@ export default function ParentalLock() {
                   selectTextOnFocus={true}
                 />
               ))}
-            </View>
+            </Animated.View>
 
             {/* Error Message */}
             {pinError ? (
@@ -363,6 +378,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   pinBoxFilled: {
     backgroundColor: "#D1D1D6",
+  },
+  pinBoxError: {
+    borderColor: "#FF6B6B",
+    borderWidth: scale.scaleWidth(2),
+    backgroundColor: "#FFE6E6",
   },
   savePinButton: {
     backgroundColor: "#5A8F8A",
