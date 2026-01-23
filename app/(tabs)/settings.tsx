@@ -2156,4 +2156,3 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
 }));
-

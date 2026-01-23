@@ -42,9 +42,15 @@ export function ModeProvider({ children }: { children: React.ReactNode }) {
           ParentalLockAuthService.setAuthenticated(true);
           setMode('child');
         } else {
-          // When lock is enabled, clear auth and go to child mode
-          ParentalLockAuthService.setAuthenticated(false);
-          setMode('child');
+          // When lock is enabled, only clear auth if no parent tabs are authenticated
+          // (Don't clear auth if user just set PIN and authenticated)
+          const isParentTabAuth = ParentalLockAuthService.isTabAuthenticated('progress') ||
+                                  ParentalLockAuthService.isTabAuthenticated('addRoutines') ||
+                                  ParentalLockAuthService.isTabAuthenticated('settings');
+          if (!isParentTabAuth) {
+            ParentalLockAuthService.setAuthenticated(false);
+            setMode('child');
+          }
         }
       }
     }, 500); // Check every 500ms
@@ -68,14 +74,18 @@ export function ModeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const enterParentMode = () => {
-    if (!parentalLockEnabled) {
-      // If lock is off, just switch mode
+    // Always check current authentication status, regardless of parentalLockEnabled state
+    const isParentTabAuth = ParentalLockAuthService.isTabAuthenticated('progress') ||
+                            ParentalLockAuthService.isTabAuthenticated('addRoutines') ||
+                            ParentalLockAuthService.isTabAuthenticated('settings');
+    
+    if (isParentTabAuth || !parentalLockEnabled) {
+      // If already authenticated OR lock is off, switch to parent mode
       setMode('parent');
       return;
     }
     
-    // If lock is on, set authentication status to trigger modal in progress/settings
-    // The actual mode switch will happen after PIN verification
+    // If lock is on and not yet authenticated, mark intent; PIN modal will set auth
     ParentalLockAuthService.setAuthenticated(false, 'parent-mode');
   };
 
@@ -88,11 +98,12 @@ export function ModeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const authListener = (isAuth: boolean) => {
       // When authenticated for parent tabs, switch to parent mode
-      if (isAuth && parentalLockEnabled) {
+      if (isAuth) {
         const isParentTabAuth = ParentalLockAuthService.isTabAuthenticated('progress') ||
                                 ParentalLockAuthService.isTabAuthenticated('addRoutines') ||
                                 ParentalLockAuthService.isTabAuthenticated('settings');
         if (isParentTabAuth) {
+          console.log('🔑 Auth listener: Switching to parent mode');
           setMode('parent');
         }
       }
@@ -103,7 +114,7 @@ export function ModeProvider({ children }: { children: React.ReactNode }) {
     return () => {
       ParentalLockAuthService.removeListener(authListener);
     };
-  }, [parentalLockEnabled]);
+  }, []);
 
   return (
     <ModeContext.Provider
