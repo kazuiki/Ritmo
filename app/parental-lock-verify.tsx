@@ -1,12 +1,12 @@
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
-    Alert,
     ImageBackground,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
+    Vibration,
     View,
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
@@ -17,6 +17,7 @@ export default function ParentalLockVerify() {
   const router = useRouter();
   const { scale } = useResponsiveDimensions();
   const [pin, setPin] = useState(['', '', '', '']);
+  const [pinError, setPinError] = useState('');
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
   const handlePinInput = (index: number, value: string) => {
@@ -26,6 +27,7 @@ export default function ParentalLockVerify() {
     const newPin = [...pin];
     newPin[index] = value;
     setPin(newPin);
+    setPinError('');
 
     // Auto-focus next input
     if (value && index < 3) {
@@ -50,14 +52,16 @@ export default function ParentalLockVerify() {
         if (router.canGoBack()) {
           router.back();
         }
+        setPinError('');
       } else {
-        // PIN is incorrect, show alert and reset
-        Alert.alert("Incorrect PIN", "Please try again.");
+        // PIN is incorrect, show inline error, highlight fields, and vibrate
+        setPinError('Incorrect PIN. Please try again.');
+        Vibration.vibrate(150);
         setPin(['', '', '', '']);
         pinRefs[0].current?.focus();
       }
     } else {
-      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
+      setPinError('Please enter all 4 digits.');
     }
   };
 
@@ -88,7 +92,7 @@ export default function ParentalLockVerify() {
               <TextInput
                 key={index}
                 ref={pinRefs[index]}
-                style={[styles.pinBox, digit && styles.pinBoxFilled]}
+                style={[styles.pinBox, digit && styles.pinBoxFilled, pinError && styles.pinBoxError]}
                 value={digit}
                 onChangeText={(value) => handlePinInput(index, value)}
                 onKeyPress={({ nativeEvent }) => {
@@ -108,6 +112,10 @@ export default function ParentalLockVerify() {
           <TouchableOpacity style={styles.forgotPin}>
             <Text style={styles.forgotPinText}>Forgot PIN?</Text>
           </TouchableOpacity>
+
+          {pinError ? (
+            <Text style={styles.errorText}>{pinError}</Text>
+          ) : null}
 
           <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
             <Text style={styles.unlockText}>Unlock Access</Text>
@@ -191,6 +199,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   pinBoxFilled: {
     backgroundColor: "#D1D1D6",
   },
+  pinBoxError: {
+    borderColor: "#FF6B6B",
+    borderWidth: scale.scaleWidth(2),
+    backgroundColor: "#FFE6E6",
+  },
   forgotPin: {
     marginBottom: scale.scaleSpacing(30),
   },
@@ -200,6 +213,14 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "ITIM",
     color: "#5A8F8A",
     textDecorationLine: "underline",
+  },
+  errorText: {
+    color: "#FF6B6B",
+    fontSize: scale.scaleFont(14),
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(12),
   },
   unlockButton: {
     backgroundColor: "#5A8F8A",
