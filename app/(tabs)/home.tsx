@@ -972,10 +972,16 @@ export default function Home() {
       />
       
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/ritmoNameLogo.png")}
-          style={styles.brandLogo}
-        />
+        <TouchableOpacity 
+          onPress={() => router.push('/(tabs)/home')}
+          disabled={mode === 'parent'}
+          activeOpacity={mode === 'parent' ? 1 : 0.7}
+        >
+          <Image
+            source={require("../../assets/images/ritmoNameLogo.png")}
+            style={styles.brandLogo}
+          />
+        </TouchableOpacity>
         {parentalLockEnabled && (
           <TouchableOpacity
             style={styles.modeButton}
@@ -1137,7 +1143,23 @@ export default function Home() {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (isEnabled) {
+                    const hasPlaybookOnly = !!(preset && getPlaybookForPreset(preset.id) && !miniGames[preset.id]);
+
                     setActiveRoutineId(routine.id);
+
+                    if (hasPlaybookOnly) {
+                      // Directly open book guide when only playbook exists
+                      playbookSlideX.setValue(400);
+                      setTaskModalVisible(false);
+                      setPlaybookModalVisible(true);
+                      Animated.timing(playbookSlideX, {
+                        toValue: 0,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }).start();
+                      return;
+                    }
+
                     // Pop from center - starts small then grows
                     taskOpacity.setValue(0);
                     taskScale.setValue(0);
@@ -1212,90 +1234,11 @@ export default function Home() {
         }}
       >
         <Animated.View style={[styles.taskOverlay, { opacity: taskOpacity }]}>
-          <Animated.View style={[styles.taskDialog, { transform: [{ scale: taskScale }] }]}>
-            {/* Header */}
-            <View style={styles.taskDialogHeader}>
-              <TouchableOpacity onPress={() => {
-                Animated.parallel([
-                  Animated.timing(taskOpacity, {
-                    toValue: 0,
-                    duration: 200,
-                    easing: Easing.in(Easing.ease),
-                    useNativeDriver: true,
-                  }),
-                  Animated.timing(taskScale, {
-                    toValue: 0,
-                    duration: 200,
-                    easing: Easing.in(Easing.back(1.2)),
-                    useNativeDriver: true,
-                  }),
-                ]).start(() => {
-                  setTaskModalVisible(false);
-                  setIsReplayMode(false);
-                });
-              }}>
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Body content */}
-            <View style={styles.taskDialogContent}>
-            <TouchableOpacity 
-              style={styles.taskItem}
-              onPress={() => {
-                // Keep task modal open, just show playbook on top
-                playbookSlideX.setValue(400);
-                setPlaybookModalVisible(true);
-                Animated.timing(playbookSlideX, {
-                  toValue: 0,
-                  duration: 300,
-                  useNativeDriver: true,
-                }).start();
-              }}
-            >
-              <Image 
-                source={require("../../assets/gifs/media-unscreen.gif")}
-                style={styles.taskImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-            style={styles.taskItem}
-            onPress={() => {
-              if (!activePreset) return;
-            
-              const path = miniGames[activePreset.id];
-            
-              if (!path) {
-                console.warn("No minigame found for preset", activePreset.id);
-                setAlertMessage("No minigame is available for this task");
-                setAlertModalVisible(true);
-                return;
-              }
-            
-              minigameStartedRef.current = true;
-              router.push(path as any);
-            }}
-          >
-            <Image 
-              source={require("../../assets/gifs/media-1--unscreen.gif")}
-              style={styles.taskImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
-          </TouchableOpacity>
-            </View>
-
-            {/* Footer - Finish Task */}
-            <View style={styles.taskDialogFooter}>
-              <TouchableOpacity
-                style={styles.finishButton}
-                onPress={() => {
-                  if (activeRoutineId && !isReplayMode) {
-                    toggleComplete(activeRoutineId);
-                  }
+          <Animated.View style={[styles.taskDialog, !activePreset && styles.taskDialogSmall, { transform: [{ scale: taskScale }] }]}>
+            {/* Header - Hide for no-preset */}
+            {activePreset && (
+              <View style={styles.taskDialogHeader}>
+                <TouchableOpacity onPress={() => {
                   Animated.parallel([
                     Animated.timing(taskOpacity, {
                       toValue: 0,
@@ -1311,15 +1254,173 @@ export default function Home() {
                     }),
                   ]).start(() => {
                     setTaskModalVisible(false);
-                    setActiveRoutineId(null);
                     setIsReplayMode(false);
                   });
-                }} 
-                activeOpacity={0.9}
-              >
-                <Text style={styles.finishButtonText}>{isReplayMode ? 'Close' : 'Finish Task'}</Text>
-              </TouchableOpacity>
+                }}>
+                  <Text style={styles.backText}>Back</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Body content */}
+            <View style={[styles.taskDialogContent, !activePreset && styles.taskDialogContentCompact]}>
+              {activePreset ? (
+                <>
+                  <TouchableOpacity 
+                    style={styles.taskItem}
+                    onPress={() => {
+                      // Keep task modal open, just show playbook on top
+                      playbookSlideX.setValue(400);
+                      setPlaybookModalVisible(true);
+                      Animated.timing(playbookSlideX, {
+                        toValue: 0,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                  >
+                    <Image 
+                      source={require("../../assets/gifs/media-unscreen.gif")}
+                      style={styles.taskImage}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.taskItem}
+                    onPress={() => {
+                      if (!activePreset) return;
+
+                      const path = miniGames[activePreset.id];
+
+                      if (!path) {
+                        console.warn("No minigame found for preset", activePreset.id);
+                        setAlertMessage("No minigame is available for this task");
+                        setAlertModalVisible(true);
+                        return;
+                      }
+
+                      minigameStartedRef.current = true;
+                      router.push(path as any);
+                    }}
+                  >
+                    <Image 
+                      source={require("../../assets/gifs/media-1--unscreen.gif")}
+                      style={styles.taskImage}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.noPresetContent}>
+                  <Text style={styles.noPresetTitle}>"{activeRoutine?.name ?? 'Routine'}"</Text>
+                  <Text style={styles.noPresetMessage}>Do you want to {"\n"} finish this task?</Text>
+                </View>
+              )}
             </View>
+
+            {/* Footer - Different layouts for preset vs no-preset */}
+            {activePreset ? (
+              <View style={styles.taskDialogFooter}>
+                <TouchableOpacity
+                  style={styles.finishButton}
+                  onPress={() => {
+                    const hasPreset = !!activePreset;
+                    const hasPlaybook = activePreset ? !!getPlaybookForPreset(activePreset.id) : false;
+                    const hasMiniGame = activePreset ? !!miniGames[activePreset.id] : false;
+                    const isNoPresetFlow = !hasPreset && !hasPlaybook && !hasMiniGame;
+
+                    if (activeRoutineId && !isReplayMode && !isNoPresetFlow) {
+                      toggleComplete(activeRoutineId);
+                    }
+                    if (isNoPresetFlow) {
+                      setSuccessModalVisible(true);
+                      setShowRainingStars(true);
+                    }
+                    Animated.parallel([
+                      Animated.timing(taskOpacity, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.ease),
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(taskScale, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.back(1.2)),
+                        useNativeDriver: true,
+                      }),
+                    ]).start(() => {
+                      setTaskModalVisible(false);
+                      if (!isNoPresetFlow) {
+                        setActiveRoutineId(null);
+                      }
+                      setIsReplayMode(false);
+                    });
+                  }} 
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.finishButtonText}>{isReplayMode ? 'Close' : 'Finish Task'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.taskDialogFooterTwoButtons}>
+                <TouchableOpacity
+                  style={styles.backButtonNoPreset}
+                  onPress={() => {
+                    Animated.parallel([
+                      Animated.timing(taskOpacity, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.ease),
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(taskScale, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.back(1.2)),
+                        useNativeDriver: true,
+                      }),
+                    ]).start(() => {
+                      setTaskModalVisible(false);
+                      setIsReplayMode(false);
+                    });
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.backButtonNoPresetText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.finishButtonNoPreset}
+                  onPress={() => {
+                    setSuccessModalVisible(true);
+                    setShowRainingStars(true);
+                    Animated.parallel([
+                      Animated.timing(taskOpacity, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.ease),
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(taskScale, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.back(1.2)),
+                        useNativeDriver: true,
+                      }),
+                    ]).start(() => {
+                      setTaskModalVisible(false);
+                      setIsReplayMode(false);
+                    });
+                  }} 
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.finishButtonNoPresetText}>Finish Task</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </Animated.View>
         </Animated.View>
       </Modal>
@@ -2021,6 +2122,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: scale.scaleSpacing(16),
     elevation: 8,
   },
+  taskDialogSmall: {
+    height: "40%",
+  },
   taskDialogHeader: {
     paddingTop: scale.scaleSpacing(16),
     paddingHorizontal: scale.scaleSpacing(20),
@@ -2068,9 +2172,67 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     gap: scale.scaleSpacing(-20),
     marginTop: scale.scaleSpacing(-70),
   },
+  taskDialogContentCompact: {
+    marginTop: 0,
+    gap: scale.scaleSpacing(16),
+    paddingVertical: scale.scaleSpacing(20),
+  },
+  noPresetContent: {
+    width: '100%',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(12),
+    marginTop: scale.scaleSpacing(30),
+    paddingHorizontal: scale.scaleSpacing(12),
+  },
+  noPresetTitle: {
+    fontSize: scale.scaleFont(26),
+    fontWeight: '700',
+    color: '#244D4A',
+    textAlign: 'center',
+    fontFamily: 'Fredoka_700Bold',
+  },
+  noPresetMessage: {
+    fontSize: scale.scaleFont(24),
+    fontWeight: '700',
+    color: '#244D4A',
+    textAlign: 'center',
+    fontFamily: 'Fredoka_700Bold',
+  },
   taskDialogFooter: {
     paddingHorizontal: scale.scaleSpacing(20),
     paddingBottom: scale.scaleSpacing(20),
+  },
+  taskDialogFooterTwoButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingBottom: scale.scaleSpacing(20),
+    gap: scale.scaleSpacing(12),
+  },
+  backButtonNoPreset: {
+    flex: 1,
+    backgroundColor: '#E8E8E8',
+    borderRadius: scale.scaleBorderRadius(12),
+    paddingVertical: scale.scaleSpacing(14),
+    alignItems: 'center',
+  },
+  backButtonNoPresetText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: '700',
+    color: '#244D4A',
+    fontFamily: 'Fredoka_700Bold',
+  },
+  finishButtonNoPreset: {
+    flex: 1,
+    backgroundColor: '#2F7D73',
+    borderRadius: scale.scaleBorderRadius(12),
+    paddingVertical: scale.scaleSpacing(14),
+    alignItems: 'center',
+  },
+  finishButtonNoPresetText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: '700',
+    color: '#fff',
+    fontFamily: 'Fredoka_700Bold',
   },
   modalScreen: {
     flex: 1,
