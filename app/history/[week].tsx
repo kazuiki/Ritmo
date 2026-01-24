@@ -1,5 +1,7 @@
 import { Fredoka_600SemiBold, useFonts } from '@expo-google-fonts/fredoka';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -8,8 +10,10 @@ import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, Touchable
 import { captureRef } from 'react-native-view-shot';
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from '../../src/routinesService';
 import { supabase } from '../../src/supabaseClient';
-import { defaultPdfFilename, saveViewAsPdf } from '../../src/utils/pdf';
+import { saveWeeklyPerformanceReportPdf } from '../../src/utils/pdf';
 import { createResponsiveStyles, useResponsiveDimensions } from '../../src/utils/responsive';
+
+const RITMO_HEADER = require("../../assets/ritmo-header.png");
 
 interface RoutineWithDays extends Routine {
 	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -28,6 +32,7 @@ export default function WeeklyHistoryDetail() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isAnimating, setIsAnimating] = useState(false);
   const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Parse start date and compute end date (Mon-Sun assumed)
   const weekRange = useMemo(() => {
@@ -456,21 +461,48 @@ export default function WeeklyHistoryDetail() {
             ))}
           </View>
         </View>
-        <TouchableOpacity style={styles.pdfButton} onPress={async () => {
-          if (!printableRef.current) return;
+        <TouchableOpacity style={styles.pdfButton} disabled={isGeneratingPdf} onPress={async () => {
+          if (isGeneratingPdf) return;
+          setIsGeneratingPdf(true);
           try {
-            await saveViewAsPdf({
-              ref: printableRef,
-              filename: defaultPdfFilename('history-week'),
-              pageSize: 'A4',
-              marginMm: 12,
-              scalePercent: 0.8,
-              logoModule: null,
+            // Load and convert logo to base64
+            let logoBase64 = '';
+            try {
+              const asset = Asset.fromModule(RITMO_HEADER);
+              await asset.downloadAsync();
+              if (asset.localUri) {
+                const data = await FileSystem.readAsStringAsync(asset.localUri, {
+                  encoding: 'base64',
+                });
+                logoBase64 = data;
+              }
+            } catch (e) {
+              console.warn('Could not load logo image:', e);
+              // Continue without logo
+            }
+            
+            await saveWeeklyPerformanceReportPdf({
+              childName: childName,
+              weekStart: weekRange.startDate,
+              weekEnd: weekRange.endDate,
+              totalTasks: metrics.totalTasks,
+              completedTasks: metrics.completed,
+              completionRate: metrics.rate,
+              tasks: tasks.map((task, idx) => ({
+                name: task.name,
+                timestamp: task.timestamp,
+                statuses: task.statuses,
+                routineId: task.routineId,
+                perTaskDone: metrics.perTaskDone[idx] || 0,
+              })),
+              logoBase64: logoBase64,
               openAfterSave: true,
             });
-            // PDF opened or share sheet shown immediately; no success alert needed
+            // No alert on success; PDF is opened or share sheet is shown immediately
           } catch (e: any) {
             Alert.alert('PDF Error', e?.message || 'Failed to generate PDF');
+          } finally {
+            setIsGeneratingPdf(false);
           }
         }}>
           <View style={styles.pdfButtonInner}> 

@@ -3,20 +3,22 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ImageBackground,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Image,
+    ImageBackground,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    Vibration,
+    View
 } from "react-native";
-import YoutubePlayer from "react-native-youtube-iframe";
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
@@ -51,6 +53,8 @@ export default function Media() {
   // Parental Lock Modal
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
+  const [pinError, setPinError] = useState('');
+  const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
   // Clear all parental lock authentication when navigating to MEDIA
@@ -155,7 +159,18 @@ export default function Media() {
     const newPin = [...pin];
     newPin[index] = value;
     setPin(newPin);
+    setPinError('');
 
+
+  const triggerPinShake = () => {
+    pinShake.setValue(0);
+    Animated.sequence([
+      Animated.timing(pinShake, { toValue: -6, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: 6, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: -4, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
     if (value && index < 3) {
       pinRefs[index + 1].current?.focus();
     }
@@ -175,6 +190,7 @@ export default function Media() {
       if (isValid) {
         setShowParentalLockModal(false);
         setPin(['', '', '', '']);
+        setPinError('');
         // Authenticate all parent tabs to trigger mode switch
         ParentalLockAuthService.setAuthenticated(true, 'progress');
         ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
@@ -183,18 +199,22 @@ export default function Media() {
         // Navigate to addRoutines page
         router.push('/(tabs)/addRoutines');
       } else {
-        Alert.alert("Incorrect PIN", "Please try again.");
+        setPinError('Incorrect PIN. Please try again.');
+        Vibration.vibrate(150);
+        triggerPinShake();
         setPin(['', '', '', '']);
         pinRefs[0].current?.focus();
       }
     } else {
-      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
+      setPinError('Please enter all 4 digits.');
+      triggerPinShake();
     }
   };
 
   const cancelAccess = () => {
     setShowParentalLockModal(false);
     setPin(['', '', '', '']);
+    setPinError('');
   };
 
   return (
@@ -207,10 +227,16 @@ export default function Media() {
       />
       
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/ritmoNameLogo.png")}
-          style={styles.brandLogo}
-        />
+        <TouchableOpacity 
+          onPress={() => router.push('/(tabs)/home')}
+          disabled={mode === 'parent'}
+          activeOpacity={mode === 'parent' ? 1 : 0.7}
+        >
+          <Image
+            source={require("../../assets/images/ritmoNameLogo.png")}
+            style={styles.brandLogo}
+          />
+        </TouchableOpacity>
         {parentalLockEnabled && (
           <TouchableOpacity
             style={styles.modeButton}
@@ -355,14 +381,15 @@ export default function Media() {
                   Please enter your 4-digit PIN to continue
                 </Text>
                 
-                <View style={styles.pinContainer}>
+                <Animated.View style={[styles.pinContainer, pinError ? { transform: [{ translateX: pinShake }] } : null]}>
                   {pin.map((digit, index) => (
                     <TextInput
                       key={index}
                       ref={pinRefs[index]}
                       style={[
                         styles.pinInput,
-                        digit ? styles.pinInputFilled : null
+                        digit ? styles.pinInputFilled : null,
+                        pinError ? styles.pinInputError : null
                       ]}
                       value={digit}
                       onChangeText={(value) => handlePinInput(index, value)}
@@ -379,7 +406,7 @@ export default function Media() {
                       autoFocus={index === 0}
                     />
                   ))}
-                </View>
+                </Animated.View>
 
                 <TouchableOpacity 
                   style={styles.forgotPin}
@@ -389,6 +416,10 @@ export default function Media() {
                 >
                   <Text style={styles.forgotPinText}>Forgot PIN?</Text>
                 </TouchableOpacity>
+
+                {pinError ? (
+                  <Text style={styles.pinErrorText}>{pinError}</Text>
+                ) : null}
                 
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
@@ -647,6 +678,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     backgroundColor: "#E8F5E8",
     borderColor: "#4CAF50",
   },
+  pinInputError: {
+    borderColor: "#FF6B6B",
+    backgroundColor: "#FFE6E6",
+  },
   forgotPin: {
     marginBottom: scale.scaleSpacing(30),
   },
@@ -656,6 +691,14 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#007AFF",
     textDecorationLine: "underline",
     fontFamily: "Fredoka_700Bold",
+  },
+  pinErrorText: {
+    color: "#FF6B6B",
+    fontSize: scale.scaleFont(14),
+    fontWeight: "600",
+    fontFamily: "Fredoka_600SemiBold",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(12),
   },
   buttonContainer: {
     width: "100%",

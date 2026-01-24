@@ -2,6 +2,8 @@ import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -18,8 +20,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
-import { defaultPdfFilename, saveViewAsPdf } from "../../src/utils/pdf";
+import { saveWeeklyPerformanceReportPdf } from "../../src/utils/pdf";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
+
+const RITMO_HEADER = require("../../assets/ritmo-header.png");
 
 interface RoutineWithDays extends Routine {
 	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -43,6 +47,7 @@ export default function Progress() {
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
 	const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
 	// Week range (Monday to Sunday)
 	const weekInfo = useMemo(() => {
@@ -427,10 +432,16 @@ export default function Progress() {
 			/>
             
 			<View style={styles.header}>
-				<Image
-					source={require("../../assets/images/ritmoNameLogo.png")}
-					style={styles.brandLogo}
-				/>
+				<TouchableOpacity 
+					onPress={() => router.push('/(tabs)/home')}
+					disabled={mode === 'parent'}
+					activeOpacity={mode === 'parent' ? 1 : 0.7}
+				>
+					<Image
+						source={require("../../assets/images/ritmoNameLogo.png")}
+						style={styles.brandLogo}
+					/>
+				</TouchableOpacity>
 			{parentalLockEnabled && mode === 'parent' && (
 				<TouchableOpacity
 					style={styles.modeButton}
@@ -552,21 +563,48 @@ export default function Progress() {
 				</View>
 
 				{/* Save as PDF Button */}
-				<TouchableOpacity style={styles.pdfButton} onPress={async () => {
-					if (!printableRef.current) return;
+				<TouchableOpacity style={styles.pdfButton} disabled={isGeneratingPdf} onPress={async () => {
+					if (isGeneratingPdf) return;
+					setIsGeneratingPdf(true);
 					try {
-						await saveViewAsPdf({
-							ref: printableRef,
-							filename: defaultPdfFilename('progress-week'),
-							pageSize: 'A4',
-							marginMm: 12,
-							scalePercent: 0.8,
-							logoModule: null,
+						// Load and convert logo to base64
+						let logoBase64 = '';
+						try {
+							const asset = Asset.fromModule(RITMO_HEADER);
+							await asset.downloadAsync();
+							if (asset.localUri) {
+								const data = await FileSystem.readAsStringAsync(asset.localUri, {
+									encoding: 'base64',
+								});
+								logoBase64 = data;
+							}
+						} catch (e) {
+							console.warn('Could not load logo image:', e);
+							// Continue without logo
+						}
+						
+						await saveWeeklyPerformanceReportPdf({
+							childName: childName,
+							weekStart: weekInfo.monday,
+							weekEnd: weekInfo.sunday,
+							totalTasks: totals.totalTasks,
+							completedTasks: totals.completed,
+							completionRate: totals.rate,
+							tasks: tasks.map((task, idx) => ({
+								name: task.name,
+								timestamp: task.timestamp,
+								statuses: task.statuses,
+								routineId: task.routineId,
+								perTaskDone: totals.perTaskDone[idx] || 0,
+							})),
+							logoBase64: logoBase64,
 							openAfterSave: true,
 						});
 						// No alert on success; PDF is opened or share sheet is shown immediately
 					} catch (e: any) {
 						Alert.alert('PDF Error', e?.message || 'Failed to generate PDF');
+					} finally {
+						setIsGeneratingPdf(false);
 					}
 				}}>
 					<View style={styles.pdfButtonInner}>
