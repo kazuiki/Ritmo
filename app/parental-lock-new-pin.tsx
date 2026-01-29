@@ -1,29 +1,36 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
-    Alert,
-    ImageBackground,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ImageBackground,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
-import { supabase } from "../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
 
 const backgroundImage = require("../assets/background.png");
 
+const generateCaptcha = () => {
+  const num1 = Math.floor(Math.random() * 10) + 1;
+  const num2 = Math.floor(Math.random() * 10) + 1;
+  const answer = num1 + num2;
+  return { question: `${num1} + ${num2}`, answer: answer.toString() };
+};
+
 export default function ParentalLockNewPin() {
   const router = useRouter();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [captcha, setCaptcha] = useState(generateCaptcha());
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [newPin, setNewPin] = useState(['', '', '', '']);
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
 
@@ -49,42 +56,22 @@ export default function ParentalLockNewPin() {
   };
 
   const handleContinue = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert("Missing info", "Please enter email and password to continue.");
+    if (!captchaAnswer.trim()) {
+      setErrorMessage("Please answer the captcha to continue.");
+      setShowErrorModal(true);
       return;
     }
 
-    try {
-      // Get current logged-in user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        Alert.alert("Error", "Unable to verify current user. Please login again.");
-        return;
-      }
-
-      // Check if entered email matches the current user's email
-      if (email.toLowerCase().trim() !== user.email?.toLowerCase()) {
-        Alert.alert("Invalid Credentials", "Email does not match your current account.");
-        return;
-      }
-
-      // Verify password by attempting to sign in
-      const { error: signInError } = await supabase.auth.signInWithPassword({ 
-        email: email.trim(), 
-        password 
-      });
-
-      if (signInError) {
-        Alert.alert("Invalid Credentials", "Incorrect password. Please try again.");
-        return;
-      }
-
-      // Credentials are valid, show PIN modal
+    if (captchaAnswer.trim() === captcha.answer) {
+      // Captcha is correct, show PIN modal
       setShowPinModal(true);
-      
-    } catch (error) {
-      Alert.alert("Error", "Unable to verify credentials. Please try again.");
+      setCaptchaAnswer("");
+    } else {
+      setErrorMessage("Your answer is incorrect. Please try again.");
+      setShowErrorModal(true);
+      // Reset captcha
+      setCaptcha(generateCaptcha());
+      setCaptchaAnswer("");
     }
   };
 
@@ -95,25 +82,23 @@ export default function ParentalLockNewPin() {
         // Save the new PIN to replace the existing one
         await ParentalLockService.savePin(newPinString);
         
-        Alert.alert("Success", "New PIN has been saved successfully. The old PIN has been replaced.", [
-          { text: "OK", onPress: () => {
-            setShowPinModal(false);
-            if (router.canGoBack()) {
-              router.back();
-            }
-          }},
-        ]);
+        setSuccessMessage("New PIN has been saved successfully. The old PIN has been replaced.");
+        setShowSuccessModal(true);
       } catch (error) {
-        Alert.alert("Error", "Failed to save new PIN. Please try again.");
+        setErrorMessage("Failed to save new PIN. Please try again.");
+        setShowErrorModal(true);
       }
     } else {
-      Alert.alert("Incomplete PIN", "Please enter all 4 digits.");
+      setErrorMessage("Please enter all 4 digits.");
+      setShowErrorModal(true);
     }
   };
 
   const handleCancelPin = () => {
     setShowPinModal(false);
     setNewPin(['', '', '', '']);
+    setCaptcha(generateCaptcha());
+    setCaptchaAnswer("");
   };
 
   const handleBack = () => {
@@ -131,42 +116,78 @@ export default function ParentalLockNewPin() {
 
         <Text style={styles.title}>New Pin Setup</Text>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Email</Text>
+        <View style={styles.captchaContainer}>
+          <Text style={styles.captchaQuestion}>{captcha.question} = ?</Text>
           <TextInput
-            style={styles.input}
-            placeholder="Enter email here"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
+            style={styles.captchaInput}
+            placeholder="Enter answer"
+            value={captchaAnswer}
+            onChangeText={setCaptchaAnswer}
+            keyboardType="numeric"
             placeholderTextColor="#9CA3AF"
           />
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Enter password here"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              placeholderTextColor="#9CA3AF"
-            />
-            <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#276a63" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <Text style={styles.note}>To set a new PIN, please verify your login{'\n'}credentials first</Text>
+        <Text style={styles.note}>Please verify the captcha to set a new PIN</Text>
 
         <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
           <Text style={styles.continueText}>Continue</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Error Modal */}
+      <Modal
+        visible={showErrorModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.errorModalContent}>
+            <Text style={styles.errorModalTitle}>Oops!</Text>
+            <Text style={styles.errorModalMessage}>{errorMessage}</Text>
+            <TouchableOpacity 
+              style={styles.errorModalButton} 
+              onPress={() => setShowErrorModal(false)}
+            >
+              <Text style={styles.errorModalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSuccessModal(false);
+          setShowPinModal(false);
+          if (router.canGoBack()) {
+            router.back();
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.successModalContent}>
+            <Text style={styles.successModalTitle}>Success!</Text>
+            <Text style={styles.successModalMessage}>{successMessage}</Text>
+            <TouchableOpacity 
+              style={styles.successModalButton} 
+              onPress={() => {
+                setShowSuccessModal(false);
+                setShowPinModal(false);
+                if (router.canGoBack()) {
+                  router.back();
+                }
+              }}
+            >
+              <Text style={styles.successModalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* PIN Setup Modal */}
       <Modal
@@ -239,6 +260,36 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#333",
     marginBottom: scale.scaleSpacing(40),
     textAlign: "center",
+  },
+  captchaContainer: {
+    width: "100%",
+    marginBottom: scale.scaleSpacing(30),
+    padding: scale.scaleSpacing(20),
+    backgroundColor: "#F0F0F0",
+    borderRadius: scale.scaleBorderRadius(12),
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+  },
+  captchaQuestion: {
+    fontSize: scale.scaleFont(18),
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    color: "#333",
+    marginBottom: scale.scaleSpacing(15),
+    textAlign: "center",
+  },
+  captchaInput: {
+    height: scale.scaleHeight(50),
+    borderRadius: scale.scaleBorderRadius(12),
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: scale.scaleSpacing(20),
+    fontSize: scale.scaleFont(16),
+    color: "#000",
+    fontFamily: "ITIM",
+    textAlign: "left",
+    textAlignVertical: "center",
   },
   field: {
     width: "100%",
@@ -380,6 +431,98 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     width: "90%",
   },
   cancelPinText: {
+    color: "#FFFFFF",
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    textAlign: "center",
+  },
+  // Error Modal Styles
+  errorModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 2,
+    borderColor: "#FF6B6B",
+    padding: scale.scaleSpacing(30),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    width: "85%",
+    maxWidth: scale.scaleWidth(300),
+  },
+  errorModalTitle: {
+    fontSize: scale.scaleFont(20),
+    fontWeight: "700",
+    fontFamily: "ITIM",
+    color: "#FF6B6B",
+    marginBottom: scale.scaleSpacing(15),
+    textAlign: "center",
+  },
+  errorModalMessage: {
+    fontSize: scale.scaleFont(14),
+    fontFamily: "ITIM",
+    color: "#333",
+    marginBottom: scale.scaleSpacing(20),
+    textAlign: "center",
+    lineHeight: scale.scaleFont(18),
+  },
+  errorModalButton: {
+    backgroundColor: "#FF6B6B",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(20),
+    width: "80%",
+  },
+  errorModalButtonText: {
+    color: "#FFFFFF",
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    textAlign: "center",
+  },
+  // Success Modal Styles
+  successModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 2,
+    borderColor: "#05b39e",
+    padding: scale.scaleSpacing(30),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    width: "85%",
+    maxWidth: scale.scaleWidth(300),
+  },
+  successModalTitle: {
+    fontSize: scale.scaleFont(20),
+    fontWeight: "700",
+    fontFamily: "ITIM",
+    color: "#05b39e",
+    marginBottom: scale.scaleSpacing(15),
+    textAlign: "center",
+  },
+  successModalMessage: {
+    fontSize: scale.scaleFont(14),
+    fontFamily: "ITIM",
+    color: "#333",
+    marginBottom: scale.scaleSpacing(20),
+    textAlign: "center",
+    lineHeight: scale.scaleFont(18),
+  },
+  successModalButton: {
+    backgroundColor: "#05b39e",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(20),
+    width: "80%",
+  },
+  successModalButtonText: {
     color: "#FFFFFF",
     fontSize: scale.scaleFont(16),
     fontWeight: "600",
