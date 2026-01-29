@@ -949,40 +949,53 @@ export default function Home() {
     setPinError('');
   };
 
+  const openTaskModal = () => {
+    taskOpacity.setValue(0);
+    taskScale.setValue(0);
+    setTaskModalVisible(true);
+    Animated.parallel([
+      Animated.timing(taskOpacity, {
+        toValue: 1,
+        duration: 250,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(taskScale, {
+        toValue: 1,
+        duration: 250,
+        easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   // Handler for completed task taps - go directly to playbook
   const openCompletedTaskPlaybook = (routineId: number) => {
     const routine = routines.find(r => r.id === routineId);
     if (!routine) return;
 
     const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
-    if (!preset) {
-      // No preset available, show alert
-      setAlertMessage("No book guide available for this routine.");
-      setAlertModalVisible(true);
-      return;
-    }
+    const hasPlaybook = preset ? !!getPlaybookForPreset(preset.id) : false;
+    const hasMiniGame = preset ? !!miniGames[preset.id] : false;
 
-    const playbook = getPlaybookForPreset(preset.id);
-    if (!playbook) {
-      // No playbook available, show alert
-      setAlertMessage("No book guide available for this routine.");
-      setAlertModalVisible(true);
-      return;
-    }
-
-    // Open playbook directly in replay mode
     setActiveRoutineId(routineId);
     setIsReplayMode(true);
-    setCurrentStep(1);
-    setPlaybookModalVisible(true);
 
-    // Animate playbook slide-in
-    playbookSlideX.setValue(400);
-    Animated.timing(playbookSlideX, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    if (hasPlaybook && !hasMiniGame) {
+      // Only book guide exists -> go directly to playbook
+      setCurrentStep(1);
+      setPlaybookModalVisible(true);
+      playbookSlideX.setValue(400);
+      Animated.timing(playbookSlideX, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    // If both options exist or none exist, show the modal
+    openTaskModal();
   };
 
   return (
@@ -1332,7 +1345,9 @@ export default function Home() {
               ) : (
                 <View style={styles.noPresetContent}>
                   <Text style={styles.noPresetTitle}>"{activeRoutine?.name ?? 'Routine'}"</Text>
-                  <Text style={styles.noPresetMessage}>Do you want to {"\n"} finish this task?</Text>
+                  <Text style={styles.noPresetMessage}>
+                    {isReplayMode ? 'This task is already finished' : 'Do you want to \n finish this task?'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -1379,6 +1394,34 @@ export default function Home() {
                   activeOpacity={0.9}
                 >
                   <Text style={styles.finishButtonText}>{isReplayMode ? 'Close' : 'Finish Task'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : isReplayMode ? (
+              <View style={styles.taskDialogFooter}>
+                <TouchableOpacity
+                  style={styles.finishButton}
+                  onPress={() => {
+                    Animated.parallel([
+                      Animated.timing(taskOpacity, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.ease),
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(taskScale, {
+                        toValue: 0,
+                        duration: 200,
+                        easing: Easing.in(Easing.back(1.2)),
+                        useNativeDriver: true,
+                      }),
+                    ]).start(() => {
+                      setTaskModalVisible(false);
+                      setIsReplayMode(false);
+                    });
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.finishButtonText}>Close</Text>
                 </TouchableOpacity>
               </View>
             ) : (
