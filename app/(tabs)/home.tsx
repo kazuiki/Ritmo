@@ -9,6 +9,7 @@ import { miniGames } from "../../constants/minigames";
 import { Audio } from "expo-av";
 import { router } from "expo-router";
 import { Animated, Easing, Image, ImageBackground, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -43,6 +44,7 @@ export default function Home() {
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
+  const insets = useSafeAreaInsets();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
@@ -1228,58 +1230,40 @@ export default function Home() {
       {/* Task Modal - Popup Dialog */}
       <Modal
         visible={taskModalVisible}
-        animationType="none"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => {
-          Animated.parallel([
-            Animated.timing(taskOpacity, {
-              toValue: 0,
-              duration: 200,
-              easing: Easing.in(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(taskScale, {
-              toValue: 0,
-              duration: 200,
-              easing: Easing.in(Easing.back(1.2)),
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            setTaskModalVisible(false);
-          });
+          setTaskModalVisible(false);
         }}
       >
-        <Animated.View style={[styles.taskOverlay, { opacity: taskOpacity }]}>
-          <Animated.View style={[styles.taskDialog, !activePreset && styles.taskDialogSmall, { transform: [{ scale: taskScale }] }]}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={styles.termsModalOverlay}>
+          <View style={[
+            styles.termsModalContainer,
+            { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
+          ]}>
             {/* Header - Hide for no-preset */}
             {activePreset && (
-              <View style={styles.taskDialogHeader}>
+              <View style={styles.termsBackButton}>
                 <TouchableOpacity onPress={() => {
-                  Animated.parallel([
-                    Animated.timing(taskOpacity, {
-                      toValue: 0,
-                      duration: 200,
-                      easing: Easing.in(Easing.ease),
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(taskScale, {
-                      toValue: 0,
-                      duration: 200,
-                      easing: Easing.in(Easing.back(1.2)),
-                      useNativeDriver: true,
-                    }),
-                  ]).start(() => {
-                    setTaskModalVisible(false);
-                    setIsReplayMode(false);
-                  });
+                  setTaskModalVisible(false);
+                  setIsReplayMode(false);
                 }}>
-                  <Text style={styles.backText}>Back</Text>
+                  <Text style={styles.termsBackButtonText}>Back</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* Body content */}
-            <View style={[styles.taskDialogContent, !activePreset && styles.taskDialogContentCompact]}>
+            <ScrollView 
+              style={styles.termsScrollView}
+              contentContainerStyle={[
+                styles.termsScrollContent,
+                { paddingBottom: scaleSpacing(12) }
+              ]}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={[styles.taskDialogContent, !activePreset && styles.taskDialogContentCompact]}>
               {activePreset ? (
                 <>
                   <TouchableOpacity 
@@ -1335,7 +1319,8 @@ export default function Home() {
                   <Text style={styles.noPresetMessage}>Do you want to {"\n"} finish this task?</Text>
                 </View>
               )}
-            </View>
+              </View>
+            </ScrollView>
 
             {/* Footer - Different layouts for preset vs no-preset */}
             {activePreset ? (
@@ -1355,26 +1340,11 @@ export default function Home() {
                       setSuccessModalVisible(true);
                       setShowRainingStars(true);
                     }
-                    Animated.parallel([
-                      Animated.timing(taskOpacity, {
-                        toValue: 0,
-                        duration: 200,
-                        easing: Easing.in(Easing.ease),
-                        useNativeDriver: true,
-                      }),
-                      Animated.timing(taskScale, {
-                        toValue: 0,
-                        duration: 200,
-                        easing: Easing.in(Easing.back(1.2)),
-                        useNativeDriver: true,
-                      }),
-                    ]).start(() => {
-                      setTaskModalVisible(false);
-                      if (!isNoPresetFlow) {
-                        setActiveRoutineId(null);
-                      }
-                      setIsReplayMode(false);
-                    });
+                    setTaskModalVisible(false);
+                    if (!isNoPresetFlow) {
+                      setActiveRoutineId(null);
+                    }
+                    setIsReplayMode(false);
                   }} 
                   activeOpacity={0.9}
                 >
@@ -1386,23 +1356,8 @@ export default function Home() {
                 <TouchableOpacity
                   style={styles.backButtonNoPreset}
                   onPress={() => {
-                    Animated.parallel([
-                      Animated.timing(taskOpacity, {
-                        toValue: 0,
-                        duration: 200,
-                        easing: Easing.in(Easing.ease),
-                        useNativeDriver: true,
-                      }),
-                      Animated.timing(taskScale, {
-                        toValue: 0,
-                        duration: 200,
-                        easing: Easing.in(Easing.back(1.2)),
-                        useNativeDriver: true,
-                      }),
-                    ]).start(() => {
-                      setTaskModalVisible(false);
-                      setIsReplayMode(false);
-                    });
+                    setTaskModalVisible(false);
+                    setIsReplayMode(false);
                   }}
                   activeOpacity={0.9}
                 >
@@ -1413,23 +1368,8 @@ export default function Home() {
                   onPress={() => {
                     setSuccessModalVisible(true);
                     setShowRainingStars(true);
-                    Animated.parallel([
-                      Animated.timing(taskOpacity, {
-                        toValue: 0,
-                        duration: 200,
-                        easing: Easing.in(Easing.ease),
-                        useNativeDriver: true,
-                      }),
-                      Animated.timing(taskScale, {
-                        toValue: 0,
-                        duration: 200,
-                        easing: Easing.in(Easing.back(1.2)),
-                        useNativeDriver: true,
-                      }),
-                    ]).start(() => {
-                      setTaskModalVisible(false);
-                      setIsReplayMode(false);
-                    });
+                    setTaskModalVisible(false);
+                    setIsReplayMode(false);
                   }} 
                   activeOpacity={0.9}
                 >
@@ -1437,8 +1377,9 @@ export default function Home() {
                 </TouchableOpacity>
               </View>
             )}
-          </Animated.View>
-        </Animated.View>
+          </View>
+        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Completed Tasks - See All Modal */}
@@ -2108,7 +2049,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   taskDialog: {
     width: "100%",
-    height: "95%",
+    maxHeight: "85%",
     backgroundColor: "#E8FFFA",
     borderRadius: scale.scaleBorderRadius(15),
     borderWidth: 3,
@@ -2166,9 +2107,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: scale.scaleSpacing(20),
-    paddingVertical: scale.scaleSpacing(10),
-    gap: scale.scaleSpacing(-20),
-    marginTop: scale.scaleSpacing(-70),
+    paddingVertical: scale.scaleSpacing(-10),
+    gap: scale.scaleSpacing(-10),
+    marginTop: 0,
   },
   taskDialogContentCompact: {
     marginTop: 0,
@@ -2281,7 +2222,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   taskImage: {
     width: scale.scaleWidth(250),
     height: scale.scaleHeight(250),
-    marginBottom: scale.scaleSpacing(-65),
+    marginBottom: scale.scaleSpacing(-20),
   },
   taskBlockLabel: {
     fontSize: scale.scaleFont(24),
@@ -2327,6 +2268,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
+    padding: scale.scaleSpacing(20),
   },
   alertModalContainer: {
     backgroundColor: "#FFFFFF",
@@ -2334,6 +2276,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     padding: scale.scaleSpacing(18),
     width: "82%",
     maxWidth: scale.scaleWidth(420),
+    maxHeight: "70%",
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: scale.scaleHeight(4) },
@@ -2651,6 +2594,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: scale.scaleSpacing(20),
   },
   modalBackground: {
     flex: 1,
@@ -2678,6 +2622,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     elevation: 12,
     width: "90%",
     maxWidth: scale.scaleWidth(350),
+    maxHeight: "70%",
   },
   lockIconContainer: {
     marginBottom: scale.scaleSpacing(20),
@@ -2789,6 +2734,53 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(16),
     fontWeight: "600",
     color: "#666",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  // Modal styles for task and instruction modals
+  modalSafeArea: {
+    flex: 1,
+  },
+  termsModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: scale.scaleSpacing(20),
+  },
+  termsModalContainer: {
+    backgroundColor: "#F0F9F7",
+    borderRadius: scale.scaleBorderRadius(24),
+    width: "100%",
+    height: "100%",
+    borderWidth: 3,
+    borderColor: "#61CCB2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 10,
+  },
+  termsScrollView: {
+    flex: 1,
+    marginTop: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(20),
+  },
+  termsScrollContent: {
+    paddingBottom: scale.scaleSpacing(5),
+  },
+  termsBackButton: {
+    position: "absolute",
+    top: scale.scaleSpacing(5),
+    left: scale.scaleSpacing(10),
+    zIndex: 10,
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(4),
+  },
+  termsBackButtonText: {
+    fontSize: scale.scaleFont(18),
+    color: "#2A3B4D",
+    fontWeight: "600",
+    textDecorationLine: "underline",
     fontFamily: "Fredoka_600SemiBold",
   },
 }));

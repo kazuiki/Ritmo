@@ -4,8 +4,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ResponsiveBackButton } from '../src/components/ResponsiveBackButton';
+import { ResponsiveSafeArea } from '../src/components/ResponsiveSafeArea';
+import { useResponsiveDimensions } from '../src/utils/responsive';
 
 export default function TermsAndConditions() {
+  const { scaleFont, scaleSpacing, scaleWidth, scaleHeight } = useResponsiveDimensions();
+  const insets = useSafeAreaInsets();
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
   const [declineModalVisible, setDeclineModalVisible] = useState(false);
   const [fontsLoaded] = useFonts({
@@ -36,22 +42,24 @@ export default function TermsAndConditions() {
   if (!fontsLoaded) return null;
 
   return (
-    <View style={styles.termsModalOverlay}>
-      {/* Background Image */}
-      <Image source={require('../assets/background.png')} style={styles.backgroundImage} resizeMode="cover" />
+    <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.termsModalOverlay}>
+        {/* Background Image */}
+        <Image source={require('../assets/background.png')} style={styles.backgroundImage} resizeMode="cover" />
 
-      <View style={styles.termsModalContainer}>
-        {/* Back Button */}
-        <TouchableOpacity style={styles.termsBackButton} onPress={() => {
-          if (router.canGoBack()) {
-            router.back();
-          }
-        }}>
-          <Text style={styles.termsBackButtonText}>Back</Text>
-        </TouchableOpacity>
+        <View style={styles.termsModalContainer}>
+          {/* Back Button */}
+          <ResponsiveBackButton />
 
         {/* Scrollable Content */}
-        <ScrollView style={styles.termsScrollView} contentContainerStyle={styles.termsScrollContent} showsVerticalScrollIndicator={true}>
+        <ScrollView
+          style={styles.termsScrollView}
+          contentContainerStyle={[
+            styles.termsScrollContent,
+            { paddingBottom: scaleSpacing(24) + insets.bottom }
+          ]}
+          showsVerticalScrollIndicator={true}
+        >
           <Text style={styles.termsTitle}>Terms & Conditions</Text>
           <Text style={styles.termsSubtitle}>Last updated on November 2025</Text>
 
@@ -294,7 +302,8 @@ export default function TermsAndConditions() {
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </ResponsiveSafeArea>
   );
 }
 

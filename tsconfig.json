@@ -17,7 +17,6 @@
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": false,
-    
     "paths": {
       "@/*": [
         "./*"

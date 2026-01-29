@@ -2,18 +2,19 @@ import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fon
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
 
@@ -73,6 +74,7 @@ const PAGES = [
 
 export default function InstructionPage() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [currentPage, setCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -133,7 +135,13 @@ export default function InstructionPage() {
 
   const renderPage = (page: typeof PAGES[0]) => {
     return (
-      <View key={page.id} style={styles.pageContainer}>
+      <View
+        key={page.id}
+        style={[
+          styles.pageContainer,
+          { paddingBottom: Math.max(height * 0.18, 140) + insets.bottom }
+        ]}
+      >
         {/* Image Section */}
         <View style={styles.imageContainer}>
           {page.images ? (
@@ -160,7 +168,12 @@ export default function InstructionPage() {
 
         {/* Video Button (anchored for consistent alignment) */}
         {page.showButton && (
-          <View style={styles.videoButtonWrapper}>
+          <View
+            style={[
+              styles.videoButtonWrapper,
+              { bottom: Math.max(height * 0.18, 120) + insets.bottom }
+            ]}
+          >
             <TouchableOpacity style={styles.videoButton} onPress={handleVideoButton}>
               <Image
                 source={require("../assets/images/WhitePlay.png")}
@@ -176,14 +189,15 @@ export default function InstructionPage() {
   };
 
   return (
-    <ImageBackground
-      source={require("../assets/background.png")}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <View style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#E8FFFA' }} edges={['top', 'left', 'right', 'bottom']}>
+      <ImageBackground
+        source={require("../assets/background.png")}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <View style={styles.container}>
         {/* Header with Back and Next */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           {currentPage > 0 && (
             <TouchableOpacity style={styles.headerButton} onPress={handleBack}>
               <Text style={styles.headerButtonText}>Back</Text>
@@ -214,7 +228,7 @@ export default function InstructionPage() {
         </ScrollView>
 
         {/* Pagination Dots */}
-        <View style={styles.pagination}>
+        <View style={[styles.pagination, { bottom: Math.max(16, insets.bottom + 12) }]}>
           {PAGES.map((_, index) => (
             <Animated.View
               key={index}
@@ -253,7 +267,8 @@ export default function InstructionPage() {
           </View>
         </ImageBackground>
       </Modal>
-    </ImageBackground>
+      </ImageBackground>
+    </SafeAreaView>
   );
 }
 

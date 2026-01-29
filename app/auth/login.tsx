@@ -22,6 +22,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
@@ -475,17 +476,18 @@ export default function Login() {
   const bubbleBase = bubbleBaseRef.current;
 
   return (
-    <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.outer} keyboardVerticalOffset={0}>
-        <Stack.Screen options={{ title: "Log in", headerShown: false }} />
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <TouchableWithoutFeedback onPress={togglePause}>
-            <View style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#E8FFFA' }} edges={['top', 'left', 'right']}>
+      <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.outer} keyboardVerticalOffset={0}>
+          <Stack.Screen options={{ title: "Log in", headerShown: false }} />
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <TouchableWithoutFeedback onPress={togglePause}>
+              <View style={styles.container}>
             {/* Animated bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -611,7 +613,8 @@ export default function Login() {
         visible={localNetworkFailure} 
         onRetry={handleLocalNetworkRetry} 
       />
-    </ImageBackground>
+      </ImageBackground>
+    </SafeAreaView>
   );
 }
 
