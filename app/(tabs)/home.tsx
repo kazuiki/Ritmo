@@ -949,6 +949,42 @@ export default function Home() {
     setPinError('');
   };
 
+  // Handler for completed task taps - go directly to playbook
+  const openCompletedTaskPlaybook = (routineId: number) => {
+    const routine = routines.find(r => r.id === routineId);
+    if (!routine) return;
+
+    const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+    if (!preset) {
+      // No preset available, show alert
+      setAlertMessage("No book guide available for this routine.");
+      setAlertModalVisible(true);
+      return;
+    }
+
+    const playbook = getPlaybookForPreset(preset.id);
+    if (!playbook) {
+      // No playbook available, show alert
+      setAlertMessage("No book guide available for this routine.");
+      setAlertModalVisible(true);
+      return;
+    }
+
+    // Open playbook directly in replay mode
+    setActiveRoutineId(routineId);
+    setIsReplayMode(true);
+    setCurrentStep(1);
+    setPlaybookModalVisible(true);
+
+    // Animate playbook slide-in
+    playbookSlideX.setValue(400);
+    Animated.timing(playbookSlideX, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
     <View style={{ flex: 1 }}>
       {/* Loading overlay to prevent flash when checking minigame completion */}
@@ -1056,27 +1092,7 @@ export default function Home() {
                     key={routine.id}
                     style={styles.completedItem}
                     activeOpacity={0.85}
-                    onPress={() => {
-                      setActiveRoutineId(routine.id);
-                      setIsReplayMode(true);
-                      taskOpacity.setValue(0);
-                      taskScale.setValue(0);
-                      setTaskModalVisible(true);
-                      Animated.parallel([
-                        Animated.timing(taskOpacity, {
-                          toValue: 1,
-                          duration: 250,
-                          easing: Easing.out(Easing.ease),
-                          useNativeDriver: true,
-                        }),
-                        Animated.timing(taskScale, {
-                          toValue: 1,
-                          duration: 250,
-                          easing: Easing.out(Easing.back(1.2)),
-                          useNativeDriver: true,
-                        }),
-                      ]).start();
-                    }}
+                    onPress={() => openCompletedTaskPlaybook(routine.id)}
                   >
                     <View style={styles.completedStripStars}>
                       <Text style={styles.completedStripStar}>⭐</Text>
@@ -1459,26 +1475,8 @@ export default function Home() {
                   style={styles.completedModalCard}
                   activeOpacity={0.85}
                   onPress={() => {
-                    setActiveRoutineId(routine.id);
-                    setIsReplayMode(true);
                     setCompletedModalVisible(false);
-                    taskOpacity.setValue(0);
-                    taskScale.setValue(0);
-                    setTaskModalVisible(true);
-                    Animated.parallel([
-                      Animated.timing(taskOpacity, {
-                        toValue: 1,
-                        duration: 250,
-                        easing: Easing.out(Easing.ease),
-                        useNativeDriver: true,
-                      }),
-                      Animated.timing(taskScale, {
-                        toValue: 1,
-                        duration: 250,
-                        easing: Easing.out(Easing.back(1.2)),
-                        useNativeDriver: true,
-                      }),
-                    ]).start();
+                    openCompletedTaskPlaybook(routine.id);
                   }}
                 >
                   <View style={styles.completedModalStars}>

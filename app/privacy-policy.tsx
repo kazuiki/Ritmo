@@ -338,21 +338,21 @@ const styles = StyleSheet.create({
   termsTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#244D4A',
+    color: '#2A3B4D',
     marginBottom: 6,
     textAlign: 'center',
     fontFamily: 'Fredoka_700Bold',
   },
   termsSubtitle: {
     fontSize: 14,
-    color: '#4A4A4A',
+    color: '#6B8E7E',
     marginBottom: 16,
     textAlign: 'center',
     fontFamily: 'Fredoka_500Medium',
   },
   termsText: {
     fontSize: 14,
-    color: '#244D4A',
+    color: '#2A3B4D',
     lineHeight: 20,
     marginBottom: 8,
     fontFamily: 'Fredoka_500Medium',
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   privacyAccordionHeader: {
     marginTop: 12,
     marginBottom: 6,
-    backgroundColor: '#2F7D73',
+    backgroundColor: '#C4DFE6',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
   privacyAccordionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#2A3B4D',
     fontFamily: 'Fredoka_700Bold',
   },
   privacyAccordionContent: {
