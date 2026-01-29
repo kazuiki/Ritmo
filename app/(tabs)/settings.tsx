@@ -1,28 +1,28 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  ImageBackground,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
@@ -586,8 +586,12 @@ export default function Settings() {
         visible={termsModalVisible}
         onRequestClose={() => setTermsModalVisible(false)}
       >
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.termsModalOverlay}>
-          <View style={styles.termsModalContainer}>
+          <View style={[
+            styles.termsModalContainer,
+            { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
+          ]}>
             {/* Back Button */}
             <TouchableOpacity 
               style={styles.termsBackButton}
@@ -599,7 +603,10 @@ export default function Settings() {
             {/* Scrollable Content */}
             <ScrollView 
               style={styles.termsScrollView}
-              contentContainerStyle={styles.termsScrollContent}
+              contentContainerStyle={[
+                styles.termsScrollContent,
+                { paddingBottom: scaleSpacing(12) }
+              ]}
               showsVerticalScrollIndicator={true}
             >
               <Text style={styles.termsTitle}>Terms & Conditions</Text>
@@ -734,6 +741,7 @@ export default function Settings() {
             </ScrollView>
           </View>
         </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Privacy Policy Modal */}
@@ -743,8 +751,12 @@ export default function Settings() {
         visible={privacyModalVisible}
         onRequestClose={() => setPrivacyModalVisible(false)}
       >
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.termsModalOverlay}>
-          <View style={styles.termsModalContainer}>
+          <View style={[
+            styles.termsModalContainer,
+            { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
+          ]}>
             {/* Back Button */}
             <TouchableOpacity 
               style={styles.termsBackButton}
@@ -756,7 +768,10 @@ export default function Settings() {
             {/* Scrollable Content */}
             <ScrollView 
               style={styles.termsScrollView}
-              contentContainerStyle={styles.termsScrollContent}
+              contentContainerStyle={[
+                styles.termsScrollContent,
+                { paddingBottom: scaleSpacing(12) }
+              ]}
               showsVerticalScrollIndicator={true}
             >
               <Text style={styles.termsTitle}>Privacy Policy</Text>
@@ -975,6 +990,7 @@ export default function Settings() {
             </ScrollView>
           </View>
         </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Instruction Modal */}
@@ -984,10 +1000,14 @@ export default function Settings() {
         visible={instructionModalVisible}
         onRequestClose={() => setInstructionModalVisible(false)}
       >
-        <View style={styles.instructionModalOverlay}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={styles.termsModalOverlay}>
           <ImageBackground
             source={require("../../assets/background.png")}
-            style={styles.instructionModalContainer}
+            style={[
+              styles.termsModalContainer,
+              { paddingTop: 0, paddingBottom: 0 }
+            ]}
             resizeMode="cover"
           >
             {/* Header with Back and Next */}
@@ -1020,8 +1040,16 @@ export default function Settings() {
               </TouchableOpacity>
             </View>
 
-            {/* Page Content */}
-            <View style={styles.instructionPageContainer}>
+            {/* Scrollable Content */}
+            <ScrollView 
+              style={styles.termsScrollView}
+              contentContainerStyle={[
+                styles.termsScrollContent,
+                { paddingBottom: scaleSpacing(12) }
+              ]}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.instructionPageContainer}>
               {/* Page 1: Ritmo for Autism */}
               {instructionCurrentPage === 0 && (
                 <>
@@ -1153,7 +1181,8 @@ export default function Settings() {
                   </TouchableOpacity>
                 </>
               )}
-            </View>
+              </View>
+            </ScrollView>
 
             {/* Pagination Dots */}
             <View style={styles.instructionPagination}>
@@ -1169,6 +1198,7 @@ export default function Settings() {
             </View>
           </ImageBackground>
         </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Video Modal */}
@@ -1354,6 +1384,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#FFFFFF",
   },
   // Modal styles
+  modalSafeArea: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -1809,7 +1842,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   termsModalContainer: {
     backgroundColor: "#F0F9F7",
     borderRadius: scale.scaleBorderRadius(24),
-    width: "105%",
+    width: "100%",
     height: "100%",
     borderWidth: 3,
     borderColor: "#61CCB2",
@@ -1818,6 +1851,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 10,
+    overflow: "hidden",
   },
   termsBackButton: {
     position: "absolute",
@@ -1836,7 +1870,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   termsScrollView: {
     flex: 1,
-    marginTop: scale.scaleSpacing(50),
     paddingHorizontal: scale.scaleSpacing(20),
   },
   termsScrollContent: {
@@ -2000,8 +2033,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   instructionModalContainer: {
     backgroundColor: "#F0F9F7",
     borderRadius: scale.scaleBorderRadius(24),
-    width: "105%",
+    width: "100%",
     height: "100%",
+    maxHeight: "100%",
     borderWidth: 3,
     borderColor: "#61CCB2",
     shadowColor: "#000",
@@ -2012,15 +2046,13 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     overflow: "hidden",
   },
   instructionHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    position: "relative",
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingTop: scale.scaleSpacing(20),
-    paddingHorizontal: 0,
+    alignItems: "center",
+    paddingTop: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(16),
+    paddingBottom: scale.scaleSpacing(8),
     zIndex: 10,
   },
   instructionHeaderButton: {
@@ -2038,8 +2070,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
     paddingHorizontal: scale.scaleSpacing(40),
-    paddingTop: scale.scaleSpacing(100),
-    paddingBottom: scale.scaleSpacing(120),
+    paddingTop: scale.scaleSpacing(80),
+    paddingBottom: scale.scaleSpacing(60),
   },
   instructionImageContainer: {
     height: scale.scaleHeight(250),
@@ -2061,7 +2093,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     height: scale.scaleHeight(150),
   },
   instructionTitle: {
-    fontSize: scale.scaleFont(32),
+    fontSize: scale.scaleFont(34),
     fontWeight: "700",
     color: "#2A3B4D",
     textAlign: "center",
@@ -2069,10 +2101,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
   instructionDescription: {
-    fontSize: scale.scaleFont(17),
+    fontSize: scale.scaleFont(18),
     color: "#2A3B4D",
     textAlign: "center",
-    lineHeight: scale.scaleHeight(26),
+    lineHeight: scale.scaleHeight(28),
     marginBottom: scale.scaleSpacing(35),
     fontFamily: "Fredoka_600SemiBold",
   },
@@ -2102,14 +2134,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
   instructionPagination: {
-    position: "absolute",
-    bottom: scale.scaleSpacing(40),
-    left: 0,
-    right: 0,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: scale.scaleSpacing(8),
+    paddingVertical: scale.scaleSpacing(8),
   },
   instructionDot: {
     width: scale.scaleWidth(10),

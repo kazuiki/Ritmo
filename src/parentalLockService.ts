@@ -11,13 +11,25 @@ const isAuthParseError = (error: unknown) => {
   );
 };
 
+const isNetworkError = (error: unknown) => {
+  if (!error) return false;
+  const message = (error as any)?.message;
+  const errorName = (error as any)?.name;
+  return (
+    (typeof message === 'string' && message.includes('Network request failed')) ||
+    (typeof message === 'string' && message.includes('fetch failed')) ||
+    errorName === 'AuthRetryableFetchError' ||
+    errorName === 'TypeError'
+  );
+};
+
 export const ParentalLockService = {
   // Check if parental lock is enabled
   async isEnabled(): Promise<boolean> {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
-        if (!isAuthParseError(error)) {
+        if (!isAuthParseError(error) && !isNetworkError(error)) {
           console.error('Error getting user:', error);
         }
         return false;
@@ -25,7 +37,9 @@ export const ParentalLockService = {
       // Check if parental_lock_enabled is set to true in user metadata
       return user.user_metadata?.parental_lock_enabled === true;
     } catch (error) {
-      console.error('Error checking parental lock status:', error);
+      if (!isNetworkError(error)) {
+        console.error('Error checking parental lock status:', error);
+      }
       return false;
     }
   },
@@ -37,10 +51,14 @@ export const ParentalLockService = {
         data: { parental_lock_enabled: enabled }
       });
       if (error) {
-        console.error('Error setting parental lock status:', error);
+        if (!isNetworkError(error)) {
+          console.error('Error setting parental lock status:', error);
+        }
       }
     } catch (error) {
-      console.error('Error setting parental lock status:', error);
+      if (!isNetworkError(error)) {
+        console.error('Error setting parental lock status:', error);
+      }
     }
   },
 
@@ -51,10 +69,14 @@ export const ParentalLockService = {
         data: { parental_pin: pin }
       });
       if (error) {
-        console.error('Error saving PIN:', error);
+        if (!isNetworkError(error)) {
+          console.error('Error saving PIN:', error);
+        }
       }
     } catch (error) {
-      console.error('Error saving PIN:', error);
+      if (!isNetworkError(error)) {
+        console.error('Error saving PIN:', error);
+      }
     }
   },
 
@@ -63,14 +85,16 @@ export const ParentalLockService = {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
-        if (!isAuthParseError(error)) {
+        if (!isAuthParseError(error) && !isNetworkError(error)) {
           console.error('Error getting user:', error);
         }
         return null;
       }
       return user.user_metadata?.parental_pin || null;
     } catch (error) {
-      console.error('Error getting saved PIN:', error);
+      if (!isNetworkError(error)) {
+        console.error('Error getting saved PIN:', error);
+      }
       return null;
     }
   },
@@ -81,7 +105,9 @@ export const ParentalLockService = {
       const savedPin = await this.getSavedPin();
       return savedPin === inputPin;
     } catch (error) {
-      console.error('Error verifying PIN:', error);
+      if (!isNetworkError(error)) {
+        console.error('Error verifying PIN:', error);
+      }
       return false;
     }
   },
@@ -92,7 +118,9 @@ export const ParentalLockService = {
       const savedPin = await this.getSavedPin();
       return savedPin !== null && savedPin !== '';
     } catch (error) {
-      console.error('Error checking PIN:', error);
+      if (!isNetworkError(error)) {
+        console.error('Error checking PIN:', error);
+      }
       return false;
     }
   }

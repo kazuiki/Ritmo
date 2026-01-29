@@ -1,9 +1,9 @@
 import {
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 

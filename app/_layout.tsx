@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ModeProvider } from "../src/contexts/ModeContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
@@ -31,13 +32,20 @@ export default function RootLayout() {
     networkListener = setupNetworkListener();
 
     const handleSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
+
+      if (sessionError) {
+        const isRefreshTokenError = /refresh token/i.test(sessionError.message);
+        if (isRefreshTokenError) {
+          await supabase.auth.signOut();
+        }
+      }
 
       // Check if user manually logged out previously
       const wasManualLogout = await LogoutService.isManualLogout();
 
-      if (!session || wasManualLogout) {
+      if (!session || wasManualLogout || sessionError) {
         // Clear manual logout flag if it was set
         if (wasManualLogout) {
           await LogoutService.clearManualLogout();
@@ -123,50 +131,52 @@ export default function RootLayout() {
   }, [pathname, segments]);
 
   return (
-    <ModeProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          // Smooth, platform-standard transitions
-          // Use a fade for consistency & avoid white flash between replaces
-          animation: 'fade',
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-          // Prevent white flash during transitions by keeping bg consistent
-          contentStyle: { backgroundColor: '#E8FFFA' },
-        }}
-      >
-        {/* Allow tabs group to manage its own header */}
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        {/* History list and weekly detail use the same smooth card push */}
-        <Stack.Screen
-          name="history"
-          options={{
+    <SafeAreaProvider>
+      <ModeProvider>
+        <Stack
+          screenOptions={{
             headerShown: false,
-            animation: 'none', // we handle custom slide animation inside the screen
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
+            // Smooth, platform-standard transitions
+            // Use a fade for consistency & avoid white flash between replaces
+            animation: 'fade',
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+            // Prevent white flash during transitions by keeping bg consistent
+            contentStyle: { backgroundColor: '#E8FFFA' },
           }}
-        />
-        <Stack.Screen
-          name="history/[week]"
-          options={{
-            headerShown: false,
-            animation: 'none', // custom animation handled internally
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-        {/* Auth and other routes inherit defaults */}
-      </Stack>
+        >
+          {/* Allow tabs group to manage its own header */}
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* History list and weekly detail use the same smooth card push */}
+          <Stack.Screen
+            name="history"
+            options={{
+              headerShown: false,
+              animation: 'none', // we handle custom slide animation inside the screen
+              gestureEnabled: false,
+              presentation: 'transparentModal',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          <Stack.Screen
+            name="history/[week]"
+            options={{
+              headerShown: false,
+              animation: 'none', // custom animation handled internally
+              gestureEnabled: false,
+              presentation: 'transparentModal',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          {/* Auth and other routes inherit defaults */}
+        </Stack>
 
-      {/* Global Network Failure Modal */}
-      <NetworkFailureModal 
-        visible={showNetworkFailureModal} 
-        onRetry={handleRetry} 
-      />
-    </ModeProvider>
+        {/* Global Network Failure Modal */}
+        <NetworkFailureModal 
+          visible={showNetworkFailureModal} 
+          onRetry={handleRetry} 
+        />
+      </ModeProvider>
+    </SafeAreaProvider>
   );
 }

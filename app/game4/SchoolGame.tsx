@@ -25,9 +25,8 @@ export default function SchoolGame() {
   const [lunchboxPlaced, setLunchboxPlaced] = useState(false);
   const [draggingBagItem, setDraggingBagItem] = useState<string | null>(null);
   const [school6AudioPlayed, setSchool6AudioPlayed] = useState(false);
-  const [school8AudioPlayed, setSchool8AudioPlayed] = useState(false);
-  const [school9AudioPlayed, setSchool9AudioPlayed] = useState(false);
-  const [school9Completed, setSchool9Completed] = useState(false);
+  const [school7AudioPlayed, setSchool7AudioPlayed] = useState(false);
+  const [school7Completed, setSchool7Completed] = useState(false);
   
   const cabinetOpacity = useRef(new Animated.Value(1)).current;
   const cabinet1Opacity = useRef(new Animated.Value(0)).current;
@@ -39,8 +38,7 @@ export default function SchoolGame() {
   const school5Opacity = useRef(new Animated.Value(0)).current;
   const school6Opacity = useRef(new Animated.Value(0)).current;
   const school5Page2Opacity = useRef(new Animated.Value(0)).current;
-  const school8Opacity = useRef(new Animated.Value(0)).current;
-  const school9Opacity = useRef(new Animated.Value(0)).current;
+  const school7Opacity = useRef(new Animated.Value(0)).current;
   
   const poloshirtOpacity = useRef(new Animated.Value(1)).current;
   const vestOpacity = useRef(new Animated.Value(1)).current;
@@ -107,8 +105,7 @@ export default function SchoolGame() {
   // Audio refs
   const bgSoundRef = useRef<Audio.Sound | null>(null);
   const school6SoundRef = useRef<Audio.Sound | null>(null);
-  const school8SoundRef = useRef<Audio.Sound | null>(null);
-  const school9SoundRef = useRef<Audio.Sound | null>(null);
+  const school7SoundRef = useRef<Audio.Sound | null>(null);
   const cabinetSoundRef = useRef<Audio.Sound | null>(null);
 
   // Victory transition animation
@@ -166,16 +163,11 @@ export default function SchoolGame() {
         school6SoundRef.current.unloadAsync().catch(() => {});
         school6SoundRef.current = null;
       }
-      if (school8SoundRef.current) {
-        school8SoundRef.current.stopAsync().catch(() => {});
-        school8SoundRef.current.unloadAsync().catch(() => {});
-        school8SoundRef.current = null;
-      }
-      if (school9SoundRef.current) {
-        school9SoundRef.current.setOnPlaybackStatusUpdate(null);
-        school9SoundRef.current.stopAsync().catch(() => {});
-        school9SoundRef.current.unloadAsync().catch(() => {});
-        school9SoundRef.current = null;
+      if (school7SoundRef.current) {
+        school7SoundRef.current.setOnPlaybackStatusUpdate(null);
+        school7SoundRef.current.stopAsync().catch(() => {});
+        school7SoundRef.current.unloadAsync().catch(() => {});
+        school7SoundRef.current = null;
       }
     };
   }, []);
@@ -579,7 +571,7 @@ export default function SchoolGame() {
     }
   }, [shoesPlaced, backgroundAnimationPlayed]);
 
-  // POP OUT BAG CONTAINERS AND TRANSITION TO SCHOOL8.GIF after all items are placed
+  // POP OUT BAG CONTAINERS AND TRANSITION TO SCHOOL7.GIF after all items are placed
   useEffect(() => {
     if (tumblerPlaced && notebookPlaced && pouchPlaced && lunchboxPlaced && bagContainersOpen) {
       // All items are placed! Close the bag containers with pop-out effect
@@ -612,7 +604,7 @@ export default function SchoolGame() {
           setBagContainersOpen(false);
           setBagContainersClosing(false);
 
-          // Wait 1 second, then transition from School5Page2 to School8Gif
+          // Wait 1 second, then transition from School5Page2 to School7Gif
           setTimeout(() => {
             Animated.parallel([
               // Fade out School5Page2
@@ -625,8 +617,8 @@ export default function SchoolGame() {
                   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
                 },
               }),
-              // Fade in School8Gif
-              Animated.timing(school8Opacity, {
+              // Fade in School7Gif
+              Animated.timing(school7Opacity, {
                 toValue: 1,
                 duration: 600,
                 useNativeDriver: false,
@@ -642,14 +634,14 @@ export default function SchoolGame() {
     }
   }, [tumblerPlaced, notebookPlaced, pouchPlaced, lunchboxPlaced, bagContainersOpen]);
 
-  // FADE OUT BAG.PNG 2 seconds after School8.gif starts
+  // FADE OUT BAG.PNG 1 second after School7.gif starts
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     
-    // Check if School8 is visible (opacity > 0)
-    school8Opacity.addListener(({ value }) => {
+    // Check if School7 is visible (opacity > 0)
+    school7Opacity.addListener(({ value }) => {
       if (value > 0.5) {
-        // School8 is showing, start the 1-second timer
+        // School7 is showing, start the 1-second timer
         timeoutId = setTimeout(() => {
           Animated.timing(bagOpacity, {
             toValue: 0,
@@ -660,14 +652,14 @@ export default function SchoolGame() {
               return 1 - Math.pow(1 - t, 3);
             },
           }).start();
-        }, 1000); // 1 second after School8 is visible
+        }, 1000); // 1 second after School7 is visible
       }
     });
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [school8Opacity, bagOpacity]);
+  }, [school7Opacity, bagOpacity]);
 
   // Play School6.mp3 when School6.gif appears
   useEffect(() => {
@@ -694,71 +686,46 @@ export default function SchoolGame() {
     };
   }, [school6Opacity, school6AudioPlayed]);
 
-  // Play School8.mp3 when School8.gif appears
+  // Play School7.mp3 when School7.gif appears
   useEffect(() => {
-    const listenerId = school8Opacity.addListener(({ value }) => {
-      if (value > 0.5 && !school8AudioPlayed) {
-        setSchool8AudioPlayed(true);
-        // School8 is visible, play School8.mp3
+    const listenerId = school7Opacity.addListener(({ value }) => {
+      if (value > 0.5 && !school7AudioPlayed) {
+        setSchool7AudioPlayed(true);
+        setSchool7Completed(false);
+        // School7 is visible, play School7.mp3
         (async () => {
           try {
             const { sound } = await Audio.Sound.createAsync(
-              require('./SchoolGame/School8.mp3'),
-              { shouldPlay: true, volume: 1.0 }
-            );
-            school8SoundRef.current = sound;
-          } catch (error) {
-            console.warn('Failed to play School8 audio', error);
-          }
-        })();
-      }
-    });
-
-    return () => {
-      school8Opacity.removeListener(listenerId);
-    };
-  }, [school8Opacity, school8AudioPlayed]);
-
-  // Play School9.mp3 when School9.gif appears
-  useEffect(() => {
-    const listenerId = school9Opacity.addListener(({ value }) => {
-      if (value > 0.5 && !school9AudioPlayed) {
-        setSchool9AudioPlayed(true);
-        setSchool9Completed(false);
-        // School9 is visible, play School9.mp3
-        (async () => {
-          try {
-            const { sound } = await Audio.Sound.createAsync(
-              require('./SchoolGame/School9.mp3'),
+              require('./SchoolGame/School7.mp3'),
               { shouldPlay: false, volume: 1.0 }
             );
-            school9SoundRef.current = sound;
+            school7SoundRef.current = sound;
 
             sound.setOnPlaybackStatusUpdate((status) => {
               if (status.isLoaded && status.didJustFinish) {
-                setSchool9Completed(true);
+                setSchool7Completed(true);
               }
             });
 
             await sound.playAsync().catch(() => {
-              setSchool9Completed(true);
+              setSchool7Completed(true);
             });
           } catch (error) {
-            console.warn('Failed to play School9 audio', error);
-            setSchool9Completed(true);
+            console.warn('Failed to play School7 audio', error);
+            setSchool7Completed(true);
           }
         })();
       }
     });
 
     return () => {
-      school9Opacity.removeListener(listenerId);
+      school7Opacity.removeListener(listenerId);
     };
-  }, [school9Opacity, school9AudioPlayed]);
+  }, [school7Opacity, school7AudioPlayed]);
 
-  // Success scene after School9 finishes playing
+  // Success scene after School7 finishes playing
   useEffect(() => {
-    if (!school9Completed) return;
+    if (!school7Completed) return;
 
     const handleCompletion = async () => {
       if (bgSoundRef.current) {
@@ -788,43 +755,7 @@ export default function SchoolGame() {
     };
 
     handleCompletion();
-  }, [bgSoundRef, router, school9Completed, victoryOpacity, victoryScale]);
-
-  // Crossfade: School8 fades out while School9 fades in
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const listenerId = school8Opacity.addListener(({ value }) => {
-      if (value > 0.9) {
-        // School8 is fully visible; start a timer then crossfade to School9
-        if (timeoutId) clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          Animated.parallel([
-            Animated.timing(school8Opacity, {
-              toValue: 0,
-              duration: 700,
-              useNativeDriver: false,
-              easing: (t) => {
-                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-              },
-            }),
-            Animated.timing(school9Opacity, {
-              toValue: 1,
-              duration: 700,
-              useNativeDriver: false,
-              easing: (t) => {
-                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-              },
-            }),
-          ]).start();
-        }, 4000); // allow School8 to play, then crossfade to School9
-      }
-    });
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      school8Opacity.removeListener(listenerId);
-    };
-  }, [school8Opacity, school9Opacity]);
+  }, [bgSoundRef, router, school7Completed, victoryOpacity, victoryScale]);
 
   // COLLISION DETECTION FOR CLOTHING ITEMS
   const checkCollisionWithBoy = (itemX: number, itemY: number, itemSize: number): boolean => {
@@ -1466,26 +1397,9 @@ export default function SchoolGame() {
         />
       </Animated.View>
       
-      <Animated.View pointerEvents="none" style={[styles.school8Gif, { opacity: school8Opacity }]}>
+      <Animated.View pointerEvents="none" style={[styles.schoolGif, { opacity: school7Opacity }]}>
         <Animated.Image 
-          source={require('./SchoolGame/School8.gif')} 
-          style={{ width: '100%', height: '100%' }} 
-          resizeMode="contain"
-        />
-      </Animated.View>
-
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.school9Gif,
-          {
-            transform: [{ translateX: bgScrollX }],
-            opacity: school9Opacity,
-          },
-        ]}
-      >
-        <Animated.Image 
-          source={require('./SchoolGame/School9.gif')} 
+          source={require('./SchoolGame/School7.gif')} 
           style={{ width: '100%', height: '100%' }} 
           resizeMode="contain"
         />
@@ -1770,20 +1684,6 @@ const styles = StyleSheet.create({
     left: SCREEN_WIDTH * 1.60,
     width: SCREEN_WIDTH * 0.430,
     height: SCREEN_HEIGHT * 0.430,
-  },
-  school8Gif: { 
-    position: 'absolute', 
-    bottom: -395, 
-    right: -175, 
-    width: SCREEN_WIDTH * 1.8, 
-    height: SCREEN_HEIGHT * 1.8 
-  },
-  school9Gif: {
-    position: 'absolute',
-    bottom: -393,
-    left: SCREEN_WIDTH * 0.68,
-    width: SCREEN_WIDTH * 1.80,
-    height: SCREEN_HEIGHT * 1.80,
   },
   bag: { 
     position: 'absolute', 
