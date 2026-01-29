@@ -574,14 +574,8 @@ export default function SignUp() {
                 >
                   {agreed && <View style={styles.checkboxInner} />}
                 </TouchableOpacity>
-                <Text style={styles.agreeText}> by signing up you agree to our </Text>
-                <TouchableOpacity onPress={() => router.push('/terms&conditions')}>
-                  <Text style={styles.linkInline}>terms and conditions</Text>
-                </TouchableOpacity>
-                <Text style={styles.agreeText}> and </Text>
-                <TouchableOpacity onPress={() => router.push('/privacy-policy')}>
-                  <Text style={styles.linkInline}>privacy policy</Text>
-                </TouchableOpacity>
+                <Text style={styles.agreeText}> by signing up you agree to our terms and conditions </Text>
+                <Text style={styles.agreeText}>and privacy policy</Text>
               </View>
 
               {/* Animated Create Account button */}
