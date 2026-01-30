@@ -428,7 +428,7 @@ export default function Login() {
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
                 if (!childName) {
-                  router.replace('/instruction');
+                  router.replace('/privacy-policy');
                 } else {
                   navigateToGreetingsWithNetworkCheck(router);
                 }
@@ -524,7 +524,7 @@ export default function Login() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here"
+                placeholder="Enter email here:"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -536,7 +536,7 @@ export default function Login() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here"
+                  placeholder="Enter password here:"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
