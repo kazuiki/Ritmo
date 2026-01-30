@@ -35,25 +35,15 @@ export default function SignUp() {
   const [sentVerificationCode, setSentVerificationCode] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // ✅ new state
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    minLength: false,
-    hasNumber: false,
-    hasUppercase: false,
-    hasLowercase: false,
-    hasSpecial: false,
-    noSpaces: false,
-  });
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // ✅ new toggle
   const [loading, setLoading] = useState(false);
   const [paused, setPaused] = useState(false);
   const [confirmEmailModalVisible, setConfirmEmailModalVisible] = useState(false);
   const [fillFieldsModalVisible, setFillFieldsModalVisible] = useState(false);
   const [passwordMismatchModalVisible, setPasswordMismatchModalVisible] = useState(false);
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
-  const [invalidEmailModalVisible, setInvalidEmailModalVisible] = useState(false);
-  const [weakPasswordModalVisible, setWeakPasswordModalVisible] = useState(false);
   const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState("");
   const [verificationErrorModalVisible, setVerificationErrorModalVisible] = useState(false);
@@ -97,13 +87,9 @@ export default function SignUp() {
   }, []);
 
   // Restore saved inputs when returning to an already-mounted screen (after Privacy/Terms)
-  const hasRestoredRef = useRef(false);
   useFocusEffect(
     (() => {
       const restoreIfMounted = async () => {
-        // Only restore once after mounting, not every focus
-        if (hasRestoredRef.current) return;
-        
         try {
           const savedEmail = await AsyncStorage.getItem('@signupEmail');
           const savedPassword = await AsyncStorage.getItem('@signupPassword');
@@ -113,7 +99,6 @@ export default function SignUp() {
           if (savedPassword) setPassword(savedPassword);
           if (savedConfirm) setConfirmPassword(savedConfirm);
           if (savedVerificationCode) setVerificationCode(savedVerificationCode);
-          hasRestoredRef.current = true;
         } catch {}
       };
       restoreIfMounted();
@@ -249,47 +234,6 @@ export default function SignUp() {
     }
   };
 
-  // === Email Validation ===
-  const validateEmail = (email: string): boolean => {
-    return email.toLowerCase().endsWith('@gmail.com');
-  };
-
-  // === Password Validation with Details ===
-  const validatePasswordDetails = (password: string) => {
-    const requirements = {
-      minLength: password.length >= 8,
-      hasNumber: /[0-9]/.test(password),
-      hasUppercase: /[A-Z]/.test(password),
-      hasLowercase: /[a-z]/.test(password),
-      hasSpecial: /[!@#$%^&*()_+]/.test(password),
-      noSpaces: !/\s/.test(password),
-    };
-    return requirements;
-  };
-
-  // === Password Validation ===
-  const validatePassword = (password: string): { isValid: boolean; message?: string } => {
-    if (password.length < 8) {
-      return { isValid: false, message: 'Password must be at least 8 characters long' };
-    }
-    if (!/[A-Z]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 uppercase letter' };
-    }
-    if (!/[a-z]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 lowercase letter' };
-    }
-    if (!/[0-9]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 number' };
-    }
-    if (!/[!@#$%^&*()_+]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 special character (!@#$%^&*()_+)' };
-    }
-    if (/\s/.test(password)) {
-      return { isValid: false, message: 'Password must not contain spaces' };
-    }
-    return { isValid: true };
-  };
-
   // === Create Account Handler (Step 1: Send Verification Code) ===
   const handleCreateAccount = async () => {
     if (!email || !password || !confirmPassword) {
@@ -297,17 +241,8 @@ export default function SignUp() {
       return;
     }
 
-    // Validate email format
-    if (!validateEmail(email)) {
-      setInvalidEmailModalVisible(true);
-      return;
-    }
-
-    // Validate password strength
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      setEmailErrorMessage(passwordValidation.message || 'Invalid password');
-      setWeakPasswordModalVisible(true);
+    if (password.length < 6) {
+      setPasswordLengthModalVisible(true);
       return;
     }
 
@@ -486,7 +421,7 @@ export default function SignUp() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here"
+                placeholder="Enter email here:"
                 placeholderTextColor="#888"
                 value={email}
                 onChangeText={setEmail}
@@ -498,13 +433,10 @@ export default function SignUp() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here"
+                  placeholder="Enter password here:"
                   placeholderTextColor="#888"
                   value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setPasswordRequirements(validatePasswordDetails(text));
-                  }}
+                  onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
@@ -524,7 +456,7 @@ export default function SignUp() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Re-enter password"
+                  placeholder="Re-enter password:"
                   placeholderTextColor="#888"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -548,27 +480,22 @@ export default function SignUp() {
               {/* Agreement checkbox + text */}
               <View style={styles.agreeRow}>
                 <TouchableOpacity
-                  onPress={async () => {
-                    if (!agreed) {
-                      // Require fields filled before proceeding to Terms
-                      if (!email || !password || !confirmPassword) {
-                        setCompleteDetailsModalVisible(true);
-                        return;
-                      }
-                      // Persist current inputs so they are restored after returning
-                      await AsyncStorage.multiSet([
-                        ['@signupEmail', email],
-                        ['@signupPassword', password],
-                        ['@signupConfirm', confirmPassword],
-                        ['@termsAccepted', 'false'],
-                      ]).catch(() => {});
-                      // Open Privacy Policy first, then Terms
-                      router.push('/privacy-policy');
-                    } else {
-                      // Uncheck if already checked
-                      setAgreed(false);
-                      AsyncStorage.setItem('@termsAccepted', 'false').catch(() => {});
+                  onPress={() => {
+                    // Require fields filled before proceeding to Terms
+                    if (!email || !password || !confirmPassword) {
+                      setCompleteDetailsModalVisible(true);
+                      return;
                     }
+                    // Persist current inputs so they are restored after returning
+                    AsyncStorage.multiSet([
+                      ['@signupEmail', email],
+                      ['@signupPassword', password],
+                      ['@signupConfirm', confirmPassword],
+                      ['@termsAccepted', 'false'],
+                    ]).catch(() => {});
+                    setAgreed(false);
+                    // Open Privacy Policy first, then Terms
+                    router.push('/policy');
                   }}
                   style={[styles.checkbox, agreed && styles.checkboxChecked]}
                 >
@@ -576,6 +503,14 @@ export default function SignUp() {
                 </TouchableOpacity>
                 <Text style={styles.agreeText}> by signing up you agree to our terms and conditions </Text>
                 <Text style={styles.agreeText}>and privacy policy</Text>
+                <Text style={styles.agreeText}> by signing up you agree to our </Text>
+                <TouchableOpacity onPress={() => router.push('/terms')}>
+                  <Text style={styles.linkInline}>terms and conditions</Text>
+                </TouchableOpacity>
+                <Text style={styles.agreeText}> and </Text>
+                <TouchableOpacity onPress={() => router.push('/policy')}>
+                  <Text style={styles.linkInline}>privacy policy</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Animated Create Account button */}
@@ -703,120 +638,6 @@ export default function SignUp() {
             <TouchableOpacity
               style={styles.errorOkButton}
               onPress={() => setPasswordMismatchModalVisible(false)}
-            >
-              <Text style={styles.errorOkButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Invalid Email Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={invalidEmailModalVisible}
-        onRequestClose={() => setInvalidEmailModalVisible(false)}
-      >
-        <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
-              <Image
-                source={require("../../assets/images/Error.png")}
-                style={styles.errorIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.errorModalTitle}>Invalid Email</Text>
-            <Text style={styles.errorModalMessage}>
-              Please use a valid Gmail address (@gmail.com)
-            </Text>
-            <TouchableOpacity
-              style={styles.errorOkButton}
-              onPress={() => setInvalidEmailModalVisible(false)}
-            >
-              <Text style={styles.errorOkButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Weak Password Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={weakPasswordModalVisible}
-        onRequestClose={() => setWeakPasswordModalVisible(false)}
-      >
-        <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
-              <Image
-                source={require("../../assets/images/Error.png")}
-                style={styles.errorIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.errorModalTitle}>Weak Password</Text>
-            <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 8, marginBottom: 8 }}>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.minLength ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must be at least 8 characters!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasNumber ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 number!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasUppercase ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 uppercase!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasLowercase ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 lowercase!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasSpecial ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 special character!
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.errorOkButton}
-              onPress={() => setWeakPasswordModalVisible(false)}
             >
               <Text style={styles.errorOkButtonText}>OK</Text>
             </TouchableOpacity>
@@ -1508,18 +1329,5 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontWeight: "600",
     fontSize: scale.scaleFont(12),
     fontFamily: "Fredoka_400Regular",
-  },
-  requirementRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: scale.scaleSpacing(8),
-  },
-  requirementIcon: {
-    marginRight: scale.scaleSpacing(8),
-  },
-  requirementText: {
-    fontSize: scale.scaleFont(12),
-    fontFamily: "Fredoka_400Regular",
-    flex: 1,
   },
 }));
