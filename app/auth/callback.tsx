@@ -101,6 +101,7 @@ export default function AuthCallback() {
 
     const completeOAuth = async () => {
       try {
+        // If already authenticated, route immediately
         const { data: existing } = await supabase.auth.getSession();
         if (existing.session) {
           const { data: userData } = await supabase.auth.getUser();
@@ -128,6 +129,7 @@ export default function AuthCallback() {
           }
         });
 
+        // As a final guard, if nothing is handled within a reasonable time, show failure
         setTimeout(async () => {
           const { data: retrySession } = await supabase.auth.getSession();
           if (retrySession.session) {
