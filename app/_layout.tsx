@@ -1,10 +1,11 @@
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
-import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from "react";
 import { Alert, BackHandler, Platform } from "react-native";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ModeProvider } from "../src/contexts/ModeContext";
+import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
@@ -157,47 +158,54 @@ export default function RootLayout() {
   }, [pathname, segments]);
 
   return (
-    <ModeProvider>
-      <StatusBar hidden={true} />
+    <SafeAreaProvider>
+      <ModeProvider>
+        <OnboardingProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              // Smooth, platform-standard transitions
+              // Use a fade for consistency & avoid white flash between replaces
+              animation: 'fade',
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+              // Prevent white flash during transitions by keeping bg consistent
+              contentStyle: { backgroundColor: '#E8FFFA' },
+            }}
+          >
+            {/* Allow tabs group to manage its own header */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            {/* History list and weekly detail use the same smooth card push */}
+            <Stack.Screen
+              name="history"
+              options={{
+                headerShown: false,
+                animation: 'none', // we handle custom slide animation inside the screen
+                gestureEnabled: false,
+                presentation: 'transparentModal',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            <Stack.Screen
+              name="history/[week]"
+              options={{
+                headerShown: false,
+                animation: 'none', // custom animation handled internally
+                gestureEnabled: false,
+                presentation: 'transparentModal',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            {/* Auth and other routes inherit defaults */}
+          </Stack>
 
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'fade',
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-          contentStyle: { backgroundColor: '#E8FFFA' },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-        <Stack.Screen
-          name="history"
-          options={{
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-
-        <Stack.Screen
-          name="history/[week]"
-          options={{
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-      </Stack>
-
-      <NetworkFailureModal
-        visible={showNetworkFailureModal}
-        onRetry={handleRetry}
-      />
-    </ModeProvider>
+          {/* Global Network Failure Modal */}
+          <NetworkFailureModal 
+            visible={showNetworkFailureModal} 
+            onRetry={handleRetry} 
+          />
+        </OnboardingProvider>
+      </ModeProvider>
+    </SafeAreaProvider>
   );
 }
