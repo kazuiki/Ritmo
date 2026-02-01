@@ -1,3 +1,5 @@
+// app/game2/EatingGame.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'expo-asset';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
@@ -6,9 +8,115 @@ import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableO
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// PRE-LOAD ALL IMAGES AS CONSTANTS - Prevents glitching and ensures instant loading
+const IMAGES = {
+  // Background and child states
+  eatBG: require('./EatGame/EatBG.png'),
+  eat1: require('./EatGame/Eat1.png'),
+  eat2: require('./EatGame/Eat2.png'),
+  eat3: require('./EatGame/Eat3.gif'),
+  eat4: require('./EatGame/Eat4.gif'),
+  higop: require('./EatGame/Higop.gif'),
+  
+  // Food items
+  plate: require('./EatGame/Plate.png'),
+  rice: require('./EatGame/Rice.png'),
+  chicken: require('./EatGame/Chicken.png'),
+  vegi: require('./EatGame/Vegi.png'),
+  water: require('./EatGame/Water.png'),
+  water1: require('./EatGame/Water1.png'),
+} as const;
+
+// PRE-LOAD ALL SOUNDS AS CONSTANTS - Ensures instant audio loading without internet
+const SOUNDS = {
+  nguya: require('./EatGame/Nguya(Updated).mp3'),
+  higop: require('./EatGame/Higop.mp3'),
+  eat4: require('./EatGame/Eat4.mp3'),
+  bgMusic: require('./EatGame/eatGameBG.mp3'),
+} as const;
+
+// GLOBAL MUSIC CACHE - Pre-create sound object for INSTANT playback
+let cachedBgMusic: Audio.Sound | null = null;
+let musicLoadPromise: Promise<Audio.Sound> | null = null;
+let assetsPreloaded = false; // Track if assets are already preloaded
+
+// AGGRESSIVE ASSET PRE-CACHING - Load ALL assets when module loads
+const preloadAllEatingGameAssets = async () => {
+  if (assetsPreloaded) {
+    console.log('✅ EatingGame assets already preloaded');
+    return;
+  }
+  
+  console.log('🚀 Preloading ALL EatingGame assets at module level...');
+  
+  try {
+    // Get all assets
+    const allImageAssets = Object.values(IMAGES);
+    const allSoundAssets = Object.values(SOUNDS);
+    const allAssets = [...allImageAssets, ...allSoundAssets];
+    
+    // Download all assets to local storage IMMEDIATELY
+    await Asset.loadAsync(allAssets);
+    
+    await Promise.all(
+      allAssets.map(async (asset) => {
+        const assetInfo = Asset.fromModule(asset);
+        await assetInfo.downloadAsync();
+      })
+    );
+    
+    // Prefetch all images for instant rendering
+    await Promise.all(
+      allImageAssets.map(async (imageAsset) => {
+        try {
+          const assetInfo = Asset.fromModule(imageAsset);
+          if (assetInfo.localUri || assetInfo.uri) {
+            await Image.prefetch(assetInfo.localUri || assetInfo.uri);
+          }
+        } catch (err) {
+          console.log('Image prefetch warning:', err);
+        }
+      })
+    );
+    
+    assetsPreloaded = true;
+    console.log('✅ ALL EatingGame assets preloaded and cached permanently');
+  } catch (error) {
+    console.log('⚠️ Asset preload error:', error);
+  }
+};
+
+// Start loading music IMMEDIATELY when module loads
+const preloadBgMusic = async () => {
+  if (!musicLoadPromise) {
+    musicLoadPromise = Audio.Sound.createAsync(
+      SOUNDS.bgMusic,
+      { shouldPlay: false, isLooping: true, volume: 1.0 }
+    ).then(({ sound }) => {
+      cachedBgMusic = sound;
+      console.log('🎵 BG Music pre-cached and ready');
+      return sound;
+    });
+  }
+  return musicLoadPromise;
+};
+
+// PRELOAD EVERYTHING IMMEDIATELY when module loads
+preloadAllEatingGameAssets();
+preloadBgMusic();
+
 const EatingGame = () => {
   const [currentStage, setCurrentStage] = useState(0); // 0: Rice, 1: Vegi, 2: Chicken, 3: Water
   const [childMouth, setChildMouth] = useState('closed'); // 'closed', 'open', 'chewing'
+  
+  // REF for current stage - prevents stale closure in panResponder
+  const currentStageRef = useRef(0);
+  
+  // Sync ref with state on every change
+  useEffect(() => {
+    currentStageRef.current = currentStage;
+    console.log('📍 Stage synced to ref:', currentStage);
+  }, [currentStage]);
   
   // Debug log current stage on every render
   console.log('🎮 RENDER - Current Stage:', currentStage, 'Food:', currentStage < 4 ? ['Rice', 'Vegi', 'Chicken', 'Water'][currentStage] : 'Unknown');
@@ -26,6 +134,7 @@ const EatingGame = () => {
   const higopSound = useRef<Audio.Sound | null>(null);
   const eat4Sound = useRef<Audio.Sound | null>(null);
   const bgMusic = useRef<Audio.Sound | null>(null);
+  const musicInitialized = useRef(false); // Track if music is already playing
   
   // Store audio durations
   const [nguyaDuration, setNguyaDuration] = useState(2000); // default 2s
@@ -54,74 +163,86 @@ const EatingGame = () => {
   const foodY = useRef(0);
 
   const stages = [
-    { id: 0, name: 'Rice', image: require('./EatGame/Rice.png') },
-    { id: 1, name: 'Vegi', image: require('./EatGame/Vegi.png') },
-    { id: 2, name: 'Chicken', image: require('./EatGame/Chicken.png') },
-    { id: 3, name: 'Water', image: require('./EatGame/Water1.png') }
+    { id: 0, name: 'Rice', image: IMAGES.rice },
+    { id: 1, name: 'Vegi', image: IMAGES.vegi },
+    { id: 2, name: 'Chicken', image: IMAGES.chicken },
+    { id: 3, name: 'Water', image: IMAGES.water1 }
   ];
 
-  useEffect(() => {
-    // Preload all images
-    Asset.loadAsync([
-      require('./EatGame/EatBG.png'),
-      require('./EatGame/Eat1.png'),
-      require('./EatGame/Eat2.png'),
-      require('./EatGame/Eat3.gif'),
-      require('./EatGame/Eat4.gif'),
-      require('./EatGame/Higop.gif'),
-      require('./EatGame/Plate.png'),
-      require('./EatGame/Rice.png'),
-      require('./EatGame/Chicken.png'),
-      require('./EatGame/Vegi.png'),
-      require('./EatGame/Water.png'),
-      require('./EatGame/Water1.png'),
-    ]);
+  // INSTANT MUSIC PLAYBACK - Use pre-cached sound
+  if (!musicInitialized.current) {
+    musicInitialized.current = true;
+    
+    if (cachedBgMusic) {
+      // Music already loaded - play INSTANTLY
+      cachedBgMusic.playAsync();
+      bgMusic.current = cachedBgMusic;
+      console.log('🎵 INSTANT PLAY (from cache)');
+    } else {
+      // Fallback: wait for preload to complete
+      preloadBgMusic().then(sound => {
+        sound.playAsync();
+        bgMusic.current = sound;
+        console.log('🎵 PLAY (after preload)');
+      }).catch(err => {
+        console.log('⚠️ Music error:', err);
+      });
+    }
+  }
 
-    // Load sounds
-    const loadSounds = async () => {
+  useEffect(() => {
+    // Assets are already preloaded at module level - just verify
+    if (!assetsPreloaded) {
+      console.log('⏳ Waiting for module-level asset preload...');
+      preloadAllEatingGameAssets();
+    } else {
+      console.log('✅ Using pre-cached assets (instant load)');
+    }
+
+    // Load sound effects in background
+    const loadSoundEffects = async () => {
       try {
-        const { sound: nguyaSnd } = await Audio.Sound.createAsync(
-          require('./EatGame/Nguya(Updated).mp3')
-        );
-        nguyaSound.current = nguyaSnd;
-        const nguyaStatus = await nguyaSnd.getStatusAsync();
+        console.log('🔊 Loading sound effects...');
+        const [nguyaResult, higopResult, eat4Result] = await Promise.all([
+          Audio.Sound.createAsync(SOUNDS.nguya),
+          Audio.Sound.createAsync(SOUNDS.higop),
+          Audio.Sound.createAsync(SOUNDS.eat4),
+        ]);
+
+        nguyaSound.current = nguyaResult.sound;
+        higopSound.current = higopResult.sound;
+        eat4Sound.current = eat4Result.sound;
+
+        const nguyaStatus = await nguyaResult.sound.getStatusAsync();
         if (nguyaStatus.isLoaded && nguyaStatus.durationMillis) {
           setNguyaDuration(nguyaStatus.durationMillis);
+          console.log('✅ Nguya.mp3 loaded -', nguyaStatus.durationMillis, 'ms');
         }
 
-        const { sound: higopSnd } = await Audio.Sound.createAsync(
-          require('./EatGame/Higop.mp3')
-        );
-        higopSound.current = higopSnd;
-        const higopStatus = await higopSnd.getStatusAsync();
+        const higopStatus = await higopResult.sound.getStatusAsync();
         if (higopStatus.isLoaded && higopStatus.durationMillis) {
           setHigopDuration(higopStatus.durationMillis);
+          console.log('✅ Higop.mp3 loaded -', higopStatus.durationMillis, 'ms');
         }
 
-        const { sound: eat4Snd } = await Audio.Sound.createAsync(
-          require('./EatGame/Eat4.mp3')
-        );
-        eat4Sound.current = eat4Snd;
-        const eat4Status = await eat4Snd.getStatusAsync();
+        const eat4Status = await eat4Result.sound.getStatusAsync();
         if (eat4Status.isLoaded && eat4Status.durationMillis) {
           setEat4Duration(eat4Status.durationMillis);
+          console.log('✅ Eat4.mp3 loaded -', eat4Status.durationMillis, 'ms');
         }
 
-        // Load and play background music
-        const { sound: bgMusicSnd } = await Audio.Sound.createAsync(
-          require('./EatGame/eatGameBG.mp3'),
-          { shouldPlay: true, isLooping: true }
-        );
-        bgMusic.current = bgMusicSnd;
+        console.log('✅ Sound effects ready');
       } catch (error) {
-        console.log('Error loading sounds:', error);
+        console.log('⚠️ Sound effects error:', error);
       }
     };
 
-    loadSounds();
+    loadSoundEffects();
 
-    // Cleanup sounds on unmount
+    // Cleanup sounds on unmount - STOP and unload ALL sounds
     return () => {
+      console.log('🛑 Cleaning up EatingGame sounds...');
+      
       if (nguyaSound.current) {
         nguyaSound.current.unloadAsync();
       }
@@ -131,9 +252,14 @@ const EatingGame = () => {
       if (eat4Sound.current) {
         eat4Sound.current.unloadAsync();
       }
+      
+      // STOP bgMusic when leaving the game
       if (bgMusic.current) {
-        bgMusic.current.stopAsync();
-        bgMusic.current.unloadAsync();
+        bgMusic.current.stopAsync().then(() => {
+          console.log('✅ BG Music stopped');
+        }).catch(err => {
+          console.log('⚠️ Error stopping music:', err);
+        });
       }
     };
   }, []);
@@ -263,7 +389,12 @@ const EatingGame = () => {
     if (isEatingSequence.current) return;
     isEatingSequence.current = true;
 
-    console.log('🍽️ HANDLE FOOD EATEN - Current Stage:', currentStage, stages[currentStage].name);
+    // CRITICAL FIX: Use REF to get CURRENT stage (prevents stale closure)
+    const actualStage = currentStageRef.current;
+    const currentFood = stages[actualStage];
+    const isWaterFood = currentFood.name === 'Water';
+
+    console.log('🍽️ HANDLE FOOD EATEN - REF Stage:', actualStage, 'Food:', currentFood.name, 'Is Water?', isWaterFood);
 
     // First show open mouth (eat2.png)
     setChildMouth('open');
@@ -286,41 +417,52 @@ const EatingGame = () => {
           higopSound.current.stopAsync().catch(() => {});
         }
         
-        // Play appropriate sound based on food type and get duration
+        // Play appropriate sound based on CURRENT FOOD TYPE (not future stage)
         let chewingDuration = 2000; // default
         
-        console.log('🔍 Current Stage:', currentStage, 'Is Water?', currentStage === 3);
+        console.log('====== SOUND SELECTION DEBUG ======');
+        console.log('Current Food:', currentFood.name);
+        console.log('Is Water?', isWaterFood);
+        console.log('nguyaSound loaded?', nguyaSound.current !== null);
+        console.log('higopSound loaded?', higopSound.current !== null);
+        console.log('===================================');
         
-        if (currentStage === 3) {
-          // Water stage - play higop sound ONLY
-          console.log('🚰 WATER STAGE - Should play Higop.mp3');
+        if (isWaterFood) {
+          // Water food - play higop sound ONLY
+          console.log('🚰 WATER FOOD - Playing Higop.mp3');
           if (higopSound.current) {
-            higopSound.current.setPositionAsync(0).then(() => {
-              higopSound.current?.playAsync().then(() => {
-                console.log('✅ Higop.mp3 NOW PLAYING');
-              }).catch(error => {
-                console.log('❌ Error playing higop sound:', error);
+            higopSound.current.setPositionAsync(0)
+              .then(() => higopSound.current?.playAsync())
+              .then(() => {
+                console.log('✅ Higop.mp3 IS NOW PLAYING!');
+              })
+              .catch(error => {
+                console.log('❌ Higop error:', error);
               });
-            });
+            chewingDuration = higopDuration;
+            console.log('⏱️ Using higopDuration:', higopDuration, 'ms');
           } else {
-            console.log('❌ ERROR: higopSound is null!');
+            console.log('❌ ERROR: higopSound not loaded!');
+            chewingDuration = 2000;
           }
-          chewingDuration = higopDuration;
         } else {
-          // Food stages (rice, chicken, vegi) - play nguya sound ONLY
-          console.log('🍚 FOOD STAGE', currentStage, '- Should play Nguya(Updated).mp3');
+          // Food items (rice, vegi, chicken) - play nguya sound ONLY
+          console.log('🍚 FOOD ITEM', currentFood.name, '- Playing Nguya.mp3');
           if (nguyaSound.current) {
-            nguyaSound.current.setPositionAsync(0).then(() => {
-              nguyaSound.current?.playAsync().then(() => {
-                console.log('✅ Nguya(Updated).mp3 NOW PLAYING');
-              }).catch(error => {
-                console.log('❌ Error playing nguya sound:', error);
+            nguyaSound.current.setPositionAsync(0)
+              .then(() => nguyaSound.current?.playAsync())
+              .then(() => {
+                console.log('✅ Nguya.mp3 IS NOW PLAYING!');
+              })
+              .catch(error => {
+                console.log('❌ Nguya error:', error);
               });
-            });
+            chewingDuration = nguyaDuration;
+            console.log('⏱️ Using nguyaDuration:', nguyaDuration, 'ms');
           } else {
-            console.log('❌ ERROR: nguyaSound is null!');
+            console.log('❌ ERROR: nguyaSound not loaded!');
+            chewingDuration = 2000;
           }
-          chewingDuration = nguyaDuration; // Use updated nguya duration
         }
         
         // After chewing, slide plate out and bring next food
@@ -331,6 +473,7 @@ const EatingGame = () => {
           // Use callback to get the latest currentStage value
           setCurrentStage(prevStage => {
             const nextStage = prevStage + 1;
+            currentStageRef.current = nextStage; // UPDATE REF!
             console.log('=== STAGE PROGRESSION (FIXED) ===');
             console.log('FROM Stage:', prevStage, '(', stages[prevStage].name, ')');
             console.log('TO Stage:', nextStage, nextStage < stages.length ? '(' + stages[nextStage].name + ')' : '(COMPLETE)');
@@ -361,6 +504,7 @@ const EatingGame = () => {
               return nextStage; // Return the new stage
             } else {
               // All food eaten - show celebration
+              console.log('🎉 ALL FOOD EATEN - Starting celebration');
               setAllFoodEaten(true);
               setShowCelebration(true);
               isEatingSequence.current = false;
@@ -372,19 +516,48 @@ const EatingGame = () => {
                 });
               }
               
-              // Play eat4 celebration sound
+              // Play eat4 celebration sound and track completion
               if (eat4Sound.current) {
-                eat4Sound.current.replayAsync().catch(error => {
-                  console.log('Error playing eat4 sound:', error);
+                eat4Sound.current.setOnPlaybackStatusUpdate((status) => {
+                  if (status.isLoaded && status.didJustFinish) {
+                    // Celebration sound finished - save completion and navigate
+                    AsyncStorage.setItem('@minigameCompleted', 'true')
+                      .catch((error) => console.error('Error setting completion flag:', error))
+                      .finally(() => {
+                        console.log('✅ Celebration complete - navigating back');
+                        if (router.canGoBack()) {
+                          router.back();
+                        }
+                      });
+                  }
                 });
+                
+                eat4Sound.current.setPositionAsync(0);
+                eat4Sound.current.playAsync().then(() => {
+                  console.log('🎵 Celebration sound playing');
+                }).catch(error => {
+                  console.log('Error playing eat4 sound:', error);
+                  // Fallback: navigate after 5 seconds if sound fails
+                  setTimeout(() => {
+                    AsyncStorage.setItem('@minigameCompleted', 'true')
+                      .finally(() => {
+                        if (router.canGoBack()) {
+                          router.back();
+                        }
+                      });
+                  }, 5000);
+                });
+              } else {
+                // No sound - navigate after 5 seconds
+                setTimeout(() => {
+                  AsyncStorage.setItem('@minigameCompleted', 'true')
+                    .finally(() => {
+                      if (router.canGoBack()) {
+                        router.back();
+                      }
+                    });
+                }, 5000);
               }
-              
-              // Show celebration for 10 seconds
-              setTimeout(() => {
-                if (router.canGoBack()) {
-                  router.back();
-                }
-              }, 10000);
               
               return prevStage; // Keep current stage if complete
             }
@@ -450,12 +623,12 @@ const EatingGame = () => {
     if (childMouth === 'chewing') {
       // Use Higop.gif for water, Eat3.gif for food
       if (currentStage === 3) {
-        return require('./EatGame/Higop.gif');
+        return IMAGES.higop;
       }
-      return require('./EatGame/Eat3.gif');
+      return IMAGES.eat3;
     }
-    if (childMouth === 'open') return require('./EatGame/Eat2.png');
-    return require('./EatGame/Eat1.png');
+    if (childMouth === 'open') return IMAGES.eat2;
+    return IMAGES.eat1;
   };
 
   // Get eye tracking style for eat1 image
@@ -479,7 +652,7 @@ const EatingGame = () => {
   const getCurrentFoodImage = () => {
     if (currentStage === 3) {
       // Water stage - show Water1.png initially, Water.png when ready
-      return isWaterReady ? require('./EatGame/Water.png') : require('./EatGame/Water1.png');
+      return isWaterReady ? IMAGES.water : IMAGES.water1;
     }
     return stages[currentStage].image;
   };
@@ -506,7 +679,12 @@ const EatingGame = () => {
 
   return (
     <View style={styles.container}>
-      <Image source={require('./EatGame/EatBG.png')} style={styles.background} />
+      <Image 
+        source={IMAGES.eatBG} 
+        style={styles.background} 
+        fadeDuration={0}
+        resizeMode="cover"
+      />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => {
           if (router.canGoBack()) {
@@ -528,13 +706,19 @@ const EatingGame = () => {
           ]}
           activeOpacity={1} // Prevent opacity change on press
         >
-          <Image source={getChildImage()} style={[
-            styles.child,
-            // Ensure eat3.gif has same dimensions as eat1/eat2
-            childMouth === 'chewing' ? { resizeMode: 'contain' } : {},
-            // Add eye tracking movement
-            getEyeTrackingStyle()
-          ]} />
+          <Image 
+            key={`child-${childMouth}-${currentStage}`}
+            source={getChildImage()} 
+            style={[
+              styles.child,
+              // Ensure eat3.gif has same dimensions as eat1/eat2
+              childMouth === 'chewing' ? { resizeMode: 'contain' } : {},
+              // Add eye tracking movement
+              getEyeTrackingStyle()
+            ]} 
+            fadeDuration={0}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
       )}
 
@@ -547,7 +731,14 @@ const EatingGame = () => {
           ]}
         >
           {/* Only show plate if not water stage */}
-          {currentStage !== 3 && <Image source={require('./EatGame/Plate.png')} style={styles.plate} />}
+          {currentStage !== 3 && (
+            <Image 
+              source={IMAGES.plate} 
+              style={styles.plate} 
+              fadeDuration={0}
+              resizeMode="contain"
+            />
+          )}
           <Animated.View
             style={[
               getDraggableContainerStyle(),
@@ -570,14 +761,20 @@ const EatingGame = () => {
             {currentStage === 3 && !isWaterReady ? (
               <TouchableOpacity onPress={handleWaterTap} style={styles.waterTouchable}>
                 <Image
+                  key={`food-${currentStage}-${isWaterReady}`}
                   source={getCurrentFoodImage()}
                   style={getFoodStyle()}
+                  fadeDuration={0}
+                  resizeMode="contain"
                 />
               </TouchableOpacity>
             ) : (
               <Image
+                key={`food-${currentStage}-${isWaterReady}`}
                 source={getCurrentFoodImage()}
                 style={getFoodStyle()}
+                fadeDuration={0}
+                resizeMode="contain"
               />
             )}
           </Animated.View>
@@ -593,19 +790,29 @@ const EatingGame = () => {
           ]}
         >
           {/* Only show plate if next stage is not water */}
-          {currentStage + 1 !== 3 && <Image source={require('./EatGame/Plate.png')} style={styles.plate} />}
+          {currentStage + 1 !== 3 && (
+            <Image 
+              source={IMAGES.plate} 
+              style={styles.plate} 
+              fadeDuration={0}
+              resizeMode="contain"
+            />
+          )}
           <View style={
             currentStage === 0 ? styles.draggableVegiContainer : 
             currentStage === 1 ? styles.draggableChickenContainer : 
             currentStage === 2 ? styles.draggableWaterContainer : styles.draggableRiceContainer
           }>
             <Image
+              key={`next-food-${currentStage + 1}`}
               source={stages[currentStage + 1].image}
               style={
                 currentStage === 0 ? styles.vegiImage : 
                 currentStage === 1 ? styles.chickenImage : 
                 currentStage === 2 ? styles.waterImage : styles.riceImage
               }
+              fadeDuration={0}
+              resizeMode="contain"
             />
           </View>
         </Animated.View>
@@ -614,7 +821,13 @@ const EatingGame = () => {
       {/* Celebration GIF */}
       {showCelebration && (
         <View style={styles.celebrationContainer}>
-          <Image source={require('./EatGame/Eat4.gif')} style={styles.celebrationGif} />
+          <Image 
+            key="celebration"
+            source={IMAGES.eat4} 
+            style={styles.celebrationGif} 
+            fadeDuration={0}
+            resizeMode="contain"
+          />
         </View>
       )}
 
