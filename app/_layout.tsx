@@ -1,8 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
-import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from "react";
 import { Alert, BackHandler, Platform } from "react-native";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ModeProvider } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
@@ -158,7 +158,6 @@ export default function RootLayout() {
   }, [pathname, segments]);
 
   return (
-<<<<<<< HEAD
     <SafeAreaProvider>
       <ModeProvider>
         <OnboardingProvider>
@@ -208,49 +207,5 @@ export default function RootLayout() {
         </OnboardingProvider>
       </ModeProvider>
     </SafeAreaProvider>
-=======
-    <ModeProvider>
-      <StatusBar hidden={true} />
-
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'fade',
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-          contentStyle: { backgroundColor: '#E8FFFA' },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-        <Stack.Screen
-          name="history"
-          options={{
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-
-        <Stack.Screen
-          name="history/[week]"
-          options={{
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-      </Stack>
-
-      <NetworkFailureModal
-        visible={showNetworkFailureModal}
-        onRetry={handleRetry}
-      />
-    </ModeProvider>
->>>>>>> origin/master
   );
 }
