@@ -1,7 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from "react";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Alert, BackHandler, Platform } from "react-native";
+
 import { ModeProvider } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
@@ -13,18 +15,43 @@ import NetworkFailureModal from "./components/NetworkFailureModal";
 
 export default function RootLayout() {
   const router = useRouter();
-
   const pathname = usePathname();
-
   const segments = useSegments();
 
-  // Network failure modal hook
   const { showNetworkFailureModal, handleRetry } = useNetworkFailure();
 
   // Prevent multiple sequential replaces causing white flash
   const hasRedirectedRef = useRef(false);
-  const isNavigatingRef = useRef(false); // Prevent concurrent navigation
+  const isNavigatingRef = useRef(false);
 
+  /**
+   * ANDROID-ONLY SYSTEM UI CONTROL (from Paste #2)
+   */
+  useEffect(() => {
+  if (Platform.OS === 'android') {
+    // NavigationBar controls removed - install expo-navigation-bar if needed
+
+    const backAction = () => {
+      Alert.alert("Exit Game", "Are you sure you want to close the app?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "YES", onPress: () => BackHandler.exitApp() }
+      ]);
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }
+}, []);
+
+
+  /**
+   * AUTH, NETWORK, NOTIFICATIONS, NAVIGATION
+   */
   useEffect(() => {
     let authListener: any;
     let notificationListener: any;
@@ -39,28 +66,18 @@ export default function RootLayout() {
     networkListener = setupNetworkListener();
 
     const handleSession = async () => {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
 
-      if (sessionError) {
-        const isRefreshTokenError = /refresh token/i.test(sessionError.message);
-        if (isRefreshTokenError) {
-          await supabase.auth.signOut();
-        }
-      }
-
-      // Check if user manually logged out previously
+      // Check manual logout
       const wasManualLogout = await LogoutService.isManualLogout();
 
-      if (!session || wasManualLogout || sessionError) {
-        // Clear manual logout flag if it was set
+      if (!session || wasManualLogout) {
         if (wasManualLogout) {
           await LogoutService.clearManualLogout();
-          // Ensure session is cleared
           await supabase.auth.signOut();
         }
-        
-        // Only redirect to login if not already on an auth page
+
         if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
           hasRedirectedRef.current = true;
           router.replace('/auth/login');
@@ -68,76 +85,80 @@ export default function RootLayout() {
         return;
       }
 
-      // Logged in: only redirect if user is on auth pages or truly at root
+      // Logged in
       if (!hasRedirectedRef.current && !isNavigatingRef.current) {
         hasRedirectedRef.current = true;
         isNavigatingRef.current = true;
-        
-        // Only redirect if on auth pages or at the absolute root (no path)
-        if (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') {
-          // Check user profile to decide destination
+
+        if (
+          currentPath.startsWith('auth') ||
+          pathname === '/' ||
+          pathname === undefined ||
+          currentPath === ''
+        ) {
           try {
             const { data: userData, error: userError } = await supabase.auth.getUser();
             const childName = (userData?.user?.user_metadata as any)?.child_name;
 
             if (userError) {
-              // If unable to fetch user, do not force navigation; reset flag
               isNavigatingRef.current = false;
-            } else if (!childName) {
-              // No child nickname yet: go to instruction first
+              return;
+            }
+
+            if (!childName) {
               router.replace('/instruction');
-              setTimeout(() => { isNavigatingRef.current = false; }, 1000);
+              setTimeout(() => {
+                isNavigatingRef.current = false;
+              }, 1000);
             } else {
-              // Child nickname exists: proceed to greetings/home flow
               console.log('🔄 Starting navigation to greetings...');
               navigateToGreetingsWithNetworkCheck(router).finally(() => {
-                // Reset navigation flag after completion
                 setTimeout(() => {
                   isNavigatingRef.current = false;
                 }, 1000);
               });
             }
           } catch {
-            // Safe fallback: reset flag without navigating
             isNavigatingRef.current = false;
           }
         } else {
-          isNavigatingRef.current = false; // Reset if not navigating
+          isNavigatingRef.current = false;
         }
-        // Otherwise, stay on current page (don't redirect)
       }
     };
 
     handleSession();
 
-    // Listen for notifications when app is in foreground
-    notificationListener = Notifications.addNotificationReceivedListener(async notification => {
+    // Foreground notification listener
+    notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received:', notification);
-      // Play ringtone for 10 seconds
     });
 
-    authListener = supabase.auth.onAuthStateChange((event, session) => {
+    // Auth state listener
+    authListener = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        hasRedirectedRef.current = false; // allow a fresh redirect on new sign-in
-        isNavigatingRef.current = false; // reset navigation flag
-        // Clear manual logout flag on successful login
+        hasRedirectedRef.current = false;
+        isNavigatingRef.current = false;
         LogoutService.clearManualLogout();
       }
+
       if (event === 'SIGNED_OUT') {
-        hasRedirectedRef.current = false; // allow redirect to login on logout
-        isNavigatingRef.current = false; // reset navigation flag
+        hasRedirectedRef.current = false;
+        isNavigatingRef.current = false;
       }
+
       handleSession();
     });
 
     return () => {
       authListener?.data?.subscription?.unsubscribe?.();
       notificationListener?.remove?.();
-      networkListener?.(); // Cleanup network listener
+      networkListener?.();
     };
   }, [pathname, segments]);
 
   return (
+<<<<<<< HEAD
     <SafeAreaProvider>
       <ModeProvider>
         <OnboardingProvider>
@@ -187,5 +208,49 @@ export default function RootLayout() {
         </OnboardingProvider>
       </ModeProvider>
     </SafeAreaProvider>
+=======
+    <ModeProvider>
+      <StatusBar hidden={true} />
+
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          contentStyle: { backgroundColor: '#E8FFFA' },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+        <Stack.Screen
+          name="history"
+          options={{
+            headerShown: false,
+            animation: 'none',
+            gestureEnabled: false,
+            presentation: 'transparentModal',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+
+        <Stack.Screen
+          name="history/[week]"
+          options={{
+            headerShown: false,
+            animation: 'none',
+            gestureEnabled: false,
+            presentation: 'transparentModal',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+      </Stack>
+
+      <NetworkFailureModal
+        visible={showNetworkFailureModal}
+        onRetry={handleRetry}
+      />
+    </ModeProvider>
+>>>>>>> origin/master
   );
 }
