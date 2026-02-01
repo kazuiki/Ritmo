@@ -227,7 +227,11 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
+<<<<<<< HEAD
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
+=======
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+>>>>>>> origin/master
   },
   highlight: {
     borderWidth: 3,

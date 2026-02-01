@@ -759,46 +759,57 @@ export default function Home() {
   useEffect(() => {
     const handleBackgroundAudio = async () => {
       if (playbookModalVisible && activePreset) {
-        // Only play once per session
-        if (bgAudioPlayedRef.current) return;
-
         try {
           // Check if this preset has background audio
           if (activePreset.id === 7 && sleepBGSoundRef.current) {
             // Go to Sleep
-            await sleepBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing SleepBG.mp3 background audio');
+            const status = await sleepBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await sleepBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing SleepBG.mp3 background audio');
+            }
           } else if (activePreset.id === 4 && dressBGSoundRef.current) {
             // Dress Up Time
-            await dressBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing DressBG.mp3 background audio');
+            const status = await dressBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await dressBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing DressBG.mp3 background audio');
+            }
           } else if (activePreset.id === 3 && bathBGSoundRef.current) {
             // Bath Time
-            await bathBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing BathBG.mp3 background audio');
+            const status = await bathBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await bathBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing BathBG.mp3 background audio');
+            }
           } else if (activePreset.id === 1 && brushBGSoundRef.current) {
             // Brush My Teeth
-            await brushBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing BrushBG.mp3 background audio');
+            const status = await brushBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await brushBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing BrushBG.mp3 background audio');
+            }
           } else if (activePreset.id === 2 && eatBGSoundRef.current) {
             // Let's Eat
-            await eatBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing EatBG.mp3 background audio');
+            const status = await eatBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await eatBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing EatBG.mp3 background audio');
+            }
           } else if (activePreset.id === 6 && pajamaBGSoundRef.current) {
             // Bedtime Prep
-            await pajamaBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing PajamaBG.mp3 background audio');
+            const status = await pajamaBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await pajamaBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing PajamaBG.mp3 background audio');
+            }
           } else if (activePreset.id === 5 && schoolBGSoundRef.current) {
             // Go to School
-            await schoolBGSoundRef.current.playAsync();
-            bgAudioPlayedRef.current = true;
-            console.log('Playing SchoolBG.mp3 background audio');
+            const status = await schoolBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await schoolBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing SchoolBG.mp3 background audio');
+            }
           }
         } catch (error) {
           console.error('Failed to play background audio:', error);
@@ -855,8 +866,6 @@ export default function Home() {
               console.log('Stopped SchoolBG.mp3');
             }
           }
-          // Reset flag when modal closes
-          bgAudioPlayedRef.current = false;
         } catch (error) {
           console.error('Failed to stop background audio:', error);
         }
@@ -1549,7 +1558,7 @@ export default function Home() {
             resizeMode="cover"
           />
           {/* Back Button - Only show on Step 1 */}
-          <View style={styles.playbookHeader}>
+          <View style={[styles.playbookHeader, { paddingTop: insets.top + scaleSpacing(16) }]}>
             {currentStep === 1 && (
               <TouchableOpacity onPress={() => {
                 // Just slide playbook out, task modal is still there
@@ -1613,7 +1622,7 @@ export default function Home() {
           </ScrollView>
 
           {/* Footer with Back and Next Buttons */}
-          <View style={styles.playbookFooter}>
+          <View style={[styles.playbookFooter, { paddingBottom: insets.bottom }]}>
             {currentStep > 1 && (
               <TouchableOpacity 
                 style={styles.backButtonBottom}
@@ -2439,7 +2448,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     overflow: "hidden",
   },
   playbookHeader: {
-    paddingTop: scale.scaleSpacing(16),
     paddingHorizontal: scale.scaleSpacing(16),
     paddingBottom: scale.scaleSpacing(8),
     minHeight: scale.scaleHeight(48),
