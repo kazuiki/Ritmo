@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ModeProvider } from "../src/contexts/ModeContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
+import { preloadGameAssets } from "../src/utils/assetPreloader";
 import { setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
 import NetworkFailureModal from "./components/NetworkFailureModal";
@@ -27,6 +28,11 @@ export default function RootLayout() {
     let authListener: any;
     let notificationListener: any;
     let networkListener: any;
+
+    // Preload game assets early for instant loading
+    preloadGameAssets().catch(err => 
+      console.log('Early asset preload failed:', err)
+    );
 
     // Setup network state listener
     networkListener = setupNetworkListener();
