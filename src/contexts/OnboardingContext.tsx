@@ -12,12 +12,20 @@ interface OnboardingContextType {
   completeOnboarding: () => void;
   resetOnboarding: () => void;
   checkOnboardingStatus: () => Promise<void>;
+  // Parental Lock Onboarding
+  showParentalLockOnboarding: boolean;
+  currentParentalLockStep: number;
+  startParentalLockOnboarding: () => void;
+  nextParentalLockStep: () => void;
+  completeParentalLockOnboarding: () => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
 const ONBOARDING_KEY_PREFIX = '@ritmo_onboarding_completed_';
+const PARENTAL_LOCK_ONBOARDING_KEY_PREFIX = '@ritmo_pl_onboarding_completed_';
 const TOTAL_ONBOARDING_STEPS = 5; // Home, Media, Progress, Settings, Add Routine
+const TOTAL_PARENTAL_LOCK_STEPS = 2; // Container, Toggle Switch
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
@@ -25,6 +33,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  
+  // Parental Lock Onboarding State
+  const [showParentalLockOnboarding, setShowParentalLockOnboarding] = useState(false);
+  const [currentParentalLockStep, setCurrentParentalLockStep] = useState(0);
 
   // Check if user has completed onboarding before
   useEffect(() => {
@@ -130,6 +142,51 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  // Parental Lock Onboarding Functions
+  const startParentalLockOnboarding = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      // For now, always show onboarding (testing mode)
+      // TODO: Enable one-time check later
+      // const plOnboardingKey = `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`;
+      // const hasCompleted = await AsyncStorage.getItem(plOnboardingKey);
+      // if (!hasCompleted) {
+      
+      console.log('🔒 Starting Parental Lock onboarding...');
+      setShowParentalLockOnboarding(true);
+      setCurrentParentalLockStep(0);
+      
+      // }
+    } catch (error) {
+      console.error('Error starting parental lock onboarding:', error);
+    }
+  };
+
+  const nextParentalLockStep = () => {
+    if (currentParentalLockStep < TOTAL_PARENTAL_LOCK_STEPS - 1) {
+      setCurrentParentalLockStep(prev => prev + 1);
+    } else {
+      completeParentalLockOnboarding();
+    }
+  };
+
+  const completeParentalLockOnboarding = async () => {
+    setShowParentalLockOnboarding(false);
+    setCurrentParentalLockStep(0);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const plOnboardingKey = `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(plOnboardingKey, 'true');
+        console.log('✅ Parental Lock onboarding completed for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving parental lock onboarding completion:', error);
+    }
+  };
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -142,6 +199,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         completeOnboarding,
         resetOnboarding,
         checkOnboardingStatus,
+        // Parental Lock Onboarding
+        showParentalLockOnboarding,
+        currentParentalLockStep,
+        startParentalLockOnboarding,
+        nextParentalLockStep,
+        completeParentalLockOnboarding,
       }}
     >
       {children}
