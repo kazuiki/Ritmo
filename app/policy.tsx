@@ -259,7 +259,7 @@ export default function PrivacyPolicy() {
           {/* Next button below Section 8 */}
           <TouchableOpacity 
             style={styles.termsNextButton}
-            onPress={() => router.push('/terms&conditions')}
+            onPress={() => router.push('/terms')}
           >
             <Text style={styles.termsNextButtonText}>Next</Text>
           </TouchableOpacity>
