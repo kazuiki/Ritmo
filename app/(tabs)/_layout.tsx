@@ -12,7 +12,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ResponsiveTheme } from "../../constants/theme";
+import OnboardingTour from "../../src/components/OnboardingTour";
 import { useMode } from "../../src/contexts/ModeContext";
+import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { useResponsiveDimensions } from "../../src/utils/responsive";
 
 export default function TabsLayout() {
@@ -21,6 +23,7 @@ export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
+  const { showOnboarding, currentOnboardingStep, nextOnboardingStep, skipOnboarding } = useOnboarding();
 
   const responsive = useResponsiveDimensions();
   const { width: screenWidth, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
@@ -521,6 +524,14 @@ export default function TabsLayout() {
           />
       </Tabs>
       {isChildMode && <CustomPillTabBar state={{ index: pathname.includes('/home') ? 0 : pathname.includes('/media') ? 1 : 0 }} />}
+      
+      {/* Onboarding Tour */}
+      <OnboardingTour
+        visible={showOnboarding}
+        step={currentOnboardingStep}
+        onNext={nextOnboardingStep}
+        onSkip={skipOnboarding}
+      />
     </View>
   );
 }
