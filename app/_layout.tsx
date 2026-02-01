@@ -1,4 +1,3 @@
-import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
@@ -29,8 +28,7 @@ export default function RootLayout() {
    */
   useEffect(() => {
   if (Platform.OS === 'android') {
-    NavigationBar.setVisibilityAsync('hidden');
-    NavigationBar.setBehaviorAsync('overlay-swipe'); // optional but nice
+    // NavigationBar controls removed - install expo-navigation-bar if needed
 
     const backAction = () => {
       Alert.alert("Exit Game", "Are you sure you want to close the app?", [
