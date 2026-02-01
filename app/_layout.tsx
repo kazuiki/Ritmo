@@ -3,6 +3,7 @@ import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ModeProvider } from "../src/contexts/ModeContext";
+import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
@@ -139,49 +140,51 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ModeProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            // Smooth, platform-standard transitions
-            // Use a fade for consistency & avoid white flash between replaces
-            animation: 'fade',
-            gestureEnabled: true,
-            fullScreenGestureEnabled: true,
-            // Prevent white flash during transitions by keeping bg consistent
-            contentStyle: { backgroundColor: '#E8FFFA' },
-          }}
-        >
-          {/* Allow tabs group to manage its own header */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          {/* History list and weekly detail use the same smooth card push */}
-          <Stack.Screen
-            name="history"
-            options={{
+        <OnboardingProvider>
+          <Stack
+            screenOptions={{
               headerShown: false,
-              animation: 'none', // we handle custom slide animation inside the screen
-              gestureEnabled: false,
-              presentation: 'transparentModal',
-              contentStyle: { backgroundColor: 'transparent' },
+              // Smooth, platform-standard transitions
+              // Use a fade for consistency & avoid white flash between replaces
+              animation: 'fade',
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+              // Prevent white flash during transitions by keeping bg consistent
+              contentStyle: { backgroundColor: '#E8FFFA' },
             }}
-          />
-          <Stack.Screen
-            name="history/[week]"
-            options={{
-              headerShown: false,
-              animation: 'none', // custom animation handled internally
-              gestureEnabled: false,
-              presentation: 'transparentModal',
-              contentStyle: { backgroundColor: 'transparent' },
-            }}
-          />
-          {/* Auth and other routes inherit defaults */}
-        </Stack>
+          >
+            {/* Allow tabs group to manage its own header */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            {/* History list and weekly detail use the same smooth card push */}
+            <Stack.Screen
+              name="history"
+              options={{
+                headerShown: false,
+                animation: 'none', // we handle custom slide animation inside the screen
+                gestureEnabled: false,
+                presentation: 'transparentModal',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            <Stack.Screen
+              name="history/[week]"
+              options={{
+                headerShown: false,
+                animation: 'none', // custom animation handled internally
+                gestureEnabled: false,
+                presentation: 'transparentModal',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            {/* Auth and other routes inherit defaults */}
+          </Stack>
 
-        {/* Global Network Failure Modal */}
-        <NetworkFailureModal 
-          visible={showNetworkFailureModal} 
-          onRetry={handleRetry} 
-        />
+          {/* Global Network Failure Modal */}
+          <NetworkFailureModal 
+            visible={showNetworkFailureModal} 
+            onRetry={handleRetry} 
+          />
+        </OnboardingProvider>
       </ModeProvider>
     </SafeAreaProvider>
   );
