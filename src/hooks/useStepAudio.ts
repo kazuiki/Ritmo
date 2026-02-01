@@ -15,6 +15,8 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
     let timerId: NodeJS.Timeout;
 
     async function play() {
+      if (cancelled) return;
+
       if (!enabled || !audioModule) {
         // No audio for this step, enable Next button immediately
         setDisabledUntil(0);
@@ -23,11 +25,19 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
       }
 
       try {
-        // Ensure previous sound is unloaded
+        // IMPORTANT: Stop and unload any previous sound first
         if (soundRef.current) {
-          await soundRef.current.unloadAsync();
+          try {
+            await soundRef.current.stopAsync();
+            await soundRef.current.unloadAsync();
+          } catch (err) {
+            // Ignore errors from stopping previous audio
+          }
           soundRef.current = null;
         }
+
+        // Check if cancelled after cleanup
+        if (cancelled) return;
 
         // Configure audio for maximum volume and immediate playback
         await Audio.setAudioModeAsync({
@@ -37,6 +47,9 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
           shouldDuckAndroid: false,
           playThroughEarpieceAndroid: false,
         });
+
+        // Check if cancelled after audio mode setup
+        if (cancelled) return;
 
         // Create and play the sound
         const { sound } = await Audio.Sound.createAsync(
@@ -49,6 +62,12 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
           },
           onPlaybackStatusUpdate
         );
+
+        // Check if cancelled after creating sound
+        if (cancelled) {
+          await sound.unloadAsync();
+          return;
+        }
 
         soundRef.current = sound;
         setHasStarted(true);

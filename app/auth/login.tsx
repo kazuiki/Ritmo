@@ -22,7 +22,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
@@ -429,7 +428,7 @@ export default function Login() {
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
                 if (!childName) {
-                  router.replace('/instruction');
+                  router.replace('/privacy-policy');
                 } else {
                   navigateToGreetingsWithNetworkCheck(router);
                 }
@@ -476,18 +475,17 @@ export default function Login() {
   const bubbleBase = bubbleBaseRef.current;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#E8FFFA' }} edges={['top', 'left', 'right']}>
-      <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.outer} keyboardVerticalOffset={0}>
-          <Stack.Screen options={{ title: "Log in", headerShown: false }} />
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
-            <TouchableWithoutFeedback onPress={togglePause}>
-              <View style={styles.container}>
+    <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.outer} keyboardVerticalOffset={0}>
+        <Stack.Screen options={{ title: "Log in", headerShown: false }} />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <TouchableWithoutFeedback onPress={togglePause}>
+            <View style={styles.container}>
             {/* Animated bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -526,7 +524,7 @@ export default function Login() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here"
+                placeholder="Enter email here:"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -538,7 +536,7 @@ export default function Login() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here"
+                  placeholder="Enter password here:"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -613,8 +611,7 @@ export default function Login() {
         visible={localNetworkFailure} 
         onRetry={handleLocalNetworkRetry} 
       />
-      </ImageBackground>
-    </SafeAreaView>
+    </ImageBackground>
   );
 }
 
