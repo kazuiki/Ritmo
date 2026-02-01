@@ -58,16 +58,12 @@ export default function RootLayout() {
     let notificationListener: any;
     let networkListener: any;
 
-<<<<<<< HEAD
     // Preload game assets early for instant loading
     preloadGameAssets().catch(err => 
       console.log('Early asset preload failed:', err)
     );
 
     // Setup network state listener
-=======
-    // Setup network listener
->>>>>>> origin/master
     networkListener = setupNetworkListener();
 
     const handleSession = async () => {
