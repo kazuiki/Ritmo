@@ -6,13 +6,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const DIRT_SIZE = Math.max(35, SCREEN_WIDTH * (IS_TABLET ? 0.085 : 0.06));
 
 export default function BathGame() {
   const toolsBarLeft = SCREEN_WIDTH * 0.1;
   const toolsBarWidth = SCREEN_WIDTH * 0.8;
-  const toolsBarTop = 125;
-  const toolsBarHeight = 64;
-  const toolSize = 48;
+  const toolsBarTop = Math.max(125, SCREEN_HEIGHT * 0.15);
+  const toolsBarHeight = Math.max(70, SCREEN_HEIGHT * 0.1);
+  const toolSize = Math.max(72, SCREEN_HEIGHT * 0.09);
   const borderWidth = 3; 
 
   const innerTop = toolsBarTop + borderWidth;
@@ -23,15 +25,18 @@ export default function BathGame() {
   const innerWidth = toolsBarWidth - (borderWidth * 2);
 
   const toolSpacing = innerWidth / 3;
+
+  const toolOffsetX = 8;
+  const toolOffsetY = 10;
   
-  const soapInitialX = innerLeft + (toolSpacing / 2) - (toolSize / 2);
-  const soapInitialY = toolVerticalCenter;
+  const soapInitialX = innerLeft + (toolSpacing / 2) - (toolSize / 2) + toolOffsetX;
+  const soapInitialY = toolVerticalCenter + toolOffsetY;
 
-  const showerInitialX = innerLeft + (toolSpacing * 1.5) - (toolSize / 2);
-  const showerInitialY = toolVerticalCenter;
+  const showerInitialX = innerLeft + (toolSpacing * 1.5) - (toolSize / 2) + toolOffsetX;
+  const showerInitialY = toolVerticalCenter + toolOffsetY;
 
-  const towelInitialX = innerLeft + (toolSpacing * 2.5) - (toolSize / 2);
-  const towelInitialY = toolVerticalCenter;
+  const towelInitialX = innerLeft + (toolSpacing * 2.5) - (toolSize / 2) + toolOffsetX;
+  const towelInitialY = toolVerticalCenter + toolOffsetY;
 
   const soapX = useRef(new Animated.Value(0)).current;
   const soapY = useRef(new Animated.Value(0)).current;
@@ -48,10 +53,10 @@ export default function BathGame() {
   const [washOpacities, setWashOpacities] = useState([0, 0, 0, 0, 0, 0]);
 
   // Animated values for smooth transitions
-  const dirtAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(1))).current;
-  const waterAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
-  const latherAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
-  const washAnimations = useRef([1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
+  const dirtAnimations = useRef([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(() => new Animated.Value(1))).current;
+  const waterAnimations = useRef([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(() => new Animated.Value(0))).current;
+  const latherAnimations = useRef([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(() => new Animated.Value(0))).current;
+  const washAnimations = useRef([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(() => new Animated.Value(0))).current;
 
   // Pulse animations for each tool
   const soapPulseAnim = useRef(new Animated.Value(1)).current;
@@ -64,8 +69,13 @@ export default function BathGame() {
   // Bath2 success state and animations
   const [bath2Triggered, setBath2Triggered] = useState(false);
   const [bath2Completed, setBath2Completed] = useState(false);
+  const [showBath5Gif, setShowBath5Gif] = useState(false);
   const bath1Opacity = useRef(new Animated.Value(1)).current;
   const bath2Opacity = useRef(new Animated.Value(0)).current;
+  const bath3Opacity = useRef(new Animated.Value(0)).current;
+  const bath4Opacity = useRef(new Animated.Value(0)).current;
+  const bath5Opacity = useRef(new Animated.Value(0)).current;
+  const bath5GifOpacity = useRef(new Animated.Value(0)).current;
   const bath2SoundRef = useRef<Audio.Sound | null>(null);
   const bgSoundRef = useRef<Audio.Sound | null>(null);
   const soapSoundRef = useRef<Audio.Sound | null>(null);
@@ -84,8 +94,14 @@ export default function BathGame() {
     { left: SCREEN_WIDTH * 0.48, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.52 }, // Dirt 4
     { left: SCREEN_WIDTH * 0.38, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.60 }, // Dirt 5
     { left: SCREEN_WIDTH * 0.52, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.64 }, // Dirt 6
+    { left: SCREEN_WIDTH * 0.42, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.30 }, // Dirt 7
+    { left: SCREEN_WIDTH * 0.56, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.36 }, // Dirt 8
+    { left: SCREEN_WIDTH * 0.42, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.64 }, // Dirt 9
+    { left: SCREEN_WIDTH * 0.54, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.48 }, // Dirt 10
+    { left: SCREEN_WIDTH * 0.44, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.56 }, // Dirt 11 
+    { left: SCREEN_WIDTH * 0.55, top: SCREEN_HEIGHT * 0.24 + SCREEN_HEIGHT * 0.58 }, // Dirt 12
   ];
-  const dirtSize = 40;
+  const dirtSize = DIRT_SIZE;
 
   // Check collision between tool and dirt/lather/wash areas
   const checkCollision = (toolX: number, toolY: number, dirtIndex: number): string | null => {
@@ -95,9 +111,9 @@ export default function BathGame() {
     const dirtBottom = dirtTop + dirtSize;
     
     const toolLeft = toolX;
-    const toolRight = toolX + 75; // draggableTool size
+    const toolRight = toolX + toolSize; // draggableTool size
     const toolTop = toolY;
-    const toolBottom = toolY + 75;
+    const toolBottom = toolY + toolSize;
 
     // Check if tool overlaps with dirt area  
     if (!(toolRight < dirtLeft || toolLeft > dirtRight || toolBottom < dirtTop || toolTop > dirtBottom)) {
@@ -116,10 +132,10 @@ export default function BathGame() {
 
   // Track which dirt areas have been cleaned by which tool to prevent repeated animations
   const cleaningStateRef = useRef({
-    showerWetted: [false, false, false, false, false, false],
-    soapCleaned: [false, false, false, false, false, false],
-    showerRinsed: [false, false, false, false, false, false],
-    towelDried: [false, false, false, false, false, false],
+    showerWetted: [false, false, false, false, false, false, false, false, false, false, false, false],
+    soapCleaned: [false, false, false, false, false, false, false, false, false, false, false, false],
+    showerRinsed: [false, false, false, false, false, false, false, false, false, false, false, false],
+    towelDried: [false, false, false, false, false, false, false, false, false, false, false, false],
   });
 
   // Track if a tool is currently being dragged
@@ -130,6 +146,15 @@ export default function BathGame() {
 
   // Track if a pulse animation is currently running
   const isPulsingRef = useRef<boolean>(false);
+
+  // Track if Bath2 transition is complete (Bath2.png fully replaced Bath1.png)
+  const bath2TransitionCompleteRef = useRef<boolean>(false);
+
+  // Track if Bath3 transition is complete (Bath3.png fully replaced Bath2.png)
+  const bath3TransitionCompleteRef = useRef<boolean>(false);
+
+  // Track if Bath4 transition is complete (Bath4.png fully replaced Bath3.png)
+  const bath4TransitionCompleteRef = useRef<boolean>(false);
 
   // Function to pulse a specific tool
   const pulseTool = (toolType: string) => {
@@ -249,6 +274,11 @@ export default function BathGame() {
   }, []);
 
   const checkToolCollisions = (toolType: string, toolX: number, toolY: number) => {
+    // Stop collision detection once Bath5.gif is triggered to prevent interference with drag state
+    if (bath2Triggered) {
+      return;
+    }
+    
     const state = cleaningStateRef.current;
     let shouldPulseTool = false;
     let toolToPulse = '';
@@ -273,7 +303,7 @@ export default function BathGame() {
     });
 
     // Check each dirt area
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       if (checkCollision(toolX, toolY, i)) {
         hasAnyCollision = true;
         
@@ -301,6 +331,21 @@ export default function BathGame() {
 
         // Check if wrong tool is being used
         if (correctTool && toolType !== correctTool) {
+          // Special condition for soap: only pulse if Bath2 transition is complete
+          if (correctTool === 'soap' && !bath2TransitionCompleteRef.current) {
+            // Don't pulse soap yet - Bath2.png hasn't fully replaced Bath1.png
+            continue;
+          }
+          // Special condition for shower (rinse step): only pulse if Bath3 transition is complete
+          if (correctTool === 'shower' && hasLather && !bath3TransitionCompleteRef.current) {
+            // Don't pulse shower yet - Bath3.png hasn't fully replaced Bath2.png
+            continue;
+          }
+          // Special condition for towel: only pulse if Bath4 transition is complete
+          if (correctTool === 'towel' && !bath4TransitionCompleteRef.current) {
+            // Don't pulse towel yet - Bath4.png hasn't fully replaced Bath3.png
+            continue;
+          }
           shouldPulseTool = true;
           toolToPulse = correctTool;
           break;
@@ -315,18 +360,39 @@ export default function BathGame() {
         // Mark animation as active
         activeAnimationsRef.current[collisionId] = true;
 
-        // Shower wets the child (first step) - creates water, doesn't affect dirt
+        // Shower wets the child (first step) - no water overlays, just progress
         if (toolType === 'shower' && !state.showerWetted[i] && hasNotBeenWetted) {
           playOneShot(showerSoundRef);
           state.showerWetted[i] = true;
-          
-          // Animate water opacity up (water appears, dirts stay)
+
+          // Animate water progress (kept for logic), and cross-fade Bath1 -> Bath2
           Animated.timing(waterAnimations[i], {
             toValue: 1,
             duration: 1500,
             useNativeDriver: false,
           }).start(() => {
             delete activeAnimationsRef.current[collisionId];
+          });
+
+          const wettedCount = state.showerWetted.filter(Boolean).length;
+          const progress = wettedCount / state.showerWetted.length;
+
+          Animated.parallel([
+            Animated.timing(bath1Opacity, {
+              toValue: 1 - progress,
+              duration: 400,
+              useNativeDriver: false,
+            }),
+            Animated.timing(bath2Opacity, {
+              toValue: progress,
+              duration: 400,
+              useNativeDriver: false,
+            })
+          ]).start(() => {
+            // Check if Bath2 transition is complete (opacity reached 1)
+            if (progress >= 1) {
+              bath2TransitionCompleteRef.current = true;
+            }
           });
         }
 
@@ -355,6 +421,28 @@ export default function BathGame() {
           ]).start(() => {
             delete activeAnimationsRef.current[collisionId];
           });
+
+          // Cross-fade Bath2 -> Bath3 as soap cleans areas
+          const soapedCount = state.soapCleaned.filter(Boolean).length;
+          const progress = soapedCount / state.soapCleaned.length;
+
+          Animated.parallel([
+            Animated.timing(bath2Opacity, {
+              toValue: 1 - progress,
+              duration: 400,
+              useNativeDriver: false,
+            }),
+            Animated.timing(bath3Opacity, {
+              toValue: progress,
+              duration: 400,
+              useNativeDriver: false,
+            })
+          ]).start(() => {
+            // Check if Bath3 transition is complete (opacity reached 1)
+            if (progress >= 1) {
+              bath3TransitionCompleteRef.current = true;
+            }
+          });
         }
 
         // Shower rinses lathers and reveals wash (second shower use)
@@ -377,6 +465,28 @@ export default function BathGame() {
           ]).start(() => {
             delete activeAnimationsRef.current[collisionId];
           });
+
+          // Cross-fade Bath3 -> Bath4 as shower rinses areas
+          const rinsedCount = state.showerRinsed.filter(Boolean).length;
+          const progress = rinsedCount / state.showerRinsed.length;
+
+          Animated.parallel([
+            Animated.timing(bath3Opacity, {
+              toValue: 1 - progress,
+              duration: 400,
+              useNativeDriver: false,
+            }),
+            Animated.timing(bath4Opacity, {
+              toValue: progress,
+              duration: 400,
+              useNativeDriver: false,
+            })
+          ]).start(() => {
+            // Check if Bath4 transition is complete (opacity reached 1)
+            if (progress >= 1) {
+              bath4TransitionCompleteRef.current = true;
+            }
+          });
         }
 
         // Towel dries wash
@@ -384,25 +494,49 @@ export default function BathGame() {
           playOneShot(towelSoundRef);
           state.towelDried[i] = true;
 
+          // Cross-fade Bath4 -> Bath5 as towel dries areas
+          const driedCount = state.towelDried.filter(Boolean).length;
+          const progress = driedCount / state.towelDried.length;
+
+          Animated.parallel([
+            Animated.timing(bath4Opacity, {
+              toValue: 1 - progress,
+              duration: 400,
+              useNativeDriver: false,
+            }),
+            Animated.timing(bath5Opacity, {
+              toValue: progress,
+              duration: 400,
+              useNativeDriver: false,
+            })
+          ]).start();
+
           // If this was the final wash spot, move to the success state right away
           const allWashesCleaned = state.towelDried.every(dried => dried === true);
           if (allWashesCleaned && !bath2Triggered) {
             setBath2Triggered(true);
             setBath2Completed(false);
 
+            bath4Opacity.stopAnimation();
+            bath5Opacity.stopAnimation();
+            bath4Opacity.setValue(0);
+            bath5Opacity.setValue(0);
+            setShowBath5Gif(true);
             Animated.parallel([
-              Animated.timing(bath1Opacity, {
+              Animated.timing(bath5Opacity, {
                 toValue: 0,
-                duration: 250,
+                duration: 400,
                 useNativeDriver: false,
               }),
-              Animated.timing(bath2Opacity, {
+              Animated.timing(bath5GifOpacity, {
                 toValue: 1,
-                duration: 250,
+                duration: 400,
                 useNativeDriver: false,
               })
-            ]).start();
-            
+            ]).start(() => {
+              bath5GifOpacity.setValue(1);
+            });
+
             if (bath2SoundRef.current) {
               const sound = bath2SoundRef.current;
               sound.setOnPlaybackStatusUpdate((status) => {
@@ -412,7 +546,7 @@ export default function BathGame() {
               });
               sound.setPositionAsync(0);
               sound.playAsync().catch((error) => {
-                console.error('Error playing Bath2.mp3:', error);
+                console.error('Error playing Bath5.mp3:', error);
                 setBath2Completed(true);
               });
             } else {
@@ -499,9 +633,11 @@ export default function BathGame() {
 
   const router = useRouter();
 
-  // Preload and setup audio on mount
+  // Background music setup on mount
   useEffect(() => {
-    const preloadAudio = async () => {
+    let isMounted = true;
+
+    const playBackgroundAudio = async () => {
       try {
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
@@ -509,65 +645,75 @@ export default function BathGame() {
           shouldDuckAndroid: true,
         });
         
-        // Preload Bath2.mp3 sound
-        const { sound } = await Audio.Sound.createAsync(
-          require('./BathGame/Bath2.mp3'),
-          { 
-            shouldPlay: false,
-            volume: 1.0,
-            isLooping: false
-          }
-        );
-        bath2SoundRef.current = sound;
-
-        const bg = await Audio.Sound.createAsync(
+        // Play background music immediately
+        const { sound: bgSound } = await Audio.Sound.createAsync(
           require('./BathGame/BathBG.mp3'),
-          {
-            shouldPlay: false,
-            volume: 1.0,
-            isLooping: true,
-          }
+          { isLooping: true, volume: 0.5, shouldPlay: true }
         );
-        bgSoundRef.current = bg.sound;
 
-        const soapSound = await Audio.Sound.createAsync(
-          require('./BathGame/Soap.mp3'),
-          {
-            shouldPlay: false,
-            volume: 1.0,
-            isLooping: false,
-          }
-        );
-        soapSoundRef.current = soapSound.sound;
-
-        const showerSound = await Audio.Sound.createAsync(
-          require('./BathGame/Shower.mp3'),
-          {
-            shouldPlay: false,
-            volume: 1.0,
-            isLooping: false,
-          }
-        );
-        showerSoundRef.current = showerSound.sound;
-
-        const towelSound = await Audio.Sound.createAsync(
-          require('./BathGame/Towel.mp3'),
-          {
-            shouldPlay: false,
-            volume: 1.0,
-            isLooping: false,
-          }
-        );
-        towelSoundRef.current = towelSound.sound;
-
-        if (bgSoundRef.current) {
-          bgSoundRef.current.playAsync().catch(() => {});
+        if (!isMounted) {
+          await bgSound.unloadAsync();
+          return;
         }
+
+        bgSoundRef.current = bgSound;
+
+        // Preload other sounds without autoplay
+        const { sound: bath2Sound } = await Audio.Sound.createAsync(
+          require('./BathGame/Bath5.mp3'),
+          { shouldPlay: false, volume: 1.0, isLooping: false }
+        );
+        bath2SoundRef.current = bath2Sound;
+
+        const { sound: soapSound } = await Audio.Sound.createAsync(
+          require('./BathGame/Soap.mp3'),
+          { shouldPlay: false, volume: 1.0, isLooping: false }
+        );
+        soapSoundRef.current = soapSound;
+
+        const { sound: showerSound } = await Audio.Sound.createAsync(
+          require('./BathGame/Shower.mp3'),
+          { shouldPlay: false, volume: 1.0, isLooping: false }
+        );
+        showerSoundRef.current = showerSound;
+
+        const { sound: towelSound } = await Audio.Sound.createAsync(
+          require('./BathGame/Towel.mp3'),
+          { shouldPlay: false, volume: 1.0, isLooping: false }
+        );
+        towelSoundRef.current = towelSound;
       } catch (error) {
-        console.error('Error preloading Bath2 audio:', error);
+        console.warn('Error setting up BathGame audio:', error);
       }
     };
-    preloadAudio();
+
+    playBackgroundAudio();
+
+    return () => {
+      isMounted = false;
+      if (bgSoundRef.current) {
+        bgSoundRef.current.stopAsync()
+          .then(() => bgSoundRef.current?.unloadAsync())
+          .catch(() => {});
+        bgSoundRef.current = null;
+      }
+      if (bath2SoundRef.current) {
+        bath2SoundRef.current.unloadAsync().catch(() => {});
+        bath2SoundRef.current = null;
+      }
+      if (soapSoundRef.current) {
+        soapSoundRef.current.unloadAsync().catch(() => {});
+        soapSoundRef.current = null;
+      }
+      if (showerSoundRef.current) {
+        showerSoundRef.current.unloadAsync().catch(() => {});
+        showerSoundRef.current = null;
+      }
+      if (towelSoundRef.current) {
+        towelSoundRef.current.unloadAsync().catch(() => {});
+        towelSoundRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -637,7 +783,7 @@ export default function BathGame() {
         }
       ]}>
         {/* Background */}
-        <Image source={require('./BathGame/WashBG.png')} style={styles.bg} resizeMode="cover" />
+        <Image source={require('./BathGame/WashBG.png')} style={styles.bg} resizeMode="stretch" />
 
         {/* Back Button */}
         <TouchableOpacity style={styles.backButton} onPress={() => {
@@ -658,11 +804,16 @@ export default function BathGame() {
         </TouchableOpacity>
 
         {/* Top tools bar */}
-        <View style={styles.toolsBar} pointerEvents="box-none">
+        <View style={[styles.toolsBar, {
+          top: toolsBarTop,
+          left: toolsBarLeft,
+          width: toolsBarWidth,
+          height: toolsBarHeight,
+        }]} pointerEvents="box-none">
           <View style={styles.toolsBarInner}>
-            <Image source={require('./BathGame/Soap.png')} style={styles.toolIconStub} />
-            <Image source={require('./BathGame/Shower.png')} style={styles.toolIconStub} />
-            <Image source={require('./BathGame/Towel.png')} style={styles.toolIconStub} />
+            <Image source={require('./BathGame/Soap.png')} style={[styles.toolIconStub, { width: toolSize * 0.85, height: toolSize * 0.85 }]} />
+            <Image source={require('./BathGame/Shower.png')} style={[styles.toolIconStub, { width: toolSize * 0.85, height: toolSize * 0.85 }]} />
+            <Image source={require('./BathGame/Towel.png')} style={[styles.toolIconStub, { width: toolSize * 0.85, height: toolSize * 0.85 }]} />
           </View>
         </View>
 
@@ -674,77 +825,115 @@ export default function BathGame() {
           style={[styles.child, { opacity: bath1Opacity }]} 
           resizeMode="contain" 
         />
-        {/* Bath2.gif - opacity controlled for smooth cross-fade */}
+        {/* Bath2.png - opacity controlled for smooth cross-fade */}
         <Animated.Image 
-          source={require('./BathGame/Bath2.gif')} 
+          source={require('./BathGame/Bath2.png')} 
+          style={[styles.child, { position: 'absolute', opacity: bath2Opacity }]} 
+          resizeMode="contain" 
+        />
+        {/* Bath3.png - opacity controlled for smooth cross-fade */}
+        <Animated.Image 
+          source={require('./BathGame/Bath3.png')} 
+          style={[styles.child, { position: 'absolute', opacity: bath3Opacity }]} 
+          resizeMode="contain" 
+        />
+        {/* Bath4.png - opacity controlled for smooth cross-fade */}
+        <Animated.Image 
+          source={require('./BathGame/Bath4.png')} 
+          style={[styles.child, { position: 'absolute', opacity: bath4Opacity }]} 
+          resizeMode="contain" 
+        />
+        {/* Bath5.png - opacity controlled for smooth cross-fade */}
+        {!showBath5Gif && (
+          <Animated.Image 
+            source={require('./BathGame/Bath5.png')} 
+            style={[styles.child, { position: 'absolute', opacity: bath5Opacity }]} 
+            resizeMode="contain" 
+          />
+        )}
+        {/* Bath5.gif - shown after towel completes */}
+        <Animated.Image 
+          source={require('./BathGame/Bath5.gif')} 
           style={[styles.child, { 
-            position: 'absolute', 
+            position: 'absolute',
             width: SCREEN_WIDTH * 1.99,
             height: SCREEN_HEIGHT * 0.9,
-            opacity: bath2Opacity
+            opacity: bath5GifOpacity 
           }]} 
           resizeMode="contain" 
         />
         {/* Dirt overlays with Lather and Wash layers on top */}
-        {/* Dirt 1 with Water1, Lather1 and Wash1 */}
-        <View style={[styles.dirtContainer, { left: '38%', top: '38%' }]}>
+        {/* Dirt 1 with Lather1 and Wash1 */}
+        <View style={[styles.dirtContainer, { left: '38%', top: '39%' }]}>
           <Animated.Image source={require('./BathGame/Dirt1.png')} style={[styles.dirt, { opacity: dirtAnimations[0] }]} />
-          <Animated.Image source={require('./BathGame/Lather1.png')} style={[styles.dirt, { opacity: latherAnimations[0] }]} />
-          <Animated.Image source={require('./BathGame/Wash1.png')} style={[styles.dirt, { opacity: washAnimations[0] }]} />
+          <Animated.Image source={require('./BathGame/Lather1.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash1.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
-        {/* Water 1 - positioned near dirt but offset */}
-        <View style={[styles.dirtContainer, { left: '41%', top: '34%' }]}>
-          <Animated.Image source={require('./BathGame/Water1.png')} style={[styles.dirt, { opacity: waterAnimations[0] }]} />
-        </View>
-        {/* Dirt 2 with Water2, Lather2 and Wash2 */}
+        {/* Dirt 2 with Lather2 and Wash2 */}
         <View style={[styles.dirtContainer, { left: '50%', top: '42%' }]}>
           <Animated.Image source={require('./BathGame/Dirt2.png')} style={[styles.dirt, { opacity: dirtAnimations[1] }]} />
-          <Animated.Image source={require('./BathGame/Lather2.png')} style={[styles.dirt, { opacity: latherAnimations[1] }]} />
-          <Animated.Image source={require('./BathGame/Wash2.png')} style={[styles.dirt, { opacity: washAnimations[1] }]} />
+          <Animated.Image source={require('./BathGame/Lather2.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash2.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
-        {/* Water 2 - positioned near dirt but offset */}
-        <View style={[styles.dirtContainer, { left: '53%', top: '38%' }]}>
-          <Animated.Image source={require('./BathGame/Water2.png')} style={[styles.dirt, { opacity: waterAnimations[1] }]} />
-        </View>
-        {/* Dirt 3 with Water3, Lather3 and Wash3 */}
+        {/* Dirt 3 with Lather3 and Wash3 */}
         <View style={[styles.dirtContainer, { left: '42%', top: '48%' }]}>
           <Animated.Image source={require('./BathGame/Dirt3.png')} style={[styles.dirt, { opacity: dirtAnimations[2] }]} />
-          <Animated.Image source={require('./BathGame/Lather3.png')} style={[styles.dirt, { opacity: latherAnimations[2] }]} />
-          <Animated.Image source={require('./BathGame/Wash3.png')} style={[styles.dirt, { opacity: washAnimations[2] }]} />
+          <Animated.Image source={require('./BathGame/Lather3.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash3.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
-        {/* Water 3 - positioned near dirt but offset */}
-        <View style={[styles.dirtContainer, { left: '45%', top: '44%' }]}>
-          <Animated.Image source={require('./BathGame/Water3.png')} style={[styles.dirt, { opacity: waterAnimations[2] }]} />
-        </View>
-        {/* Dirt 4 with Water4, Lather4 and Wash4 */}
+        {/* Dirt 4 with Lather4 and Wash4 */}
         <View style={[styles.dirtContainer, { left: '48%', top: '52%' }]}>
           <Animated.Image source={require('./BathGame/Dirt4.png')} style={[styles.dirt, { opacity: dirtAnimations[3] }]} />
-          <Animated.Image source={require('./BathGame/Lather4.png')} style={[styles.dirt, { opacity: latherAnimations[3] }]} />
-          <Animated.Image source={require('./BathGame/Wash4.png')} style={[styles.dirt, { opacity: washAnimations[3] }]} />
+          <Animated.Image source={require('./BathGame/Lather4.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash4.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
-        {/* Water 4 - positioned near dirt but offset */}
-        <View style={[styles.dirtContainer, { left: '51%', top: '48%' }]}>
-          <Animated.Image source={require('./BathGame/Water4.png')} style={[styles.dirt, { opacity: waterAnimations[3] }]} />
-        </View>
-        {/* Dirt 5 with Water5, Lather5 and Wash5 */}
-        <View style={[styles.dirtContainer, { left: '38%', top: '60%' }]}>
+        {/* Dirt 5 with Lather5 and Wash5 */}
+        <View style={[styles.dirtContainer, { left: '38%', top: '58%' }]}>
           <Animated.Image source={require('./BathGame/Dirt5.png')} style={[styles.dirt, { opacity: dirtAnimations[4] }]} />
-          <Animated.Image source={require('./BathGame/Lather5.png')} style={[styles.dirt, { opacity: latherAnimations[4] }]} />
-          <Animated.Image source={require('./BathGame/Wash5.png')} style={[styles.dirt, { opacity: washAnimations[4] }]} />
+          <Animated.Image source={require('./BathGame/Lather5.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash5.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
-        {/* Water 5 - positioned near dirt but offset */}
-        <View style={[styles.dirtContainer, { left: '41%', top: '56%' }]}>
-          <Animated.Image source={require('./BathGame/Water5.png')} style={[styles.dirt, { opacity: waterAnimations[4] }]} />
-        </View>
-        {/* Dirt 6 with Water6, Lather6 and Wash6 */}
+        {/* Dirt 6 with Lather6 and Wash6 */}
         <View style={[styles.dirtContainer, { left: '52%', top: '64%' }]}>
           <Animated.Image source={require('./BathGame/Dirt6.png')} style={[styles.dirt, { opacity: dirtAnimations[5] }]} />
-          <Animated.Image source={require('./BathGame/Lather6.png')} style={[styles.dirt, { opacity: latherAnimations[5] }]} />
-          <Animated.Image source={require('./BathGame/Wash6.png')} style={[styles.dirt, { opacity: washAnimations[5] }]} />
+          <Animated.Image source={require('./BathGame/Lather6.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash6.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
-        {/* Water 6 - positioned near dirt but offset */}
-        <View style={[styles.dirtContainer, { left: '55%', top: '60%' }]}>
-          <Animated.Image source={require('./BathGame/Water6.png')} style={[styles.dirt, { opacity: waterAnimations[5] }]} />
+        {/* Dirt 7 with Lather7 and Wash7 */}
+        <View style={[styles.dirtContainer, { left: '42%', top: '30%' }]}>
+          <Animated.Image source={require('./BathGame/Dirt1.png')} style={[styles.dirt, { opacity: dirtAnimations[6] }]} />
+          <Animated.Image source={require('./BathGame/Lather1.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash1.png')} style={[styles.dirt, { opacity: 0 }]} />
+        </View>
+        {/* Dirt 8 with Lather8 and Wash8 */}
+        <View style={[styles.dirtContainer, { left: '56%', top: '37%' }]}>
+          <Animated.Image source={require('./BathGame/Dirt2.png')} style={[styles.dirt, { opacity: dirtAnimations[7] }]} />
+          <Animated.Image source={require('./BathGame/Lather2.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash2.png')} style={[styles.dirt, { opacity: 0 }]} />
+        </View>
+        {/* Dirt 9 with Lather9 and Wash9 */}
+        <View style={[styles.dirtContainer, { left: '42%', top: '64%' }]}>
+          <Animated.Image source={require('./BathGame/Dirt3.png')} style={[styles.dirt, { opacity: dirtAnimations[8] }]} />
+          <Animated.Image source={require('./BathGame/Lather3.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash3.png')} style={[styles.dirt, { opacity: 0 }]} />
+        </View>
+        {/* Dirt 10 with Lather10 and Wash10 */}
+        <View style={[styles.dirtContainer, { left: '54%', top: '48%' }]}>
+          <Animated.Image source={require('./BathGame/Dirt4.png')} style={[styles.dirt, { opacity: dirtAnimations[9] }]} />
+          <Animated.Image source={require('./BathGame/Lather4.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash4.png')} style={[styles.dirt, { opacity: 0 }]} />
+        </View>
+        {/* Dirt 11 with Lather11 and Wash11 */}
+        <View style={[styles.dirtContainer, { left: '44%', top: '33%' }]}>
+          <Animated.Image source={require('./BathGame/Dirt5.png')} style={[styles.dirt, { opacity: dirtAnimations[10] }]} />
+          <Animated.Image source={require('./BathGame/Lather5.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash5.png')} style={[styles.dirt, { opacity: 0 }]} />
+        </View>
+        {/* Dirt 12 with Lather12 and Wash12 */}
+        <View style={[styles.dirtContainer, { left: '55%', top: '58%' }]}>
+          <Animated.Image source={require('./BathGame/Dirt6.png')} style={[styles.dirt, { opacity: dirtAnimations[11] }]} />
+          <Animated.Image source={require('./BathGame/Lather6.png')} style={[styles.dirt, { opacity: 0 }]} />
+          <Animated.Image source={require('./BathGame/Wash6.png')} style={[styles.dirt, { opacity: 0 }]} />
         </View>
       </View>
 
@@ -755,6 +944,8 @@ export default function BathGame() {
         style={[styles.draggableTool, { 
           left: soapInitialX, 
           top: soapInitialY, 
+          width: toolSize,
+          height: toolSize,
           transform: [
             { translateX: soapX }, 
             { translateY: soapY },
@@ -769,6 +960,8 @@ export default function BathGame() {
         style={[styles.draggableTool, { 
           left: showerInitialX, 
           top: showerInitialY, 
+          width: toolSize,
+          height: toolSize,
           transform: [
             { translateX: showerX }, 
             { translateY: showerY },
@@ -783,6 +976,8 @@ export default function BathGame() {
         style={[styles.draggableTool, { 
           left: towelInitialX, 
           top: towelInitialY, 
+          width: toolSize,
+          height: toolSize,
           transform: [
             { translateX: towelX }, 
             { translateY: towelY },
@@ -879,13 +1074,13 @@ const styles = StyleSheet.create({
   },
   dirtContainer: {
     position: 'absolute',
-    width: 40,
-    height: 40,
+    width: DIRT_SIZE,
+    height: DIRT_SIZE,
   },
   dirt: {
     position: 'absolute',
-    width: 40,
-    height: 40,
+    width: DIRT_SIZE,
+    height: DIRT_SIZE,
   },
   draggableTool: {
     position: 'absolute',
