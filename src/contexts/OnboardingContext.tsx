@@ -18,12 +18,30 @@ interface OnboardingContextType {
   startParentalLockOnboarding: () => void;
   nextParentalLockStep: () => void;
   completeParentalLockOnboarding: () => void;
+  // Add Routine Onboarding
+  showAddRoutineOnboarding: boolean;
+  startAddRoutineOnboarding: () => void;
+  completeAddRoutineOnboarding: () => void;
+  skipAddRoutineOnboarding: () => void;
+  // Add Routine Modal Onboarding
+  showAddRoutineModalOnboarding: boolean;
+  currentAddRoutineModalStep: number;
+  startAddRoutineModalOnboarding: () => void;
+  nextAddRoutineModalStep: () => void;
+  completeAddRoutineModalOnboarding: () => void;
+  skipAddRoutineModalOnboarding: () => void;
+  // Progress Onboarding
+  showProgressOnboarding: boolean;
+  startProgressOnboarding: () => void;
+  completeProgressOnboarding: () => void;
+  skipProgressOnboarding: () => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
 const ONBOARDING_KEY_PREFIX = '@ritmo_onboarding_completed_';
 const PARENTAL_LOCK_ONBOARDING_KEY_PREFIX = '@ritmo_pl_onboarding_completed_';
+const ADD_ROUTINE_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_onboarding_completed_';
 const TOTAL_ONBOARDING_STEPS = 5; // Home, Media, Progress, Settings, Add Routine
 const TOTAL_PARENTAL_LOCK_STEPS = 2; // Container, Toggle Switch
 
@@ -37,6 +55,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   // Parental Lock Onboarding State
   const [showParentalLockOnboarding, setShowParentalLockOnboarding] = useState(false);
   const [currentParentalLockStep, setCurrentParentalLockStep] = useState(0);
+  
+  // Add Routine Onboarding State
+  const [showAddRoutineOnboarding, setShowAddRoutineOnboarding] = useState(false);
+  
+  // Add Routine Modal Onboarding State
+  const [showAddRoutineModalOnboarding, setShowAddRoutineModalOnboarding] = useState(false);
+  const [currentAddRoutineModalStep, setCurrentAddRoutineModalStep] = useState(0);
+  
+  // Progress Onboarding State
+  const [showProgressOnboarding, setShowProgressOnboarding] = useState(false);
 
   // Check if user has completed onboarding before
   useEffect(() => {
@@ -187,6 +215,107 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  // Add Routine Onboarding Functions
+  const startAddRoutineOnboarding = async () => {
+    console.log('🔍 startAddRoutineOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No user found for Add Routine onboarding');
+        return;
+      }
+      
+      // Always show onboarding (unlimited/testing mode) - similar to parental lock
+      console.log('➕ Starting Add Routine onboarding (unlimited mode)...');
+      setShowAddRoutineOnboarding(true);
+      
+    } catch (error) {
+      console.error('Error starting add routine onboarding:', error);
+    }
+  };
+
+  const completeAddRoutineOnboarding = async () => {
+    setShowAddRoutineOnboarding(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const addRoutineOnboardingKey = `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(addRoutineOnboardingKey, 'true');
+        console.log('✅ Add Routine onboarding completed for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving add routine onboarding completion:', error);
+    }
+  };
+
+  const skipAddRoutineOnboarding = async () => {
+    setShowAddRoutineOnboarding(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const addRoutineOnboardingKey = `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(addRoutineOnboardingKey, 'true');
+        console.log('⏭️ Add Routine onboarding skipped for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving add routine onboarding skip:', error);
+    }
+  };
+  // Progress Onboarding Functions
+  const startProgressOnboarding = async () => {
+    console.log('🔍 startProgressOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No user found for Progress onboarding');
+        return;
+      }
+      
+      // Always show onboarding (unlimited/testing mode)
+      console.log('📊 Starting Progress onboarding (unlimited mode)...');
+      setShowProgressOnboarding(true);
+      
+    } catch (error) {
+      console.error('Error starting progress onboarding:', error);
+    }
+  };
+
+  const completeProgressOnboarding = async () => {
+    setShowProgressOnboarding(false);
+    console.log('✅ Progress onboarding completed');
+  };
+
+  const skipProgressOnboarding = async () => {
+    setShowProgressOnboarding(false);
+    console.log('⏭️ Progress onboarding skipped');
+  };
+  // Add Routine Modal Onboarding Functions
+  const startAddRoutineModalOnboarding = () => {
+    console.log('📝 Starting Add Routine Modal onboarding (unlimited mode)...');
+    setShowAddRoutineModalOnboarding(true);
+    setCurrentAddRoutineModalStep(0);
+  };
+
+  const nextAddRoutineModalStep = () => {
+    if (currentAddRoutineModalStep < 4) { // 5 steps (0-4)
+      setCurrentAddRoutineModalStep(prev => prev + 1);
+    } else {
+      completeAddRoutineModalOnboarding();
+    }
+  };
+
+  const completeAddRoutineModalOnboarding = () => {
+    console.log('✅ Add Routine Modal onboarding completed');
+    setShowAddRoutineModalOnboarding(false);
+    setCurrentAddRoutineModalStep(0);
+  };
+
+  const skipAddRoutineModalOnboarding = () => {
+    console.log('⏭️ Add Routine Modal onboarding skipped');
+    setShowAddRoutineModalOnboarding(false);
+    setCurrentAddRoutineModalStep(0);
+  };
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -205,6 +334,23 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         startParentalLockOnboarding,
         nextParentalLockStep,
         completeParentalLockOnboarding,
+        // Add Routine Onboarding
+        showAddRoutineOnboarding,
+        startAddRoutineOnboarding,
+        completeAddRoutineOnboarding,
+        skipAddRoutineOnboarding,
+        // Add Routine Modal Onboarding
+        showAddRoutineModalOnboarding,
+        currentAddRoutineModalStep,
+        startAddRoutineModalOnboarding,
+        nextAddRoutineModalStep,
+        completeAddRoutineModalOnboarding,
+        skipAddRoutineModalOnboarding,
+        // Progress Onboarding
+        showProgressOnboarding,
+        startProgressOnboarding,
+        completeProgressOnboarding,
+        skipProgressOnboarding,
       }}
     >
       {children}

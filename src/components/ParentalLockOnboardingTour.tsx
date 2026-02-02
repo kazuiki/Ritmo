@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
 
 interface ParentalLockOnboardingTourProps {
@@ -84,9 +85,9 @@ export default function ParentalLockOnboardingTour({
 
   const config = getStepConfig();
 
-  // Calculate tooltip position
+  // Calculate tooltip position - moved down more to avoid covering highlight
   const tooltipTop = config.tooltipPosition === 'bottom'
-    ? config.highlightPosition.top + config.highlightPosition.height + scaleHeight(20)
+    ? config.highlightPosition.top + config.highlightPosition.height + scaleHeight(60)
     : config.highlightPosition.top - scaleHeight(200);
 
   return (
@@ -96,11 +97,34 @@ export default function ParentalLockOnboardingTour({
       animationType="none"
     >
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        {/* Dark backdrop */}
-        <View style={styles.backdrop} />
+        {/* Dark overlay with transparent hole using SVG mask */}
+        <Svg height={screenHeight} width={screenWidth} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <Mask id="parental-mask" x="0" y="0" height="100%" width="100%">
+              {/* White background = visible dark overlay */}
+              <Rect height="100%" width="100%" fill="#fff" />
+              {/* Black rectangle = transparent hole */}
+              <Rect
+                x={config.highlightPosition.left - (step === 1 ? scaleSpacing(20) : 0)}
+                y={config.highlightPosition.top - (step === 1 ? scaleSpacing(12) : 0)}
+                width={config.highlightPosition.width + (step === 1 ? scaleSpacing(32) : 0)}
+                height={config.highlightPosition.height + (step === 1 ? scaleSpacing(24) : 0)}
+                rx={step === 1 ? scaleSpacing(30) : scaleSpacing(15)}
+                fill="#000"
+              />
+            </Mask>
+          </Defs>
+          {/* Apply mask to dark overlay */}
+          <Rect
+            height="100%"
+            width="100%"
+            fill="rgba(0, 0, 0, 0.4)"
+            mask="url(#parental-mask)"
+          />
+        </Svg>
 
-        {/* Highlight */}
-        <Animated.View
+        {/* Bright highlight border */}
+        <View
           style={[
             styles.highlight,
             {
@@ -172,9 +196,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   highlight: {
-    borderWidth: 3,
+    borderWidth: 4,
     borderColor: '#5DD4B4',
     backgroundColor: 'transparent',
+    shadowColor: '#5DD4B4',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   tooltip: {
     backgroundColor: '#fff',

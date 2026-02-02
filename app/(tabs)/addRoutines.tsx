@@ -14,7 +14,10 @@ import {
     View
 } from "react-native";
 import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
+import AddRoutineModalOnboarding from "../../src/components/AddRoutineModalOnboarding";
+import AddRoutineOnboardingTour from "../../src/components/AddRoutineOnboardingTour";
 import { useMode } from "../../src/contexts/ModeContext";
+import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import NotificationService from "../../src/notificationService";
 import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
@@ -37,6 +40,18 @@ export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
     const { mode, parentalLockEnabled, backToChildMode } = useMode();
+    const { 
+        showAddRoutineOnboarding, 
+        startAddRoutineOnboarding, 
+        completeAddRoutineOnboarding, 
+        skipAddRoutineOnboarding,
+        showAddRoutineModalOnboarding,
+        currentAddRoutineModalStep,
+        startAddRoutineModalOnboarding,
+        nextAddRoutineModalStep,
+        completeAddRoutineModalOnboarding,
+        skipAddRoutineModalOnboarding
+    } = useOnboarding();
     const [modalVisible, setModalVisible] = useState(false);
     const [routineName, setRoutineName] = useState("");
     const [hour, setHour] = useState("01");
@@ -49,6 +64,25 @@ export default function addRoutines() {
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+    
+    // Onboarding state
+    const plusButtonRef = useRef<View>(null);
+    const [plusButtonLayout, setPlusButtonLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    
+    // Modal onboarding refs
+    const timePickerRef = useRef<View>(null);
+    const daysRef = useRef<View>(null);
+    const presetRef = useRef<View>(null);
+    const routineNameRef = useRef<View>(null);
+    const ringtoneRef = useRef<View>(null);
+    const [modalOnboardingLayouts, setModalOnboardingLayouts] = useState<{
+        timePicker?: { x: number; y: number; width: number; height: number } | null;
+        days?: { x: number; y: number; width: number; height: number } | null;
+        preset?: { x: number; y: number; width: number; height: number } | null;
+        routineName?: { x: number; y: number; width: number; height: number } | null;
+        ringtone?: { x: number; y: number; width: number; height: number } | null;
+    }>({});
+    
     const ALL_DAYS = [0,1,2,3,4,5,6];
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
     const [formScrollEnabled, setFormScrollEnabled] = useState(true);
@@ -107,6 +141,26 @@ export default function addRoutines() {
 
     useFocusEffect(
         React.useCallback(() => {
+            // Measure the plus button position first
+            const measureTimer = setTimeout(() => {
+                if (plusButtonRef.current) {
+                    plusButtonRef.current.measure((x, y, width, height, pageX, pageY) => {
+                        console.log('📏 Plus button measured:', { pageX, pageY, width, height });
+                        setPlusButtonLayout({ x: pageX, y: pageY, width, height });
+                    });
+                }
+            }, 300);
+            
+            // Then trigger onboarding after layout is ready
+            const onboardingTimer = setTimeout(() => {
+                console.log('🎯 Triggering Add Routine onboarding...');
+                startAddRoutineOnboarding();
+            }, 800);
+            
+            return () => {
+                clearTimeout(measureTimer);
+                clearTimeout(onboardingTimer);
+            };
         }, [])
     );
 
@@ -207,7 +261,54 @@ export default function addRoutines() {
             minuteRef.current?.scrollTo({ y: 60 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (minute 0)
             periodRef.current?.scrollTo({ y: 0, animated: false });
             setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
+            
+            // Trigger modal onboarding after layout is ready
+            setTimeout(() => {
+                measureModalLayouts();
+                setTimeout(() => {
+                    startAddRoutineModalOnboarding();
+                }, 500);
+            }, 300);
         }, 0);
+    };
+
+    const measureModalLayouts = () => {
+        const layouts: any = {};
+        
+        if (timePickerRef.current) {
+            timePickerRef.current.measure((x, y, width, height, pageX, pageY) => {
+                layouts.timePicker = { x: pageX, y: pageY, width, height };
+                setModalOnboardingLayouts(prev => ({ ...prev, timePicker: layouts.timePicker }));
+            });
+        }
+        
+        if (daysRef.current) {
+            daysRef.current.measure((x, y, width, height, pageX, pageY) => {
+                layouts.days = { x: pageX, y: pageY, width, height };
+                setModalOnboardingLayouts(prev => ({ ...prev, days: layouts.days }));
+            });
+        }
+        
+        if (presetRef.current) {
+            presetRef.current.measure((x, y, width, height, pageX, pageY) => {
+                layouts.preset = { x: pageX, y: pageY, width, height };
+                setModalOnboardingLayouts(prev => ({ ...prev, preset: layouts.preset }));
+            });
+        }
+        
+        if (routineNameRef.current) {
+            routineNameRef.current.measure((x, y, width, height, pageX, pageY) => {
+                layouts.routineName = { x: pageX, y: pageY, width, height };
+                setModalOnboardingLayouts(prev => ({ ...prev, routineName: layouts.routineName }));
+            });
+        }
+        
+        if (ringtoneRef.current) {
+            ringtoneRef.current.measure((x, y, width, height, pageX, pageY) => {
+                layouts.ringtone = { x: pageX, y: pageY, width, height };
+                setModalOnboardingLayouts(prev => ({ ...prev, ringtone: layouts.ringtone }));
+            });
+        }
     };
 
     const openEditModal = (routine: Routine) => {
@@ -465,6 +566,7 @@ export default function addRoutines() {
             <View style={styles.titleRow}>
                 <Text style={styles.titleText}>Setup day routine</Text>
                 <TouchableOpacity
+                    ref={plusButtonRef}
                     style={styles.plusBtn}
                     activeOpacity={0.8}
                     onPress={openModal}
@@ -526,7 +628,7 @@ export default function addRoutines() {
                         keyboardShouldPersistTaps="handled"
                     >
                         {/* Time Picker Section */}
-                        <View style={styles.timePickerCard}>
+                        <View style={styles.timePickerCard} ref={timePickerRef} collapsable={false}>
                             <View style={styles.pickerContainer}>
                                 {/* Hours Picker */}
                                 <View style={styles.pickerWrapper}>
@@ -671,7 +773,7 @@ export default function addRoutines() {
                             {/* Form Section */}
                             <View style={styles.formCard}>
                                 {/* Day of Week Selector */}
-                                <View style={styles.daysRow}>
+                                <View style={styles.daysRow} ref={daysRef} collapsable={false}>
                                     {[
                                         { idx: 0, label: 'S' },
                                         { idx: 1, label: 'M' },
@@ -700,28 +802,41 @@ export default function addRoutines() {
                                     })}
                                 </View>
                                 {/* Choose Routine Preset - white bordered selector with chevron (disabled when editing) */}
-                                <TouchableOpacity style={[styles.ringtoneSelector, { backgroundColor: editingRoutineId ? '#F5F5F5' : '#FFFFFF', marginBottom: 16 }]} onPress={openPresetModal} disabled={!!editingRoutineId}>
-                                    <Text style={styles.ringtoneText}>Choose Routine Preset</Text>
-                                    <Text style={styles.chevron}>›</Text>
-                                </TouchableOpacity>
+                                <View ref={presetRef} collapsable={false} style={{ marginBottom: 16 }}>
+                                    <TouchableOpacity 
+                                        style={[styles.ringtoneSelector, { backgroundColor: editingRoutineId ? '#F5F5F5' : '#FFFFFF' }]} 
+                                        onPress={openPresetModal} 
+                                        disabled={!!editingRoutineId}
+                                    >
+                                        <Text style={styles.ringtoneText}>Choose Routine Preset</Text>
+                                        <Text style={styles.chevron}>›</Text>
+                                    </TouchableOpacity>
+                                </View>
 
                                 {/* Routine Name Input - non-editable if preset selected */}
-                                <TextInput
-                                    style={[styles.input, selectedPresetId && styles.inputDisabled]}
-                                    placeholder="Routine name"
-                                    placeholderTextColor="#000000ff"
-                                    value={routineName}
-                                    onChangeText={setRoutineName}
-                                    editable={!selectedPresetId}
-                                />
+                                <View ref={routineNameRef} collapsable={false} style={{ marginBottom: 16 }}>
+                                    <TextInput
+                                        style={[styles.input, selectedPresetId && styles.inputDisabled]}
+                                        placeholder="Routine name"
+                                        placeholderTextColor="#000000ff"
+                                        value={routineName}
+                                        onChangeText={setRoutineName}
+                                        editable={!selectedPresetId}
+                                    />
+                                </View>
 
                                 {/* Ringtone Selector */}
-                                <TouchableOpacity style={styles.ringtoneSelector} onPress={openRingtoneModal}>
-                                    <Text style={styles.ringtoneText}>
-                                        Ringtone: {selectedRingtone ? (selectedRingtone === 'alarm1' ? 'Morning Bell' : selectedRingtone === 'alarm2' ? 'Gentle Wake' : selectedRingtone === 'alarm3' ? 'Classic Chime' : selectedRingtone) : ''}
-                                    </Text>
-                                    <Text style={styles.chevron}>›</Text>
-                                </TouchableOpacity>
+                                <View ref={ringtoneRef} collapsable={false}>
+                                    <TouchableOpacity 
+                                        style={styles.ringtoneSelector} 
+                                        onPress={openRingtoneModal}
+                                    >
+                                        <Text style={styles.ringtoneText}>
+                                            Ringtone: {selectedRingtone ? (selectedRingtone === 'alarm1' ? 'Morning Bell' : selectedRingtone === 'alarm2' ? 'Gentle Wake' : selectedRingtone === 'alarm3' ? 'Classic Chime' : selectedRingtone) : ''}
+                                        </Text>
+                                        <Text style={styles.chevron}>›</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             {/* Delete Button - Only show when editing */}
@@ -1098,6 +1213,23 @@ export default function addRoutines() {
                     </View>
                 </View>
             </Modal>
+            
+            {/* Add Routine Onboarding Tour */}
+            <AddRoutineOnboardingTour
+                visible={showAddRoutineOnboarding}
+                onComplete={completeAddRoutineOnboarding}
+                onSkip={skipAddRoutineOnboarding}
+                plusButtonLayout={plusButtonLayout}
+            />
+            
+            {/* Add Routine Modal Onboarding Tour */}
+            <AddRoutineModalOnboarding
+                visible={showAddRoutineModalOnboarding && modalVisible}
+                step={currentAddRoutineModalStep}
+                onNext={nextAddRoutineModalStep}
+                onSkip={skipAddRoutineModalOnboarding}
+                layouts={modalOnboardingLayouts}
+            />
         </View>
     );
 }
@@ -1317,7 +1449,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         paddingVertical: scale.scaleSpacing(14),
         paddingHorizontal: scale.scaleSpacing(16),
         fontSize: scale.scaleFont(16),
-        marginBottom: scale.scaleSpacing(16),
         borderWidth: 2,
         borderColor: "#B8E6D9",
     },
