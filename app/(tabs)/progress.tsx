@@ -17,7 +17,9 @@ import {
 	View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ProgressOnboarding } from "../../src/components";
 import { useMode } from "../../src/contexts/ModeContext";
+import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { saveWeeklyPerformanceReportPdf } from "../../src/utils/pdf";
@@ -35,6 +37,7 @@ export default function Progress() {
 	const tabBarHeight = useBottomTabBarHeight();
 	const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
 	const { mode, parentalLockEnabled, backToChildMode } = useMode();
+	const { showProgressOnboarding, startProgressOnboarding, completeProgressOnboarding, skipProgressOnboarding } = useOnboarding();
 	const [fontsLoaded] = useFonts({
 		Fredoka_400Regular,
 		Fredoka_500Medium,
@@ -42,6 +45,8 @@ export default function Progress() {
 		Fredoka_700Bold,
 	});
 	const printableRef = useRef<View>(null);
+	const weekButtonRef = useRef<View>(null);
+	const [weekButtonLayout, setWeekButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [childName, setChildName] = useState<string>("Kid");
 	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
@@ -258,6 +263,19 @@ export default function Progress() {
 			};
 			
 			refreshData();
+
+			// Measure week button and trigger onboarding after a delay
+			const measureTimer = setTimeout(() => {
+				weekButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+					setWeekButtonLayout({ x: pageX, y: pageY, width, height });
+					console.log('📏 Progress week button measured:', { x: pageX, y: pageY, width, height });
+					
+					// Trigger onboarding after measurement
+					startProgressOnboarding();
+				});
+			}, 100);
+
+			return () => clearTimeout(measureTimer);
 		}, [weekInfo.monday, weekInfo.sunday])
 	);
 
@@ -475,16 +493,18 @@ export default function Progress() {
 					{/* Week of (pressable text + inline icon) */}
 					<View style={styles.weekRow}>
 						<Text style={styles.subtleText}>Week of: </Text>
-						<Pressable 
-							style={({ pressed }) => [
-								styles.weekDateButton,
-								pressed && styles.weekDateButtonPressed
-							]}
-							onPress={() => router.push("/history")}
-						>
-							<Text style={styles.weekRangeText}>{weekInfo.rangeText}</Text>
-							<Image source={require("../../assets/images/history.png")} style={styles.weekInlineIcon} />
-						</Pressable>
+						<View ref={weekButtonRef} collapsable={false}>
+							<Pressable 
+								style={({ pressed }) => [
+									styles.weekDateButton,
+									pressed && styles.weekDateButtonPressed
+								]}
+								onPress={() => router.push("/history")}
+							>
+								<Text style={styles.weekRangeText}>{weekInfo.rangeText}</Text>
+								<Image source={require("../../assets/images/history.png")} style={styles.weekInlineIcon} />
+							</Pressable>
+						</View>
 					</View>						
 					{/* Metric mini-cards */}
 						<View style={styles.metricsRow}>
@@ -614,6 +634,14 @@ export default function Progress() {
 					</View>
 				</TouchableOpacity>
 			</ScrollView>
+
+			{/* Progress Onboarding */}
+			<ProgressOnboarding
+				visible={showProgressOnboarding}
+				weekButtonLayout={weekButtonLayout}
+				onComplete={completeProgressOnboarding}
+				onSkip={skipProgressOnboarding}
+			/>
 	</View>
 	);
 }
