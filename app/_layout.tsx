@@ -1,4 +1,4 @@
-import * as NavigationBar from 'expo-navigation-bar';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
@@ -27,9 +27,25 @@ export default function RootLayout() {
    * ANDROID-ONLY SYSTEM UI CONTROL (from Paste #2)
    */
   useEffect(() => {
-  if (Platform.OS === 'android') {
-    NavigationBar.setVisibilityAsync('hidden');
-    NavigationBar.setBehaviorAsync('overlay-swipe'); // optional but nice
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const navigationBarModule = requireOptionalNativeModule('ExpoNavigationBar') as
+      | { setVisibilityAsync?: (visibility: string) => Promise<void>; setBehaviorAsync?: (behavior: string) => Promise<void> }
+      | null;
+
+    if (navigationBarModule?.setVisibilityAsync) {
+      navigationBarModule.setVisibilityAsync('hidden').catch((error) => {
+        console.warn('NavigationBar setVisibilityAsync failed:', error);
+      });
+    }
+
+    if (navigationBarModule?.setBehaviorAsync) {
+      navigationBarModule.setBehaviorAsync('overlay-swipe').catch((error) => {
+        console.warn('NavigationBar setBehaviorAsync failed:', error);
+      });
+    }
 
     const backAction = () => {
       Alert.alert("Exit Game", "Are you sure you want to close the app?", [
@@ -45,8 +61,7 @@ export default function RootLayout() {
     );
 
     return () => backHandler.remove();
-  }
-}, []);
+  }, []);
 
 
   /**
