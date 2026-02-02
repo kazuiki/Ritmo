@@ -1,9 +1,9 @@
 import { Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
-import { Asset } from "expo-asset";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import { Animated, ImageBackground, StyleSheet, Text, View } from "react-native";
+import { preloadGameAssets } from "../src/utils/assetPreloader";
 import { setupNetworkListener } from "../src/utils/networkUtils";
 
 /**
@@ -52,28 +52,11 @@ export default function LoadingPage() {
         // Preload assets for weak network users
         const preloadAssets = async () => {
           try {
-            await Asset.loadAsync([
-              require("../assets/gifs/brushStep1.gif"),
-              require("../assets/gifs/brushStep2.gif"),
-              require("../assets/gifs/brushStep3.gif"),
-              require("../assets/gifs/brushStep4.gif"),
-              require("../assets/gifs/eatStep1.gif"),
-              require("../assets/gifs/eatStep2.gif"),
-              require("../assets/gifs/eatStep3.gif"),
-              require("../assets/gifs/eatStep4.gif"),
-              require("../assets/gifs/bathStep1.gif"),
-              require("../assets/gifs/bathStep2.gif"),
-              require("../assets/gifs/bathStep3.gif"),
-              require("../assets/gifs/bathStep4.gif"),
-              require("../assets/gifs/schoolStep1.gif"),
-              require("../assets/gifs/schoolStep2.gif"),
-              require("../assets/gifs/schoolStep3.gif"),
-              require("../assets/gifs/schoolStep4.gif"),
-              require("../assets/gifs/media-unscreen.gif"),
-              require("../assets/gifs/media-1--unscreen.gif"),
-            ]);
+            // Use the comprehensive asset preloader
+            await preloadGameAssets();
+            
             setAssetsLoaded(true);
-            console.log('📦 Assets preloaded for weak network - auto-navigating');
+            console.log('📦 All game assets preloaded and cached - auto-navigating');
             
             // Auto-navigate after assets are loaded for slow connections
             setTimeout(() => {
