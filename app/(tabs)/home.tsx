@@ -45,7 +45,7 @@ export default function Home() {
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
-  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus } = useOnboarding();
+  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin } = useOnboarding();
   const insets = useSafeAreaInsets();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -262,18 +262,9 @@ export default function Home() {
 
   useFocusEffect(
     React.useCallback(() => {
-      // ALWAYS SHOW ONBOARDING FOR TESTING
-      console.log('🎯 Home screen focused - triggering onboarding (TEST MODE)');
-      console.log('Parental Lock Enabled:', parentalLockEnabled);
+      // Check if this is the first login and start onboarding if needed
+      checkAndStartOnboardingIfFirstLogin();
       
-      // Delay to let UI render, then trigger
-      setTimeout(() => {
-        console.log('🚀 Calling startOnboarding()...');
-        startOnboarding();
-      }, 800);
-      
-      // Keep the old code below for minigame check
-
       // Set loading state immediately to hide content while checking
       setIsCheckingCompletion(true);
       
@@ -1087,33 +1078,6 @@ export default function Home() {
           <View style={[styles.progressBarFill, { width: `${progressPercentage}%` }]} />
         </View>
       </View>
-
-      {/* DEBUG: Test Onboarding Button */}
-      {!parentalLockEnabled && (
-        <TouchableOpacity
-          style={{
-            alignSelf: 'center',
-            marginTop: scaleHeight(10),
-            backgroundColor: '#FF6B6B',
-            paddingHorizontal: scaleSpacing(20),
-            paddingVertical: scaleSpacing(10),
-            borderRadius: scaleSpacing(25),
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 4,
-            elevation: 5,
-          }}
-          onPress={() => {
-            console.log('🔴 DEBUG: Manual trigger onboarding');
-            startOnboarding();
-          }}
-        >
-          <Text style={{ color: '#fff', fontSize: scaleFont(14), fontWeight: 'bold' }}>
-            🎯 TEST TOUR
-          </Text>
-        </TouchableOpacity>
-      )}
 
       {/* All Done Message - Show only after completing all tasks */}
       {showAllDone && (

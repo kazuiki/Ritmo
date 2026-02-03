@@ -265,8 +265,8 @@ export default function addRoutines() {
             // Trigger modal onboarding after layout is ready
             setTimeout(() => {
                 measureModalLayouts();
-                setTimeout(() => {
-                    startAddRoutineModalOnboarding();
+                setTimeout(async () => {
+                    await startAddRoutineModalOnboarding();
                 }, 500);
             }, 300);
         }, 0);
