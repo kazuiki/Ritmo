@@ -9,7 +9,6 @@ import {
   View
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
-import { ResponsiveTheme } from '../../constants/theme';
 import { useResponsiveDimensions } from '../utils/responsive';
 
 interface OnboardingTourProps {
