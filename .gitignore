@@ -40,4 +40,15 @@ app-example
 
 # generated native folders
 /ios
-/android
+
+# Android build files
+android/build/
+android/app/build/
+android/.gradle/
+modules/expo-godot-view/android/build/
+**/intermediates/
+**/kotlin/compileDebugKotlin/
+*.jar
+*.dex
+*.ap_
+*.class
