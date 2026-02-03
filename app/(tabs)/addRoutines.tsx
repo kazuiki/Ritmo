@@ -1264,10 +1264,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         marginLeft: scale.scaleSpacing(-22),
     },
     modeButton: {
-        backgroundColor: '#B8E6E1',
+        backgroundColor: 'transparent',
         paddingHorizontal: scale.scaleSpacing(20),
         paddingVertical: scale.scaleSpacing(12),
-        borderRadius: 20,
+        borderRadius: 0,
         marginTop: scale.scaleSpacing(10),
     },
     modeButtonContent: {

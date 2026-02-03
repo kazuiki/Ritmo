@@ -233,7 +233,7 @@ export default function TabsLayout() {
                   bottom: scaleHeight(25),
                   left: screenWidth * 0.05,
                   width: screenWidth * 0.9,
-                  height: scaleHeight(85),
+                  height: scaleHeight(70),
                   backgroundColor: '#2F7C72',
                   borderRadius: scaleSpacing(42.5),
                   flexDirection: 'row',
@@ -246,7 +246,7 @@ export default function TabsLayout() {
                       position: 'absolute',
                       left: 0,
                       width: (screenWidth * 0.9) / 3,
-                      height: scaleHeight(85),
+                      height: scaleHeight(70),
                       backgroundColor: '#5DD4B4',
                       borderRadius: scaleSpacing(42.5),
                       transform: [{ translateX: parentIndicatorTranslateX }],
@@ -387,7 +387,8 @@ export default function TabsLayout() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: scaleSpacing(3),
+                    gap: scaleSpacing(1),
+                    paddingBottom: scaleHeight(6),
                     zIndex: 1,
                   }}
                 >
@@ -397,9 +398,10 @@ export default function TabsLayout() {
                       width: scaleWidth(28),
                       height: scaleHeight(28),
                       tintColor: '#fff',
+                      marginTop: scaleHeight(-6),
                     }}
                   />
-                  <Text style={{ color: '#fff', fontSize: scaleFont(9), fontWeight: '600', textAlign: 'center' }}>Add</Text>
+                  <Text style={{ color: '#fff', fontSize: scaleFont(9), fontWeight: '600', textAlign: 'center', marginBottom: scaleHeight(-4) }}>Add</Text>
                 </View>
               )
             ),
@@ -445,7 +447,8 @@ export default function TabsLayout() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: scaleSpacing(3),
+                      gap: scaleSpacing(1),
+                      paddingBottom: scaleHeight(6),
                       zIndex: 1,
                     }}
                   >
@@ -455,9 +458,10 @@ export default function TabsLayout() {
                         width: scaleWidth(28),
                         height: scaleHeight(28),
                         tintColor: '#fff',
+                        marginTop: scaleHeight(-6),
                       }}
                     />
-                    <Text style={{ color: '#fff', fontSize: scaleFont(7), fontWeight: '600', textAlign: 'center' }}>Progress</Text>
+                    <Text style={{ color: '#fff', fontSize: scaleFont(7), fontWeight: '600', textAlign: 'center', marginBottom: scaleHeight(-4) }}>Progress</Text>
                   </View>
                 )
               ),
@@ -503,7 +507,8 @@ export default function TabsLayout() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: scaleSpacing(3),
+                      gap: scaleSpacing(1),
+                      paddingBottom: scaleHeight(6),
                       zIndex: 1,
                     }}
                   >
@@ -513,9 +518,10 @@ export default function TabsLayout() {
                         width: scaleWidth(28),
                         height: scaleHeight(28),
                         tintColor: '#fff',
+                        marginTop: scaleHeight(-6),
                       }}
                     />
-                    <Text style={{ color: '#fff', fontSize: scaleFont(7), fontWeight: '600', textAlign: 'center' }}>Settings</Text>
+                    <Text style={{ color: '#fff', fontSize: scaleFont(7), fontWeight: '600', textAlign: 'center', marginBottom: scaleHeight(-4) }}>Settings</Text>
                   </View>
                 )
               ),

@@ -8,7 +8,7 @@ import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
 import { router } from "expo-router";
-import { Animated, Easing, Image, ImageBackground, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
@@ -1796,11 +1796,7 @@ export default function Home() {
         statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="cover"
-          >
+          <View style={styles.modalBackground}>
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <View style={styles.lockIconContainer}>
@@ -1866,7 +1862,7 @@ export default function Home() {
                 </View>
               </View>
             </View>
-          </ImageBackground>
+          </View>
         </View>
       </Modal>
     </View>
@@ -1908,10 +1904,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginLeft: scale.scaleSpacing(-22),
   },
   modeButton: {
-    backgroundColor: '#B8E6E1',
+    backgroundColor: 'transparent',
     paddingHorizontal: scale.scaleSpacing(20),
     paddingVertical: scale.scaleSpacing(12),
-    borderRadius: 20,
+    borderRadius: 0,
     marginTop: scale.scaleSpacing(10),
   },
   modeButtonContent: {
