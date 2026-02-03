@@ -12,6 +12,7 @@ interface OnboardingContextType {
   completeOnboarding: () => void;
   resetOnboarding: () => void;
   checkOnboardingStatus: () => Promise<void>;
+  checkAndStartOnboardingIfFirstLogin: () => Promise<void>;
   // Parental Lock Onboarding
   showParentalLockOnboarding: boolean;
   currentParentalLockStep: number;
@@ -42,6 +43,8 @@ const OnboardingContext = createContext<OnboardingContextType | undefined>(undef
 const ONBOARDING_KEY_PREFIX = '@ritmo_onboarding_completed_';
 const PARENTAL_LOCK_ONBOARDING_KEY_PREFIX = '@ritmo_pl_onboarding_completed_';
 const ADD_ROUTINE_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_onboarding_completed_';
+const ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_modal_onboarding_completed_';
+const PROGRESS_ONBOARDING_KEY_PREFIX = '@ritmo_progress_onboarding_completed_';
 const TOTAL_ONBOARDING_STEPS = 5; // Home, Media, Progress, Settings, Add Routine
 const TOTAL_PARENTAL_LOCK_STEPS = 2; // Container, Toggle Switch
 
@@ -51,6 +54,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [hasCheckedFirstLogin, setHasCheckedFirstLogin] = useState(false);
   
   // Parental Lock Onboarding State
   const [showParentalLockOnboarding, setShowParentalLockOnboarding] = useState(false);
@@ -69,6 +73,20 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   // Check if user has completed onboarding before
   useEffect(() => {
     checkOnboardingStatus();
+  }, []);
+
+  // Listen for auth state changes to reset first login check flag
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        console.log('🔄 User signed out, resetting first login check flag');
+        setHasCheckedFirstLogin(false);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const checkOnboardingStatus = async () => {
@@ -114,6 +132,42 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     console.log('Onboarding state updated:', { showOnboarding: true, step: 0 });
   };
 
+  const checkAndStartOnboardingIfFirstLogin = async () => {
+    // Only check once per session
+    if (hasCheckedFirstLogin) {
+      console.log('⏭️ Already checked first login in this session, skipping...');
+      return;
+    }
+    
+    console.log('🔍 Checking first login status...');
+    setHasCheckedFirstLogin(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No user found for first login check');
+        return;
+      }
+      
+      const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
+      console.log('🔑 Checking key:', userOnboardingKey);
+      const hasCompleted = await AsyncStorage.getItem(userOnboardingKey);
+      console.log('📋 AsyncStorage value:', hasCompleted);
+      
+      if (!hasCompleted) {
+        console.log('🎯 First login detected - starting onboarding tour...');
+        // Delay to let the screen render first
+        setTimeout(() => {
+          startOnboarding();
+        }, 1000);
+      } else {
+        console.log('✅ User has completed onboarding before, skipping...');
+      }
+    } catch (error) {
+      console.error('Error checking first login onboarding:', error);
+    }
+  };
+
   const nextOnboardingStep = () => {
     if (currentOnboardingStep < TOTAL_ONBOARDING_STEPS - 1) {
       setCurrentOnboardingStep(prev => prev + 1);
@@ -139,14 +193,21 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   };
 
   const completeOnboarding = async () => {
+    console.log('🎯 completeOnboarding called');
     setShowOnboarding(false);
     setCurrentOnboardingStep(0);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
+        console.log('💾 Saving onboarding completion to:', userOnboardingKey);
         await AsyncStorage.setItem(userOnboardingKey, 'true');
         console.log('✅ Onboarding completed for user:', user.id);
+        // Verify it was saved
+        const verified = await AsyncStorage.getItem(userOnboardingKey);
+        console.log('✔️ Verified saved value:', verified);
+      } else {
+        console.log('⚠️ No user found when completing onboarding');
       }
       setIsFirstTimeUser(false);
     } catch (error) {
@@ -176,17 +237,17 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       
-      // For now, always show onboarding (testing mode)
-      // TODO: Enable one-time check later
-      // const plOnboardingKey = `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`;
-      // const hasCompleted = await AsyncStorage.getItem(plOnboardingKey);
-      // if (!hasCompleted) {
+      // Check if user has already completed this onboarding
+      const plOnboardingKey = `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`;
+      const hasCompleted = await AsyncStorage.getItem(plOnboardingKey);
       
-      console.log('🔒 Starting Parental Lock onboarding...');
-      setShowParentalLockOnboarding(true);
-      setCurrentParentalLockStep(0);
-      
-      // }
+      if (!hasCompleted) {
+        console.log('🔒 Starting Parental Lock onboarding...');
+        setShowParentalLockOnboarding(true);
+        setCurrentParentalLockStep(0);
+      } else {
+        console.log('✅ Parental Lock onboarding already completed, skipping...');
+      }
     } catch (error) {
       console.error('Error starting parental lock onboarding:', error);
     }
@@ -225,10 +286,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         return;
       }
       
-      // Always show onboarding (unlimited/testing mode) - similar to parental lock
-      console.log('➕ Starting Add Routine onboarding (unlimited mode)...');
-      setShowAddRoutineOnboarding(true);
+      // Check if user has already completed this onboarding
+      const addRoutineOnboardingKey = `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`;
+      const hasCompleted = await AsyncStorage.getItem(addRoutineOnboardingKey);
       
+      if (!hasCompleted) {
+        console.log('➕ Starting Add Routine onboarding...');
+        setShowAddRoutineOnboarding(true);
+      } else {
+        console.log('✅ Add Routine onboarding already completed, skipping...');
+      }
     } catch (error) {
       console.error('Error starting add routine onboarding:', error);
     }
@@ -271,29 +338,82 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         return;
       }
       
-      // Always show onboarding (unlimited/testing mode)
-      console.log('📊 Starting Progress onboarding (unlimited mode)...');
-      setShowProgressOnboarding(true);
+      // Check if user has already completed this onboarding
+      const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
+      console.log('🔑 Progress key:', progressOnboardingKey);
+      const hasCompleted = await AsyncStorage.getItem(progressOnboardingKey);
+      console.log('📋 Progress AsyncStorage value:', hasCompleted);
       
+      if (!hasCompleted) {
+        console.log('📊 Starting Progress onboarding...');
+        setShowProgressOnboarding(true);
+      } else {
+        console.log('✅ Progress onboarding already completed, skipping...');
+      }
     } catch (error) {
       console.error('Error starting progress onboarding:', error);
     }
   };
 
   const completeProgressOnboarding = async () => {
+    console.log('🎯 completeProgressOnboarding called');
     setShowProgressOnboarding(false);
-    console.log('✅ Progress onboarding completed');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
+        console.log('💾 Saving Progress completion to:', progressOnboardingKey);
+        await AsyncStorage.setItem(progressOnboardingKey, 'true');
+        console.log('✅ Progress onboarding completed for user:', user.id);
+        // Verify it was saved
+        const verified = await AsyncStorage.getItem(progressOnboardingKey);
+        console.log('✔️ Verified Progress saved value:', verified);
+      }
+    } catch (error) {
+      console.error('Error saving progress onboarding completion:', error);
+    }
   };
 
   const skipProgressOnboarding = async () => {
+    console.log('⏭️ skipProgressOnboarding called');
     setShowProgressOnboarding(false);
-    console.log('⏭️ Progress onboarding skipped');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(progressOnboardingKey, 'true');
+        console.log('⏭️ Progress onboarding skipped for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving progress onboarding skip:', error);
+    }
   };
   // Add Routine Modal Onboarding Functions
-  const startAddRoutineModalOnboarding = () => {
-    console.log('📝 Starting Add Routine Modal onboarding (unlimited mode)...');
-    setShowAddRoutineModalOnboarding(true);
-    setCurrentAddRoutineModalStep(0);
+  const startAddRoutineModalOnboarding = async () => {
+    console.log('🔍 startAddRoutineModalOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No user found for Add Routine Modal onboarding');
+        return;
+      }
+      
+      // Check if user has already completed this onboarding
+      const modalOnboardingKey = `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`;
+      console.log('🔑 Add Routine Modal key:', modalOnboardingKey);
+      const hasCompleted = await AsyncStorage.getItem(modalOnboardingKey);
+      console.log('📋 Add Routine Modal AsyncStorage value:', hasCompleted);
+      
+      if (!hasCompleted) {
+        console.log('📝 Starting Add Routine Modal onboarding...');
+        setShowAddRoutineModalOnboarding(true);
+        setCurrentAddRoutineModalStep(0);
+      } else {
+        console.log('✅ Add Routine Modal onboarding already completed, skipping...');
+      }
+    } catch (error) {
+      console.error('Error starting add routine modal onboarding:', error);
+    }
   };
 
   const nextAddRoutineModalStep = () => {
@@ -304,16 +424,40 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const completeAddRoutineModalOnboarding = () => {
-    console.log('✅ Add Routine Modal onboarding completed');
+  const completeAddRoutineModalOnboarding = async () => {
+    console.log('🎯 completeAddRoutineModalOnboarding called');
     setShowAddRoutineModalOnboarding(false);
     setCurrentAddRoutineModalStep(0);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const modalOnboardingKey = `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`;
+        console.log('💾 Saving Add Routine Modal completion to:', modalOnboardingKey);
+        await AsyncStorage.setItem(modalOnboardingKey, 'true');
+        console.log('✅ Add Routine Modal onboarding completed for user:', user.id);
+        // Verify it was saved
+        const verified = await AsyncStorage.getItem(modalOnboardingKey);
+        console.log('✔️ Verified Add Routine Modal saved value:', verified);
+      }
+    } catch (error) {
+      console.error('Error saving add routine modal onboarding completion:', error);
+    }
   };
 
-  const skipAddRoutineModalOnboarding = () => {
-    console.log('⏭️ Add Routine Modal onboarding skipped');
+  const skipAddRoutineModalOnboarding = async () => {
+    console.log('⏭️ skipAddRoutineModalOnboarding called');
     setShowAddRoutineModalOnboarding(false);
     setCurrentAddRoutineModalStep(0);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const modalOnboardingKey = `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(modalOnboardingKey, 'true');
+        console.log('⏭️ Add Routine Modal onboarding skipped for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving add routine modal onboarding skip:', error);
+    }
   };
 
   return (
@@ -328,6 +472,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         completeOnboarding,
         resetOnboarding,
         checkOnboardingStatus,
+        checkAndStartOnboardingIfFirstLogin,
         // Parental Lock Onboarding
         showParentalLockOnboarding,
         currentParentalLockStep,
