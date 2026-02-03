@@ -1,0 +1,149 @@
+[gd_scene format=3 uid="uid://dyck1ej3fbp8h"]
+
+[ext_resource type="Texture2D" uid="uid://dvioowfgedokk" path="res://assets/Go to School-20251220T043102Z-3-001/Rectangle 470.png" id="1_ejsj1"]
+[ext_resource type="PackedScene" uid="uid://ctqufnxnfon0r" path="res://components/draggable_comp.tscn" id="2_t8sni"]
+[ext_resource type="Texture2D" uid="uid://464a3tgf324d" path="res://assets/Go to School-20251220T043102Z-3-001/Go to School/image-removebg-preview (55).png" id="3_fwgbc"]
+[ext_resource type="Texture2D" uid="uid://pmghkgy7mjxb" path="res://assets/Go to School-20251220T043102Z-3-001/Go to School/image-removebg-preview (57).png" id="4_7pmgh"]
+[ext_resource type="Texture2D" uid="uid://d51shyotcy2v" path="res://assets/Go to School-20251220T043102Z-3-001/Go to School/image-removebg-preview (58).png" id="5_pvmdy"]
+[ext_resource type="Texture2D" uid="uid://cey46q4si2wkl" path="res://assets/Go to School-20251220T043102Z-3-001/Go to School/image-removebg-preview (53).png" id="6_lacaq"]
+[ext_resource type="Texture2D" uid="uid://dmg55nbh6xwu4" path="res://assets/Go to School-20251220T043102Z-3-001/Group 424.png" id="7_vl6sa"]
+[ext_resource type="Script" uid="uid://bnk0tnlo60gip" path="res://script/bag_modal.gd" id="8_mlqfn"]
+
+[node name="Bag Modal" type="ColorRect" unique_id=617748174]
+offset_left = -331.0
+offset_top = -185.0
+offset_right = 1620.0
+offset_bottom = 1329.0
+color = Color(0, 0, 0, 0.3137255)
+script = ExtResource("8_mlqfn")
+
+[node name="invent" type="TextureRect" parent="." unique_id=1303321310]
+layout_mode = 0
+offset_left = 777.0
+offset_top = 316.0
+offset_right = 1157.0
+offset_bottom = 416.0
+texture = ExtResource("1_ejsj1")
+
+[node name="Draggable comp" parent="invent" unique_id=203113464 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 25.0
+offset_top = 12.0
+offset_right = 75.0
+offset_bottom = 87.0
+texture = ExtResource("3_fwgbc")
+object_group = "Notebook"
+restrict_to_same_group = true
+texture_size = Vector2(50, 75)
+panel_size = Vector2(50, 75)
+panel_visible = false
+preview_size = Vector2(125, 200)
+
+[node name="Draggable comp2" parent="invent" unique_id=267022824 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 102.0
+offset_top = 23.0
+offset_right = 177.0
+offset_bottom = 73.0
+texture = ExtResource("4_7pmgh")
+object_group = "case"
+restrict_to_same_group = true
+texture_size = Vector2(75, 50)
+panel_size = Vector2(75, 50)
+panel_visible = false
+
+[node name="Draggable comp3" parent="invent" unique_id=368036323 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 204.0
+offset_top = 22.0
+offset_right = 279.0
+offset_bottom = 72.0
+texture = ExtResource("5_pvmdy")
+object_group = "lunch"
+restrict_to_same_group = true
+texture_size = Vector2(75, 50)
+panel_size = Vector2(75, 50)
+panel_visible = false
+
+[node name="Draggable comp4" parent="invent" unique_id=1357158192 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 299.0
+offset_top = 11.0
+offset_right = 349.0
+offset_bottom = 86.0
+texture = ExtResource("6_lacaq")
+object_group = "water"
+restrict_to_same_group = true
+texture_size = Vector2(50, 75)
+panel_size = Vector2(50, 75)
+panel_visible = false
+preview_size = Vector2(125, 300)
+
+[node name="bag" type="TextureRect" parent="." unique_id=800231949]
+layout_mode = 0
+offset_left = 784.0
+offset_top = 444.0
+offset_right = 1154.0
+offset_bottom = 1025.0
+texture = ExtResource("7_vl6sa")
+
+[node name="Draggable comp" parent="bag" unique_id=1111157858 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 25.0
+offset_top = 135.0
+offset_right = 150.0
+offset_bottom = 485.0
+object_group = "water"
+restrict_to_same_group = true
+texture_size = Vector2(125, 350)
+panel_size = Vector2(125, 350)
+panel_visible = false
+preview_size = Vector2(125, 125)
+
+[node name="Draggable comp2" parent="bag" unique_id=1506804405 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 176.0
+offset_top = 304.0
+offset_right = 341.0
+offset_bottom = 544.0
+object_group = "Notebook"
+restrict_to_same_group = true
+texture_size = Vector2(165, 240)
+panel_size = Vector2(165, 240)
+panel_visible = false
+preview_size = Vector2(125, 125)
+
+[node name="Draggable comp3" parent="bag" unique_id=1965045133 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 176.0
+offset_top = 192.0
+offset_right = 341.0
+offset_bottom = 282.0
+object_group = "case"
+restrict_to_same_group = true
+texture_size = Vector2(165, 90)
+panel_size = Vector2(165, 90)
+panel_visible = false
+preview_size = Vector2(125, 125)
+
+[node name="Draggable comp4" parent="bag" unique_id=1609289109 instance=ExtResource("2_t8sni")]
+layout_mode = 0
+offset_left = 176.0
+offset_top = 72.0
+offset_right = 341.0
+offset_bottom = 162.0
+object_group = "lunch"
+restrict_to_same_group = true
+texture_size = Vector2(165, 90)
+panel_size = Vector2(165, 90)
+panel_visible = false
+preview_size = Vector2(125, 125)
+
+[node name="Button" type="Button" parent="." unique_id=672902863]
+layout_mode = 0
+offset_left = 783.0
+offset_top = 234.0
+offset_right = 835.0
+offset_bottom = 269.0
+theme_override_font_sizes/font_size = 19
+text = "Back"

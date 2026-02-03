@@ -1,0 +1,35 @@
+[gd_scene load_steps=5 format=3 uid="uid://gndl0xasa2m3"]
+
+[ext_resource type="Texture2D" uid="uid://bqjrlmrbjnukb" path="res://assets/Go to School-20251220T043102Z-3-001/Go to School/Gemini_Generated_Image_94w2a894w2a894w2-removebg-preview.png" id="1_73dir"]
+[ext_resource type="Texture2D" uid="uid://dtklb6iagny2v" path="res://assets/Go to School-20251220T043102Z-3-001/Go to School/image-removebg-preview (52).png" id="2_rx6jb"]
+[ext_resource type="Script" uid="uid://buvoulw4kk1pg" path="res://script/bag.gd" id="3_xlv8b"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_x0fop"]
+radius = 39.26
+height = 80.0
+
+[node name="Bag" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_xlv8b")
+
+[node name="sofa" type="Sprite2D" parent="."]
+position = Vector2(104, 720)
+texture = ExtResource("1_73dir")
+
+[node name="Bag texture" type="TextureRect" parent="."]
+layout_mode = 0
+offset_left = -41.0
+offset_top = 630.0
+offset_right = 249.0
+offset_bottom = 841.0
+texture = ExtResource("2_rx6jb")
+expand_mode = 1
+
+[node name="TouchScreenButton" type="TouchScreenButton" parent="Bag texture"]
+position = Vector2(142, 111)
+shape = SubResource("CapsuleShape2D_x0fop")

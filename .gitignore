@@ -40,4 +40,10 @@ app-example
 
 # generated native folders
 /ios
-/android
+# /android - KEEP android folder since we have custom Godot integration!
+# But ignore build outputs:
+android/app/build/
+android/build/
+android/.gradle/
+*.apk
+*.aab
