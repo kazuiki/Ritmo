@@ -56,7 +56,7 @@ interface YouTubeChannelResponse {
 }
 
 class YouTubeKidsService {
-  private static readonly API_KEY = 'AIzaSyDFM3AlWOQ8rFowgV10ykOUECmKJuIWC7c'; 
+  private static readonly API_KEY = 'AIzaSyB9QXtNdg8XbBoy5N2SegPszoz8Zf4KbPc'; 
   private static readonly BASE_URL = 'https://www.googleapis.com/youtube/v3';
   
   // Cache for videos to avoid repeated API calls
@@ -96,9 +96,12 @@ class YouTubeKidsService {
         `part=snippet&` +
         `q=${encodeURIComponent(searchQuery)}&` +
         `type=video&` +
+        `videoCategoryId=1&` +
         `safeSearch=strict&` +
         `maxResults=${maxResults}&` +
         `order=relevance&` +
+        `relevanceLanguage=en&` +
+        `regionCode=PH&` +
         `key=${this.API_KEY}`;
 
       console.log('Searching with URL:', searchUrl); // Debug log
@@ -106,7 +109,9 @@ class YouTubeKidsService {
       const response = await fetch(searchUrl);
       
       if (!response.ok) {
+        const errorText = await response.text();
         console.error(`YouTube API error: ${response.status} - ${response.statusText}`);
+        console.error('Error response:', errorText);
         throw new Error(`YouTube API error: ${response.status}`);
       }
 
@@ -123,15 +128,10 @@ class YouTubeKidsService {
       
       // Fetch video statistics and duration
       const videoDetails = await this.getVideoDetails(videoIds);
-      
-      // Get unique channel IDs for channel icons
-      const channelIds = [...new Set(data.items.map(item => item.snippet.channelId))];
-      const channelIcons = await this.getChannelIcons(channelIds);
 
       // Transform data to match your existing video structure
       const videos: YouTubeVideo[] = data.items.map((item, index) => {
         const videoDetail = videoDetails[item.id.videoId];
-        const channelIcon = channelIcons[item.snippet.channelId];
         
         return {
           id: item.id.videoId,
@@ -142,7 +142,7 @@ class YouTubeKidsService {
           publishedAt: this.formatPublishedDate(item.snippet.publishedAt),
           youtubeId: item.id.videoId,
           thumbnail: item.snippet.thumbnails.high.url,
-          channelIcon: channelIcon || 'https://via.placeholder.com/88x88',
+          channelIcon: 'https://via.placeholder.com/88x88',
           description: item.snippet.description,
           duration: this.formatDuration(videoDetail?.duration || 'PT0S')
         };
@@ -174,7 +174,6 @@ class YouTubeKidsService {
 
       const videoIds = data.items.map(item => item.id.videoId).join(',');
       const videoDetails = await this.getVideoDetails(videoIds);
-      const channelIcons = await this.getChannelIcons([channelId]);
 
       return data.items.map(item => ({
         id: item.id.videoId,
@@ -185,7 +184,7 @@ class YouTubeKidsService {
         publishedAt: this.formatPublishedDate(item.snippet.publishedAt),
         youtubeId: item.id.videoId,
         thumbnail: item.snippet.thumbnails.high.url,
-        channelIcon: channelIcons[channelId] || 'https://via.placeholder.com/88x88',
+        channelIcon: 'https://via.placeholder.com/88x88',
         description: item.snippet.description,
         duration: this.formatDuration(videoDetails[item.id.videoId]?.duration || 'PT0S')
       }));
@@ -201,74 +200,45 @@ class YouTubeKidsService {
         return {};
       }
 
-      const detailsUrl = `${this.BASE_URL}/videos?` +
-        `part=statistics,contentDetails&` +
-        `id=${videoIds}&` +
-        `key=${this.API_KEY}`;
-
-      const response = await fetch(detailsUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Video details API error: ${response.status}`);
-      }
-
-      const data: YouTubeVideoDetailsResponse = await response.json();
-
       const details: Record<string, { viewCount: string; duration: string }> = {};
+      const videoIdArray = videoIds.split(',');
       
-      if (data.items && Array.isArray(data.items)) {
-        const videoIdArray = videoIds.split(',');
-        data.items.forEach((item, index) => {
-          const videoId = videoIdArray[index];
-          if (item && item.statistics && item.contentDetails && videoId) {
-            details[videoId] = {
-              viewCount: item.statistics.viewCount || '0',
-              duration: item.contentDetails.duration || 'PT0S'
-            };
-          }
-        });
+      // Split into batches of 20 to avoid hitting API limits
+      const batchSize = 20;
+      for (let i = 0; i < videoIdArray.length; i += batchSize) {
+        const batch = videoIdArray.slice(i, i + batchSize);
+        
+        const detailsUrl = `${this.BASE_URL}/videos?` +
+          `part=statistics,contentDetails&` +
+          `id=${batch.join(',')}&` +
+          `key=${this.API_KEY}`;
+
+        const response = await fetch(detailsUrl);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Video details API error: ${response.status}`, errorText);
+          continue; // Skip this batch and continue
+        }
+
+        const data: YouTubeVideoDetailsResponse = await response.json();
+
+        if (data.items && Array.isArray(data.items)) {
+          data.items.forEach((item, index) => {
+            const videoId = batch[index];
+            if (item && item.statistics && item.contentDetails && videoId) {
+              details[videoId] = {
+                viewCount: item.statistics.viewCount || '0',
+                duration: item.contentDetails.duration || 'PT0S'
+              };
+            }
+          });
+        }
       }
 
       return details;
     } catch (error) {
       console.error('Error fetching video details:', error);
-      return {};
-    }
-  }
-
-  private static async getChannelIcons(channelIds: string[]): Promise<Record<string, string>> {
-    try {
-      if (!channelIds || channelIds.length === 0) {
-        return {};
-      }
-
-      const channelUrl = `${this.BASE_URL}/channels?` +
-        `part=snippet&` +
-        `id=${channelIds.join(',')}&` +
-        `key=${this.API_KEY}`;
-
-      const response = await fetch(channelUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Channel API error: ${response.status}`);
-      }
-
-      const data: YouTubeChannelResponse = await response.json();
-
-      const icons: Record<string, string> = {};
-      
-      if (data.items && Array.isArray(data.items)) {
-        data.items.forEach((item, index) => {
-          const channelId = channelIds[index];
-          if (item && item.snippet && item.snippet.thumbnails && item.snippet.thumbnails.default) {
-            icons[channelId] = item.snippet.thumbnails.default.url;
-          }
-        });
-      }
-
-      return icons;
-    } catch (error) {
-      console.error('Error fetching channel icons:', error);
       return {};
     }
   }
@@ -393,45 +363,7 @@ class YouTubeKidsService {
       this.lastCacheTime = Date.now();
       
       return fallbackVideos;
-      
-      // TODO: Re-enable API calls later once basic functionality works
-      /*
-      // Check if we have cached videos that are still fresh
-      const now = Date.now();
-      if (this.videoCache.length > 0 && (now - this.lastCacheTime) < this.CACHE_DURATION) {
-        console.log('Using cached videos');
-        return this.videoCache.slice(0, maxResults);
-      }
-
-      console.log('Fetching fresh videos from API');
-      
-      // Try to get videos from a popular kids search term first
-      const randomSearchTerm = this.getRandomKidsSearchTerm();
-      console.log(`Searching for: ${randomSearchTerm}`);
-      
-      let videos = await this.searchKidsVideos(randomSearchTerm, maxResults);
-      
-      if (videos.length === 0) {
-        // If search fails, try getting videos from a specific channel
-        const randomChannel = this.KIDS_CHANNELS[Math.floor(Math.random() * this.KIDS_CHANNELS.length)];
-        console.log(`Trying channel: ${randomChannel}`);
-        videos = await this.getVideosByChannel(randomChannel, maxResults);
-      }
-      
-      if (videos.length === 0) {
-        console.log('API failed, using fallback videos');
-        videos = this.getFallbackVideos();
-      }
-      
-      // Cache the videos for future use
-      if (videos.length > 0) {
-        this.videoCache = videos;
-        this.lastCacheTime = now;
-        console.log(`Cached ${videos.length} videos`);
-      }
-      
-      return videos;
-      */
+  
     } catch (error) {
       console.error('Error in getRandomKidsVideos:', error);
       return this.getFallbackVideos();
