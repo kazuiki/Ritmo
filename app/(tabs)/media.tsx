@@ -3,19 +3,19 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    ImageBackground,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  ImageBackground,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -34,6 +34,21 @@ type PlayerState =
   | "buffering"
   | "cued";
 
+// 🎯 Predefined Kid-Safe Categories
+const KIDS_CATEGORIES = [
+  { id: 'nursery', label: '🎵 Nursery Rhymes', query: 'nursery rhymes for kids' },
+  { id: 'cocomelon', label: '🎈 Cocomelon', query: 'cocomelon kids songs' },
+  { id: 'counting', label: '🔢 Counting Songs', query: 'counting songs for kids' },
+  { id: 'alphabet', label: '🔤 ABC Songs', query: 'alphabet songs for kids' },
+  { id: 'colors', label: '🌈 Colors & Shapes', query: 'colors and shapes for kids' },
+  { id: 'animals', label: '🐶 Animal Songs', query: 'animal songs for kids' },
+  { id: 'cartoons', label: '🎬 Cartoons', query: 'kids cartoons youtube' },
+  { id: 'bluey', label: '💙 Bluey', query: 'bluey cartoon for kids' },
+  { id: 'peppa', label: '🐷 Peppa Pig', query: 'peppa pig cartoon' },
+  { id: 'paw', label: '🐾 Paw Patrol', query: 'paw patrol kids show' },
+  { id: 'disney', label: '✨ Disney', query: 'disney junior kids videos' },
+];
+
 export default function Media() {
   // Get responsive dimensions and scaling functions
   const responsive = useResponsiveDimensions();
@@ -41,13 +56,13 @@ export default function Media() {
   const router = useRouter();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
-  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState('nursery');
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  const [videosByCategory, setVideosByCategory] = useState<Record<string, YouTubeVideo[]>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTimeout, setSearchTimeout] = useState<number | null>(null);
   const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
   // Parental Lock Modal
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
@@ -63,21 +78,19 @@ export default function Media() {
     }, [])
   );
 
-  // Load initial videos
+  // Load all videos on mount
   useEffect(() => {
-    loadVideos();
+    loadAllCategoryVideos();
 
-    // Setup network listener to auto-retry when network comes back
     const networkListener = setupNetworkListener();
 
-    // Set up automatic retry when network is restored
     const retryTimer = setInterval(() => {
       if (error && error.includes('internet connection')) {
         console.log('🔄 Auto-retrying due to previous network error...');
-        clearNetworkCache(); // Clear any cached network state
-        loadVideos(); // Retry loading videos
+        clearNetworkCache();
+        loadAllCategoryVideos();
       }
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
     setNetworkRetryTimer(retryTimer);
 
@@ -85,57 +98,46 @@ export default function Media() {
       networkListener?.();
       if (retryTimer) clearInterval(retryTimer);
     };
-  }, [error]);
+  }, []);
 
-  // Handle search with debounce
+  // Switch category instantly from cached videos
   useEffect(() => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+    if (videosByCategory[selectedCategory]) {
+      setVideos(videosByCategory[selectedCategory]);
     }
+  }, [selectedCategory, videosByCategory]);
 
-    const timeout = setTimeout(() => {
-      if (search.trim()) {
-        searchVideos(search.trim());
-      } else {
-        loadVideos();
-      }
-    }, 500); // 500ms debounce
-
-    setSearchTimeout(timeout);
-
-    return () => {
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [search]);
-
-  const loadVideos = async () => {
-    console.log('=== loadVideos called ===');
-    try {
-      setError(null);
-      console.log('Calling YouTubeKidsService.getRandomKidsVideos...');
-      const fetchedVideos = await YouTubeKidsService.getRandomKidsVideos(20);
-      console.log('Fetched videos:', fetchedVideos);
-      console.log('Number of videos:', fetchedVideos.length);
-      setVideos(fetchedVideos);
-      console.log('Videos set in state');
-    } catch (err) {
-      console.error('Error in loadVideos:', err);
-      setError('Failed to load videos. Please check your internet connection.');
-    } finally {
-      setLoading(false);
-      console.log('Loading set to false');
-    }
-  };
-
-  const searchVideos = async (query: string) => {
+  const loadAllCategoryVideos = async () => {
+    console.log('=== loadAllCategoryVideos called ===');
     try {
       setLoading(true);
       setError(null);
-      const searchResults = await YouTubeKidsService.searchKidsVideos(query, 15);
-      setVideos(searchResults);
+      
+      const allVideos: Record<string, YouTubeVideo[]> = {};
+      
+      // Load videos for all categories in parallel
+      await Promise.all(
+        KIDS_CATEGORIES.map(async (category) => {
+          try {
+            console.log('Fetching videos for:', category.query);
+            const fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query, 50);
+            allVideos[category.id] = fetchedVideos;
+            console.log(`Loaded ${fetchedVideos.length} videos for ${category.id}`);
+          } catch (err) {
+            console.error(`Error loading ${category.id}:`, err);
+            allVideos[category.id] = [];
+          }
+        })
+      );
+      
+      setVideosByCategory(allVideos);
+      // Set initial videos for selected category
+      if (allVideos[selectedCategory]) {
+        setVideos(allVideos[selectedCategory]);
+      }
     } catch (err) {
-      setError('Failed to search videos. Please try again.');
-      console.error('Error searching videos:', err);
+      console.error('Error loading all category videos:', err);
+      setError('Failed to load videos. Please check your internet connection.');
     } finally {
       setLoading(false);
     }
@@ -143,13 +145,10 @@ export default function Media() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setSearch(""); // Clear search when refreshing
-    clearNetworkCache(); // Clear network cache for fresh check
-    await loadVideos();
+    clearNetworkCache();
+    await loadAllCategoryVideos();
     setRefreshing(false);
   };
-
-  const filteredVideos = videos;
 
   // Parental Lock PIN handlers
   const handlePinInput = (index: number, value: string) => {
@@ -160,16 +159,6 @@ export default function Media() {
     setPin(newPin);
     setPinError('');
 
-
-  const triggerPinShake = () => {
-    pinShake.setValue(0);
-    Animated.sequence([
-      Animated.timing(pinShake, { toValue: -6, duration: 50, useNativeDriver: true }),
-      Animated.timing(pinShake, { toValue: 6, duration: 50, useNativeDriver: true }),
-      Animated.timing(pinShake, { toValue: -4, duration: 50, useNativeDriver: true }),
-      Animated.timing(pinShake, { toValue: 0, duration: 50, useNativeDriver: true }),
-    ]).start();
-  };
     if (value && index < 3) {
       pinRefs[index + 1].current?.focus();
     }
@@ -179,6 +168,16 @@ export default function Media() {
     if (value === '' && index > 0) {
       pinRefs[index - 1].current?.focus();
     }
+  };
+
+  const triggerPinShake = () => {
+    pinShake.setValue(0);
+    Animated.sequence([
+      Animated.timing(pinShake, { toValue: -6, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: 6, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: -4, duration: 50, useNativeDriver: true }),
+      Animated.timing(pinShake, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
   };
 
   const unlockAccess = async () => {
@@ -260,22 +259,33 @@ export default function Media() {
         )}
       </View>
 
-      {/* 🔍 Search Bar */}
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color="#666" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search videos"
-          placeholderTextColor="#666"
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={20} color="#999" />
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* 🎯 Category Buttons */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesContainer}
+        scrollEnabled={true}
+      >
+        {KIDS_CATEGORIES.map((category) => (
+          <View key={category.id} style={{ flex: 0, flexShrink: 0 }}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={[
+                styles.categoryButton,
+                selectedCategory === category.id && styles.categoryButtonActive
+              ]}
+              onPress={() => setSelectedCategory(category.id)}
+            >
+              <Text style={[
+                styles.categoryButtonText,
+                selectedCategory === category.id && styles.categoryButtonTextActive
+              ]}>
+                {category.label}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ScrollView>
 
       {/* 📺 Video List */}
       <ScrollView 
@@ -296,17 +306,13 @@ export default function Media() {
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={48} color="#FF6B6B" />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadVideos}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => loadAllCategoryVideos()}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {(() => {
-          console.log('Render check:', { loading, error: !!error, videosLength: filteredVideos.length, videos: filteredVideos });
-          return null;
-        })()}
-        {!loading && !error && filteredVideos.map((video) => (
+        {!loading && !error && videos.map((video) => (
           <View key={video.id} style={styles.videoContainer}>
             {playingId === video.id ? (
               <YoutubePlayer
@@ -346,7 +352,7 @@ export default function Media() {
           </View>
         ))}
 
-        {!loading && !error && filteredVideos.length === 0 && (
+        {!loading && !error && videos.length === 0 && (
           <Text style={styles.noResults}>No videos found.</Text>
         )}
       </ScrollView>
@@ -482,21 +488,38 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     height: scale.scaleHeight(16),
     resizeMode: 'contain',
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    marginHorizontal: scale.scaleSpacing(12),
-    marginBottom: scale.scaleSpacing(10),
-    paddingHorizontal: scale.scaleSpacing(10),
-    borderRadius: scale.scaleBorderRadius(25),
-    height: scale.scaleHeight(40),
+  // 🎯 Category Styles
+  categoriesContainer: {
+    paddingHorizontal: scale.scaleSpacing(12),
+    paddingVertical: scale.scaleSpacing(12),
+    gap: scale.scaleSpacing(8),
+    flexGrow: 0,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: scale.scaleSpacing(8),
-    fontSize: scale.scaleFont(16),
-    color: "#000",
+  categoryButton: {
+    backgroundColor: '#E8E8E8',
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 2,
+    borderColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: scale.scaleHeight(48),
+  },
+  categoryButtonActive: {
+    backgroundColor: '#5A8F8A',
+    borderColor: '#4A7D77',
+  },
+  categoryButtonText: {
+    fontSize: scale.scaleFont(13),
+    fontWeight: '700',
+    color: '#333',
+    textAlign: 'center',
+    flexWrap: 'wrap',
+  },
+  categoryButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   videoContainer: {
     backgroundColor: "#fafafa",
@@ -737,7 +760,4 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_600SemiBold",
   },
 }));
-function triggerPinShake() {
-  throw new Error("Function not implemented.");
-}
 
