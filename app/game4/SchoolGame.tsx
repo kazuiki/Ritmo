@@ -1,4 +1,5 @@
 ﻿// app/game4/SchoolGame.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
@@ -11,10 +12,28 @@ export default function SchoolGame() {
     const launchGame = async () => {
       if (Platform.OS === 'android') {
         try {
+          const gameStartTime = Date.now();
+          
           await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
             className: 'com.anonymous.ritmo.RitmoGodotActivity',
             packageName: 'com.anonymous.ritmo',
           });
+          
+          // Game has finished/closed
+          const gameDuration = (Date.now() - gameStartTime) / 1000;
+          console.log(`Game duration: ${gameDuration} seconds`);
+          
+          // If game lasted > 60 seconds, consider it completed
+          if (gameDuration > 60) {
+            await new Promise(resolve => setTimeout(resolve, 800));
+            await AsyncStorage.setItem('@minigameCompleted', 'true');
+            console.log('✓ Game completed - success modal will show');
+          } else {
+            console.log('Game exited early - no success modal');
+          }
+          
+          // Go back to home
+          router.back();
         } catch (error) {
           console.error('Failed to launch Godot game:', error);
           Alert.alert('Error', 'Failed to start the game');
@@ -23,7 +42,7 @@ export default function SchoolGame() {
     };
 
     launchGame();
-  }, []);
+  }, [router]);
 
   // If not Android, show message
   if (Platform.OS !== 'android') {

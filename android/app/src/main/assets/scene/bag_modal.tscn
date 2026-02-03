@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://dyck1ej3fbp8h"]
+[gd_scene load_steps=9 format=3 uid="uid://dyck1ej3fbp8h"]
 
 [ext_resource type="Texture2D" uid="uid://dvioowfgedokk" path="res://assets/Go to School-20251220T043102Z-3-001/Rectangle 470.png" id="1_ejsj1"]
 [ext_resource type="PackedScene" uid="uid://ctqufnxnfon0r" path="res://components/draggable_comp.tscn" id="2_t8sni"]
@@ -9,7 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://dmg55nbh6xwu4" path="res://assets/Go to School-20251220T043102Z-3-001/Group 424.png" id="7_vl6sa"]
 [ext_resource type="Script" uid="uid://bnk0tnlo60gip" path="res://script/bag_modal.gd" id="8_mlqfn"]
 
-[node name="Bag Modal" type="ColorRect" unique_id=617748174]
+[node name="Bag Modal" type="ColorRect"]
 offset_left = -331.0
 offset_top = -185.0
 offset_right = 1620.0
@@ -17,7 +17,7 @@ offset_bottom = 1329.0
 color = Color(0, 0, 0, 0.3137255)
 script = ExtResource("8_mlqfn")
 
-[node name="invent" type="TextureRect" parent="." unique_id=1303321310]
+[node name="invent" type="TextureRect" parent="."]
 layout_mode = 0
 offset_left = 777.0
 offset_top = 316.0
@@ -25,7 +25,7 @@ offset_right = 1157.0
 offset_bottom = 416.0
 texture = ExtResource("1_ejsj1")
 
-[node name="Draggable comp" parent="invent" unique_id=203113464 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp" parent="invent" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 25.0
 offset_top = 12.0
@@ -39,7 +39,7 @@ panel_size = Vector2(50, 75)
 panel_visible = false
 preview_size = Vector2(125, 200)
 
-[node name="Draggable comp2" parent="invent" unique_id=267022824 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp2" parent="invent" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 102.0
 offset_top = 23.0
@@ -52,7 +52,7 @@ texture_size = Vector2(75, 50)
 panel_size = Vector2(75, 50)
 panel_visible = false
 
-[node name="Draggable comp3" parent="invent" unique_id=368036323 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp3" parent="invent" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 204.0
 offset_top = 22.0
@@ -65,7 +65,7 @@ texture_size = Vector2(75, 50)
 panel_size = Vector2(75, 50)
 panel_visible = false
 
-[node name="Draggable comp4" parent="invent" unique_id=1357158192 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp4" parent="invent" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 299.0
 offset_top = 11.0
@@ -79,7 +79,7 @@ panel_size = Vector2(50, 75)
 panel_visible = false
 preview_size = Vector2(125, 300)
 
-[node name="bag" type="TextureRect" parent="." unique_id=800231949]
+[node name="bag" type="TextureRect" parent="."]
 layout_mode = 0
 offset_left = 784.0
 offset_top = 444.0
@@ -87,7 +87,7 @@ offset_right = 1154.0
 offset_bottom = 1025.0
 texture = ExtResource("7_vl6sa")
 
-[node name="Draggable comp" parent="bag" unique_id=1111157858 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp" parent="bag" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 25.0
 offset_top = 135.0
@@ -100,7 +100,7 @@ panel_size = Vector2(125, 350)
 panel_visible = false
 preview_size = Vector2(125, 125)
 
-[node name="Draggable comp2" parent="bag" unique_id=1506804405 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp2" parent="bag" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 176.0
 offset_top = 304.0
@@ -113,7 +113,7 @@ panel_size = Vector2(165, 240)
 panel_visible = false
 preview_size = Vector2(125, 125)
 
-[node name="Draggable comp3" parent="bag" unique_id=1965045133 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp3" parent="bag" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 176.0
 offset_top = 192.0
@@ -126,7 +126,7 @@ panel_size = Vector2(165, 90)
 panel_visible = false
 preview_size = Vector2(125, 125)
 
-[node name="Draggable comp4" parent="bag" unique_id=1609289109 instance=ExtResource("2_t8sni")]
+[node name="Draggable comp4" parent="bag" instance=ExtResource("2_t8sni")]
 layout_mode = 0
 offset_left = 176.0
 offset_top = 72.0
@@ -139,7 +139,7 @@ panel_size = Vector2(165, 90)
 panel_visible = false
 preview_size = Vector2(125, 125)
 
-[node name="Button" type="Button" parent="." unique_id=672902863]
+[node name="Button" type="Button" parent="."]
 layout_mode = 0
 offset_left = 783.0
 offset_top = 234.0
