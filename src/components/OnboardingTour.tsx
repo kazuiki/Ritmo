@@ -9,6 +9,7 @@ import {
   View
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
+import { ResponsiveTheme } from '../../constants/theme';
 import { useResponsiveDimensions } from '../utils/responsive';
 
 interface OnboardingTourProps {
@@ -50,19 +51,27 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
     const tabBarHeight = scaleHeight(70);
     
     // Match exact tab button sizes from _layout.tsx
+    const tabItemSize = scaleWidth(50);
     const tabSlotWidth = screenWidth / 5;
-    const tabButtonWidth = scaleWidth(70); // Smaller button width to match the rounded shape
-    const tabButtonHeight = scaleHeight(55); // Smaller button height
+    const tabButtonWidth = tabItemSize * 1.3; // Match actual button width from layout
+    const tabButtonHeight = tabItemSize; // Match actual button height from layout
     
     // Tab positions - buttons are centered within their slots
-    const buttonOffsetX = (tabSlotWidth - tabButtonWidth) / 2; // Center button in slot
-    const tabBottomOffset = bottomMargin - scaleHeight(1.6); // Lower the highlight to align exactly with green button
+    const buttonOffsetX = (tabSlotWidth - tabButtonWidth) / 2; // Center button in slot horizontally
+    
+    // Align exactly with the navigation button border at the bottom
+    // The navigation is at bottom: 25 and buttons are inside with minimal offset
+    const tabBottomOffset = scaleHeight(10);
     
     // For floating button (addRoutines in center) - match actual size from layout
     const floatingButtonSize = scaleWidth(70);
     const floatingButtonLeft = (screenWidth - floatingButtonSize) / 2;
-    // Position to align with the actual floating button - it's raised above the tab bar
-    const floatingButtonBottom = bottomMargin + tabBarHeight - scaleHeight(40);
+    
+    // The floating button is raised above the tab bar with negative top offset
+    // Base the highlight position on the actual button border position
+    const floatingButtonTopOffset = isTablet ? scaleHeight(-75) : scaleHeight(-35);
+    // Adjust lower to match the actual lowered navigation position - align exactly with border
+    const floatingButtonBottom = bottomMargin + Math.abs(floatingButtonTopOffset) - scaleHeight(22);
 
     switch (step) {
       case 0: // Home - First tab (leftmost)
