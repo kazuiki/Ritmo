@@ -51,9 +51,7 @@ export default function RootLayout() {
       });
     }
 
-  if (Platform.OS === 'android') {
     // NavigationBar controls removed - install expo-navigation-bar if needed
-
 
     const backAction = () => {
       Alert.alert("Exit Game", "Are you sure you want to close the app?", [
