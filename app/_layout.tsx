@@ -1,3 +1,6 @@
+
+import { requireOptionalNativeModule } from 'expo-modules-core';
+
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
@@ -28,7 +31,27 @@ export default function RootLayout() {
    * ANDROID-ONLY SYSTEM UI CONTROL (from Paste #2)
    */
   useEffect(() => {
-  if (Platform.OS === 'android') {
+
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const navigationBarModule = requireOptionalNativeModule('ExpoNavigationBar') as
+      | { setVisibilityAsync?: (visibility: string) => Promise<void>; setBehaviorAsync?: (behavior: string) => Promise<void> }
+      | null;
+
+    if (navigationBarModule?.setVisibilityAsync) {
+      navigationBarModule.setVisibilityAsync('hidden').catch((error) => {
+        console.warn('NavigationBar setVisibilityAsync failed:', error);
+      });
+    }
+
+    if (navigationBarModule?.setBehaviorAsync) {
+      navigationBarModule.setBehaviorAsync('overlay-swipe').catch((error) => {
+        console.warn('NavigationBar setBehaviorAsync failed:', error);
+      });
+    }
+
     // NavigationBar controls removed - install expo-navigation-bar if needed
 
     const backAction = () => {
@@ -45,8 +68,7 @@ export default function RootLayout() {
     );
 
     return () => backHandler.remove();
-  }
-}, []);
+  }, []);
 
 
   /**

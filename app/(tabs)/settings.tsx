@@ -1,26 +1,26 @@
 import {
-  Fredoka_400Regular,
-  Fredoka_500Medium,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+    useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
-  Image,
-  ImageBackground,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Image,
+    ImageBackground,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -1247,10 +1247,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginLeft: scale.scaleSpacing(-22),
   },
   modeButton: {
-    backgroundColor: '#B8E6E1',
+    backgroundColor: 'transparent',
     paddingHorizontal: scale.scaleSpacing(20),
     paddingVertical: scale.scaleSpacing(12),
-    borderRadius: 20,
+    borderRadius: 0,
     marginTop: scale.scaleSpacing(10),
   },
   modeButtonContent: {

@@ -18,7 +18,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/masked-view": "^0.1.11",
-    "@react-native-community/netinfo": "^11.5.0",
+    "@react-native-community/netinfo": "^11.5.1",
     "@react-navigation/bottom-tabs": "^7.7.2",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.19",
@@ -32,8 +32,10 @@
     "expo-device": "^8.0.10",
     "expo-file-system": "~19.0.21",
     "expo-font": "^14.0.10",
+    "expo-godot-view": "file:./modules/expo-godot-view",
     "expo-haptics": "^15.0.8",
     "expo-image": "^3.0.11",
+    "expo-intent-launcher": "~13.0.8",
     "expo-linking": "~8.0.11",
     "expo-modules-core": "~3.0.29",
     "expo-navigation-bar": "~5.0.10",
@@ -64,6 +66,7 @@
     "react-native-youtube-iframe": "^2.4.1"
   },
   "devDependencies": {
+    "@expo/config-plugins": "~9.0.0",
     "@types/node": "^20.19.24",
     "@types/react": "~19.1.0",
     "cross-env": "^10.1.0",

@@ -16,8 +16,8 @@ Notes:
 Write-Host "[1/5] Running: npm install"
 npm install
 
-Write-Host "[2/5] Running: npm install -g npm@latest"
-npm install -g npm@latest
+Write-Host "[2/5] Running: npx expo install expo-intent-launcher"
+npx expo install expo-intent-launcher
 
 Write-Host "[3/5] Running: npm install expo"
 npm install expo
