@@ -56,7 +56,7 @@ interface YouTubeChannelResponse {
 }
 
 class YouTubeKidsService {
-  private static readonly API_KEY = 'AIzaSyDFM3AlWOQ8rFowgV10ykOUECmKJuIWC7c'; 
+  private static readonly API_KEY = 'AIzaSyB6nYmyCg8-jiktlsnr3DWSicVflSA9TUc'; 
   private static readonly BASE_URL = 'https://www.googleapis.com/youtube/v3';
   
   // Cache for videos to avoid repeated API calls
@@ -393,45 +393,7 @@ class YouTubeKidsService {
       this.lastCacheTime = Date.now();
       
       return fallbackVideos;
-      
-      // TODO: Re-enable API calls later once basic functionality works
-      /*
-      // Check if we have cached videos that are still fresh
-      const now = Date.now();
-      if (this.videoCache.length > 0 && (now - this.lastCacheTime) < this.CACHE_DURATION) {
-        console.log('Using cached videos');
-        return this.videoCache.slice(0, maxResults);
-      }
-
-      console.log('Fetching fresh videos from API');
-      
-      // Try to get videos from a popular kids search term first
-      const randomSearchTerm = this.getRandomKidsSearchTerm();
-      console.log(`Searching for: ${randomSearchTerm}`);
-      
-      let videos = await this.searchKidsVideos(randomSearchTerm, maxResults);
-      
-      if (videos.length === 0) {
-        // If search fails, try getting videos from a specific channel
-        const randomChannel = this.KIDS_CHANNELS[Math.floor(Math.random() * this.KIDS_CHANNELS.length)];
-        console.log(`Trying channel: ${randomChannel}`);
-        videos = await this.getVideosByChannel(randomChannel, maxResults);
-      }
-      
-      if (videos.length === 0) {
-        console.log('API failed, using fallback videos');
-        videos = this.getFallbackVideos();
-      }
-      
-      // Cache the videos for future use
-      if (videos.length > 0) {
-        this.videoCache = videos;
-        this.lastCacheTime = now;
-        console.log(`Cached ${videos.length} videos`);
-      }
-      
-      return videos;
-      */
+  
     } catch (error) {
       console.error('Error in getRandomKidsVideos:', error);
       return this.getFallbackVideos();
