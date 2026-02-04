@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Animated,
   Image,
-  ImageBackground,
   Modal,
   RefreshControl,
   ScrollView,
@@ -366,12 +365,7 @@ export default function Media() {
         statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="stretch"
-          >
-            <View style={styles.modalContainer}>
+          <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <View style={styles.lockIconContainer}>
                   <Ionicons name="lock-closed" size={48} color="#4A5568" />
@@ -436,7 +430,6 @@ export default function Media() {
                 </View>
               </View>
             </View>
-          </ImageBackground>
         </View>
       </Modal>
     </View>
@@ -646,7 +639,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: scale.scaleSpacing(20),
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
@@ -661,7 +653,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: scale.scaleSpacing(12),
     elevation: 12,
     width: "90%",
-    maxWidth: scale.scaleWidth(350),
+    maxWidth: scale.scaleWidth(600),
   },
   lockIconContainer: {
     marginBottom: scale.scaleSpacing(20),
