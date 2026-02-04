@@ -541,6 +541,36 @@ export default function TabsLayout() {
                   />
                 </Svg>
               </View>
+
+            ) : isParentMode ? (
+              <View style={[styles.tabBarContainer, { height: tabBarHeight, backgroundColor: 'transparent' }]}>
+                <View style={{
+                  position: 'absolute',
+                  bottom: scaleHeight(25),
+                  left: screenWidth * 0.05,
+                  width: screenWidth * 0.9,
+                  height: scaleHeight(70),
+                  backgroundColor: '#2F7C72',
+                  borderRadius: scaleSpacing(42.5),
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: 0,
+                }}>
+                  <Animated.View
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      width: (screenWidth * 0.9) / 3,
+                      height: scaleHeight(70),
+                      backgroundColor: '#5DD4B4',
+                      borderRadius: scaleSpacing(42.5),
+                      transform: [{ translateX: parentIndicatorTranslateX }],
+                    }}
+                  />
+                </View>
+              </View>
+
             ) : (
               <View style={[styles.tabBarContainer, { 
                 height: tabBarHeight, 
@@ -730,7 +760,36 @@ export default function TabsLayout() {
                     />
                   </View>
                 </View>
+
               ) : null
+
+              ) : (
+                // Scenario A (Parent Mode): Regular pill-style tab
+                <View
+                  style={{
+                    flex: 1,
+                    width: '100%',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: scaleSpacing(1),
+                    paddingBottom: scaleHeight(6),
+                    zIndex: 1,
+                  }}
+                >
+                  <Image
+                    source={require("../../assets/images/addRoutines.png")}
+                    style={{
+                      width: scaleWidth(28),
+                      height: scaleHeight(28),
+                      tintColor: '#fff',
+                      marginTop: scaleHeight(-6),
+                    }}
+                  />
+                  <Text style={{ color: '#fff', fontSize: scaleFont(9), fontWeight: '600', textAlign: 'center', marginBottom: scaleHeight(-4) }}>Add</Text>
+                </View>
+              )
+
             ),
             tabBarLabel: () => null,
           }}
@@ -771,13 +830,42 @@ export default function TabsLayout() {
                   >
                     <Image
                       source={require("../../assets/images/progress.png")}
+
+                      style={[
+                        styles.icon, 
+                        { 
+                          width: tabItemSize * 0.45, 
+                          height: tabItemSize * 0.45 
+                        }
+                      ]}
+                    />
+                    <Text numberOfLines={1} style={[styles.tabLabel, { fontSize: scaleFont(8) }]}>Progress</Text>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      flex: 1,
+                      width: '100%',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: scaleSpacing(1),
+                      paddingBottom: scaleHeight(6),
+                      zIndex: 1,
+                    }}
+                  >
+                    <Image
+                      source={require("../../assets/images/progress.png")}
+
                       style={{
                         width: fullAccessIconSize,
                         height: fullAccessIconSize,
                         resizeMode: 'contain',
                         tintColor: '#fff',
+                        marginTop: scaleHeight(-6),
                       }}
                     />
+
                     <Text 
                       numberOfLines={1} 
                       adjustsFontSizeToFit
@@ -793,6 +881,9 @@ export default function TabsLayout() {
                     >
                       Progress
                     </Text>
+
+                    <Text style={{ color: '#fff', fontSize: scaleFont(7), fontWeight: '600', textAlign: 'center', marginBottom: scaleHeight(-4) }}>Progress</Text>
+
                   </View>
                 </View>
               ) : null
@@ -835,13 +926,42 @@ export default function TabsLayout() {
                   >
                     <Image
                       source={require("../../assets/images/settings.png")}
+
+                      style={[
+                        styles.icon, 
+                        { 
+                          width: tabItemSize * 0.45, 
+                          height: tabItemSize * 0.45 
+                        }
+                      ]}
+                    />
+                    <Text numberOfLines={1} style={[styles.tabLabel, { fontSize: scaleFont(7) }]}>Settings</Text>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      flex: 1,
+                      width: '100%',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: scaleSpacing(1),
+                      paddingBottom: scaleHeight(6),
+                      zIndex: 1,
+                    }}
+                  >
+                    <Image
+                      source={require("../../assets/images/settings.png")}
+
                       style={{
                         width: fullAccessIconSize,
                         height: fullAccessIconSize,
                         resizeMode: 'contain',
                         tintColor: '#fff',
+                        marginTop: scaleHeight(-6),
                       }}
                     />
+
                     <Text 
                       numberOfLines={1} 
                       adjustsFontSizeToFit
@@ -857,6 +977,9 @@ export default function TabsLayout() {
                     >
                       Settings
                     </Text>
+
+                    <Text style={{ color: '#fff', fontSize: scaleFont(7), fontWeight: '600', textAlign: 'center', marginBottom: scaleHeight(-4) }}>Settings</Text>
+
                   </View>
                 </View>
               ) : null
