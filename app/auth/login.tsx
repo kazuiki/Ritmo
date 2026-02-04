@@ -524,7 +524,7 @@ export default function Login() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here:"
+                placeholder="Enter email here"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -536,7 +536,7 @@ export default function Login() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here:"
+                  placeholder="Enter password here"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -550,7 +550,14 @@ export default function Login() {
 
               {/* Forgot Password Link */}
               <TouchableOpacity onPress={() => router.push("./forgot-password")} style={{ alignSelf: "flex-end" }}>
-                <Text style={[styles.link, { marginTop: vscale(8) }]}>Forgot Password?</Text>
+                <Text
+                  style={[styles.link, { marginTop: vscale(8) }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                >
+                  Forgot Password?
+                </Text>
               </TouchableOpacity>
             </MotiView>
 
