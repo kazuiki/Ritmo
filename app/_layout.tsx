@@ -3,11 +3,12 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from "react";
-import { Alert, BackHandler, Platform } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { BackHandler, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ModeProvider } from "../src/contexts/ModeContext";
+import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
@@ -21,6 +22,7 @@ export default function RootLayout() {
   const segments = useSegments();
 
   const { showNetworkFailureModal, handleRetry } = useNetworkFailure();
+  const [showExitModal, setShowExitModal] = useState(false);
 
   // Prevent multiple sequential replaces causing white flash
   const hasRedirectedRef = useRef(false);
@@ -54,10 +56,7 @@ export default function RootLayout() {
     // NavigationBar controls removed - install expo-navigation-bar if needed
 
     const backAction = () => {
-      Alert.alert("Exit Game", "Are you sure you want to close the app?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "YES", onPress: () => BackHandler.exitApp() }
-      ]);
+      setShowExitModal(true);
       return true;
     };
 
@@ -179,47 +178,180 @@ export default function RootLayout() {
   }, [pathname, segments]);
 
   return (
-    <ModeProvider>
-      <StatusBar hidden={true} />
+    <SafeAreaProvider>
+      <ModeProvider>
+        <OnboardingProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              // Smooth, platform-standard transitions
+              // Use a fade for consistency & avoid white flash between replaces
+              animation: 'fade',
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+              // Prevent white flash during transitions by keeping bg consistent
+              contentStyle: { backgroundColor: '#E8FFFA' },
+            }}
+          >
+            {/* Allow tabs group to manage its own header */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            {/* History list and weekly detail use the same smooth card push */}
+            <Stack.Screen
+              name="history"
+              options={{
+                headerShown: false,
+                animation: 'none', // we handle custom slide animation inside the screen
+                gestureEnabled: false,
+                presentation: 'transparentModal',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            <Stack.Screen
+              name="history/[week]"
+              options={{
+                headerShown: false,
+                animation: 'none', // custom animation handled internally
+                gestureEnabled: false,
+                presentation: 'transparentModal',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            {/* Auth and other routes inherit defaults */}
+          </Stack>
 
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'fade',
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-          contentStyle: { backgroundColor: '#E8FFFA' },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* Global Network Failure Modal */}
+          <NetworkFailureModal 
+            visible={showNetworkFailureModal} 
+            onRetry={handleRetry} 
+          />
 
-        <Stack.Screen
-          name="history"
-          options={{
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-
-        <Stack.Screen
-          name="history/[week]"
-          options={{
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false,
-            presentation: 'transparentModal',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-      </Stack>
-
-      <NetworkFailureModal
-        visible={showNetworkFailureModal}
-        onRetry={handleRetry}
-      />
-    </ModeProvider>
+          {/* Exit Confirmation Modal */}
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={showExitModal}
+            onRequestClose={() => setShowExitModal(false)}
+          >
+            <View style={styles.exitModalOverlay}>
+              <View style={styles.exitModalContainer}>
+                <View style={styles.exitIconCircle}>
+                  <Image
+                    source={require("../assets/images/Error.png")}
+                    style={styles.exitIcon}
+                  />
+                </View>
+                
+                <Text style={styles.exitModalTitle}>Exit Game</Text>
+                <Text style={styles.exitModalMessage}>
+                  Are you sure you want to close the app?
+                </Text>
+                
+                <View style={styles.exitModalButtons}>
+                  <TouchableOpacity
+                    style={styles.exitCancelButton}
+                    onPress={() => setShowExitModal(false)}
+                  >
+                    <Text style={styles.exitCancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.exitConfirmButton}
+                    onPress={() => {
+                      setShowExitModal(false);
+                      BackHandler.exitApp();
+                    }}
+                  >
+                    <Text style={styles.exitConfirmButtonText}>YES</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        </OnboardingProvider>
+      </ModeProvider>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  exitModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exitModalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '80%',
+    maxWidth: 360,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#FFB3BA',
+  },
+  exitIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#FFE5E7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  exitIcon: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain',
+  },
+  exitModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  exitModalMessage: {
+    fontSize: 14,
+    color: '#4A4A4A',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  exitModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  exitCancelButton: {
+    flex: 1,
+    backgroundColor: '#D3D3D3',
+    paddingVertical: 12,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exitCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  exitConfirmButton: {
+    flex: 1,
+    backgroundColor: '#FF6B7A',
+    paddingVertical: 12,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exitConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});

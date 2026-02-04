@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
 import { useMode } from "../../src/contexts/ModeContext";
+import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
@@ -44,6 +45,7 @@ export default function Home() {
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
+  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin } = useOnboarding();
   const insets = useSafeAreaInsets();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -260,6 +262,9 @@ export default function Home() {
 
   useFocusEffect(
     React.useCallback(() => {
+      // Check if this is the first login and start onboarding if needed
+      checkAndStartOnboardingIfFirstLogin();
+      
       // Set loading state immediately to hide content while checking
       setIsCheckingCompletion(true);
       
@@ -305,7 +310,7 @@ export default function Home() {
 
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
-    }, [activeRoutineId])
+    }, [activeRoutineId, parentalLockEnabled])
   );
 
   const toggleComplete = async (id: number) => {

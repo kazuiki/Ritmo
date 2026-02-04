@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
-    Animated,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
 
 interface OnboardingTourProps {
@@ -49,19 +50,27 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
     const tabBarHeight = scaleHeight(70);
     
     // Match exact tab button sizes from _layout.tsx
+    const tabItemSize = scaleWidth(50);
     const tabSlotWidth = screenWidth / 5;
-    const tabButtonWidth = scaleWidth(70); // Smaller button width to match the rounded shape
-    const tabButtonHeight = scaleHeight(55); // Smaller button height
+    const tabButtonWidth = tabItemSize * 1.3; // Match actual button width from layout
+    const tabButtonHeight = tabItemSize; // Match actual button height from layout
     
     // Tab positions - buttons are centered within their slots
-    const buttonOffsetX = (tabSlotWidth - tabButtonWidth) / 2; // Center button in slot
-    const tabBottomOffset = bottomMargin - scaleHeight(1.6); // Lower the highlight to align exactly with green button
+    const buttonOffsetX = (tabSlotWidth - tabButtonWidth) / 2; // Center button in slot horizontally
+    
+    // Align exactly with the navigation button border at the bottom
+    // The navigation is at bottom: 25 and buttons are inside with minimal offset
+    const tabBottomOffset = scaleHeight(10);
     
     // For floating button (addRoutines in center) - match actual size from layout
     const floatingButtonSize = scaleWidth(70);
     const floatingButtonLeft = (screenWidth - floatingButtonSize) / 2;
-    // Position to align with the actual floating button - it's raised above the tab bar
-    const floatingButtonBottom = bottomMargin + tabBarHeight - scaleHeight(40);
+    
+    // The floating button is raised above the tab bar with negative top offset
+    // Base the highlight position on the actual button border position
+    const floatingButtonTopOffset = isTablet ? scaleHeight(-75) : scaleHeight(-35);
+    // Adjust lower to match the actual lowered navigation position - align exactly with border
+    const floatingButtonBottom = bottomMargin + Math.abs(floatingButtonTopOffset) - scaleHeight(22);
 
     switch (step) {
       case 0: // Home - First tab (leftmost)
@@ -144,8 +153,8 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
     // Center tooltip horizontally on screen
     const left = (screenWidth - tooltipWidth) / 2;
     
-    // Position above the highlighted tab
-    const bottom = config.highlightPosition.bottom + config.highlightPosition.height + scaleHeight(20);
+    // Position above the highlighted tab - more spacing to avoid covering
+    const bottom = config.highlightPosition.bottom + config.highlightPosition.height + scaleHeight(40);
 
     return {
       left,
@@ -162,11 +171,34 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
       statusBarTranslucent
     >
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        {/* Dark overlay */}
-        <View style={styles.backdrop} />
+        {/* Dark overlay with transparent hole using SVG mask */}
+        <Svg height={screenHeight} width={screenWidth} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <Mask id="mask" x="0" y="0" height="100%" width="100%">
+              {/* White background = visible dark overlay */}
+              <Rect height="100%" width="100%" fill="#fff" />
+              {/* Black rectangle = transparent hole */}
+              <Rect
+                x={config.highlightPosition.left}
+                y={screenHeight - config.highlightPosition.bottom - config.highlightPosition.height}
+                width={config.highlightPosition.width}
+                height={config.highlightPosition.height}
+                rx={step === 4 ? config.highlightPosition.width / 2 : scaleSpacing(15)}
+                fill="#000"
+              />
+            </Mask>
+          </Defs>
+          {/* Apply mask to lighter overlay */}
+          <Rect
+            height="100%"
+            width="100%"
+            fill="rgba(0, 0, 0, 0.4)"
+            mask="url(#mask)"
+          />
+        </Svg>
 
-        {/* Highlight circle/rectangle */}
-        <Animated.View
+        {/* Bright highlight border */}
+        <View
           style={[
             styles.highlight,
             {
@@ -230,9 +262,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   highlight: {
-    borderWidth: 3,
+    borderWidth: 4,
     borderColor: '#5DD4B4',
-    backgroundColor: 'rgba(93, 212, 180, 0.2)',
+    backgroundColor: 'transparent',
+    shadowColor: '#5DD4B4',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   tooltip: {
     position: 'absolute',

@@ -14,7 +14,9 @@ import {
   Vibration,
   View
 } from "react-native";
+import ParentalLockOnboardingTour from "../src/components/ParentalLockOnboardingTour";
 import { useMode } from "../src/contexts/ModeContext";
+import { useOnboarding } from "../src/contexts/OnboardingContext";
 import { ParentalLockAuthService } from "../src/parentalLockAuthService";
 import { ParentalLockService } from "../src/parentalLockService";
 import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
@@ -25,6 +27,7 @@ export default function ParentalLock() {
   const router = useRouter();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const { enterParentMode } = useMode();
+  const { showParentalLockOnboarding, currentParentalLockStep, startParentalLockOnboarding, nextParentalLockStep, completeParentalLockOnboarding } = useOnboarding();
   const [isEnabled, setIsEnabled] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
@@ -34,6 +37,33 @@ export default function ParentalLock() {
   const [pinError, setPinError] = useState('');
   const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+  
+  // Refs for highlight positions
+  const containerRef = useRef<View>(null);
+  const switchRef = useRef<View>(null);
+  const [highlightPositions, setHighlightPositions] = useState({});
+
+  // Measure highlight positions
+  useEffect(() => {
+    const measurePositions = () => {
+      setTimeout(() => {
+        containerRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          setHighlightPositions((prev) => ({
+            ...prev,
+            container: { top: pageY, left: pageX, width, height },
+          }));
+        });
+        switchRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          setHighlightPositions((prev) => ({
+            ...prev,
+            switch: { top: pageY, left: pageX, width, height },
+          }));
+        });
+      }, 100);
+    };
+
+    measurePositions();
+  }, [isEnabled]);
 
   // Load parental lock state on mount
   useEffect(() => {
@@ -45,6 +75,10 @@ export default function ParentalLock() {
     React.useCallback(() => {
       // Reload state when screen is focused
       loadParentalLockState();
+      // Start onboarding tour on first visit (will auto-check if already completed)
+      setTimeout(() => {
+        startParentalLockOnboarding();
+      }, 500);
     }, [])
   );
 
@@ -160,16 +194,39 @@ export default function ParentalLock() {
         </TouchableOpacity>
 
         {/* Parental Lock Card */}
-        <View style={styles.card as any}>
+        <View 
+          ref={containerRef}
+          style={styles.card as any}
+          onLayout={() => {
+            containerRef.current?.measure((x, y, width, height, pageX, pageY) => {
+              setHighlightPositions((prev) => ({
+                ...prev,
+                container: { top: pageY, left: pageX, width, height },
+              }));
+            });
+          }}
+        >
           <Text style={styles.title as any}>Parental Lock</Text>
-          <Switch
-            trackColor={{ false: "#FF6B6B", true: "#4CAF50" }}
-            thumbColor="#FFFFFF"
-            ios_backgroundColor="#FF6B6B"
-            onValueChange={toggleSwitch}
-            value={isEnabled}
-            style={styles.switch as any}
-          />
+          <View 
+            ref={switchRef}
+            onLayout={() => {
+              switchRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                setHighlightPositions((prev) => ({
+                  ...prev,
+                  switch: { top: pageY, left: pageX, width, height },
+                }));
+              });
+            }}
+          >
+            <Switch
+              trackColor={{ false: "#FF6B6B", true: "#4CAF50" }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor="#FF6B6B"
+              onValueChange={toggleSwitch}
+              value={isEnabled}
+              style={styles.switch as any}
+            />
+          </View>
         </View>
 
         {/* PIN Display Card - Only show when PIN is set and parental lock is enabled */}
@@ -276,6 +333,15 @@ export default function ParentalLock() {
           </View>
         </View>
       </Modal>
+
+      {/* Parental Lock Onboarding Tour */}
+      <ParentalLockOnboardingTour
+        visible={showParentalLockOnboarding}
+        step={currentParentalLockStep}
+        onNext={nextParentalLockStep}
+        onSkip={completeParentalLockOnboarding}
+        highlightPositions={highlightPositions}
+      />
     </ImageBackground>
   );
 }
