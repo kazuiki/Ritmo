@@ -761,8 +761,6 @@ export default function TabsLayout() {
                   </View>
                 </View>
 
-              ) : null
-
               ) : (
                 // Scenario A (Parent Mode): Regular pill-style tab
                 <View
@@ -834,8 +832,8 @@ export default function TabsLayout() {
                       style={[
                         styles.icon, 
                         { 
-                          width: tabItemSize * 0.45, 
-                          height: tabItemSize * 0.45 
+                          width: fullAccessIconSize, 
+                          height: fullAccessIconSize 
                         }
                       ]}
                     />
@@ -930,8 +928,8 @@ export default function TabsLayout() {
                       style={[
                         styles.icon, 
                         { 
-                          width: tabItemSize * 0.45, 
-                          height: tabItemSize * 0.45 
+                          width: fullAccessIconSize, 
+                          height: fullAccessIconSize 
                         }
                       ]}
                     />
