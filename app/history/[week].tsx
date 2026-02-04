@@ -422,10 +422,10 @@ export default function WeeklyHistoryDetail() {
             
             {/* Legend */}
             <View style={styles.legendRow}>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText}>Done</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText}>Missed</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText}>Pending</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGray]} /><Text style={styles.legendText}>Unassigned</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Done</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Missed</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Pending</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGray]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Unassigned</Text></View>
             </View>
 
             {/* Grid Header */}

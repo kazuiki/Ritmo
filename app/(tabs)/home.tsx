@@ -1028,7 +1028,7 @@ export default function Home() {
       <Image
         source={require("../../assets/background.png")}
         style={styles.backgroundImage}
-        resizeMode="cover"
+        resizeMode="stretch"
       />
       
       <View style={styles.header}>
@@ -1054,7 +1054,7 @@ export default function Home() {
             }}
           >
             <View style={styles.modeButtonContent}>
-              <Image source={mode === 'child' ? require("../../assets/images/user 2.png") : require("../../assets/images/BoyQ.png")} style={styles.modeButtonIcon} />
+              <Image source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
               <Text style={styles.modeButtonText}>
                 {mode === 'child' ? 'Parent Mode' : 'Back to Child Mode'}
               </Text>
@@ -1448,7 +1448,7 @@ export default function Home() {
           <Image
             source={require("../../assets/background.png")}
             style={styles.backgroundImage}
-            resizeMode="cover"
+            resizeMode="stretch"
           />
           <View style={styles.completedModalHeader}>
             <TouchableOpacity onPress={() => {
@@ -1514,7 +1514,7 @@ export default function Home() {
           <Image
             source={require("../../assets/background.png")}
             style={styles.backgroundImage}
-            resizeMode="cover"
+            resizeMode="stretch"
           />
           {/* Back Button - Only show on Step 1 */}
           <View style={[styles.playbookHeader, { paddingTop: insets.top + scaleSpacing(16) }]}>
@@ -1660,7 +1660,7 @@ export default function Home() {
           <Image
             source={require("../../assets/gifs/fallingstars.gif")}
             style={styles.fallingStarsGif}
-            resizeMode="cover"
+            resizeMode="contain"
           />
 
           {/* Content Overlay */}
@@ -1758,7 +1758,7 @@ export default function Home() {
           <ImageBackground
             source={require("../../assets/background.png")}
             style={styles.modalBackground}
-            resizeMode="cover"
+            resizeMode="stretch"
           >
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
@@ -1849,6 +1849,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   header: { 
     paddingTop: scale.scaleHeight(30), 
+    paddingBottom: scale.scaleSpacing(16),
     paddingHorizontal: scale.scaleSpacing(16),
     flexDirection: 'row',
     alignItems: 'center',
@@ -1863,15 +1864,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   brandLogo: { 
     width: scale.scaleWidth(120), 
     height: scale.scaleHeight(30), 
-    resizeMode: "contain", 
+    resizeMode: "contain",
     marginLeft: scale.scaleSpacing(-22),
   },
   modeButton: {
-    backgroundColor: '#B8E6E1',
-    paddingHorizontal: scale.scaleSpacing(20),
-    paddingVertical: scale.scaleSpacing(12),
+    backgroundColor: 'transparent',
+    paddingHorizontal: scale.scaleSpacing(24),
+    paddingVertical: scale.scaleSpacing(8),
     borderRadius: 20,
-    marginTop: scale.scaleSpacing(10),
+    marginTop: 0,
+    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',
@@ -1880,14 +1882,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   modeButtonText: {
     color: '#2F7C72',
-    fontSize: scale.scaleFont(14),
+    fontSize: scale.scaleFont(16),
     fontWeight: '600',
+    fontFamily: 'Fredoka_600SemiBold',
     textDecorationLine: 'underline',
+    letterSpacing: 0.3,
   },
   modeButtonIcon: {
-    width: scale.scaleWidth(16),
-    height: scale.scaleHeight(16),
+    width: scale.scaleWidth(20),
+    height: scale.scaleHeight(20),
     resizeMode: 'contain',
+    tintColor: '#2F7C72',
   },
   progressCard: {
     backgroundColor: "#fff",
@@ -1967,7 +1972,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   completedImage: {
     width: '80%',
     height: '80%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
     marginTop: scale.scaleSpacing(15),
   },
   completedPlaceholder: {
@@ -1980,17 +1985,18 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   completedStripStars: {
     position: 'absolute',
     top: scale.scaleSpacing(1),
-    left: '50%',
-    transform: [{ translateX: scale.scaleSpacing(-24) }],
+    alignSelf: 'center',
     flexDirection: 'row',
     zIndex: 10,
+    width: '100%',
+    justifyContent: 'center',
   },
   completedStripStar: {
     fontSize: scale.scaleFont(16),
     textAlignVertical: 'center',
   },
   remainingTitle: {
-    fontSize: scale.scaleFont(20),
+    fontSize: scale.scaleFont(20),  
     fontWeight: '700',
     color: '#244D4A',
     marginBottom: scale.scaleSpacing(2),
@@ -2042,13 +2048,13 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     width: scale.scaleWidth(80),
     height: scale.scaleHeight(80),
     borderRadius: scale.scaleBorderRadius(12),
-    resizeMode: "cover",
+    resizeMode: "contain",
   },
   presetImageLarge: {
     width: scale.scaleWidth(200),
     height: scale.scaleHeight(180),
     borderRadius: scale.scaleBorderRadius(18),
-    resizeMode: "cover",
+    resizeMode: "contain",
     marginBottom: scale.scaleSpacing(2),
   },
   presetImageDim: {
@@ -2275,6 +2281,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     width: scale.scaleWidth(250),
     height: scale.scaleHeight(250),
     marginBottom: scale.scaleSpacing(-20),
+    resizeMode: "contain",
   },
   taskBlockLabel: {
     fontSize: scale.scaleFont(24),
@@ -2439,7 +2446,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   playbookContent: {
     paddingHorizontal: scale.scaleSpacing(20),
-    paddingBottom: scale.scaleSpacing(80),
+    paddingBottom: scale.scaleSpacing(24),
     alignItems: "center",
   },
   videoCard: {
@@ -2450,7 +2457,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderColor: "#2F7C72",
     borderRadius: scale.scaleBorderRadius(16),
     overflow: "hidden",
-    marginBottom: scale.scaleSpacing(30),
+    marginBottom: scale.scaleSpacing(80),
     position: "relative",
   },
   videoInner: {
@@ -2479,6 +2486,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     textAlign: "center",
     lineHeight: scale.scaleHeight(28),
     fontFamily: "Fredoka_700Bold",
+    marginBottom: scale.scaleSpacing(24),
   },
   playbookFooter: {
     position: "absolute",

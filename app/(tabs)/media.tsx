@@ -222,7 +222,7 @@ export default function Media() {
       <Image
         source={require("../../assets/background.png")}
         style={styles.backgroundImage}
-        resizeMode="cover"
+        resizeMode="stretch"
       />
       
       <View style={styles.header}>
@@ -249,7 +249,7 @@ export default function Media() {
           >
             <View style={styles.modeButtonContent}>
               <Image 
-                source={mode === 'child' ? require("../../assets/images/user 2.png") : require("../../assets/images/BoyQ.png")} 
+                source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
                 style={styles.modeButtonIcon}
               />
               <Text style={styles.modeButtonText}>
@@ -363,7 +363,7 @@ export default function Media() {
           <ImageBackground
             source={require("../../assets/background.png")}
             style={styles.modalBackground}
-            resizeMode="cover"
+            resizeMode="stretch"
           >
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
@@ -448,6 +448,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   header: {
     paddingTop: scale.scaleSpacing(30),
+    paddingBottom: scale.scaleSpacing(16),
     paddingHorizontal: scale.scaleSpacing(16),
     flexDirection: 'row',
     alignItems: 'center',
@@ -460,11 +461,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginLeft: scale.scaleSpacing(-22),
   },
   modeButton: {
-    backgroundColor: '#B8E6E1',
-    paddingHorizontal: scale.scaleSpacing(20),
-    paddingVertical: scale.scaleSpacing(12),
+    backgroundColor: 'transparent',
+    paddingHorizontal: scale.scaleSpacing(24),
+    paddingVertical: scale.scaleSpacing(8),
     borderRadius: 20,
-    marginTop: scale.scaleSpacing(10),
+    marginTop: 0,
+    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',
@@ -473,20 +475,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   modeButtonText: {
     color: '#2F7C72',
-    fontSize: scale.scaleFont(14),
+    fontSize: scale.scaleFont(16),
     fontWeight: '600',
+    fontFamily: 'Fredoka_600SemiBold',
     textDecorationLine: 'underline',
+    letterSpacing: 0.3,
   },
   modeButtonIcon: {
-    width: scale.scaleWidth(16),
-    height: scale.scaleHeight(16),
+    width: scale.scaleWidth(20),
+    height: scale.scaleHeight(20),
     resizeMode: 'contain',
+    tintColor: '#2F7C72',
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f0f0f0",
-    marginHorizontal: scale.scaleSpacing(12),
+    marginHorizontal: scale.scaleSpacing(18),
     marginBottom: scale.scaleSpacing(10),
     paddingHorizontal: scale.scaleSpacing(10),
     borderRadius: scale.scaleBorderRadius(25),
@@ -500,7 +505,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   videoContainer: {
     backgroundColor: "#fafafa",
-    marginHorizontal: scale.scaleSpacing(12),
+    marginHorizontal: scale.scaleSpacing(18),
     marginBottom: scale.scaleSpacing(16),
     borderRadius: scale.scaleBorderRadius(12),
     overflow: "hidden",
