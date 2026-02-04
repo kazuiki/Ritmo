@@ -990,8 +990,6 @@ export default function TabsLayout() {
         />
       </Tabs>
 
-      {isChildMode && <CustomPillTabBar state={{ index: pathname.includes('/home') ? 0 : pathname.includes('/media') ? 1 : 0 }} />}
-      
       {/* Onboarding Tour */}
       <OnboardingTour
         visible={showOnboarding}
@@ -1000,7 +998,6 @@ export default function TabsLayout() {
         onSkip={skipOnboarding}
       />
 
-      
       {/* Render custom pill tab bars based on mode */}
       {isChildMode && <CustomPillTabBar />}
       {isParentMode && <CustomParentPillTabBar />}

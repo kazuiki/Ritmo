@@ -733,14 +733,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   videoContainer: {
     backgroundColor: "#fafafa",
-
-    marginHorizontal: scale.scaleSpacing(12),
-    marginBottom: scale.scaleSpacing(24),
-    marginTop: scale.scaleSpacing(8),
-
     marginHorizontal: scale.scaleSpacing(18),
     marginBottom: scale.scaleSpacing(16),
-
+    marginTop: scale.scaleSpacing(8),
     borderRadius: scale.scaleBorderRadius(12),
     overflow: "hidden",
     shadowColor: "#000",
