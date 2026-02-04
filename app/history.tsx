@@ -200,7 +200,7 @@ export default function History() {
       {/* Top bar: Back + Title + Sort */}
       <View style={styles.topRow}>
         <TouchableOpacity onPress={handleBack}>
-          <Text style={styles.backTextLink}>Back</Text>
+          <Text style={styles.backTextLink} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
         </TouchableOpacity>
       </View>
 

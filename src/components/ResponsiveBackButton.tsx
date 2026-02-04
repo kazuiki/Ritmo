@@ -49,6 +49,9 @@ export const ResponsiveBackButton: React.FC<ResponsiveBackButtonProps> = ({
     >
       <Ionicons name="arrow-back" size={scaleFont(24)} color={color} style={styles.icon} />
       <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
         style={[
           styles.backButtonText,
           {
