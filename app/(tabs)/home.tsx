@@ -8,7 +8,7 @@ import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
 import { router } from "expo-router";
-import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { Animated, Easing, Image, ImageBackground, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
@@ -1830,6 +1830,7 @@ export default function Home() {
               </View>
             </View>
           </View>
+          </ImageBackground>
         </View>
       </Modal>
     </View>
@@ -1873,18 +1874,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   modeButton: {
     backgroundColor: 'transparent',
-
-    paddingHorizontal: scale.scaleSpacing(24),
-    paddingVertical: scale.scaleSpacing(8),
-    borderRadius: 20,
-    marginTop: 0,
-    alignSelf: 'flex-end',
-
     paddingHorizontal: scale.scaleSpacing(20),
     paddingVertical: scale.scaleSpacing(12),
-    borderRadius: 0,
+    borderRadius: 20,
     marginTop: scale.scaleSpacing(10),
-
+    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',
