@@ -8,7 +8,7 @@ import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
 import { router } from "expo-router";
-import { Animated, Easing, Image, ImageBackground, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
@@ -1755,16 +1755,7 @@ export default function Home() {
         statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="stretch"
-          >
-
-          <View style={styles.modalBackground}>
-
-            <View style={styles.modalContainer}>
+          <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <View style={styles.lockIconContainer}>
                   <Ionicons name="lock-closed" size={48} color="#4A5568" />
@@ -1829,8 +1820,6 @@ export default function Home() {
                 </View>
               </View>
             </View>
-          </View>
-          </ImageBackground>
         </View>
       </Modal>
     </View>
@@ -2658,7 +2647,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: scale.scaleSpacing(20),
   },
   modalBackground: {
     flex: 1,
@@ -2670,7 +2658,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: scale.scaleSpacing(20),
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
@@ -2685,7 +2672,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: scale.scaleSpacing(12),
     elevation: 12,
     width: "90%",
-    maxWidth: scale.scaleWidth(350),
+    maxWidth: scale.scaleWidth(600),
     maxHeight: "70%",
   },
   lockIconContainer: {
