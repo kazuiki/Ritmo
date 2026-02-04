@@ -5,7 +5,10 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
     Image,
+    Keyboard,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -39,6 +42,7 @@ const ITEM_HEIGHT = 48;
 export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+    const itemHeight = scaleHeight(ITEM_HEIGHT);
     const { mode, parentalLockEnabled, backToChildMode } = useMode();
     const { 
         showAddRoutineOnboarding, 
@@ -104,6 +108,7 @@ export default function addRoutines() {
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
     const periodRef = useRef<ScrollView | null>(null);
+    const formScrollRef = useRef<ScrollView | null>(null);
     
     // For infinite scroll - track if we're programmatically scrolling
     const isScrollingProgrammatically = useRef(false);
@@ -139,6 +144,22 @@ export default function addRoutines() {
         };
     }, []);
 
+    useEffect(() => {
+        if (!modalVisible) return;
+
+        const showSub = Keyboard.addListener('keyboardDidShow', () => {
+            setFormScrollEnabled(true);
+        });
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+            formScrollRef.current?.scrollTo({ y: 0, animated: true });
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, [modalVisible]);
+
     useFocusEffect(
         React.useCallback(() => {
             // Measure the plus button position first
@@ -165,7 +186,7 @@ export default function addRoutines() {
     );
 
     const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
-        ref.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
+        ref.current?.scrollTo({ y: index * itemHeight, animated: true });
     };
 
     const onPressHour = (h: number) => {
@@ -257,8 +278,8 @@ export default function addRoutines() {
         setTimeout(() => {
             // Start at middle repetition (01:00 AM)
             isScrollingProgrammatically.current = true;
-            hourRef.current?.scrollTo({ y: 12 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (hour 1)
-            minuteRef.current?.scrollTo({ y: 60 * ITEM_HEIGHT, animated: false }); // Middle rep, index 0 (minute 0)
+            hourRef.current?.scrollTo({ y: 12 * itemHeight, animated: false }); // Middle rep, index 0 (hour 1)
+            minuteRef.current?.scrollTo({ y: 60 * itemHeight, animated: false }); // Middle rep, index 0 (minute 0)
             periodRef.current?.scrollTo({ y: 0, animated: false });
             setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
             
@@ -334,9 +355,9 @@ export default function addRoutines() {
             const mIndex = parseInt(m, 10);
             // Scroll to middle repetition
             isScrollingProgrammatically.current = true;
-            hourRef.current?.scrollTo({ y: (12 + hIndex) * ITEM_HEIGHT, animated: false });
-            minuteRef.current?.scrollTo({ y: (60 + mIndex) * ITEM_HEIGHT, animated: false });
-            periodRef.current?.scrollTo({ y: (p === "AM" ? 0 : 1) * ITEM_HEIGHT, animated: false });
+            hourRef.current?.scrollTo({ y: (12 + hIndex) * itemHeight, animated: false });
+            minuteRef.current?.scrollTo({ y: (60 + mIndex) * itemHeight, animated: false });
+            periodRef.current?.scrollTo({ y: (p === "AM" ? 0 : 1) * itemHeight, animated: false });
             setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
         }, 0);
     };
@@ -531,7 +552,7 @@ export default function addRoutines() {
             <Image
                 source={require("../../assets/background.png")}
                 style={styles.backgroundImage}
-                resizeMode="cover"
+                resizeMode="stretch"
             />
             
             {/* Brand logo */}
@@ -554,10 +575,10 @@ export default function addRoutines() {
                             router.push('/(tabs)/home');
                         }}
                     >
-                        <View style={styles.modeButtonContent}>
-                            <Image source={require("../../assets/images/kid.png")} style={styles.modeButtonIcon} />
-                            <Text style={styles.modeButtonText}>Back to Child Mode</Text>
-                        </View>
+                            <View style={styles.modeButtonContent}>
+                            	<Image source={require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
+                            	<Text style={styles.modeButtonText}>Back to Child Mode</Text>
+                            </View>
                     </TouchableOpacity>
                 )}
             </View>
@@ -611,21 +632,27 @@ export default function addRoutines() {
                 visible={modalVisible}
                 onRequestClose={closeModal}
             >
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         {/* Header (Back only) */}
                         <View style={styles.modalHeader}>
                             <TouchableOpacity onPress={closeModal}>
-                                <Text style={styles.backText}>Back</Text>
+                                <Text style={styles.backText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
                             </TouchableOpacity>
                             <View />
                         </View>
 
                     <ScrollView
+                        ref={formScrollRef}
                         contentContainerStyle={{ padding: 16 }}
                         nestedScrollEnabled
                         scrollEnabled={formScrollEnabled}
                         keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
                     >
                         {/* Time Picker Section */}
                         <View style={styles.timePickerCard} ref={timePickerRef} collapsable={false}>
@@ -635,9 +662,9 @@ export default function addRoutines() {
                                     <ScrollView
                                         ref={hourRef}
                                         showsVerticalScrollIndicator={false}
-                                        snapToInterval={48}
+                                        snapToInterval={itemHeight}
                                         decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT, alignItems: "center" }}
+                                        contentContainerStyle={{ paddingVertical: itemHeight, alignItems: "center" }}
                                         nestedScrollEnabled
                                         onScrollBeginDrag={() => setFormScrollEnabled(false)}
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
@@ -646,7 +673,7 @@ export default function addRoutines() {
                                             if (isScrollingProgrammatically.current) return;
                                             
                                             const y = e.nativeEvent.contentOffset.y;
-                                            const idx = Math.round(y / 48);
+                                            const idx = Math.round(y / itemHeight);
                                             const actualHour = infiniteHours[idx];
                                             setHour(actualHour.toString().padStart(2, "0"));
                                             setFormScrollEnabled(true);
@@ -685,9 +712,9 @@ export default function addRoutines() {
                                     <ScrollView
                                         ref={minuteRef}
                                         showsVerticalScrollIndicator={false}
-                                        snapToInterval={48}
+                                        snapToInterval={itemHeight}
                                         decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT, alignItems: "center" }}
+                                        contentContainerStyle={{ paddingVertical: itemHeight, alignItems: "center" }}
                                         nestedScrollEnabled
                                         onScrollBeginDrag={() => setFormScrollEnabled(false)}
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
@@ -696,7 +723,7 @@ export default function addRoutines() {
                                             if (isScrollingProgrammatically.current) return;
                                             
                                             const y = e.nativeEvent.contentOffset.y;
-                                            const idx = Math.round(y / 48);
+                                            const idx = Math.round(y / itemHeight);
                                             const actualMinute = infiniteMinutes[idx];
                                             setMinute(actualMinute.toString().padStart(2, "0"));
                                             setFormScrollEnabled(true);
@@ -735,16 +762,16 @@ export default function addRoutines() {
                                     <ScrollView
                                         ref={periodRef}
                                         showsVerticalScrollIndicator={false}
-                                        snapToInterval={48}
+                                        snapToInterval={itemHeight}
                                         decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT, alignItems: "center" }}
+                                        contentContainerStyle={{ paddingVertical: itemHeight, alignItems: "center" }}
                                         nestedScrollEnabled
                                         onScrollBeginDrag={() => setFormScrollEnabled(false)}
                                         onScrollEndDrag={() => setFormScrollEnabled(true)}
                                         onMomentumScrollBegin={() => setFormScrollEnabled(false)}
                                         onMomentumScrollEnd={(e) => {
                                             const y = e.nativeEvent.contentOffset.y;
-                                            const idx = Math.round(y / 48);
+                                            const idx = Math.round(y / itemHeight);
                                             const clamped = Math.max(0, Math.min(1, idx));
                                             const p = clamped === 0 ? "AM" : "PM";
                                             setPeriod(p);
@@ -856,6 +883,7 @@ export default function addRoutines() {
                         </ScrollView>
                     </View>
                 </View>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* Full-screen Preset Modal */}
@@ -870,13 +898,13 @@ export default function addRoutines() {
                 <Image
                     source={require("../../assets/background.png")}
                     style={styles.backgroundImage}
-                    resizeMode="cover"
+                    resizeMode="stretch"
                 />
                 <View style={styles.presetScreen}>
                 {/* Header with Back button in upper-left */}
                 <View style={styles.presetHeader}>
                     <TouchableOpacity onPress={closePresetModal}>
-                        <Text style={styles.backText}>Back</Text>
+                        <Text style={styles.backText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -925,14 +953,14 @@ export default function addRoutines() {
                     <Image
                         source={require("../../assets/background.png")}
                         style={styles.backgroundImage}
-                        resizeMode="cover"
+                        resizeMode="stretch"
                     />
                     
                     <View style={styles.presetScreen}>
                         {/* Header with Back button */}
                         <View style={styles.presetHeader}>
                             <TouchableOpacity onPress={closeRingtoneModal}>
-                                <Text style={styles.backText}>Back</Text>
+                                <Text style={styles.backText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -1267,8 +1295,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         backgroundColor: 'transparent',
         paddingHorizontal: scale.scaleSpacing(20),
         paddingVertical: scale.scaleSpacing(12),
-        borderRadius: 0,
+        borderRadius: 20,
         marginTop: scale.scaleSpacing(10),
+        alignSelf: 'flex-end',
     },
     modeButtonContent: {
         flexDirection: 'row',
@@ -1277,14 +1306,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     },
     modeButtonText: {
         color: '#2F7C72',
-        fontSize: scale.scaleFont(14),
+        fontSize: scale.scaleFont(16),
         fontWeight: '600',
+        fontFamily: 'Fredoka_600SemiBold',
         textDecorationLine: 'underline',
+        letterSpacing: 0.3,
     },
     modeButtonIcon: {
-        width: scale.scaleWidth(16),
-        height: scale.scaleHeight(16),
+        width: scale.scaleWidth(20),
+        height: scale.scaleHeight(20),
         resizeMode: 'contain',
+        tintColor: '#2F7C72',
     },
     titleRow: {
         paddingHorizontal: scale.scaleSpacing(16),
@@ -1373,11 +1405,13 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-around",
         height: scale.scaleHeight(150),
+        alignItems: "center",
     },
     pickerWrapper: {
         flex: 1,
         height: scale.scaleHeight(150),
         overflow: "hidden",
+        alignItems: "center",
     },
     timeRow: {
         flexDirection: "row",
@@ -1390,8 +1424,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontWeight: "600",
         color: "#244D4A",
         textAlign: "center",
-        height: ITEM_HEIGHT,
-        lineHeight: ITEM_HEIGHT,
+        textAlignVertical: "center",
+        width: "100%",
+        height: scale.scaleHeight(ITEM_HEIGHT),
+        lineHeight: scale.scaleHeight(ITEM_HEIGHT),
+        paddingTop: 10,
+        paddingBottom: 0,
     },
     selectedTime: {
         color: "#06C08A",
@@ -1399,10 +1437,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     },
     selectionIndicator: {
         position: "absolute",
-        top: scale.scaleSpacing(20) + (scale.scaleHeight(150) - ITEM_HEIGHT) / 2,
+        top: scale.scaleSpacing(20) + (scale.scaleHeight(150) - scale.scaleHeight(ITEM_HEIGHT)) / 2,
         left: scale.scaleSpacing(20),
         right: scale.scaleSpacing(20),
-        height: ITEM_HEIGHT,
+        height: scale.scaleHeight(ITEM_HEIGHT),
         justifyContent: "space-between",
         pointerEvents: "none",
     },
@@ -1648,7 +1686,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         height: scale.scaleHeight(72),
         marginRight: scale.scaleSpacing(16),
         borderRadius: scale.scaleBorderRadius(8),
-        resizeMode: "cover",
+        resizeMode: "contain",
     },
     presetItemText: {
         fontSize: scale.scaleFont(16),
@@ -1701,7 +1739,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         height: scale.scaleHeight(80),
         borderRadius: scale.scaleBorderRadius(12),
         marginRight: scale.scaleSpacing(16),
-        resizeMode: "cover",
+        resizeMode: "contain",
     },
     routineIcon: {
         fontSize: scale.scaleFont(40),
