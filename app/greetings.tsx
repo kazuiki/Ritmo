@@ -1,22 +1,22 @@
 // app/greeting.tsx
 import {
-    Fredoka_400Regular,
-    Fredoka_600SemiBold,
-    useFonts,
+  Fredoka_400Regular,
+  Fredoka_600SemiBold,
+  useFonts,
 } from "@expo-google-fonts/fredoka";
 import { Audio } from 'expo-av';
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
 } from "react-native";
 import { supabase } from "../src/supabaseClient";
 
@@ -64,8 +64,8 @@ export default function Greeting() {
   const fallingIconsAnimations = useRef(
     Array.from({ length: 20 }, (_, i) => ({
       id: i,
-      translateY: new Animated.Value(-100 - Math.random() * 200),
-      translateX: Math.random() * 400,
+      translateY: new Animated.Value(-height * 0.2 - Math.random() * height * 0.2),
+      translateX: Math.random() * width,
       icon: ["⭐", "🎵", "🎨", "✨", "💫", "🌟", "🎭", "🎪"][Math.floor(Math.random() * 8)],
       duration: 4000 + Math.random() * 3000,
       delay: Math.random() * 100, 
@@ -78,8 +78,8 @@ export default function Greeting() {
     Array.from({ length: 40 }, (_, i) => ({
       id: i,
       opacity: new Animated.Value(Math.random()),
-      top: Math.random() * 800,
-      left: Math.random() * 400,
+      top: Math.random() * height,
+      left: Math.random() * width,
       size: 6 + Math.random() * 10, 
       duration: 1000 + Math.random() * 2000,
       delay: Math.random() * 100,
@@ -90,10 +90,10 @@ export default function Greeting() {
   const shootingStarsAnimations = useRef(
     Array.from({ length: 8 }, (_, i) => ({
       id: i,
-      translateX: new Animated.Value(-200),
-      translateY: new Animated.Value(-200 - Math.random() * 300),
-      top: Math.random() * 700, 
-      left: Math.random() * 300, 
+      translateX: new Animated.Value(-width * 0.3),
+      translateY: new Animated.Value(-height * 0.3 - Math.random() * height * 0.2),
+      top: Math.random() * height * 0.8,
+      left: Math.random() * width * 0.8,
       duration: 1500 + Math.random() * 1000,
       delay: Math.random() * 3000,
     }))
@@ -246,13 +246,13 @@ export default function Greeting() {
         Animated.sequence([
           Animated.delay(icon.delay),
           Animated.timing(icon.translateY, {
-            toValue: 900,
+            toValue: height + height * 0.2,
             duration: icon.duration,
             easing: Easing.linear,
             useNativeDriver: true,
           }),
           Animated.timing(icon.translateY, {
-            toValue: -100 - Math.random() * 200,
+            toValue: -height * 0.2 - Math.random() * height * 0.2,
             duration: 0,
             useNativeDriver: true,
           }),
@@ -300,25 +300,25 @@ export default function Greeting() {
           Animated.delay(star.delay),
           Animated.parallel([
             Animated.timing(star.translateX, {
-              toValue: 500,
+              toValue: width + width * 0.2,
               duration: star.duration,
               easing: Easing.linear,
               useNativeDriver: true,
             }),
             Animated.timing(star.translateY, {
-              toValue: 800,
+              toValue: height + height * 0.2,
               duration: star.duration,
               easing: Easing.linear,
               useNativeDriver: true,
             }),
           ]),
           Animated.timing(star.translateX, {
-            toValue: -200,
+            toValue: -width * 0.3,
             duration: 0,
             useNativeDriver: true,
           }),
           Animated.timing(star.translateY, {
-            toValue: -200 - Math.random() * 300,
+            toValue: -height * 0.3 - Math.random() * height * 0.2,
             duration: 0,
             useNativeDriver: true,
           }),
@@ -446,7 +446,14 @@ export default function Greeting() {
           <Text style={[styles.greetingText, { fontSize: scaleFont(34) }]} numberOfLines={1}>{greetingText}</Text>
           <Text style={[styles.nameText, { fontSize: scaleFont(46) }]} numberOfLines={1} adjustsFontSizeToFit>{name}</Text>
           <Pressable onPress={handleExit} style={{ paddingHorizontal: 20 }}>
-            <Text style={[styles.nextText, { fontSize: scaleFont(22), marginTop: scaleSize(80) }]}>Next</Text>
+            <Text
+              style={[styles.nextText, { fontSize: scaleFont(22), marginTop: scaleSize(80) }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              Next
+            </Text>
           </Pressable>
         </Animated.View>
       </ImageBackground>
