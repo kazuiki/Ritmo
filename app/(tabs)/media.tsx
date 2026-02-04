@@ -468,18 +468,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   modeButton: {
     backgroundColor: 'transparent',
-
-    paddingHorizontal: scale.scaleSpacing(24),
-    paddingVertical: scale.scaleSpacing(8),
-    borderRadius: 20,
-    marginTop: 0,
-    alignSelf: 'flex-end',
-
     paddingHorizontal: scale.scaleSpacing(20),
     paddingVertical: scale.scaleSpacing(12),
-    borderRadius: 0,
+    borderRadius: 20,
     marginTop: scale.scaleSpacing(10),
-
+    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',
@@ -508,6 +501,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginHorizontal: scale.scaleSpacing(18),
     marginBottom: scale.scaleSpacing(10),
     paddingHorizontal: scale.scaleSpacing(10),
+  },
 
   // 🎯 Category Styles
   categoriesContainer: {
