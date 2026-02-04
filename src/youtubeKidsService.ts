@@ -30,6 +30,7 @@ interface YouTubeSearchResponse {
       description: string;
     };
   }>;
+  nextPageToken?: string;
 }
 
 interface YouTubeVideoDetailsResponse {
@@ -87,109 +88,181 @@ class YouTubeKidsService {
     'kids music'
   ];
 
-  static async searchKidsVideos(query: string = '', maxResults: number = 20): Promise<YouTubeVideo[]> {
+  static async searchKidsVideos(query: string = '', maxResults: number = 20, maxVideosPerCategory: number = 150): Promise<YouTubeVideo[]> {
     try {
       // If no query provided, use random kids search term
       const searchQuery = query || this.getRandomKidsSearchTerm();
       
-      const searchUrl = `${this.BASE_URL}/search?` +
-        `part=snippet&` +
-        `q=${encodeURIComponent(searchQuery)}&` +
-        `type=video&` +
-        `videoCategoryId=1&` +
-        `safeSearch=strict&` +
-        `maxResults=${maxResults}&` +
-        `order=relevance&` +
-        `relevanceLanguage=en&` +
-        `regionCode=PH&` +
-        `key=${this.API_KEY}`;
+      const allVideos: YouTubeVideo[] = [];
+      let nextPageToken: string | undefined;
+      let pageCount = 0;
 
-      console.log('Searching with URL:', searchUrl); // Debug log
+      // Fetch videos with balanced limit
+      while (allVideos.length < maxVideosPerCategory) {
+        const searchUrl = `${this.BASE_URL}/search?` +
+          `part=snippet&` +
+          `q=${encodeURIComponent(searchQuery)}&` +
+          `type=video&` +
+          `videoCategoryId=1&` +
+          `safeSearch=strict&` +
+          `maxResults=50&` +
+          `order=relevance&` +
+          `relevanceLanguage=en&` +
+          `regionCode=PH&` +
+          `${nextPageToken ? `pageToken=${nextPageToken}&` : ''}` +
+          `key=${this.API_KEY}`;
 
-      const response = await fetch(searchUrl);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`YouTube API error: ${response.status} - ${response.statusText}`);
-        console.error('Error response:', errorText);
-        throw new Error(`YouTube API error: ${response.status}`);
-      }
+        console.log(`[${searchQuery}] Searching page ${pageCount + 1}...`);
 
-      const data: YouTubeSearchResponse = await response.json();
-      console.log('API Response:', data); // Debug log
-      
-      if (!data.items || data.items.length === 0) {
-        console.log('No videos found, returning fallback videos');
-        return this.getFallbackVideos();
-      }
-
-      // Get video IDs for additional details
-      const videoIds = data.items.map(item => item.id.videoId).join(',');
-      
-      // Fetch video statistics and duration
-      const videoDetails = await this.getVideoDetails(videoIds);
-
-      // Transform data to match your existing video structure
-      const videos: YouTubeVideo[] = data.items.map((item, index) => {
-        const videoDetail = videoDetails[item.id.videoId];
+        const response = await fetch(searchUrl);
         
-        return {
-          id: item.id.videoId,
-          title: item.snippet.title,
-          channel: item.snippet.channelTitle,
-          channelId: item.snippet.channelId,
-          views: this.formatViewCount(videoDetail?.viewCount || '0'),
-          publishedAt: this.formatPublishedDate(item.snippet.publishedAt),
-          youtubeId: item.id.videoId,
-          thumbnail: item.snippet.thumbnails.high.url,
-          channelIcon: 'https://via.placeholder.com/88x88',
-          description: item.snippet.description,
-          duration: this.formatDuration(videoDetail?.duration || 'PT0S')
-        };
-      });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`YouTube API error: ${response.status} - ${response.statusText}`);
+          console.error('Error response:', errorText);
+          if (pageCount === 0) throw new Error(`YouTube API error: ${response.status}`);
+          break;
+        }
 
-      console.log(`Found ${videos.length} videos`); // Debug log
-      return videos;
+        const data: YouTubeSearchResponse = await response.json();
+        console.log(`[${searchQuery}] Page ${pageCount + 1}:`, data.items?.length || 0, 'items');
+        
+        if (!data.items || data.items.length === 0) {
+          console.log(`[${searchQuery}] No more videos found`);
+          break;
+        }
+
+        // Get video IDs for additional details
+        const videoIds = data.items.map(item => item.id.videoId).join(',');
+        
+        // Fetch video statistics and duration
+        const videoDetails = await this.getVideoDetails(videoIds);
+
+        // Transform data to match your existing video structure
+        const videos: YouTubeVideo[] = data.items.map((item, index) => {
+          const videoDetail = videoDetails[item.id.videoId];
+          
+          return {
+            id: item.id.videoId,
+            title: item.snippet.title,
+            channel: item.snippet.channelTitle,
+            channelId: item.snippet.channelId,
+            views: this.formatViewCount(videoDetail?.viewCount || '0'),
+            publishedAt: this.formatPublishedDate(item.snippet.publishedAt),
+            youtubeId: item.id.videoId,
+            thumbnail: item.snippet.thumbnails.high.url,
+            channelIcon: 'https://via.placeholder.com/88x88',
+            description: item.snippet.description,
+            duration: this.formatDuration(videoDetail?.duration || 'PT0S')
+          };
+        });
+
+        allVideos.push(...videos);
+        console.log(`[${searchQuery}] Page ${pageCount + 1}: Found ${videos.length} videos, Total: ${allVideos.length}`);
+
+        // Check if we've reached our limit
+        if (allVideos.length >= maxVideosPerCategory) {
+          console.log(`[${searchQuery}] Reached limit of ${maxVideosPerCategory} videos`);
+          break;
+        }
+
+        // Check if there's a next page
+        nextPageToken = data.nextPageToken;
+        if (!nextPageToken) {
+          console.log(`[${searchQuery}] No more pages available`);
+          break;
+        }
+
+        pageCount++;
+      }
+
+      console.log(`[${searchQuery}] Total videos: ${allVideos.length}`);
+      return allVideos.slice(0, maxVideosPerCategory).length > 0 ? allVideos.slice(0, maxVideosPerCategory) : this.getFallbackVideos();
     } catch (error) {
       console.error('Error fetching YouTube Kids videos:', error);
       return this.getFallbackVideos(); // Return fallback videos on error
     }
   }
 
-  static async getVideosByChannel(channelId: string, maxResults: number = 10): Promise<YouTubeVideo[]> {
+  static async getVideosByChannel(channelId: string, maxResults: number = 10, maxVideosPerCategory: number = 150): Promise<YouTubeVideo[]> {
     try {
-      const searchUrl = `${this.BASE_URL}/search?` +
-        `part=snippet&` +
-        `channelId=${channelId}&` +
-        `type=video&` +
-        `safeSearch=strict&` +
-        `maxResults=${maxResults}&` +
-        `order=date&` +
-        `key=${this.API_KEY}`;
+      const allVideos: YouTubeVideo[] = [];
+      let nextPageToken: string | undefined;
+      let pageCount = 0;
 
-      const response = await fetch(searchUrl);
-      const data: YouTubeSearchResponse = await response.json();
-      
-      if (!data.items) return [];
+      // Fetch videos from channel with balanced limit
+      while (allVideos.length < maxVideosPerCategory) {
+        const searchUrl = `${this.BASE_URL}/search?` +
+          `part=snippet&` +
+          `channelId=${channelId}&` +
+          `type=video&` +
+          `safeSearch=strict&` +
+          `maxResults=50&` +
+          `order=date&` +
+          `${nextPageToken ? `pageToken=${nextPageToken}&` : ''}` +
+          `key=${this.API_KEY}`;
 
-      const videoIds = data.items.map(item => item.id.videoId).join(',');
-      const videoDetails = await this.getVideoDetails(videoIds);
+        console.log(`[Channel ${channelId}] Fetching page ${pageCount + 1}...`);
 
-      return data.items.map(item => ({
-        id: item.id.videoId,
-        title: item.snippet.title,
-        channel: item.snippet.channelTitle,
-        channelId: item.snippet.channelId,
-        views: this.formatViewCount(videoDetails[item.id.videoId]?.viewCount || '0'),
-        publishedAt: this.formatPublishedDate(item.snippet.publishedAt),
-        youtubeId: item.id.videoId,
-        thumbnail: item.snippet.thumbnails.high.url,
-        channelIcon: 'https://via.placeholder.com/88x88',
-        description: item.snippet.description,
-        duration: this.formatDuration(videoDetails[item.id.videoId]?.duration || 'PT0S')
-      }));
+        const response = await fetch(searchUrl);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[Channel ${channelId}] YouTube API error: ${response.status} - ${errorText}`);
+          if (pageCount === 0) {
+            console.error(`[Channel ${channelId}] Failed on first page, channel might be restricted`);
+            return [];
+          }
+          break;
+        }
+
+        const data: YouTubeSearchResponse = await response.json();
+        console.log(`[Channel ${channelId}] Page ${pageCount + 1} response:`, data.items?.length || 0, 'items');
+        
+        if (!data.items || data.items.length === 0) {
+          console.log(`[Channel ${channelId}] No more videos`);
+          break;
+        }
+
+        const videoIds = data.items.map(item => item.id.videoId).join(',');
+        const videoDetails = await this.getVideoDetails(videoIds);
+
+        const videos: YouTubeVideo[] = data.items.map(item => ({
+          id: item.id.videoId,
+          title: item.snippet.title,
+          channel: item.snippet.channelTitle,
+          channelId: item.snippet.channelId,
+          views: this.formatViewCount(videoDetails[item.id.videoId]?.viewCount || '0'),
+          publishedAt: this.formatPublishedDate(item.snippet.publishedAt),
+          youtubeId: item.id.videoId,
+          thumbnail: item.snippet.thumbnails.high.url,
+          channelIcon: 'https://via.placeholder.com/88x88',
+          description: item.snippet.description,
+          duration: this.formatDuration(videoDetails[item.id.videoId]?.duration || 'PT0S')
+        }));
+
+        allVideos.push(...videos);
+        console.log(`[Channel ${channelId}] Page ${pageCount + 1}: ${videos.length} videos, Total: ${allVideos.length}`);
+
+        // Check if we've reached our limit
+        if (allVideos.length >= maxVideosPerCategory) {
+          console.log(`[Channel ${channelId}] Reached limit of ${maxVideosPerCategory} videos`);
+          break;
+        }
+
+        // Check if there's a next page
+        nextPageToken = data.nextPageToken;
+        if (!nextPageToken) {
+          console.log(`[Channel ${channelId}] No more pages available`);
+          break;
+        }
+
+        pageCount++;
+      }
+
+      console.log(`[Channel ${channelId}] Total videos: ${allVideos.length}`);
+      return allVideos.slice(0, maxVideosPerCategory);
     } catch (error) {
-      console.error('Error fetching channel videos:', error);
+      console.error(`[Channel ${channelId}] Error fetching channel videos:`, error);
       return [];
     }
   }

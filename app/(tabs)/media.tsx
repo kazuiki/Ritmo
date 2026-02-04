@@ -34,18 +34,19 @@ type PlayerState =
   | "cued";
 
 // 🎯 Predefined Kid-Safe Categories
+// Note: Some use search queries, some use channel IDs to fetch ALL videos from specific channels
 const KIDS_CATEGORIES = [
-  { id: 'nursery', label: '🎵 Nursery Rhymes', query: 'nursery rhymes for kids' },
-  { id: 'cocomelon', label: '🎈 Cocomelon', query: 'cocomelon kids songs' },
-  { id: 'counting', label: '🔢 Counting Songs', query: 'counting songs for kids' },
-  { id: 'alphabet', label: '🔤 ABC Songs', query: 'alphabet songs for kids' },
-  { id: 'colors', label: '🌈 Colors & Shapes', query: 'colors and shapes for kids' },
-  { id: 'animals', label: '🐶 Animal Songs', query: 'animal songs for kids' },
-  { id: 'cartoons', label: '🎬 Cartoons', query: 'kids cartoons youtube' },
-  { id: 'bluey', label: '💙 Bluey', query: 'bluey cartoon for kids' },
-  { id: 'peppa', label: '🐷 Peppa Pig', query: 'peppa pig cartoon' },
-  { id: 'paw', label: '🐾 Paw Patrol', query: 'paw patrol kids show' },
-  { id: 'disney', label: '✨ Disney', query: 'disney junior kids videos' },
+  { id: 'nursery', label: '🎵 Nursery Rhymes', query: 'nursery rhymes for kids', channelId: null },
+  { id: 'cocomelon', label: '🎈 Cocomelon', query: 'cocomelon kids songs', channelId: 'UCY1kMZp36IQSyNx_9h3xtsQ' }, // Cocomelon - Nursery Rhymes
+  { id: 'counting', label: '🔢 Counting Songs', query: 'counting songs for kids', channelId: null },
+  { id: 'alphabet', label: '🔤 ABC Songs', query: 'alphabet songs for kids', channelId: null },
+  { id: 'colors', label: '🌈 Colors & Shapes', query: 'colors and shapes for kids', channelId: null },
+  { id: 'animals', label: '🐶 Animal Songs', query: 'animal songs for kids', channelId: null },
+  { id: 'cartoons', label: '🎬 Cartoons', query: 'kids cartoons youtube', channelId: null },
+  { id: 'bluey', label: '💙 Bluey', query: 'bluey cartoon for kids', channelId: 'UCqwZ0D-j64xnJEJZeZ7e5rw' }, // Official Bluey
+  { id: 'peppa', label: '🐷 Peppa Pig', query: 'peppa pig cartoon', channelId: 'UCXb__pNKuCYjL1b5r7-WtDw' }, // Peppa Pig Official
+  { id: 'paw', label: '🐾 Paw Patrol', query: 'paw patrol kids show', channelId: 'UCXjj1GIWZvDRAJYmddVxLDQ' }, // PAW Patrol Official
+  { id: 'disney', label: '✨ Disney', query: 'disney junior kids videos', channelId: 'UCIxJVwG_c1Jdm6HNGjqz3LQ' }, // Disney Junior
 ];
 
 export default function Media() {
@@ -56,6 +57,8 @@ export default function Media() {
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
   const [selectedCategory, setSelectedCategory] = useState('nursery');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hasBadWords, setHasBadWords] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [videosByCategory, setVideosByCategory] = useState<Record<string, YouTubeVideo[]>>({});
@@ -63,12 +66,14 @@ export default function Media() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   // Parental Lock Modal
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState('');
   const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -103,8 +108,120 @@ export default function Media() {
   useEffect(() => {
     if (videosByCategory[selectedCategory]) {
       setVideos(videosByCategory[selectedCategory]);
+      setSearchQuery(''); // Clear search when changing category
+      setHasBadWords(false); // Reset bad words flag
     }
   }, [selectedCategory, videosByCategory]);
+
+  // Reset bad words flag when search query becomes empty
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setHasBadWords(false);
+    }
+  }, [searchQuery]);
+
+  // Bad words list in multiple languages
+  const BAD_WORDS = [
+    // English
+    'fuck', 'shit', 'ass', 'damn', 'crap', 'bitch', 'bastard', 'asshole', 'dick', 'cock', 'pussy', 'whore', 'slut',
+    'motherfucker', 'prick', 'wanker', 'bollocks', 'twat', 'arsehole', 'jerk', 'cunt', 'hell', 'piss', 'sucks',
+    // Sexual/Explicit terms
+    'sex', 'porn', 'xxx', 'creampie', 'orgasm', 'ejaculation', 'cumshot', 'blowjob', 'handjob', 'deepthroat',
+    'bondage', 'bdsm', 'fetish', 'gangbang', 'bestiality', 'pedophile', 'rape', 'incest', 'horny', 'hornyy',
+    'pinaypie', 'sulasoktv', 'tuwad', 'bembang', 'jakol', 'hentai', 'nude', 'boobs', 'breast', 'masturbate',
+    'vibrator', 'dildo', 'anal', 'threesome', 'foursome', 'orgy', 'prostitute', 'pimp', 'escort',
+    // Filipino/Tagalog - Extensive list
+    'putang', 'bobo', 'gago', 'bayag', 'tite', 'etits', 'puta', 'kantot', 'labas', 'suso', 'iyak',
+    'pakyu', 'tang', 'ulo', 'ulol', 'animal', 'hayop', 'buwaya', 'tsibog', 'lintik', 'titi', 'burat',
+    'tarub', 'kantutan', 'putanginamo', 'putangina', 'kingina', 'kinginamo', 'ogag', 'kupal', 'pepe',
+    'kiffy', 'puday', 'butas', 'kepwet', 'kalabit', 'yusang', 'labong', 'kolokoy', 'ari', 'tol',
+    'ulok', 'talunan', 'tanga', 'bete', 'gusto', 'iyot', 'bugok', 'ampaw', 'kalamay', 'bukid',
+    // Spanish
+    'puta', 'pendejo', 'jodido', 'mierda', 'culo', 'pene', 'verga', 'carajo', 'pinche', 'cabron',
+    // Violence/Dangerous
+    'hate', 'kill', 'death', 'bomb', 'gun', 'drug', 'addict', 'cocaine', 'heroin', 'meth', 'cannabis',
+    'suicide', 'murder', 'rape', 'assault', 'kidnap', 'torture', 'terrorism'
+  ];
+
+  const containsBadWords = (text: string): boolean => {
+    const lowerText = text.toLowerCase().trim();
+    return BAD_WORDS.some(word => lowerText.includes(word));
+  };
+
+  // Dynamic search - fetch from YouTube when user types
+  const performDynamicSearch = async (query: string) => {
+    if (!query.trim()) {
+      // If search is empty, show pre-loaded videos
+      setVideos(videosByCategory[selectedCategory] || []);
+      setSearchLoading(false);
+      setHasBadWords(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const currentCategory = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
+      if (currentCategory) {
+        // Search for videos with query + category name
+        const searchTerm = `${query} ${currentCategory.query}`;
+        console.log(`Dynamic search: ${searchTerm}`);
+        const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 100);
+        setVideos(dynamicResults);
+      }
+    } catch (err) {
+      console.error('Error in dynamic search:', err);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Debounced search handler
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+
+    // If search is empty, reset bad words flag immediately
+    if (!text.trim()) {
+      setHasBadWords(false);
+      setVideos(videosByCategory[selectedCategory] || []);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      return;
+    }
+
+    // Check for bad words
+    if (containsBadWords(text)) {
+      setHasBadWords(true);
+      Vibration.vibrate([100, 50, 100]); // Vibrate pattern
+      
+      // Clear previous timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      return;
+    }
+
+    setHasBadWords(false);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Debounce the search by 500ms
+    searchTimeoutRef.current = setTimeout(() => {
+      performDynamicSearch(text);
+    }, 500);
+  };
+
+  // Filter videos based on search query (for local filtering if needed)
+  const filteredVideos = videos;
+
+  // Use index as key to allow duplicate video IDs across categories
+  const renderVideos = filteredVideos.map((video, index) => ({
+    ...video,
+    uniqueKey: `${video.id}-${index}`
+  }));
 
   const loadAllCategoryVideos = async () => {
     console.log('=== loadAllCategoryVideos called ===');
@@ -118,10 +235,28 @@ export default function Media() {
       await Promise.all(
         KIDS_CATEGORIES.map(async (category) => {
           try {
-            console.log('Fetching videos for:', category.query);
-            const fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query, 50);
+            let fetchedVideos: YouTubeVideo[] = [];
+            
+            if (category.channelId) {
+              // Try to fetch ALL videos from specific channel
+              console.log('Fetching ALL videos from channel:', category.id);
+              fetchedVideos = await YouTubeKidsService.getVideosByChannel(category.channelId);
+              console.log(`Loaded ${fetchedVideos.length} videos for ${category.id} (from channel)`);
+              
+              // If channel fetch returns empty, fallback to search
+              if (fetchedVideos.length === 0) {
+                console.log(`No videos from channel, falling back to search for: ${category.query}`);
+                fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query);
+                console.log(`Fallback search returned ${fetchedVideos.length} videos for ${category.id}`);
+              }
+            } else {
+              // Search for videos using query
+              console.log('Searching videos for:', category.query);
+              fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query);
+              console.log(`Loaded ${fetchedVideos.length} videos for ${category.id} (from search)`);
+            }
+            
             allVideos[category.id] = fetchedVideos;
-            console.log(`Loaded ${fetchedVideos.length} videos for ${category.id}`);
           } catch (err) {
             console.error(`Error loading ${category.id}:`, err);
             allVideos[category.id] = [];
@@ -258,6 +393,32 @@ export default function Media() {
         )}
       </View>
 
+      {/* 🔍 Search Bar */}
+      <View style={[styles.searchBarContainer, hasBadWords && styles.searchBarContainerError]}>
+        <Ionicons name="search" size={20} color={hasBadWords ? "#FF6B6B" : "#999"} style={styles.searchIcon} />
+        <TextInput
+          style={[styles.searchInput, hasBadWords && styles.searchInputError]}
+          placeholder="Search in this category..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+        />
+        {(searchQuery.length > 0 || searchLoading) && (
+          <TouchableOpacity onPress={() => {
+            setSearchQuery('');
+            setHasBadWords(false);
+            setVideos(videosByCategory[selectedCategory] || []);
+            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+          }}>
+            {searchLoading ? (
+              <ActivityIndicator size="small" color="#999" />
+            ) : (
+              <Ionicons name="close-circle" size={20} color="#999" />
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* 🎯 Category Buttons */}
       <ScrollView 
         horizontal 
@@ -289,7 +450,7 @@ export default function Media() {
       {/* 📺 Video List */}
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100, paddingTop: 12 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -311,8 +472,8 @@ export default function Media() {
           </View>
         )}
 
-        {!loading && !error && videos.map((video) => (
-          <View key={video.id} style={styles.videoContainer}>
+        {!loading && !error && renderVideos.map((video) => (
+          <View key={video.uniqueKey} style={styles.videoContainer}>
             {playingId === video.id ? (
               <YoutubePlayer
                 height={200}
@@ -353,6 +514,10 @@ export default function Media() {
 
         {!loading && !error && videos.length === 0 && (
           <Text style={styles.noResults}>No videos found.</Text>
+        )}
+
+        {!loading && !error && videos.length > 0 && filteredVideos.length === 0 && (
+          <Text style={styles.noResults}>No videos match your search in this category.</Text>
         )}
       </ScrollView>
 
@@ -499,9 +664,45 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   // 🎯 Category Styles
   categoriesContainer: {
     paddingHorizontal: scale.scaleSpacing(12),
-    paddingVertical: scale.scaleSpacing(12),
+    paddingVertical: scale.scaleSpacing(16),
+    paddingBottom: scale.scaleSpacing(20),
     gap: scale.scaleSpacing(8),
     flexGrow: 0,
+  },
+  // 🔍 Search Bar Styles
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: scale.scaleSpacing(16),
+    marginVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 1,
+    borderColor: '#DDD',
+    height: scale.scaleHeight(48),
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+    shadowRadius: scale.scaleSpacing(4),
+    elevation: 2,
+  },
+  searchBarContainerError: {
+    borderColor: '#FF6B6B',
+    borderWidth: 2,
+    backgroundColor: '#FFF5F5',
+  },
+  searchIcon: {
+    marginRight: scale.scaleSpacing(10),
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: scale.scaleFont(14),
+    color: '#333',
+    paddingVertical: scale.scaleSpacing(8),
+  },
+  searchInputError: {
+    color: '#FF6B6B',
   },
   categoryButton: {
     backgroundColor: '#E8E8E8',
@@ -532,8 +733,14 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   videoContainer: {
     backgroundColor: "#fafafa",
+
+    marginHorizontal: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(24),
+    marginTop: scale.scaleSpacing(8),
+
     marginHorizontal: scale.scaleSpacing(18),
     marginBottom: scale.scaleSpacing(16),
+
     borderRadius: scale.scaleBorderRadius(12),
     overflow: "hidden",
     shadowColor: "#000",
