@@ -417,6 +417,11 @@ class YouTubeKidsService {
     ];
   }
 
+  // Synchronous fallback for instant UI display
+  static getFallbackVideosSync(): YouTubeVideo[] {
+    return this.getFallbackVideos();
+  }
+
   // Get popular kids channels
   static getKidsChannels() {
     return this.KIDS_CHANNELS;
