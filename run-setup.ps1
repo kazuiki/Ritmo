@@ -1,16 +1,8 @@
 <#
-run-setup.ps1
+   Ito yung i Run nyong command para ma execute lahat tong dependencies (copy and paste lang sa terminal nyo):
 
-PowerShell helper script to run the sequence:
-  1) npm install
-  2) npm install -g npm@latest
-  3) npm install expo
-  4) npx expo start
-
-Notes:
-- Global npm updates may require admin privileges. If that fails, run PowerShell as Administrator or skip that step.
-- If your PowerShell execution policy blocks running scripts, run this in the current session:
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+.\run-setup.ps1
 #>
 
 Write-Host "[1/5] Running: npm install"
