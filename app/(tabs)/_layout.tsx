@@ -840,7 +840,21 @@ export default function TabsLayout() {
                         }
                       ]}
                     />
-                    <Text numberOfLines={1} style={[styles.tabLabel, { fontSize: scaleFont(8) }]}>Progress</Text>
+                    <Text 
+                      numberOfLines={1} 
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={{ 
+                        color: '#fff', 
+                        fontSize: fullAccessLabelFontSize,
+                        fontFamily: tabFontFamily,
+                        fontWeight: tabFontWeight,
+                        textAlign: 'center',
+                        lineHeight: fullAccessLabelFontSize * 1.2,
+                      }}
+                    >
+                      Progress
+                    </Text>
                   </View>
                 </View>
               ) : null
@@ -892,7 +906,21 @@ export default function TabsLayout() {
                         }
                       ]}
                     />
-                    <Text numberOfLines={1} style={[styles.tabLabel, { fontSize: scaleFont(7) }]}>Settings</Text>
+                    <Text 
+                      numberOfLines={1} 
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={{ 
+                        color: '#fff', 
+                        fontSize: fullAccessLabelFontSize,
+                        fontFamily: tabFontFamily,
+                        fontWeight: tabFontWeight,
+                        textAlign: 'center',
+                        lineHeight: fullAccessLabelFontSize * 1.2,
+                      }}
+                    >
+                      Settings
+                    </Text>
                   </View>
                 </View>
               ) : null
