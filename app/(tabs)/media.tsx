@@ -16,6 +16,7 @@ import {
   Vibration,
   View
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
@@ -65,7 +66,7 @@ export default function Media() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [videosByCategory, setVideosByCategory] = useState<Record<string, YouTubeVideo[]>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
@@ -77,6 +78,8 @@ export default function Media() {
   const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+  const cacheKeyForCategory = (categoryId: string) => `mediaCache:${categoryId}`;
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -87,7 +90,12 @@ export default function Media() {
 
   // Load all videos on mount
   useEffect(() => {
-    loadAllCategoryVideos();
+    const init = async () => {
+      await loadCachedVideos();
+      loadAllCategoryVideos();
+    };
+
+    init();
 
     const networkListener = setupNetworkListener();
 
@@ -113,6 +121,20 @@ export default function Media() {
       setVideos(videosByCategory[selectedCategory]);
       setSearchQuery(''); // Clear search when changing category
       setHasBadWords(false); // Reset bad words flag
+    } else {
+      const category = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
+      if (!category) return;
+      fetchCategoryVideos(category)
+        .then(fetched => {
+          setVideos(fetched);
+          setVideosByCategory(prev => ({ ...prev, [category.id]: fetched }));
+          saveCachedVideos({ [category.id]: fetched });
+          setSearchQuery('');
+          setHasBadWords(false);
+        })
+        .catch(err => {
+          console.error(`Error loading ${category.id}:`, err);
+        });
     }
   }, [selectedCategory, videosByCategory]);
 
@@ -254,96 +276,163 @@ export default function Media() {
     uniqueKey: `${video.id}-${index}`
   }));
 
-  const loadAllCategoryVideos = async () => {
-    console.log('=== loadAllCategoryVideos called ===');
+  const loadCachedVideos = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      const allVideos: Record<string, YouTubeVideo[]> = {};
-      
-      // Load videos for all categories in parallel
-      await Promise.all(
+      const entries = await Promise.all(
         KIDS_CATEGORIES.map(async (category: any) => {
+          const raw = await AsyncStorage.getItem(cacheKeyForCategory(category.id));
+          if (!raw) return null;
+
+          const parsed = JSON.parse(raw) as { savedAt: number; videos: YouTubeVideo[] };
+          if (!parsed?.videos || !parsed?.savedAt) return null;
+
+          if (Date.now() - parsed.savedAt > CACHE_TTL_MS) {
+            return null;
+          }
+
+          return { id: category.id, videos: parsed.videos };
+        })
+      );
+
+      const cached: Record<string, YouTubeVideo[]> = {};
+      entries.forEach((entry) => {
+        if (entry) {
+          cached[entry.id] = entry.videos;
+        }
+      });
+
+      if (Object.keys(cached).length > 0) {
+        setVideosByCategory(prev => ({ ...prev, ...cached }));
+        if (cached[selectedCategory]) {
+          setVideos(cached[selectedCategory]);
+        }
+      } else {
+        const fallback = await YouTubeKidsService.getRandomKidsVideos(15);
+        setVideos(fallback);
+        setVideosByCategory(prev => ({ ...prev, [selectedCategory]: fallback }));
+      }
+    } catch (err) {
+      console.warn('Failed to load cached videos:', err);
+    }
+  };
+
+  const saveCachedVideos = async (videosByCat: Record<string, YouTubeVideo[]>) => {
+    try {
+      const savedAt = Date.now();
+      await Promise.all(
+        Object.entries(videosByCat).map(([categoryId, videos]) =>
+          AsyncStorage.setItem(
+            cacheKeyForCategory(categoryId),
+            JSON.stringify({ savedAt, videos })
+          )
+        )
+      );
+    } catch (err) {
+      console.warn('Failed to save cached videos:', err);
+    }
+  };
+
+  const fetchCategoryVideos = async (category: any): Promise<YouTubeVideo[]> => {
+    let fetchedVideos: YouTubeVideo[] = [];
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    // Keep fetching until we have 150 or exhaust retries
+    while (fetchedVideos.length < 150 && retryCount < maxRetries) {
+      if (category.channelId && retryCount === 0) {
+        // First try: fetch from channel
+        console.log(`[Attempt ${retryCount + 1}] Fetching from channel for ${category.id}`);
+        const channelVideos = await YouTubeKidsService.getVideosByChannel(category.channelId, 50, 200);
+        console.log(`Channel returned ${channelVideos.length} videos for ${category.id}`);
+
+        const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
+        channelVideos.forEach(v => {
+          if (!videoMap.has(v.id)) {
+            videoMap.set(v.id, v);
+          }
+        });
+        fetchedVideos = Array.from(videoMap.values());
+      } else if (retryCount === 0 || (retryCount === 1 && category.backupQuery)) {
+        // Fetch with primary or backup query
+        const queryToUse = retryCount === 0 ? category.query : category.backupQuery;
+        console.log(`[Attempt ${retryCount + 1}] Searching with query: "${queryToUse}" for ${category.id}`);
+        const searchVideos = await YouTubeKidsService.searchKidsVideos(queryToUse, 50, 200);
+        console.log(`Search attempt returned ${searchVideos.length} videos`);
+
+        const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
+        searchVideos.forEach(v => {
+          if (!videoMap.has(v.id)) {
+            videoMap.set(v.id, v);
+          }
+        });
+        fetchedVideos = Array.from(videoMap.values());
+      } else if (retryCount === 2) {
+        // Last resort: try a broader search
+        const broadSearch = category.query.split(' ')[0] + ' kids'; // Use first word + "kids"
+        console.log(`[Attempt ${retryCount + 1}] Last resort broad search: "${broadSearch}" for ${category.id}`);
+        const broadVideos = await YouTubeKidsService.searchKidsVideos(broadSearch, 50, 200);
+        console.log(`Broad search returned ${broadVideos.length} videos`);
+
+        const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
+        broadVideos.forEach(v => {
+          if (!videoMap.has(v.id)) {
+            videoMap.set(v.id, v);
+          }
+        });
+        fetchedVideos = Array.from(videoMap.values());
+      }
+
+      console.log(`[Attempt ${retryCount + 1}] Total for ${category.id}: ${fetchedVideos.length}/150`);
+
+      if (fetchedVideos.length >= 150) {
+        console.log(`✅ ${category.id} reached 150 videos`);
+        break;
+      }
+
+      retryCount++;
+    }
+
+    console.log(`FINAL: ${category.id} = ${fetchedVideos.length} videos`);
+    return fetchedVideos.slice(0, 150);
+  };
+
+  const loadAllCategoryVideos = async () => {
+    console.log('=== loadAllCategoryVideos called (background) ===');
+    try {
+      // Don't show loading - load in background
+      setError(null);
+
+      const allVideos: Record<string, YouTubeVideo[]> = {};
+      const selected = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
+
+      // Fetch selected category first for faster initial display
+      if (selected) {
+        const selectedVideos = await fetchCategoryVideos(selected);
+        allVideos[selected.id] = selectedVideos;
+        setVideos(selectedVideos);
+        setVideosByCategory(prev => ({ ...prev, [selected.id]: selectedVideos }));
+        saveCachedVideos({ [selected.id]: selectedVideos });
+      }
+
+      // Load remaining categories in the background
+      const remaining = KIDS_CATEGORIES.filter(cat => cat.id !== selectedCategory);
+      Promise.all(
+        remaining.map(async (category: any) => {
           try {
-            let fetchedVideos: YouTubeVideo[] = [];
-            let retryCount = 0;
-            const maxRetries = 3;
-            
-            // Keep fetching until we have 150 or exhaust retries
-            while (fetchedVideos.length < 150 && retryCount < maxRetries) {
-              if (category.channelId && retryCount === 0) {
-                // First try: fetch from channel
-                console.log(`[Attempt ${retryCount + 1}] Fetching from channel for ${category.id}`);
-                const channelVideos = await YouTubeKidsService.getVideosByChannel(category.channelId, 50, 200);
-                console.log(`Channel returned ${channelVideos.length} videos for ${category.id}`);
-                
-                const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
-                channelVideos.forEach(v => {
-                  if (!videoMap.has(v.id)) {
-                    videoMap.set(v.id, v);
-                  }
-                });
-                fetchedVideos = Array.from(videoMap.values());
-              } else if (retryCount === 0 || (retryCount === 1 && category.backupQuery)) {
-                // Fetch with primary or backup query
-                const queryToUse = retryCount === 0 ? category.query : category.backupQuery;
-                console.log(`[Attempt ${retryCount + 1}] Searching with query: "${queryToUse}" for ${category.id}`);
-                const searchVideos = await YouTubeKidsService.searchKidsVideos(queryToUse, 50, 200);
-                console.log(`Search attempt returned ${searchVideos.length} videos`);
-                
-                const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
-                searchVideos.forEach(v => {
-                  if (!videoMap.has(v.id)) {
-                    videoMap.set(v.id, v);
-                  }
-                });
-                fetchedVideos = Array.from(videoMap.values());
-              } else if (retryCount === 2) {
-                // Last resort: try a broader search
-                const broadSearch = category.query.split(' ')[0] + ' kids'; // Use first word + "kids"
-                console.log(`[Attempt ${retryCount + 1}] Last resort broad search: "${broadSearch}" for ${category.id}`);
-                const broadVideos = await YouTubeKidsService.searchKidsVideos(broadSearch, 50, 200);
-                console.log(`Broad search returned ${broadVideos.length} videos`);
-                
-                const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
-                broadVideos.forEach(v => {
-                  if (!videoMap.has(v.id)) {
-                    videoMap.set(v.id, v);
-                  }
-                });
-                fetchedVideos = Array.from(videoMap.values());
-              }
-              
-              console.log(`[Attempt ${retryCount + 1}] Total for ${category.id}: ${fetchedVideos.length}/150`);
-              
-              if (fetchedVideos.length >= 150) {
-                console.log(`✅ ${category.id} reached 150 videos`);
-                break;
-              }
-              
-              retryCount++;
-            }
-            
-            console.log(`FINAL: ${category.id} = ${fetchedVideos.length} videos`);
-            allVideos[category.id] = fetchedVideos.slice(0, 150);
+            const fetchedVideos = await fetchCategoryVideos(category);
+            allVideos[category.id] = fetchedVideos;
           } catch (err) {
             console.error(`Error loading ${category.id}:`, err);
             allVideos[category.id] = [];
           }
         })
-      );
-      
-      setVideosByCategory(allVideos);
-      // Set initial videos for selected category
-      if (allVideos[selectedCategory]) {
-        setVideos(allVideos[selectedCategory]);
-      }
+      ).then(() => {
+        setVideosByCategory(prev => ({ ...prev, ...allVideos }));
+        saveCachedVideos(allVideos);
+      });
     } catch (err) {
       console.error('Error loading all category videos:', err);
       setError('Failed to load videos. Please check your internet connection.');
-    } finally {
-      setLoading(false);
     }
   };
 
