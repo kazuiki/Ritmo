@@ -3,25 +3,25 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
-import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
+import { createResponsiveStyles, getDeviceCategory, useResponsiveDimensions } from "../../src/utils/responsive";
 import type { YouTubeVideo } from "../../src/youtubeKidsService";
 import { YouTubeKidsService } from "../../src/youtubeKidsService";
 
@@ -36,17 +36,17 @@ type PlayerState =
 // 🎯 Predefined Kid-Safe Categories
 // Note: Some use search queries, some use channel IDs to fetch ALL videos from specific channels
 const KIDS_CATEGORIES = [
-  { id: 'nursery', label: '🎵 Nursery Rhymes', query: 'nursery rhymes for kids', channelId: null },
-  { id: 'cocomelon', label: '🎈 Cocomelon', query: 'cocomelon kids songs', channelId: 'UCY1kMZp36IQSyNx_9h3xtsQ' }, // Cocomelon - Nursery Rhymes
-  { id: 'counting', label: '🔢 Counting Songs', query: 'counting songs for kids', channelId: null },
-  { id: 'alphabet', label: '🔤 ABC Songs', query: 'alphabet songs for kids', channelId: null },
-  { id: 'colors', label: '🌈 Colors & Shapes', query: 'colors and shapes for kids', channelId: null },
-  { id: 'animals', label: '🐶 Animal Songs', query: 'animal songs for kids', channelId: null },
-  { id: 'cartoons', label: '🎬 Cartoons', query: 'kids cartoons youtube', channelId: null },
-  { id: 'bluey', label: '💙 Bluey', query: 'bluey cartoon for kids', channelId: 'UCqwZ0D-j64xnJEJZeZ7e5rw' }, // Official Bluey
-  { id: 'peppa', label: '🐷 Peppa Pig', query: 'peppa pig cartoon', channelId: 'UCXb__pNKuCYjL1b5r7-WtDw' }, // Peppa Pig Official
-  { id: 'paw', label: '🐾 Paw Patrol', query: 'paw patrol kids show', channelId: 'UCXjj1GIWZvDRAJYmddVxLDQ' }, // PAW Patrol Official
-  { id: 'disney', label: '✨ Disney', query: 'disney junior kids videos', channelId: 'UCIxJVwG_c1Jdm6HNGjqz3LQ' }, // Disney Junior
+  { id: 'nursery', label: '🎵 Nursery Rhymes', query: 'nursery rhymes for kids', backupQuery: 'nursery rhymes children songs', channelId: null },
+  { id: 'cocomelon', label: '🎈 Cocomelon', query: 'cocomelon nursery rhymes babies songs', backupQuery: 'cocomelon toddler learning videos', channelId: 'UCY1kMZp36IQSyNx_9h3xtsQ' }, // Cocomelon - Nursery Rhymes
+  { id: 'counting', label: '🔢 Counting Songs', query: 'counting songs learning numbers kids', backupQuery: 'number songs for toddlers children', channelId: null },
+  { id: 'alphabet', label: '🔤 ABC Songs', query: 'alphabet songs ABC learning for kids', backupQuery: 'letter songs for children learning', channelId: null },
+  { id: 'colors', label: '🌈 Colors & Shapes', query: 'colors and shapes learning for kids', backupQuery: 'color shape learning videos children', channelId: null },
+  { id: 'animals', label: '🐶 Animal Songs', query: 'animal songs for kids learning', backupQuery: 'animals for kids educational videos', channelId: null },
+  { id: 'cartoons', label: '🎬 Cartoons', query: 'kids cartoons youtube animations', backupQuery: 'cartoon videos for children', channelId: null },
+  { id: 'bluey', label: '💙 Bluey', query: 'bluey episodes cartoon for kids', backupQuery: 'bluey full episodes children show', channelId: 'UCqwZ0D-j64xnJEJZeZ7e5rw' }, // Official Bluey
+  { id: 'peppa', label: '🐷 Peppa Pig', query: 'peppa pig episodes cartoon', backupQuery: 'peppa pig full episodes for kids', channelId: 'UCXb__pNKuCYjL1b5r7-WtDw' }, // Peppa Pig Official
+  { id: 'paw', label: '🐾 Paw Patrol', query: 'paw patrol rescue episodes', backupQuery: 'paw patrol full episodes children', channelId: 'UCXjj1GIWZvDRAJYmddVxLDQ' }, // PAW Patrol Official
+  { id: 'disney', label: '✨ Disney', query: 'disney junior shows for kids', backupQuery: 'disney children videos cartoons', channelId: 'UCIxJVwG_c1Jdm6HNGjqz3LQ' }, // Disney Junior
 ];
 
 export default function Media() {
@@ -56,6 +56,9 @@ export default function Media() {
   const router = useRouter();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
+  // Determine video player height based on device type
+  const deviceCategory = getDeviceCategory();
+  const videoPlayerHeight = deviceCategory === 'tablet' ? 350 : 320;
   const [selectedCategory, setSelectedCategory] = useState('nursery');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
@@ -164,9 +167,37 @@ export default function Media() {
       if (currentCategory) {
         // Search for videos with query + category name
         const searchTerm = `${query} ${currentCategory.query}`;
-        console.log(`Dynamic search: ${searchTerm}`);
-        const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 100);
-        setVideos(dynamicResults);
+        console.log(`Dynamic search: "${searchTerm}" - fetching up to 150 videos`);
+        
+        let searchResults: YouTubeVideo[] = [];
+        let retryCount = 0;
+        const maxRetries = 2;
+        
+        // Keep fetching until we have 150 or exhaust retries
+        while (searchResults.length < 150 && retryCount < maxRetries) {
+          console.log(`[Search Attempt ${retryCount + 1}] Fetching videos for: "${searchTerm}"`);
+          const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 50, 200);
+          console.log(`[Search Attempt ${retryCount + 1}] Returned ${dynamicResults.length} videos, Total: ${searchResults.length}`);
+          
+          // Deduplicate
+          const videoMap = new Map(searchResults.map(v => [v.id, v]));
+          dynamicResults.forEach(v => {
+            if (!videoMap.has(v.id)) {
+              videoMap.set(v.id, v);
+            }
+          });
+          searchResults = Array.from(videoMap.values());
+          
+          if (searchResults.length >= 150) {
+            console.log(`✅ Search reached 150 videos`);
+            break;
+          }
+          
+          retryCount++;
+        }
+        
+        console.log(`Final search results: ${searchResults.length} videos`);
+        setVideos(searchResults.slice(0, 150));
       }
     } catch (err) {
       console.error('Error in dynamic search:', err);
@@ -233,30 +264,69 @@ export default function Media() {
       
       // Load videos for all categories in parallel
       await Promise.all(
-        KIDS_CATEGORIES.map(async (category) => {
+        KIDS_CATEGORIES.map(async (category: any) => {
           try {
             let fetchedVideos: YouTubeVideo[] = [];
+            let retryCount = 0;
+            const maxRetries = 3;
             
-            if (category.channelId) {
-              // Try to fetch ALL videos from specific channel
-              console.log('Fetching ALL videos from channel:', category.id);
-              fetchedVideos = await YouTubeKidsService.getVideosByChannel(category.channelId);
-              console.log(`Loaded ${fetchedVideos.length} videos for ${category.id} (from channel)`);
-              
-              // If channel fetch returns empty, fallback to search
-              if (fetchedVideos.length === 0) {
-                console.log(`No videos from channel, falling back to search for: ${category.query}`);
-                fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query);
-                console.log(`Fallback search returned ${fetchedVideos.length} videos for ${category.id}`);
+            // Keep fetching until we have 150 or exhaust retries
+            while (fetchedVideos.length < 150 && retryCount < maxRetries) {
+              if (category.channelId && retryCount === 0) {
+                // First try: fetch from channel
+                console.log(`[Attempt ${retryCount + 1}] Fetching from channel for ${category.id}`);
+                const channelVideos = await YouTubeKidsService.getVideosByChannel(category.channelId, 50, 200);
+                console.log(`Channel returned ${channelVideos.length} videos for ${category.id}`);
+                
+                const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
+                channelVideos.forEach(v => {
+                  if (!videoMap.has(v.id)) {
+                    videoMap.set(v.id, v);
+                  }
+                });
+                fetchedVideos = Array.from(videoMap.values());
+              } else if (retryCount === 0 || (retryCount === 1 && category.backupQuery)) {
+                // Fetch with primary or backup query
+                const queryToUse = retryCount === 0 ? category.query : category.backupQuery;
+                console.log(`[Attempt ${retryCount + 1}] Searching with query: "${queryToUse}" for ${category.id}`);
+                const searchVideos = await YouTubeKidsService.searchKidsVideos(queryToUse, 50, 200);
+                console.log(`Search attempt returned ${searchVideos.length} videos`);
+                
+                const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
+                searchVideos.forEach(v => {
+                  if (!videoMap.has(v.id)) {
+                    videoMap.set(v.id, v);
+                  }
+                });
+                fetchedVideos = Array.from(videoMap.values());
+              } else if (retryCount === 2) {
+                // Last resort: try a broader search
+                const broadSearch = category.query.split(' ')[0] + ' kids'; // Use first word + "kids"
+                console.log(`[Attempt ${retryCount + 1}] Last resort broad search: "${broadSearch}" for ${category.id}`);
+                const broadVideos = await YouTubeKidsService.searchKidsVideos(broadSearch, 50, 200);
+                console.log(`Broad search returned ${broadVideos.length} videos`);
+                
+                const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
+                broadVideos.forEach(v => {
+                  if (!videoMap.has(v.id)) {
+                    videoMap.set(v.id, v);
+                  }
+                });
+                fetchedVideos = Array.from(videoMap.values());
               }
-            } else {
-              // Search for videos using query
-              console.log('Searching videos for:', category.query);
-              fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query);
-              console.log(`Loaded ${fetchedVideos.length} videos for ${category.id} (from search)`);
+              
+              console.log(`[Attempt ${retryCount + 1}] Total for ${category.id}: ${fetchedVideos.length}/150`);
+              
+              if (fetchedVideos.length >= 150) {
+                console.log(`✅ ${category.id} reached 150 videos`);
+                break;
+              }
+              
+              retryCount++;
             }
             
-            allVideos[category.id] = fetchedVideos;
+            console.log(`FINAL: ${category.id} = ${fetchedVideos.length} videos`);
+            allVideos[category.id] = fetchedVideos.slice(0, 150);
           } catch (err) {
             console.error(`Error loading ${category.id}:`, err);
             allVideos[category.id] = [];
@@ -420,32 +490,37 @@ export default function Media() {
       </View>
 
       {/* 🎯 Category Buttons */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesContainer}
-        scrollEnabled={true}
-      >
-        {KIDS_CATEGORIES.map((category) => (
-          <View key={category.id} style={{ flex: 0, flexShrink: 0 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={[
-                styles.categoryButton,
-                selectedCategory === category.id && styles.categoryButtonActive
-              ]}
-              onPress={() => setSelectedCategory(category.id)}
-            >
-              <Text style={[
-                styles.categoryButtonText,
-                selectedCategory === category.id && styles.categoryButtonTextActive
-              ]}>
-                {category.label}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ScrollView>
+      <View style={styles.categoriesWrapper}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesContainer}
+          scrollEnabled={true}
+          nestedScrollEnabled={true}
+        >
+          {KIDS_CATEGORIES.map((category) => (
+            <View key={category.id} style={{ flex: 0, flexShrink: 0 }}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={[
+                  styles.categoryButton,
+                  selectedCategory === category.id && styles.categoryButtonActive
+                ]}
+                onPress={() => setSelectedCategory(category.id)}
+              >
+                <Text 
+                  numberOfLines={1}
+                  style={[
+                    styles.categoryButtonText,
+                    selectedCategory === category.id && styles.categoryButtonTextActive
+                  ]}>
+                  {category.label}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* 📺 Video List */}
       <ScrollView 
@@ -476,7 +551,7 @@ export default function Media() {
           <View key={video.uniqueKey} style={styles.videoContainer}>
             {playingId === video.id ? (
               <YoutubePlayer
-                height={200}
+                height={videoPlayerHeight}
                 play={true}
                 videoId={video.youtubeId}
                 onChangeState={(event: PlayerState) => {
@@ -489,7 +564,13 @@ export default function Media() {
               />
             ) : (
               <TouchableOpacity onPress={() => setPlayingId(video.id)}>
-                <Image source={{ uri: video.thumbnail }} style={styles.thumbnail} />
+                <Image 
+                  source={{ uri: video.thumbnail }} 
+                  style={[
+                    styles.thumbnail, 
+                    { height: scaleHeight(deviceCategory === 'tablet' ? 280 : 280) }
+                  ]} 
+                />
                 <View style={styles.playButton}>
                   <Ionicons name="play-circle" size={64} color="#fff" />
                 </View>
@@ -662,13 +743,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
 
   // 🎯 Category Styles
+  categoriesWrapper: {
+    height: scale.scaleHeight(65),
+    backgroundColor: 'transparent',
+    marginTop: 0,
+  },
   categoriesContainer: {
     paddingHorizontal: scale.scaleSpacing(12),
     paddingVertical: scale.scaleSpacing(10),
     paddingBottom: scale.scaleSpacing(8),
     gap: scale.scaleSpacing(8),
-    flexGrow: 0,
-    marginBottom: scale.scaleSpacing(6),
+    flexGrow: 1,
   },
   // 🔍 Search Bar Styles
   searchBarContainer: {
@@ -676,7 +761,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     marginHorizontal: scale.scaleSpacing(16),
-    marginVertical: scale.scaleSpacing(12),
+    marginVertical: scale.scaleSpacing(2),
     paddingHorizontal: scale.scaleSpacing(12),
     borderRadius: scale.scaleBorderRadius(25),
     borderWidth: 1,
@@ -716,6 +801,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: scale.scaleHeight(48),
+    overflow: 'hidden',
   },
   categoryButtonActive: {
     backgroundColor: '#5A8F8A',
