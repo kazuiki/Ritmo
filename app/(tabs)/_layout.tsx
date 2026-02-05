@@ -1,13 +1,13 @@
 import { Tabs, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import {
-  Animated,
-  Image,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
