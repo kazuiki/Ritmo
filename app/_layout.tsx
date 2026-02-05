@@ -77,6 +77,16 @@ export default function RootLayout() {
     let notificationListener: any;
     let networkListener: any;
 
+    const isInvalidRefreshToken = (error: unknown) => {
+      const message = (error as any)?.message as string | undefined;
+      const name = (error as any)?.name as string | undefined;
+      return (
+        name === 'AuthApiError' &&
+        (message?.includes('Invalid Refresh Token') ||
+          message?.includes('Refresh Token Not Found'))
+      );
+    };
+
     // Preload game assets early for instant loading
     preloadGameAssets().catch(err => 
       console.log('Early asset preload failed:', err)
@@ -86,8 +96,19 @@ export default function RootLayout() {
     networkListener = setupNetworkListener();
 
     const handleSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
+
+      if (sessionError && isInvalidRefreshToken(sessionError)) {
+        await supabase.auth.signOut();
+        await LogoutService.clearManualLogout();
+
+        if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
+          hasRedirectedRef.current = true;
+          router.replace('/auth/login');
+        }
+        return;
+      }
 
       // Check manual logout
       const wasManualLogout = await LogoutService.isManualLogout();
