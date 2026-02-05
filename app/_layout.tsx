@@ -12,6 +12,7 @@ import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
+import { preloadMediaCategories } from "../src/utils/mediaPreload";
 import { setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
 import NetworkFailureModal from "./components/NetworkFailureModal";
@@ -91,6 +92,12 @@ export default function RootLayout() {
     preloadGameAssets().catch(err => 
       console.log('Early asset preload failed:', err)
     );
+
+    // Preload media videos early so Media shows instantly
+    preloadMediaCategories().catch(err =>
+      console.log('Early media preload failed:', err)
+    );
+    console.log('Early media preload triggered');
 
     // Setup network state listener
     networkListener = setupNetworkListener();
