@@ -3,18 +3,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Vibration,
-  View
+    ActivityIndicator,
+    Animated,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Vibration,
+    View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -664,10 +664,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   // 🎯 Category Styles
   categoriesContainer: {
     paddingHorizontal: scale.scaleSpacing(12),
-    paddingVertical: scale.scaleSpacing(16),
-    paddingBottom: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(10),
+    paddingBottom: scale.scaleSpacing(8),
     gap: scale.scaleSpacing(8),
     flexGrow: 0,
+    marginBottom: scale.scaleSpacing(6),
   },
   // 🔍 Search Bar Styles
   searchBarContainer: {
