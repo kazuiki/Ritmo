@@ -4,18 +4,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Vibration,
-  View
+    ActivityIndicator,
+    Animated,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Vibration,
+    View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { KIDS_CATEGORIES } from "../../src/constants/mediaCategories";
@@ -175,37 +175,18 @@ export default function Media() {
       if (currentCategory) {
         // Search for videos with query + category name
         const searchTerm = `${query} ${currentCategory.query}`;
-        console.log(`Dynamic search: "${searchTerm}" - fetching up to 150 videos`);
+        console.log(`Dynamic search: "${searchTerm}" - fetching up to 10 videos`);
         
         let searchResults: YouTubeVideo[] = [];
-        let retryCount = 0;
-        const maxRetries = 2;
-        
-        // Keep fetching until we have 150 or exhaust retries
-        while (searchResults.length < 150 && retryCount < maxRetries) {
-          console.log(`[Search Attempt ${retryCount + 1}] Fetching videos for: "${searchTerm}"`);
-          const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 50, 200);
-          console.log(`[Search Attempt ${retryCount + 1}] Returned ${dynamicResults.length} videos, Total: ${searchResults.length}`);
-          
-          // Deduplicate
-          const videoMap = new Map(searchResults.map(v => [v.id, v]));
-          dynamicResults.forEach(v => {
-            if (!videoMap.has(v.id)) {
-              videoMap.set(v.id, v);
-            }
-          });
-          searchResults = Array.from(videoMap.values());
-          
-          if (searchResults.length >= 150) {
-            console.log(`✅ Search reached 150 videos`);
-            break;
-          }
-          
-          retryCount++;
-        }
-        
+        console.log(`[Search] Fetching videos for: "${searchTerm}"`);
+        const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 10, 10);
+
+        // Deduplicate
+        const videoMap = new Map(dynamicResults.map(v => [v.id, v]));
+        searchResults = Array.from(videoMap.values());
+
         console.log(`Final search results: ${searchResults.length} videos`);
-        setVideos(searchResults.slice(0, 150));
+        setVideos(searchResults.slice(0, 10));
       }
     } catch (err) {
       console.error('Error in dynamic search:', err);
@@ -334,12 +315,12 @@ export default function Media() {
     let retryCount = 0;
     const maxRetries = 3;
 
-    // Keep fetching until we have 150 or exhaust retries
-    while (fetchedVideos.length < 150 && retryCount < maxRetries) {
+    // Keep fetching until we have 10 or exhaust retries
+    while (fetchedVideos.length < 10 && retryCount < maxRetries) {
       if (category.channelId && retryCount === 0) {
         // First try: fetch from channel
         console.log(`[Attempt ${retryCount + 1}] Fetching from channel for ${category.id}`);
-        const channelVideos = await YouTubeKidsService.getVideosByChannel(category.channelId, 50, 200);
+        const channelVideos = await YouTubeKidsService.getVideosByChannel(category.channelId, 10, 10);
         console.log(`Channel returned ${channelVideos.length} videos for ${category.id}`);
 
         const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
@@ -353,7 +334,7 @@ export default function Media() {
         // Fetch with primary or backup query
         const queryToUse = retryCount === 0 ? category.query : category.backupQuery;
         console.log(`[Attempt ${retryCount + 1}] Searching with query: "${queryToUse}" for ${category.id}`);
-        const searchVideos = await YouTubeKidsService.searchKidsVideos(queryToUse, 50, 200);
+        const searchVideos = await YouTubeKidsService.searchKidsVideos(queryToUse, 10, 10);
         console.log(`Search attempt returned ${searchVideos.length} videos`);
 
         const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
@@ -367,7 +348,7 @@ export default function Media() {
         // Last resort: try a broader search
         const broadSearch = category.query.split(' ')[0] + ' kids'; // Use first word + "kids"
         console.log(`[Attempt ${retryCount + 1}] Last resort broad search: "${broadSearch}" for ${category.id}`);
-        const broadVideos = await YouTubeKidsService.searchKidsVideos(broadSearch, 50, 200);
+        const broadVideos = await YouTubeKidsService.searchKidsVideos(broadSearch, 10, 10);
         console.log(`Broad search returned ${broadVideos.length} videos`);
 
         const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
@@ -379,10 +360,10 @@ export default function Media() {
         fetchedVideos = Array.from(videoMap.values());
       }
 
-      console.log(`[Attempt ${retryCount + 1}] Total for ${category.id}: ${fetchedVideos.length}/150`);
+      console.log(`[Attempt ${retryCount + 1}] Total for ${category.id}: ${fetchedVideos.length}/10`);
 
-      if (fetchedVideos.length >= 150) {
-        console.log(`✅ ${category.id} reached 150 videos`);
+      if (fetchedVideos.length >= 10) {
+        console.log(`✅ ${category.id} reached 10 videos`);
         break;
       }
 
@@ -390,7 +371,7 @@ export default function Media() {
     }
 
     console.log(`FINAL: ${category.id} = ${fetchedVideos.length} videos`);
-    return fetchedVideos.slice(0, 150);
+    return fetchedVideos.slice(0, 10);
   };
 
   const loadAllCategoryVideos = async () => {
@@ -401,36 +382,14 @@ export default function Media() {
       const selected = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
       if (!selected) return;
 
-      // FAST: Get 50 videos quickly from primary search for selected category
-      console.log(`[FAST] Fetching first 50 from ${selected.id}...`);
-      const fastVideos = await YouTubeKidsService.searchKidsVideos(selected.query, 50, 50).catch(() => []);
-      
-      if (fastVideos.length > 0) {
-        setVideos(fastVideos);
-        setVideosByCategory(prev => ({ ...prev, [selected.id]: fastVideos }));
-        saveCachedVideos({ [selected.id]: fastVideos });
-        console.log(`[FAST] Showed ${fastVideos.length} videos for ${selected.id}`);
-      }
-
-      // BACKGROUND: Load remaining 100 videos for selected category
-      const remaining100 = await Promise.all([
-        selected.channelId ? YouTubeKidsService.getVideosByChannel(selected.channelId, 50, 100).catch(() => []) : Promise.resolve([]),
-        selected.backupQuery ? YouTubeKidsService.searchKidsVideos(selected.backupQuery, 50, 100).catch(() => []) : Promise.resolve([]),
-        YouTubeKidsService.searchKidsVideos(`${selected.query.split(" ")[0]} kids`, 50, 100).catch(() => [])
-      ]);
-
-      const allForSelected = new Map<string, YouTubeVideo>();
-      fastVideos.forEach(v => allForSelected.set(v.id, v));
-      remaining100.forEach(arr => arr.forEach(v => {
-        if (!allForSelected.has(v.id)) allForSelected.set(v.id, v);
-      }));
-
-      const fullSelected = Array.from(allForSelected.values()).slice(0, 150);
-      if (fullSelected.length > fastVideos.length) {
-        setVideos(fullSelected);
-        setVideosByCategory(prev => ({ ...prev, [selected.id]: fullSelected }));
-        saveCachedVideos({ [selected.id]: fullSelected });
-        console.log(`[FULL] Upgraded ${selected.id} to ${fullSelected.length} videos`);
+      // Load selected category up to 10 videos
+      console.log(`[LOAD] Fetching up to 10 from ${selected.id}...`);
+      const selectedVideos = await fetchCategoryVideos(selected);
+      if (selectedVideos.length > 0) {
+        setVideos(selectedVideos);
+        setVideosByCategory(prev => ({ ...prev, [selected.id]: selectedVideos }));
+        saveCachedVideos({ [selected.id]: selectedVideos });
+        console.log(`[LOAD] Showed ${selectedVideos.length} videos for ${selected.id}`);
       }
 
       // Load all other categories in parallel (non-blocking)
@@ -440,10 +399,10 @@ export default function Media() {
           try {
             // Parallel approach: fetch from all sources at once
             const sources = await Promise.all([
-              category.channelId ? YouTubeKidsService.getVideosByChannel(category.channelId, 50, 150).catch(() => []) : Promise.resolve([]),
-              YouTubeKidsService.searchKidsVideos(category.query, 50, 150).catch(() => []),
-              category.backupQuery ? YouTubeKidsService.searchKidsVideos(category.backupQuery, 50, 150).catch(() => []) : Promise.resolve([]),
-              YouTubeKidsService.searchKidsVideos(`${category.query.split(" ")[0]} kids`, 50, 150).catch(() => [])
+              category.channelId ? YouTubeKidsService.getVideosByChannel(category.channelId, 10, 10).catch(() => []) : Promise.resolve([]),
+              YouTubeKidsService.searchKidsVideos(category.query, 10, 10).catch(() => []),
+              category.backupQuery ? YouTubeKidsService.searchKidsVideos(category.backupQuery, 10, 10).catch(() => []) : Promise.resolve([]),
+              YouTubeKidsService.searchKidsVideos(`${category.query.split(" ")[0]} kids`, 10, 10).catch(() => [])
             ]);
 
             const videoMap = new Map<string, YouTubeVideo>();
@@ -451,7 +410,7 @@ export default function Media() {
               if (!videoMap.has(v.id)) videoMap.set(v.id, v);
             }));
 
-            const videos = Array.from(videoMap.values()).slice(0, 150);
+            const videos = Array.from(videoMap.values()).slice(0, 10);
             return { id: category.id, videos };
           } catch (err) {
             console.error(`Error loading ${category.id}:`, err);
