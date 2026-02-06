@@ -4,21 +4,21 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
-import { KIDS_CATEGORIES } from "../../src/constants/mediaCategories";
+
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
@@ -45,12 +45,10 @@ export default function Media() {
   // Determine video player height based on device type
   const deviceCategory = getDeviceCategory();
   const videoPlayerHeight = deviceCategory === 'tablet' ? 350 : 320;
-  const [selectedCategory, setSelectedCategory] = useState('nursery');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
-  const [videosByCategory, setVideosByCategory] = useState<Record<string, YouTubeVideo[]>>({});
   const [loading, setLoading] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,7 +63,13 @@ export default function Media() {
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-  const cacheKeyForCategory = (categoryId: string) => `mediaCache:${categoryId}`;
+  const CACHE_KEY = 'mediaCache:main';
+  
+  // Safe channel IDs
+  const SAFE_CHANNELS = [
+    'UCBXVGODxUHmsEsGgUFQgqQw', // Ms Rachel
+    'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
+  ];
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -74,11 +78,11 @@ export default function Media() {
     }, [])
   );
 
-  // Load all videos on mount
+  // Load videos on mount
   useEffect(() => {
     const init = async () => {
       await loadCachedVideos();
-      loadAllCategoryVideos();
+      loadVideos();
     };
 
     init();
@@ -89,7 +93,7 @@ export default function Media() {
       if (error && error.includes('internet connection')) {
         console.log('🔄 Auto-retrying due to previous network error...');
         clearNetworkCache();
-        loadAllCategoryVideos();
+        loadVideos();
       }
     }, 10000);
 
@@ -101,28 +105,7 @@ export default function Media() {
     };
   }, []);
 
-  // Switch category instantly from cached videos
-  useEffect(() => {
-    if (videosByCategory[selectedCategory]) {
-      setVideos(videosByCategory[selectedCategory]);
-      setSearchQuery(''); // Clear search when changing category
-      setHasBadWords(false); // Reset bad words flag
-    } else {
-      const category = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
-      if (!category) return;
-      fetchCategoryVideos(category)
-        .then(fetched => {
-          setVideos(fetched);
-          setVideosByCategory(prev => ({ ...prev, [category.id]: fetched }));
-          saveCachedVideos({ [category.id]: fetched });
-          setSearchQuery('');
-          setHasBadWords(false);
-        })
-        .catch(err => {
-          console.error(`Error loading ${category.id}:`, err);
-        });
-    }
-  }, [selectedCategory, videosByCategory]);
+
 
   // Reset bad words flag when search query becomes empty
   useEffect(() => {
@@ -162,8 +145,8 @@ export default function Media() {
   // Dynamic search - fetch from YouTube when user types
   const performDynamicSearch = async (query: string) => {
     if (!query.trim()) {
-      // If search is empty, show pre-loaded videos
-      setVideos(videosByCategory[selectedCategory] || []);
+      // If search is empty, reload from cache
+      await loadCachedVideos();
       setSearchLoading(false);
       setHasBadWords(false);
       return;
@@ -171,23 +154,16 @@ export default function Media() {
 
     setSearchLoading(true);
     try {
-      const currentCategory = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
-      if (currentCategory) {
-        // Search for videos with query + category name
-        const searchTerm = `${query} ${currentCategory.query}`;
-        console.log(`Dynamic search: "${searchTerm}" - fetching up to 10 videos`);
-        
-        let searchResults: YouTubeVideo[] = [];
-        console.log(`[Search] Fetching videos for: "${searchTerm}"`);
-        const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 10, 10);
-
-        // Deduplicate
-        const videoMap = new Map(dynamicResults.map(v => [v.id, v]));
-        searchResults = Array.from(videoMap.values());
-
-        console.log(`Final search results: ${searchResults.length} videos`);
-        setVideos(searchResults.slice(0, 10));
-      }
+      const searchTerm = `${query} kids`;
+      console.log(`Dynamic search: "${searchTerm}" - fetching up to 20 videos`);
+      
+      const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 20);
+      
+      // Shuffle results for variety
+      const shuffled = dynamicResults.sort(() => Math.random() - 0.5);
+      
+      console.log(`Final search results: ${shuffled.length} videos`);
+      setVideos(shuffled.slice(0, 20));
     } catch (err) {
       console.error('Error in dynamic search:', err);
     } finally {
@@ -202,7 +178,7 @@ export default function Media() {
     // If search is empty, reset bad words flag immediately
     if (!text.trim()) {
       setHasBadWords(false);
-      setVideos(videosByCategory[selectedCategory] || []);
+      loadCachedVideos();
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
@@ -245,48 +221,14 @@ export default function Media() {
 
   const loadCachedVideos = async () => {
     try {
-      // Fast path: Load ONLY current category from cache first (~100-200ms)
-      const raw = await AsyncStorage.getItem(cacheKeyForCategory(selectedCategory));
+      const raw = await AsyncStorage.getItem(CACHE_KEY);
       if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as { savedAt: number; videos: YouTubeVideo[] };
-          if (parsed?.videos && parsed?.savedAt && Date.now() - parsed.savedAt <= CACHE_TTL_MS) {
-            setVideos(parsed.videos);
-            setVideosByCategory(prev => ({ ...prev, [selectedCategory]: parsed.videos }));
-            console.log(`[loadCached] Showed ${selectedCategory} instantly (${parsed.videos.length} videos)`);
-          }
-        } catch (e) {
-          console.warn(`Failed to parse cache for ${selectedCategory}:`, e);
+        const parsed = JSON.parse(raw) as { savedAt: number; videos: YouTubeVideo[] };
+        if (parsed?.videos && parsed?.savedAt && Date.now() - parsed.savedAt <= CACHE_TTL_MS) {
+          setVideos(parsed.videos);
+          console.log(`[loadCached] Showed ${parsed.videos.length} cached videos`);
         }
       }
-
-      // Background: Load all other categories concurrently (non-blocking)
-      Promise.all(
-        KIDS_CATEGORIES.filter(cat => cat.id !== selectedCategory).map(async (category: any) => {
-          const raw = await AsyncStorage.getItem(cacheKeyForCategory(category.id));
-          if (!raw) return null;
-
-          try {
-            const parsed = JSON.parse(raw) as { savedAt: number; videos: YouTubeVideo[] };
-            if (!parsed?.videos || !parsed?.savedAt) return null;
-            if (Date.now() - parsed.savedAt > CACHE_TTL_MS) return null;
-            return { id: category.id, videos: parsed.videos };
-          } catch {
-            return null;
-          }
-        })
-      ).then(entries => {
-        const cached: Record<string, YouTubeVideo[]> = {};
-        entries.forEach((entry) => {
-          if (entry) {
-            cached[entry.id] = entry.videos;
-          }
-        });
-
-        if (Object.keys(cached).length > 0) {
-          setVideosByCategory(prev => ({ ...prev, ...cached }));
-        }
-      });
     } catch (err) {
       console.warn('Failed to load cached videos:', err);
     } finally {
@@ -294,140 +236,57 @@ export default function Media() {
     }
   };
 
-  const saveCachedVideos = async (videosByCat: Record<string, YouTubeVideo[]>) => {
+  const saveCachedVideos = async (videos: YouTubeVideo[]) => {
     try {
       const savedAt = Date.now();
-      await Promise.all(
-        Object.entries(videosByCat).map(([categoryId, videos]) =>
-          AsyncStorage.setItem(
-            cacheKeyForCategory(categoryId),
-            JSON.stringify({ savedAt, videos })
-          )
-        )
+      await AsyncStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({ savedAt, videos })
       );
     } catch (err) {
       console.warn('Failed to save cached videos:', err);
     }
   };
 
-  const fetchCategoryVideos = async (category: any): Promise<YouTubeVideo[]> => {
-    let fetchedVideos: YouTubeVideo[] = [];
-    let retryCount = 0;
-    const maxRetries = 3;
+  const fetchVideosFromChannels = async (): Promise<YouTubeVideo[]> => {
+    try {
+      console.log('[LOAD] Fetching from safe channels...');
+      
+      // Fetch from both channels in parallel
+      const results = await Promise.all(
+        SAFE_CHANNELS.map(channelId => 
+          YouTubeKidsService.getVideosByChannel(channelId, 20, 20).catch(() => [])
+        )
+      );
 
-    // Keep fetching until we have 10 or exhaust retries
-    while (fetchedVideos.length < 10 && retryCount < maxRetries) {
-      if (category.channelId && retryCount === 0) {
-        // First try: fetch from channel
-        console.log(`[Attempt ${retryCount + 1}] Fetching from channel for ${category.id}`);
-        const channelVideos = await YouTubeKidsService.getVideosByChannel(category.channelId, 10, 10);
-        console.log(`Channel returned ${channelVideos.length} videos for ${category.id}`);
+      // Combine and deduplicate
+      const videoMap = new Map<string, YouTubeVideo>();
+      results.forEach(arr => arr.forEach(v => {
+        if (!videoMap.has(v.id)) videoMap.set(v.id, v);
+      }));
 
-        const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
-        channelVideos.forEach(v => {
-          if (!videoMap.has(v.id)) {
-            videoMap.set(v.id, v);
-          }
-        });
-        fetchedVideos = Array.from(videoMap.values());
-      } else if (retryCount === 0 || (retryCount === 1 && category.backupQuery)) {
-        // Fetch with primary or backup query
-        const queryToUse = retryCount === 0 ? category.query : category.backupQuery;
-        console.log(`[Attempt ${retryCount + 1}] Searching with query: "${queryToUse}" for ${category.id}`);
-        const searchVideos = await YouTubeKidsService.searchKidsVideos(queryToUse, 10, 10);
-        console.log(`Search attempt returned ${searchVideos.length} videos`);
-
-        const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
-        searchVideos.forEach(v => {
-          if (!videoMap.has(v.id)) {
-            videoMap.set(v.id, v);
-          }
-        });
-        fetchedVideos = Array.from(videoMap.values());
-      } else if (retryCount === 2) {
-        // Last resort: try a broader search
-        const broadSearch = category.query.split(' ')[0] + ' kids'; // Use first word + "kids"
-        console.log(`[Attempt ${retryCount + 1}] Last resort broad search: "${broadSearch}" for ${category.id}`);
-        const broadVideos = await YouTubeKidsService.searchKidsVideos(broadSearch, 10, 10);
-        console.log(`Broad search returned ${broadVideos.length} videos`);
-
-        const videoMap = new Map(fetchedVideos.map(v => [v.id, v]));
-        broadVideos.forEach(v => {
-          if (!videoMap.has(v.id)) {
-            videoMap.set(v.id, v);
-          }
-        });
-        fetchedVideos = Array.from(videoMap.values());
-      }
-
-      console.log(`[Attempt ${retryCount + 1}] Total for ${category.id}: ${fetchedVideos.length}/10`);
-
-      if (fetchedVideos.length >= 10) {
-        console.log(`✅ ${category.id} reached 10 videos`);
-        break;
-      }
-
-      retryCount++;
+      // Shuffle for variety on each load
+      const allVideos = Array.from(videoMap.values()).sort(() => Math.random() - 0.5);
+      console.log(`[LOAD] Fetched ${allVideos.length} videos from channels`);
+      return allVideos.slice(0, 20);
+    } catch (err) {
+      console.error('Error fetching videos:', err);
+      return [];
     }
-
-    console.log(`FINAL: ${category.id} = ${fetchedVideos.length} videos`);
-    return fetchedVideos.slice(0, 10);
   };
 
-  const loadAllCategoryVideos = async () => {
-    console.log('=== loadAllCategoryVideos called (background) ===');
+  const loadVideos = async () => {
+    console.log('=== loadVideos called ===');
     try {
       setError(null);
-
-      const selected = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
-      if (!selected) return;
-
-      // Load selected category up to 10 videos
-      console.log(`[LOAD] Fetching up to 10 from ${selected.id}...`);
-      const selectedVideos = await fetchCategoryVideos(selected);
-      if (selectedVideos.length > 0) {
-        setVideos(selectedVideos);
-        setVideosByCategory(prev => ({ ...prev, [selected.id]: selectedVideos }));
-        saveCachedVideos({ [selected.id]: selectedVideos });
-        console.log(`[LOAD] Showed ${selectedVideos.length} videos for ${selected.id}`);
+      const fetchedVideos = await fetchVideosFromChannels();
+      if (fetchedVideos.length > 0) {
+        setVideos(fetchedVideos);
+        saveCachedVideos(fetchedVideos);
+        console.log(`[LOAD] Showed ${fetchedVideos.length} videos`);
       }
-
-      // Load all other categories in parallel (non-blocking)
-      const otherCategories = KIDS_CATEGORIES.filter(cat => cat.id !== selectedCategory);
-      Promise.all(
-        otherCategories.map(async (category: any) => {
-          try {
-            // Parallel approach: fetch from all sources at once
-            const sources = await Promise.all([
-              category.channelId ? YouTubeKidsService.getVideosByChannel(category.channelId, 10, 10).catch(() => []) : Promise.resolve([]),
-              YouTubeKidsService.searchKidsVideos(category.query, 10, 10).catch(() => []),
-              category.backupQuery ? YouTubeKidsService.searchKidsVideos(category.backupQuery, 10, 10).catch(() => []) : Promise.resolve([]),
-              YouTubeKidsService.searchKidsVideos(`${category.query.split(" ")[0]} kids`, 10, 10).catch(() => [])
-            ]);
-
-            const videoMap = new Map<string, YouTubeVideo>();
-            sources.forEach(arr => arr.forEach(v => {
-              if (!videoMap.has(v.id)) videoMap.set(v.id, v);
-            }));
-
-            const videos = Array.from(videoMap.values()).slice(0, 10);
-            return { id: category.id, videos };
-          } catch (err) {
-            console.error(`Error loading ${category.id}:`, err);
-            return { id: category.id, videos: [] };
-          }
-        })
-      ).then((results) => {
-        const allVideos: Record<string, YouTubeVideo[]> = {};
-        results.forEach(r => {
-          allVideos[r.id] = r.videos;
-        });
-        setVideosByCategory(prev => ({ ...prev, ...allVideos }));
-        saveCachedVideos(allVideos);
-        console.log(`[BACKGROUND] Loaded all other categories`);
-      });
     } catch (err) {
-      console.error('Error loading all category videos:', err);
+      console.error('Error loading videos:', err);
       setError('Failed to load videos. Please check your internet connection.');
     }
   };
@@ -435,7 +294,14 @@ export default function Media() {
   const onRefresh = async () => {
     setRefreshing(true);
     clearNetworkCache();
-    await loadAllCategoryVideos();
+    
+    // If user is searching, re-run the search instead of loading default
+    if (searchQuery.trim()) {
+      await performDynamicSearch(searchQuery);
+    } else {
+      await loadVideos();
+    }
+    
     setRefreshing(false);
   };
 
@@ -553,7 +419,7 @@ export default function Media() {
         <Ionicons name="search" size={20} color={hasBadWords ? "#FF6B6B" : "#999"} style={styles.searchIcon} />
         <TextInput
           style={[styles.searchInput, hasBadWords && styles.searchInputError]}
-          placeholder="Search in this category..."
+          placeholder="Search kids videos..."
           placeholderTextColor="#999"
           value={searchQuery}
           onChangeText={handleSearchChange}
@@ -562,7 +428,7 @@ export default function Media() {
           <TouchableOpacity onPress={() => {
             setSearchQuery('');
             setHasBadWords(false);
-            setVideos(videosByCategory[selectedCategory] || []);
+            loadCachedVideos();
             if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
           }}>
             {searchLoading ? (
@@ -572,39 +438,6 @@ export default function Media() {
             )}
           </TouchableOpacity>
         )}
-      </View>
-
-      {/* 🎯 Category Buttons */}
-      <View style={styles.categoriesWrapper}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesContainer}
-          scrollEnabled={true}
-          nestedScrollEnabled={true}
-        >
-          {KIDS_CATEGORIES.map((category) => (
-            <View key={category.id} style={{ flex: 0, flexShrink: 0 }}>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                style={[
-                  styles.categoryButton,
-                  selectedCategory === category.id && styles.categoryButtonActive
-                ]}
-                onPress={() => setSelectedCategory(category.id)}
-              >
-                <Text 
-                  numberOfLines={1}
-                  style={[
-                    styles.categoryButtonText,
-                    selectedCategory === category.id && styles.categoryButtonTextActive
-                  ]}>
-                  {category.label}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
       </View>
 
       {/* 📺 Video List */}
@@ -626,7 +459,7 @@ export default function Media() {
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={48} color="#FF6B6B" />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => loadAllCategoryVideos()}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => loadVideos()}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -683,7 +516,7 @@ export default function Media() {
         )}
 
         {!loading && !error && videos.length > 0 && filteredVideos.length === 0 && (
-          <Text style={styles.noResults}>No videos match your search in this category.</Text>
+          <Text style={styles.noResults}>No videos match your search.</Text>
         )}
       </ScrollView>
 
