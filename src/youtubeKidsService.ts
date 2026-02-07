@@ -105,7 +105,7 @@ class YouTubeKidsService {
           `type=video&` +
           `videoCategoryId=1&` +
           `safeSearch=strict&` +
-          `maxResults=50&` +
+          `maxResults=${Math.min(Math.max(maxResults, 1), 50)}&` +
           `order=relevance&` +
           `relevanceLanguage=en&` +
           `regionCode=PH&` +
@@ -197,7 +197,7 @@ class YouTubeKidsService {
           `channelId=${channelId}&` +
           `type=video&` +
           `safeSearch=strict&` +
-          `maxResults=50&` +
+          `maxResults=${Math.min(Math.max(maxResults, 1), 50)}&` +
           `order=date&` +
           `${nextPageToken ? `pageToken=${nextPageToken}&` : ''}` +
           `key=${this.API_KEY}`;
@@ -415,6 +415,11 @@ class YouTubeKidsService {
         duration: "4:12"
       }
     ];
+  }
+
+  // Synchronous fallback for instant UI display
+  static getFallbackVideosSync(): YouTubeVideo[] {
+    return this.getFallbackVideos();
   }
 
   // Get popular kids channels
