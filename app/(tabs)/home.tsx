@@ -1047,6 +1047,26 @@ export default function Home() {
             style={styles.brandLogo}
           />
         </TouchableOpacity>
+        
+        {/* TEST BUTTON - Start Tour */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#5DD4B4',
+            paddingHorizontal: scaleSpacing(16),
+            paddingVertical: scaleSpacing(8),
+            borderRadius: scaleSpacing(8),
+            marginLeft: scaleSpacing(10),
+          }}
+          onPress={() => {
+            console.log('🧪 TEST: Starting onboarding tour manually...');
+            startOnboarding();
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: scaleFont(14), fontWeight: '600' }}>
+            Start Tour
+          </Text>
+        </TouchableOpacity>
+        
         {parentalLockEnabled && (
           <TouchableOpacity
             style={styles.modeButton}
