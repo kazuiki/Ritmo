@@ -92,6 +92,8 @@ export default function RootLayout() {
       console.log('Early asset preload failed:', err)
     );
 
+
+
     // Setup network state listener
     networkListener = setupNetworkListener();
 

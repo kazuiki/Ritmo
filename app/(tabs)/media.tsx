@@ -1,27 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
+
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
-import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
+import { createResponsiveStyles, getDeviceCategory, useResponsiveDimensions } from "../../src/utils/responsive";
 import type { YouTubeVideo } from "../../src/youtubeKidsService";
 import { YouTubeKidsService } from "../../src/youtubeKidsService";
 
@@ -33,22 +35,6 @@ type PlayerState =
   | "buffering"
   | "cued";
 
-// 🎯 Predefined Kid-Safe Categories
-// Note: Some use search queries, some use channel IDs to fetch ALL videos from specific channels
-const KIDS_CATEGORIES = [
-  { id: 'nursery', label: '🎵 Nursery Rhymes', query: 'nursery rhymes for kids', channelId: null },
-  { id: 'cocomelon', label: '🎈 Cocomelon', query: 'cocomelon kids songs', channelId: 'UCY1kMZp36IQSyNx_9h3xtsQ' }, // Cocomelon - Nursery Rhymes
-  { id: 'counting', label: '🔢 Counting Songs', query: 'counting songs for kids', channelId: null },
-  { id: 'alphabet', label: '🔤 ABC Songs', query: 'alphabet songs for kids', channelId: null },
-  { id: 'colors', label: '🌈 Colors & Shapes', query: 'colors and shapes for kids', channelId: null },
-  { id: 'animals', label: '🐶 Animal Songs', query: 'animal songs for kids', channelId: null },
-  { id: 'cartoons', label: '🎬 Cartoons', query: 'kids cartoons youtube', channelId: null },
-  { id: 'bluey', label: '💙 Bluey', query: 'bluey cartoon for kids', channelId: 'UCqwZ0D-j64xnJEJZeZ7e5rw' }, // Official Bluey
-  { id: 'peppa', label: '🐷 Peppa Pig', query: 'peppa pig cartoon', channelId: 'UCXb__pNKuCYjL1b5r7-WtDw' }, // Peppa Pig Official
-  { id: 'paw', label: '🐾 Paw Patrol', query: 'paw patrol kids show', channelId: 'UCXjj1GIWZvDRAJYmddVxLDQ' }, // PAW Patrol Official
-  { id: 'disney', label: '✨ Disney', query: 'disney junior kids videos', channelId: 'UCIxJVwG_c1Jdm6HNGjqz3LQ' }, // Disney Junior
-];
-
 export default function Media() {
   // Get responsive dimensions and scaling functions
   const responsive = useResponsiveDimensions();
@@ -56,13 +42,15 @@ export default function Media() {
   const router = useRouter();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
-  const [selectedCategory, setSelectedCategory] = useState('nursery');
+  // Determine video player height based on device type
+  const deviceCategory = getDeviceCategory();
+  const videoPlayerHeight = deviceCategory === 'tablet' ? 350 : 320;
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
-  const [videosByCategory, setVideosByCategory] = useState<Record<string, YouTubeVideo[]>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
@@ -74,6 +62,14 @@ export default function Media() {
   const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+  const CACHE_KEY = 'mediaCache:main';
+  
+  // Safe channel IDs
+  const SAFE_CHANNELS = [
+    'UCBXVGODxUHmsEsGgUFQgqQw', // Ms Rachel
+    'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
+  ];
 
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
@@ -82,9 +78,14 @@ export default function Media() {
     }, [])
   );
 
-  // Load all videos on mount
+  // Load videos on mount
   useEffect(() => {
-    loadAllCategoryVideos();
+    const init = async () => {
+      await loadCachedVideos();
+      loadVideos();
+    };
+
+    init();
 
     const networkListener = setupNetworkListener();
 
@@ -92,7 +93,7 @@ export default function Media() {
       if (error && error.includes('internet connection')) {
         console.log('🔄 Auto-retrying due to previous network error...');
         clearNetworkCache();
-        loadAllCategoryVideos();
+        loadVideos();
       }
     }, 10000);
 
@@ -104,14 +105,7 @@ export default function Media() {
     };
   }, []);
 
-  // Switch category instantly from cached videos
-  useEffect(() => {
-    if (videosByCategory[selectedCategory]) {
-      setVideos(videosByCategory[selectedCategory]);
-      setSearchQuery(''); // Clear search when changing category
-      setHasBadWords(false); // Reset bad words flag
-    }
-  }, [selectedCategory, videosByCategory]);
+
 
   // Reset bad words flag when search query becomes empty
   useEffect(() => {
@@ -151,8 +145,8 @@ export default function Media() {
   // Dynamic search - fetch from YouTube when user types
   const performDynamicSearch = async (query: string) => {
     if (!query.trim()) {
-      // If search is empty, show pre-loaded videos
-      setVideos(videosByCategory[selectedCategory] || []);
+      // If search is empty, reload from cache
+      await loadCachedVideos();
       setSearchLoading(false);
       setHasBadWords(false);
       return;
@@ -160,14 +154,16 @@ export default function Media() {
 
     setSearchLoading(true);
     try {
-      const currentCategory = KIDS_CATEGORIES.find(cat => cat.id === selectedCategory);
-      if (currentCategory) {
-        // Search for videos with query + category name
-        const searchTerm = `${query} ${currentCategory.query}`;
-        console.log(`Dynamic search: ${searchTerm}`);
-        const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 100);
-        setVideos(dynamicResults);
-      }
+      const searchTerm = `${query} kids`;
+      console.log(`Dynamic search: "${searchTerm}" - fetching up to 20 videos`);
+      
+      const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 20);
+      
+      // Shuffle results for variety
+      const shuffled = dynamicResults.sort(() => Math.random() - 0.5);
+      
+      console.log(`Final search results: ${shuffled.length} videos`);
+      setVideos(shuffled.slice(0, 20));
     } catch (err) {
       console.error('Error in dynamic search:', err);
     } finally {
@@ -182,7 +178,7 @@ export default function Media() {
     // If search is empty, reset bad words flag immediately
     if (!text.trim()) {
       setHasBadWords(false);
-      setVideos(videosByCategory[selectedCategory] || []);
+      loadCachedVideos();
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
@@ -223,64 +219,89 @@ export default function Media() {
     uniqueKey: `${video.id}-${index}`
   }));
 
-  const loadAllCategoryVideos = async () => {
-    console.log('=== loadAllCategoryVideos called ===');
+  const loadCachedVideos = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      const allVideos: Record<string, YouTubeVideo[]> = {};
-      
-      // Load videos for all categories in parallel
-      await Promise.all(
-        KIDS_CATEGORIES.map(async (category) => {
-          try {
-            let fetchedVideos: YouTubeVideo[] = [];
-            
-            if (category.channelId) {
-              // Try to fetch ALL videos from specific channel
-              console.log('Fetching ALL videos from channel:', category.id);
-              fetchedVideos = await YouTubeKidsService.getVideosByChannel(category.channelId);
-              console.log(`Loaded ${fetchedVideos.length} videos for ${category.id} (from channel)`);
-              
-              // If channel fetch returns empty, fallback to search
-              if (fetchedVideos.length === 0) {
-                console.log(`No videos from channel, falling back to search for: ${category.query}`);
-                fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query);
-                console.log(`Fallback search returned ${fetchedVideos.length} videos for ${category.id}`);
-              }
-            } else {
-              // Search for videos using query
-              console.log('Searching videos for:', category.query);
-              fetchedVideos = await YouTubeKidsService.searchKidsVideos(category.query);
-              console.log(`Loaded ${fetchedVideos.length} videos for ${category.id} (from search)`);
-            }
-            
-            allVideos[category.id] = fetchedVideos;
-          } catch (err) {
-            console.error(`Error loading ${category.id}:`, err);
-            allVideos[category.id] = [];
-          }
-        })
-      );
-      
-      setVideosByCategory(allVideos);
-      // Set initial videos for selected category
-      if (allVideos[selectedCategory]) {
-        setVideos(allVideos[selectedCategory]);
+      const raw = await AsyncStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { savedAt: number; videos: YouTubeVideo[] };
+        if (parsed?.videos && parsed?.savedAt && Date.now() - parsed.savedAt <= CACHE_TTL_MS) {
+          setVideos(parsed.videos);
+          console.log(`[loadCached] Showed ${parsed.videos.length} cached videos`);
+        }
       }
     } catch (err) {
-      console.error('Error loading all category videos:', err);
-      setError('Failed to load videos. Please check your internet connection.');
+      console.warn('Failed to load cached videos:', err);
     } finally {
-      setLoading(false);
+      setIsBootstrapping(false);
+    }
+  };
+
+  const saveCachedVideos = async (videos: YouTubeVideo[]) => {
+    try {
+      const savedAt = Date.now();
+      await AsyncStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({ savedAt, videos })
+      );
+    } catch (err) {
+      console.warn('Failed to save cached videos:', err);
+    }
+  };
+
+  const fetchVideosFromChannels = async (): Promise<YouTubeVideo[]> => {
+    try {
+      console.log('[LOAD] Fetching from safe channels...');
+      
+      // Fetch from both channels in parallel
+      const results = await Promise.all(
+        SAFE_CHANNELS.map(channelId => 
+          YouTubeKidsService.getVideosByChannel(channelId, 20, 20).catch(() => [])
+        )
+      );
+
+      // Combine and deduplicate
+      const videoMap = new Map<string, YouTubeVideo>();
+      results.forEach(arr => arr.forEach(v => {
+        if (!videoMap.has(v.id)) videoMap.set(v.id, v);
+      }));
+
+      // Shuffle for variety on each load
+      const allVideos = Array.from(videoMap.values()).sort(() => Math.random() - 0.5);
+      console.log(`[LOAD] Fetched ${allVideos.length} videos from channels`);
+      return allVideos.slice(0, 20);
+    } catch (err) {
+      console.error('Error fetching videos:', err);
+      return [];
+    }
+  };
+
+  const loadVideos = async () => {
+    console.log('=== loadVideos called ===');
+    try {
+      setError(null);
+      const fetchedVideos = await fetchVideosFromChannels();
+      if (fetchedVideos.length > 0) {
+        setVideos(fetchedVideos);
+        saveCachedVideos(fetchedVideos);
+        console.log(`[LOAD] Showed ${fetchedVideos.length} videos`);
+      }
+    } catch (err) {
+      console.error('Error loading videos:', err);
+      setError('Failed to load videos. Please check your internet connection.');
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
     clearNetworkCache();
-    await loadAllCategoryVideos();
+    
+    // If user is searching, re-run the search instead of loading default
+    if (searchQuery.trim()) {
+      await performDynamicSearch(searchQuery);
+    } else {
+      await loadVideos();
+    }
+    
     setRefreshing(false);
   };
 
@@ -398,7 +419,7 @@ export default function Media() {
         <Ionicons name="search" size={20} color={hasBadWords ? "#FF6B6B" : "#999"} style={styles.searchIcon} />
         <TextInput
           style={[styles.searchInput, hasBadWords && styles.searchInputError]}
-          placeholder="Search in this category..."
+          placeholder="Search kids videos..."
           placeholderTextColor="#999"
           value={searchQuery}
           onChangeText={handleSearchChange}
@@ -407,7 +428,7 @@ export default function Media() {
           <TouchableOpacity onPress={() => {
             setSearchQuery('');
             setHasBadWords(false);
-            setVideos(videosByCategory[selectedCategory] || []);
+            loadCachedVideos();
             if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
           }}>
             {searchLoading ? (
@@ -418,34 +439,6 @@ export default function Media() {
           </TouchableOpacity>
         )}
       </View>
-
-      {/* 🎯 Category Buttons */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesContainer}
-        scrollEnabled={true}
-      >
-        {KIDS_CATEGORIES.map((category) => (
-          <View key={category.id} style={{ flex: 0, flexShrink: 0 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={[
-                styles.categoryButton,
-                selectedCategory === category.id && styles.categoryButtonActive
-              ]}
-              onPress={() => setSelectedCategory(category.id)}
-            >
-              <Text style={[
-                styles.categoryButtonText,
-                selectedCategory === category.id && styles.categoryButtonTextActive
-              ]}>
-                {category.label}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ScrollView>
 
       {/* 📺 Video List */}
       <ScrollView 
@@ -466,7 +459,7 @@ export default function Media() {
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={48} color="#FF6B6B" />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => loadAllCategoryVideos()}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => loadVideos()}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -476,7 +469,7 @@ export default function Media() {
           <View key={video.uniqueKey} style={styles.videoContainer}>
             {playingId === video.id ? (
               <YoutubePlayer
-                height={200}
+                height={videoPlayerHeight}
                 play={true}
                 videoId={video.youtubeId}
                 onChangeState={(event: PlayerState) => {
@@ -489,7 +482,13 @@ export default function Media() {
               />
             ) : (
               <TouchableOpacity onPress={() => setPlayingId(video.id)}>
-                <Image source={{ uri: video.thumbnail }} style={styles.thumbnail} />
+                <Image 
+                  source={{ uri: video.thumbnail }} 
+                  style={[
+                    styles.thumbnail, 
+                    { height: scaleHeight(deviceCategory === 'tablet' ? 280 : 280) }
+                  ]} 
+                />
                 <View style={styles.playButton}>
                   <Ionicons name="play-circle" size={64} color="#fff" />
                 </View>
@@ -512,12 +511,12 @@ export default function Media() {
           </View>
         ))}
 
-        {!loading && !error && videos.length === 0 && (
+        {!loading && !error && !isBootstrapping && !searchLoading && videos.length === 0 && (
           <Text style={styles.noResults}>No videos found.</Text>
         )}
 
         {!loading && !error && videos.length > 0 && filteredVideos.length === 0 && (
-          <Text style={styles.noResults}>No videos match your search in this category.</Text>
+          <Text style={styles.noResults}>No videos match your search.</Text>
         )}
       </ScrollView>
 
@@ -662,13 +661,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
 
   // 🎯 Category Styles
+  categoriesWrapper: {
+    height: scale.scaleHeight(65),
+    backgroundColor: 'transparent',
+    marginTop: 0,
+  },
   categoriesContainer: {
     paddingHorizontal: scale.scaleSpacing(12),
     paddingVertical: scale.scaleSpacing(10),
     paddingBottom: scale.scaleSpacing(8),
     gap: scale.scaleSpacing(8),
-    flexGrow: 0,
-    marginBottom: scale.scaleSpacing(6),
+    flexGrow: 1,
   },
   // 🔍 Search Bar Styles
   searchBarContainer: {
@@ -676,7 +679,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     marginHorizontal: scale.scaleSpacing(16),
-    marginVertical: scale.scaleSpacing(12),
+    marginVertical: scale.scaleSpacing(2),
     paddingHorizontal: scale.scaleSpacing(12),
     borderRadius: scale.scaleBorderRadius(25),
     borderWidth: 1,
@@ -716,6 +719,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: scale.scaleHeight(48),
+    overflow: 'hidden',
   },
   categoryButtonActive: {
     backgroundColor: '#5A8F8A',
