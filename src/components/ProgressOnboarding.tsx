@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
     Animated,
+    Dimensions,
     Modal,
     StyleSheet,
     Text,
@@ -62,6 +63,8 @@ export default function ProgressOnboarding({
     };
   };
 
+  const screenDimensions = Dimensions.get('screen');
+
   return (
     <Modal
       visible={visible}
@@ -69,8 +72,9 @@ export default function ProgressOnboarding({
       animationType="none"
       statusBarTranslucent
     >
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        <Svg height={screenHeight} width={screenWidth} style={StyleSheet.absoluteFill}>
+      <View style={[StyleSheet.absoluteFillObject, { height: screenDimensions.height, width: screenDimensions.width }]}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+          <Svg height={screenDimensions.height} width={screenDimensions.width} style={StyleSheet.absoluteFill}>
           <Defs>
             <Mask id="mask" x="0" y="0" height="100%" width="100%">
               <Rect height="100%" width="100%" fill="#fff" />
@@ -138,14 +142,14 @@ export default function ProgressOnboarding({
           </View>
         </View>
       </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-    position: 'relative',
+    ...StyleSheet.absoluteFillObject,
   },
   highlight: {
     borderWidth: 3,
