@@ -10,7 +10,7 @@ import {
     View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
-import { useResponsiveDimensions} from '../utils/responsive';
+import { useResponsiveDimensions } from '../utils/responsive';
 
 interface AddRoutineModalOnboardingProps {
   visible: boolean;
