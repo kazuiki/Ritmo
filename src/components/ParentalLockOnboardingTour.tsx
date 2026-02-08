@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import {
     Animated,
+    Dimensions,
     Modal,
     StyleSheet,
     Text,
@@ -90,15 +91,18 @@ export default function ParentalLockOnboardingTour({
     ? config.highlightPosition.top + config.highlightPosition.height + scaleHeight(60)
     : config.highlightPosition.top - scaleHeight(200);
 
+  const screenDimensions = Dimensions.get('screen');
+
   return (
     <Modal
       transparent={true}
       visible={visible}
       animationType="none"
     >
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        {/* Dark overlay with transparent hole using SVG mask */}
-        <Svg height={screenHeight} width={screenWidth} style={StyleSheet.absoluteFill}>
+      <View style={[StyleSheet.absoluteFillObject, { height: screenDimensions.height, width: screenDimensions.width }]}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+          {/* Dark overlay with transparent hole using SVG mask */}
+          <Svg height={screenDimensions.height} width={screenDimensions.width} style={StyleSheet.absoluteFill}>
           <Defs>
             <Mask id="parental-mask" x="0" y="0" height="100%" width="100%">
               {/* White background = visible dark overlay */}
@@ -182,14 +186,14 @@ export default function ParentalLockOnboardingTour({
           </View>
         </Animated.View>
       </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
+    ...StyleSheet.absoluteFillObject,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

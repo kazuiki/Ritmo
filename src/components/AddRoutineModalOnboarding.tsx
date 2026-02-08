@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
     Animated,
+    Dimensions,
     Modal,
     StyleSheet,
     Text,
@@ -9,7 +10,7 @@ import {
     View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
-import { useResponsiveDimensions } from '../utils/responsive';
+import { useResponsiveDimensions} from '../utils/responsive';
 
 interface AddRoutineModalOnboardingProps {
   visible: boolean;
@@ -132,6 +133,8 @@ export default function AddRoutineModalOnboarding({
     }
   };
 
+  const screenDimensions = Dimensions.get('screen');
+
   return (
     <Modal
       visible={visible}
@@ -139,9 +142,10 @@ export default function AddRoutineModalOnboarding({
       animationType="none"
       statusBarTranslucent
     >
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        {/* Light overlay with transparent hole */}
-        <Svg height={screenHeight} width={screenWidth} style={StyleSheet.absoluteFill}>
+      <View style={[StyleSheet.absoluteFillObject, { height: screenDimensions.height, width: screenDimensions.width }]}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+          {/* Light overlay with transparent hole */}
+          <Svg height={screenDimensions.height} width={screenDimensions.width} style={StyleSheet.absoluteFill}>
           <Defs>
             <Mask id="mask" x="0" y="0" height="100%" width="100%">
               <Rect height="100%" width="100%" fill="#fff" />
@@ -214,14 +218,14 @@ export default function AddRoutineModalOnboarding({
           </View>
         </View>
       </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-    position: 'relative',
+    ...StyleSheet.absoluteFillObject,
   },
   highlight: {
     borderWidth: 3,
