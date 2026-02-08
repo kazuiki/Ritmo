@@ -7,8 +7,9 @@ import {
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -25,6 +26,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
+import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
@@ -73,9 +75,19 @@ export default function Settings() {
   const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   
+  // Parental Lock Tip
+  const [showParentalLockTip, setShowParentalLockTip] = useState(false);
+  
   useEffect(() => {
     fetchUserData();
+    checkParentalLockStatus();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      checkParentalLockStatus();
+    }, [])
+  );
 
   const fetchUserData = async () => {
     try {
@@ -94,6 +106,16 @@ export default function Settings() {
       console.error("Error fetching user data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkParentalLockStatus = async () => {
+    try {
+      const isEnabled = await ParentalLockService.isEnabled();
+      setShowParentalLockTip(!isEnabled);
+    } catch (error) {
+      console.error("Error checking parental lock status:", error);
+      setShowParentalLockTip(false);
     }
   };
 
@@ -348,14 +370,24 @@ export default function Settings() {
           </View>
         </TouchableOpacity>
 
-        {/* Parental Lock */}
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={handleParentalLock}
-        >
-          <Text style={styles.menuButtonText}>Parental Lock</Text>
-          <Ionicons name="chevron-forward" size={24} color="#333" />
-        </TouchableOpacity>
+        {/* Parental Lock with Tip */}
+        <View style={styles.parentalLockContainer}>
+          {showParentalLockTip && (
+            <View style={styles.tipBubble}>
+              <Text style={styles.tipBubbleText}>
+                You can use Parental Lock to limit the access of your children here
+              </Text>
+              <View style={styles.tipArrow} />
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={handleParentalLock}
+          >
+            <Text style={styles.menuButtonText}>Parental Lock</Text>
+            <Ionicons name="chevron-forward" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
 
         {/* Instruction */}
         <TouchableOpacity
@@ -1343,6 +1375,42 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   eyeButton: {
     padding: scale.scaleSpacing(4),
+  },
+  parentalLockContainer: {
+    position: "relative",
+    marginBottom: scale.scaleSpacing(12),
+  },
+  tipBubble: {
+    backgroundColor: "#00D68F",
+    borderRadius: scale.scaleBorderRadius(20),
+    padding: scale.scaleSpacing(16),
+    marginBottom: scale.scaleSpacing(8),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.15,
+    shadowRadius: scale.scaleSpacing(8),
+    elevation: 5,
+  },
+  tipBubbleText: {
+    fontSize: scale.scaleFont(15),
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+    lineHeight: scale.scaleHeight(22),
+    textAlign: "center",
+  },
+  tipArrow: {
+    position: "absolute",
+    bottom: scale.scaleHeight(-8),
+    left: "50%",
+    marginLeft: scale.scaleWidth(-10),
+    width: 0,
+    height: 0,
+    borderLeftWidth: scale.scaleWidth(10),
+    borderRightWidth: scale.scaleWidth(10),
+    borderTopWidth: scale.scaleHeight(10),
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#00D68F",
   },
   menuButton: {
     backgroundColor: "#FFFFFF",
