@@ -1,5 +1,5 @@
 import { Tabs, usePathname, useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -27,6 +27,22 @@ export default function TabsLayout() {
 
   const responsive = useResponsiveDimensions();
   const { width: screenWidth, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
+
+  // Refs for measuring button positions
+  const homeButtonRef = useRef<View>(null);
+  const mediaButtonRef = useRef<View>(null);
+  const progressButtonRef = useRef<View>(null);
+  const settingsButtonRef = useRef<View>(null);
+  const floatingButtonRef = useRef<View>(null);
+
+  // State to store measured layouts
+  const [buttonLayouts, setButtonLayouts] = useState<{
+    home?: { x: number; y: number; width: number; height: number } | null;
+    media?: { x: number; y: number; width: number; height: number } | null;
+    progress?: { x: number; y: number; width: number; height: number } | null;
+    settings?: { x: number; y: number; width: number; height: number } | null;
+    floating?: { x: number; y: number; width: number; height: number } | null;
+  }>({});
 
   const floatingButtonSize = scaleWidth(70);
   const floatingIconSize = scaleWidth(38);
@@ -236,6 +252,53 @@ export default function TabsLayout() {
   };
 
   const tabItemTopPosition = getTabItemTopPosition();
+
+  // Measure button positions when onboarding is visible
+  useEffect(() => {
+    if (showOnboarding && showFloatingButton) {
+      const measureTimer = setTimeout(() => {
+        // Measure each button
+        homeButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          console.log('📏 Home button measured:', { pageX, pageY, width, height });
+          setButtonLayouts(prev => ({ ...prev, home: { x: pageX, y: pageY, width, height } }));
+        });
+
+        mediaButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          console.log('📏 Media button measured:', { pageX, pageY, width, height });
+          setButtonLayouts(prev => ({ ...prev, media: { x: pageX, y: pageY, width, height } }));
+        });
+
+        progressButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          console.log('📏 Progress button measured:', { pageX, pageY, width, height });
+          setButtonLayouts(prev => ({ ...prev, progress: { x: pageX, y: pageY, width, height } }));
+        });
+
+        settingsButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          console.log('📏 Settings button measured:', { pageX, pageY, width, height });
+          setButtonLayouts(prev => ({ ...prev, settings: { x: pageX, y: pageY, width, height } }));
+        });
+
+        floatingButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          console.log('📏 Floating button measured:', { pageX, pageY, width, height });
+          setButtonLayouts(prev => ({ ...prev, floating: { x: pageX, y: pageY, width, height } }));
+        });
+      }, 300); // Small delay to ensure layout is complete
+
+      return () => clearTimeout(measureTimer);
+    }
+  }, [showOnboarding, showFloatingButton]);
+
+  // Debug log for tab positioning
+  console.log('📍 Tab Layout Positioning:', {
+    screenWidth,
+    isTablet,
+    isLargeTablet,
+    'insets.bottom': insets.bottom,
+    navBarBottom,
+    tabBarHeight,
+    fullAccessTabItemSize,
+    tabItemTopPosition,
+  });
 
   // SIMPLIFIED FIX: Calculate absolute position for floating button
   const getFloatingButtonStyle = () => {
@@ -617,6 +680,8 @@ export default function TabsLayout() {
                   ]}
                 >
                   <View
+                    ref={homeButtonRef}
+                    collapsable={false}
                     style={[
                       styles.fullAccessTabItem,
                       { 
@@ -682,6 +747,8 @@ export default function TabsLayout() {
                   ]}
                 >
                   <View
+                    ref={mediaButtonRef}
+                    collapsable={false}
                     style={[
                       styles.fullAccessTabItem,
                       { 
@@ -739,6 +806,8 @@ export default function TabsLayout() {
                   floatingButtonStyle // Apply the calculated bottom position
                 ]}>
                   <View
+                    ref={floatingButtonRef}
+                    collapsable={false}
                     style={[
                       styles.floatingButton,
                       { 
@@ -817,6 +886,8 @@ export default function TabsLayout() {
                   ]}
                 >
                   <View
+                    ref={progressButtonRef}
+                    collapsable={false}
                     style={[
                       styles.fullAccessTabItem,
                       { 
@@ -883,6 +954,8 @@ export default function TabsLayout() {
                   ]}
                 >
                   <View
+                    ref={settingsButtonRef}
+                    collapsable={false}
                     style={[
                       styles.fullAccessTabItem,
                       { 
@@ -936,6 +1009,7 @@ export default function TabsLayout() {
         step={currentOnboardingStep}
         onNext={nextOnboardingStep}
         onSkip={skipOnboarding}
+        buttonLayouts={buttonLayouts}
       />
 
       {/* Render custom pill tab bars based on mode */}

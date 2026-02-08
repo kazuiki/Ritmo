@@ -16,9 +16,16 @@ interface OnboardingTourProps {
   step: number; // 0: Home, 1: Media, 2: Progress, 3: Settings, 4: Add Routine
   onNext: () => void;
   onSkip: () => void;
+  buttonLayouts: {
+    home?: { x: number; y: number; width: number; height: number } | null;
+    media?: { x: number; y: number; width: number; height: number } | null;
+    progress?: { x: number; y: number; width: number; height: number } | null;
+    settings?: { x: number; y: number; width: number; height: number } | null;
+    floating?: { x: number; y: number; width: number; height: number } | null;
+  };
 }
 
-export default function OnboardingTour({ visible, step, onNext, onSkip }: OnboardingTourProps) {
+export default function OnboardingTour({ visible, step, onNext, onSkip, buttonLayouts }: OnboardingTourProps) {
   const responsive = useResponsiveDimensions();
   const { width: screenWidth, height: screenHeight, scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   
@@ -43,124 +50,91 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
 
   if (!visible) return null;
 
-  // Define positions and content for each step
+  // Define positions and content for each step - using MEASURED layouts
   const getStepConfig = () => {
     const isTablet = screenWidth >= 768;
-    const bottomMargin = scaleHeight(25);
-    const tabBarHeight = scaleHeight(70);
+    const isLargeTablet = screenWidth >= 1024;
     
-    // Match exact tab button sizes from _layout.tsx
-    const tabItemSize = scaleWidth(50);
-    const tabSlotWidth = screenWidth / 5;
-    const tabButtonWidth = tabItemSize * 1.3; // Match actual button width from layout
-    const tabButtonHeight = tabItemSize; // Match actual button height from layout
-    
-    // Tab positions - buttons are centered within their slots
-    const buttonOffsetX = (tabSlotWidth - tabButtonWidth) / 2; // Center button in slot horizontally
-    
-    // Align exactly with the navigation button border at the bottom
-    // The navigation is at bottom: 25 and buttons are inside with minimal offset
-    const tabBottomOffset = scaleHeight(10);
-    
-    // For floating button (addRoutines in center) - match actual size from layout
-    const floatingButtonSize = scaleWidth(70);
-    const floatingButtonLeft = (screenWidth - floatingButtonSize) / 2;
-    
-    // The floating button is raised above the tab bar with negative top offset
-    // Base the highlight position on the actual button border position
-    const floatingButtonTopOffset = isTablet ? scaleHeight(-75) : scaleHeight(-35);
-    // Adjust lower to match the actual lowered navigation position - align exactly with border
-    const floatingButtonBottom = bottomMargin + Math.abs(floatingButtonTopOffset) - scaleHeight(22);
+    // Border radius for different elements
+    const tabBorderRadius = scaleSpacing(12);
+    const floatingBorderRadius = buttonLayouts.floating ? buttonLayouts.floating.width / 2 : scaleSpacing(35);
 
     switch (step) {
       case 0: // Home - First tab (leftmost)
         return {
           title: 'Home',
           description: 'Here you can see all your routines for today. Tap a routine to start!',
-          highlightPosition: {
-            left: buttonOffsetX,
-            bottom: tabBottomOffset,
-            width: tabButtonWidth,
-            height: tabButtonHeight,
-          },
-          tooltipPosition: 'top' as const,
+          layout: buttonLayouts.home,
+          borderRadius: tabBorderRadius,
         };
       case 1: // Media - Second tab
         return {
           title: 'Media',
           description: 'Watch educational videos and listen to music here!',
-          highlightPosition: {
-            left: tabSlotWidth + buttonOffsetX,
-            bottom: tabBottomOffset,
-            width: tabButtonWidth,
-            height: tabButtonHeight,
-          },
-          tooltipPosition: 'top' as const,
+          layout: buttonLayouts.media,
+          borderRadius: tabBorderRadius,
         };
       case 2: // Progress - Fourth tab (after center floating button)
         return {
           title: 'Progress',
           description: 'Check your progress and achievements!',
-          highlightPosition: {
-            left: tabSlotWidth * 3 + buttonOffsetX,
-            bottom: tabBottomOffset,
-            width: tabButtonWidth,
-            height: tabButtonHeight,
-          },
-          tooltipPosition: 'top' as const,
+          layout: buttonLayouts.progress,
+          borderRadius: tabBorderRadius,
         };
       case 3: // Settings - Fifth tab (rightmost)
         return {
           title: 'Settings',
           description: 'Customize your profile and app settings here.',
-          highlightPosition: {
-            left: tabSlotWidth * 4 + buttonOffsetX,
-            bottom: tabBottomOffset,
-            width: tabButtonWidth,
-            height: tabButtonHeight,
-          },
-          tooltipPosition: 'top' as const,
+          layout: buttonLayouts.settings,
+          borderRadius: tabBorderRadius,
         };
       case 4: // Add Routine - Center floating button
         return {
           title: 'Add Routine',
           description: 'Create new routines for your day! Tap the floating button in the center.',
-          highlightPosition: {
-            left: floatingButtonLeft,
-            bottom: floatingButtonBottom,
-            width: floatingButtonSize,
-            height: floatingButtonSize,
-          },
-          tooltipPosition: 'top' as const,
+          layout: buttonLayouts.floating
+,          borderRadius: floatingBorderRadius,
         };
       default:
         return {
           title: '',
           description: '',
-          highlightPosition: { left: 0, bottom: 0, width: 0, height: 0 },
-          tooltipPosition: 'top' as const,
+          layout: null,
+          borderRadius: 0,
         };
     }
   };
-
   const config = getStepConfig();
 
-  // Calculate tooltip position
+  // If no layout available for this step, don't render
+  if (!config.layout) return null;
+
+  // Calculate tooltip position - same as AddRoutineModalOnboarding
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
-    const tooltipHeight = scaleHeight(160);
     
-    // Center tooltip horizontally on screen
+    // Center tooltip horizontally
     const left = (screenWidth - tooltipWidth) / 2;
     
-    // Position above the highlighted tab - more spacing to avoid covering
-    const bottom = config.highlightPosition.bottom + config.highlightPosition.height + scaleHeight(40);
-
-    return {
-      left,
-      bottom,
-      width: tooltipWidth,
-    };
+    // Position above or below based on available space
+    const spaceAbove = config.layout!.y;
+    const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
+    
+    if (spaceBelow > scaleHeight(200)) {
+      // Show below
+      return {
+        left,
+        top: config.layout!.y + config.layout!.height + scaleHeight(20),
+        width: tooltipWidth,
+      };
+    } else {
+      // Show above
+      return {
+        left,
+        bottom: screenHeight - config.layout!.y + scaleHeight(20),
+        width: tooltipWidth,
+      };
+    }
   };
 
   return (
@@ -179,11 +153,11 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
               <Rect height="100%" width="100%" fill="#fff" />
               {/* Black rectangle = transparent hole */}
               <Rect
-                x={config.highlightPosition.left}
-                y={screenHeight - config.highlightPosition.bottom - config.highlightPosition.height}
-                width={config.highlightPosition.width}
-                height={config.highlightPosition.height}
-                rx={step === 4 ? config.highlightPosition.width / 2 : scaleSpacing(15)}
+                x={config.layout.x}
+                y={config.layout.y}
+                width={config.layout.width}
+                height={config.layout.height}
+                rx={config.borderRadius}
                 fill="#000"
               />
             </Mask>
@@ -203,11 +177,11 @@ export default function OnboardingTour({ visible, step, onNext, onSkip }: Onboar
             styles.highlight,
             {
               position: 'absolute',
-              left: config.highlightPosition.left,
-              bottom: config.highlightPosition.bottom,
-              width: config.highlightPosition.width,
-              height: config.highlightPosition.height,
-              borderRadius: step === 4 ? config.highlightPosition.width / 2 : scaleSpacing(15),
+              left: config.layout.x,
+              top: config.layout.y,
+              width: config.layout.width,
+              height: config.layout.height,
+              borderRadius: config.borderRadius,
             },
           ]}
         />
