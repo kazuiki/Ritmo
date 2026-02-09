@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
@@ -147,10 +147,10 @@ export default function OnboardingTour({ visible, step, onNext, onSkip, buttonLa
       animationType="none"
       statusBarTranslucent
     >
-      <View style={[StyleSheet.absoluteFillObject, { height: screenDimensions.height, width: screenDimensions.width }]}>
-        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+      <View style={[StyleSheet.absoluteFillObject, { height: screenDimensions.height, width: screenDimensions.width }]} pointerEvents="box-none">
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
           {/* Dark overlay with transparent hole using SVG mask */}
-          <Svg height={screenDimensions.height} width={screenDimensions.width} style={StyleSheet.absoluteFill}>
+          <Svg height={screenDimensions.height} width={screenDimensions.width} style={StyleSheet.absoluteFill} pointerEvents="none">
           <Defs>
             <Mask id="mask" x="0" y="0" height="100%" width="100%">
               {/* White background = visible dark overlay */}
