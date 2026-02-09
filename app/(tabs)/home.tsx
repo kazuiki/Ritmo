@@ -2563,8 +2563,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   fallingStarsGif: {
     position: "absolute",
+    top: -310,
+    left: 0,
+    right: 0,
     width: "100%",
-    height: "100%",
+    height: "120%",
     zIndex: 10,
     opacity: 0.3,
     tintColor: 'rgba(255, 215, 0, 0.6)',
