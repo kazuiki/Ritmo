@@ -49,6 +49,7 @@ modules/expo-godot-view/android/build/
 **/intermediates/
 **/kotlin/compileDebugKotlin/
 *.jar
+!android/gradle/wrapper/gradle-wrapper.jar
 *.dex
 *.ap_
 *.class
