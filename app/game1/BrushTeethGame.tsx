@@ -21,10 +21,22 @@ const BrushTeethGame = () => {
     const [allCleaned, setAllCleaned] = useState(false);
     const [brush6Triggered, setBrush6Triggered] = useState(false);
     const [brush6Completed, setBrush6Completed] = useState(false);
+    const [showBrush7, setShowBrush7] = useState(false);
+    const [brush7Completed, setBrush7Completed] = useState(false);
+    const [showBrush8, setShowBrush8] = useState(false);
+    const [brush8Completed, setBrush8Completed] = useState(false);
+    const [showBrush9, setShowBrush9] = useState(false);
+    const [brush9Completed, setBrush9Completed] = useState(false);
     const [showCup1Wiggle, setShowCup1Wiggle] = useState(false);
     const [cup1Placed, setCup1Placed] = useState(false);
+    const [cup1IsDragging, setCup1IsDragging] = useState(false);
     const bgSoundRef = useRef<Audio.Sound | null>(null);
     const brush6SoundRef = useRef<Audio.Sound | null>(null);
+    const brush7SoundRef = useRef<Audio.Sound | null>(null);
+    const brush8SoundRef = useRef<Audio.Sound | null>(null);
+    const brush9SoundRef = useRef<Audio.Sound | null>(null);
+    const pasteWigglePlayedRef = useRef(false);
+    const cupWigglePlayedRef = useRef(false);
 
     
     
@@ -40,6 +52,7 @@ const BrushTeethGame = () => {
     ];
     const scaleX = SCREEN_WIDTH / 375;      // your UI width base
     const scaleY = SCREEN_HEIGHT / 812;     // your UI height base
+    const brushPastePosition = { x: 10 * scaleX, y: 300 * scaleY };
 
     const router = useRouter();
     
@@ -133,6 +146,19 @@ const BrushTeethGame = () => {
 
 
     
+    const playOneShot = async (source: number, volume = 1.0) => {
+        try {
+            const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true, volume });
+            sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.isLoaded && status.didJustFinish) {
+                    sound.unloadAsync().catch(() => {});
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to play one-shot sound', error);
+        }
+    };
+
     const handlePasteClick = () => {
         if (!canClickPaste || showOverlay) return; // Guard: only clickable once shaking started and overlay not visible
         setShowOverlay(true);
@@ -225,6 +251,7 @@ const BrushTeethGame = () => {
             if (gestureState.dx > 50 && swipeProgress === 0) {
                 // Start automatic animations
                 setSwipeProgress(1);
+                playOneShot(require('./BrushGame/Toothpaste.mp3'));
                 Animated.parallel([
                     Animated.timing(toothpasteRotation, {
                         toValue: 30,
@@ -252,7 +279,7 @@ const BrushTeethGame = () => {
                     swipeX.setValue(0);
                     overlayFade.setValue(1);
                     // Initial position for brush (can be adjusted)
-                    brushPosition.setValue({ x: 10, y: 300 });
+                    brushPosition.setValue(brushPastePosition);
                 });
             }
         },
@@ -361,13 +388,24 @@ const BrushTeethGame = () => {
 
     // Pan responder for draggable Cup1
     const cup1DragOffset = useRef({ x: 0, y: 0 });
+    const cup1StateRef = useRef({ showCup1Wiggle, cup1Placed });
+    
+    // Keep refs updated with current state
+    useEffect(() => {
+        cup1StateRef.current = { showCup1Wiggle, cup1Placed };
+    }, [showCup1Wiggle, cup1Placed]);
     
     const cup1PanResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => showCup1Wiggle && !cup1Placed,
-            onMoveShouldSetPanResponder: () => showCup1Wiggle && !cup1Placed,
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
             onPanResponderGrant: () => {
-                if (showCup1Wiggle && !cup1Placed) {
+                if (cup1StateRef.current.showCup1Wiggle && !cup1StateRef.current.cup1Placed) {
+                    setCup1IsDragging(true);
+                    // Stop wiggle animation when dragging starts
+                    if (cup1WiggleAnim.current) {
+                        cup1WiggleAnim.current.stop();
+                    }
                     cup1DragOffset.current = {
                         x: (cup1Position.x as any)._value,
                         y: (cup1Position.y as any)._value
@@ -375,7 +413,7 @@ const BrushTeethGame = () => {
                 }
             },
             onPanResponderMove: (_, gestureState) => {
-                if (showCup1Wiggle && !cup1Placed) {
+                if (cup1StateRef.current.showCup1Wiggle && !cup1StateRef.current.cup1Placed) {
                     const newX = cup1DragOffset.current.x + gestureState.dx;
                     const newY = cup1DragOffset.current.y + gestureState.dy;
                     cup1Position.setValue({
@@ -385,44 +423,45 @@ const BrushTeethGame = () => {
                 }
             },
             onPanResponderRelease: (_, gestureState) => {
-                if (showCup1Wiggle && !cup1Placed) {
+                setCup1IsDragging(false);
+                if (cup1StateRef.current.showCup1Wiggle && !cup1StateRef.current.cup1Placed) {
                     const cup1X = cup1DragOffset.current.x + gestureState.dx;
                     const cup1Y = cup1DragOffset.current.y + gestureState.dy;
                     
-                    // Check collision with foam area (any foam position)
-                    let onFoamArea = false;
+                    // Convert cup1DraggableContainer percentage position to pixels
+                    // cup1DraggableContainer is at top: '72%', left: '77%'
+                    const cup1InitialScreenX = (SCREEN_WIDTH * 0.77);
+                    const cup1InitialScreenY = (SCREEN_HEIGHT * 0.72);
                     
-                    tartars.forEach((tartar) => {
-                        const tartarCenterX = tartar.x + tartar.width / 2;
-                        const tartarCenterY = tartar.y + tartar.height / 2;
-                        
-                        // Cup1 center (cup1X/Y is top-left, add half of cup size)
-                        const cup1CenterX = cup1X + 52; // 104/2
-                        const cup1CenterY = cup1Y + 29.5; // 59/2
-                        
-                        const collisionRadius = 60; // Larger area for placing cup
-                        
-                        const distance = Math.sqrt(
-                            Math.pow(cup1CenterX - tartarCenterX, 2) + 
-                            Math.pow(cup1CenterY - tartarCenterY, 2)
-                        );
-                        
-                        if (distance < collisionRadius) {
-                            onFoamArea = true;
-                        }
-                    });
+                    // Add drag offset to get actual screen position
+                    const cup1ScreenX = cup1InitialScreenX + cup1X;
+                    const cup1ScreenY = cup1InitialScreenY + cup1Y;
                     
+                    // Cup1 center
+                    const cup1CenterX = cup1ScreenX + 52; // 104/2
+                    const cup1CenterY = cup1ScreenY + 29.5; // 59/2
+                    
+                    // Define teeth foam area center (middle of Brush4 area)
+                    // Brush4 is approximately at screen center where teeth are
+                    const foamCenterX = 170;  // Middle of teeth area
+                    const foamCenterY = 445;  // Middle of teeth area
+                    const foamRadius = 150;   // Large radius to accept drops in teeth area
+                    
+                    // Check if Cup1 is dropped in the foam area
+                    const distance = Math.sqrt(
+                        Math.pow(cup1CenterX - foamCenterX, 2) + 
+                        Math.pow(cup1CenterY - foamCenterY, 2)
+                    );
+                    
+                    const onFoamArea = distance < foamRadius;
+                    
+                    console.log('Cup1 dropped - onFoamArea:', onFoamArea);
                     if (onFoamArea) {
                         // Cup1 placed successfully on foam area
+                        console.log('Cup1 placed on foam area! Triggering completion');
                         setCup1Placed(true);
-                        // Animate Cup1 to fade out as part of completion
-                    } else {
-                        // Cup1 not placed correctly, animate back to original position
-                        Animated.spring(cup1Position, {
-                            toValue: { x: 0, y: 0 },
-                            useNativeDriver: true,
-                        }).start();
                     }
+                    // Keep cup in final position (don't spring back)
                 }
             },
         })
@@ -471,10 +510,13 @@ const BrushTeethGame = () => {
         const allCleanedNow = tartarsCleaned.every(cleaned => cleaned);
         
         if (allCleanedNow && !showCup1Wiggle) {
+            // Move brush back and hide it so Cup1 can be dragged
+            brushPosition.setValue(brushPastePosition);
+            setShowDraggableBrush(false);
             setShowCup1Wiggle(true);
             // Don't start completion yet - wait for Cup1 to be placed
         }
-    }, [tartarsCleaned, showCup1Wiggle]);
+    }, [tartarsCleaned, showCup1Wiggle, brushPosition, brushPastePosition]);
 
     // Handle Cup1 placement - trigger Brush6 completion when Cup1 is placed on foam area
     useEffect(() => {
@@ -502,6 +544,7 @@ const BrushTeethGame = () => {
                 
                 // Show completion gif immediately
                 setShowCompletion(true);
+                completionGifFadeIn.setValue(1);
                 
                 // Smooth fade out all elements and fade in completion gif simultaneously
                 Animated.parallel([
@@ -520,11 +563,6 @@ const BrushTeethGame = () => {
                         duration: 800,
                         useNativeDriver: true,
                     }),
-                    Animated.timing(completionGifFadeIn, {
-                        toValue: 1,
-                        duration: 300,
-                        useNativeDriver: true,
-                    }),
                 ]).start(() => {
                     // Start playing audio after fade animations complete
                     sound.getStatusAsync()
@@ -541,7 +579,7 @@ const BrushTeethGame = () => {
                 });
                 
             } catch (error) {
-                console.warn('Failed to play Brush6 audio:', error);
+                console.warn('Failed to play Brush6.mp3:', error);
                 setBrush6Completed(true);
             }
         };
@@ -554,6 +592,10 @@ const BrushTeethGame = () => {
         if (!showCup1Wiggle) return;
 
         const startCup1Wiggle = () => {
+            if (!cupWigglePlayedRef.current) {
+                cupWigglePlayedRef.current = true;
+                playOneShot(require('./BrushGame/Wiggle.mp3'));
+            }
             cup1WiggleAnim.current = Animated.loop(
                 Animated.sequence([
                     Animated.timing(cup1Shake, {
@@ -586,9 +628,101 @@ const BrushTeethGame = () => {
         };
     }, [showCup1Wiggle]);
 
-    // Handle success scene after Brush6 completes
+    // Handle Brush7 animation after Brush6 completes
     useEffect(() => {
         if (!brush6Completed) return;
+
+        const startBrush7 = async () => {
+            try {
+                    setShowCompletion(false);
+                setShowBrush7(true);
+                const { sound } = await Audio.Sound.createAsync(
+                    require('./BrushGame/Brush7.mp3'),
+                    { shouldPlay: false, volume: 1.0 }
+                );
+                brush7SoundRef.current = sound;
+                
+                // Set up playback status listener
+                sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.isLoaded && status.didJustFinish) {
+                        setBrush7Completed(true);
+                    }
+                });
+                
+                // Start playing audio
+                await sound.playAsync();
+            } catch (error) {
+                console.warn('Failed to play brush7 audio:', error);
+                setBrush7Completed(true);
+            }
+        };
+        
+        startBrush7();
+    }, [brush6Completed]);
+
+    // Handle Brush8 animation after Brush7 completes
+    useEffect(() => {
+        if (!brush7Completed) return;
+
+        const startBrush8 = async () => {
+            try {
+                    setShowBrush7(false);
+                setShowBrush8(true);
+                const { sound } = await Audio.Sound.createAsync(
+                    require('./BrushGame/Brush8.mp3'),
+                    { shouldPlay: false, volume: 1.0 }
+                );
+                brush8SoundRef.current = sound;
+
+                sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.isLoaded && status.didJustFinish) {
+                        setBrush8Completed(true);
+                    }
+                });
+
+                await sound.playAsync();
+            } catch (error) {
+                console.warn('Failed to play brush8 audio:', error);
+                setBrush8Completed(true);
+            }
+        };
+
+        startBrush8();
+    }, [brush7Completed]);
+
+    // Handle Brush9 animation after Brush8 completes
+    useEffect(() => {
+        if (!brush8Completed) return;
+
+        const startBrush9 = async () => {
+            try {
+                    setShowBrush8(false);
+                setShowBrush9(true);
+                const { sound } = await Audio.Sound.createAsync(
+                    require('./BrushGame/Brush9.mp3'),
+                    { shouldPlay: false, volume: 1.0 }
+                );
+                brush9SoundRef.current = sound;
+
+                sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.isLoaded && status.didJustFinish) {
+                        setBrush9Completed(true);
+                    }
+                });
+
+                await sound.playAsync();
+            } catch (error) {
+                console.warn('Failed to play brush9 audio:', error);
+                setBrush9Completed(true);
+            }
+        };
+
+        startBrush9();
+    }, [brush8Completed]);
+
+    // Handle success scene after Brush9 completes
+    useEffect(() => {
+        if (!brush9Completed) return;
 
         const handleCompletion = async () => {
             if (bgSoundRef.current) {
@@ -622,12 +756,13 @@ const BrushTeethGame = () => {
         };
 
         handleCompletion();
-    }, [brush6Completed, router, victoryScale, victoryOpacity]);
+    }, [brush9Completed, router, victoryScale, victoryOpacity]);
     
     useEffect(() => {
         // Preload all images to avoid first-frame decode delays
         Asset.loadAsync([
             require('./BrushGame/Cup.png'),
+            require('./BrushGame/Cup1.png'),
             require('./BrushGame/BrushBG.png'),
             require('./BrushGame/Brush1.png'),
             require('./BrushGame/Brush2.png'),
@@ -651,6 +786,10 @@ const BrushTeethGame = () => {
             require('./BrushGame/Tartar11.png'),
             require('./BrushGame/Tartar12.png'),
             require('./BrushGame/Foam.png'),
+            require('./BrushGame/Brush6.gif'),
+            require('./BrushGame/Brush7.gif'),
+            require('./BrushGame/Brush8.gif'),
+            require('./BrushGame/Brush9.gif'),
         ]);
 
         // Start with Brush1 fully visible
@@ -748,6 +887,10 @@ const BrushTeethGame = () => {
                                             Animated.delay(400)
                                         ])
                                     );
+                                    if (!pasteWigglePlayedRef.current) {
+                                        pasteWigglePlayedRef.current = true;
+                                        playOneShot(require('./BrushGame/Wiggle.mp3'));
+                                    }
                                     pasteShakeAnim.current.start();
                             });
                         }, 200);
@@ -780,10 +923,32 @@ const BrushTeethGame = () => {
             <Animated.Image source={brushes[3]} style={[styles.brush, { opacity: Animated.multiply(opacity4, brushesFadeOut) }]} />
             
             {/* Completion GIF - appears when all cleaning is done */}
-            {showCompletion && (
-                <Animated.Image 
+            {showCompletion && !showBrush7 && !showBrush8 && !showBrush9 && (
+                <Image 
                     source={require('./BrushGame/Brush6.gif')} 
-                    style={[styles.brush6, { opacity: completionGifFadeIn }]} 
+                    style={styles.brush6}
+                />
+            )}
+            
+            {/* Brush7 GIF - appears after Brush6 completes */}
+            {showBrush7 && !showBrush8 && !showBrush9 && (
+                <Image 
+                    source={require('./BrushGame/Brush7.gif')} 
+                    style={styles.brush6}
+                />
+            )}
+
+            {showBrush8 && !showBrush9 && (
+                <Image 
+                    source={require('./BrushGame/Brush8.gif')} 
+                    style={styles.brush6}
+                />
+            )}
+
+            {showBrush9 && (
+                <Image 
+                    source={require('./BrushGame/Brush9.gif')} 
+                    style={styles.brush6}
                 />
             )}
             
@@ -818,20 +983,21 @@ const BrushTeethGame = () => {
             {/* Foams rendered separately so they're not constrained by tartar opacity */}
             {showTartars && !allCleaned && tartars.map((tartar, index) => 
                 tartarsCleaning[index] ? (
-                    <Animated.Image
-                        key={`foam-${tartar.id}`}
-                        source={require('./BrushGame/Foam.png')}
-                        style={{
-                            position: 'absolute',
-                            left: tartar.x - 25,
-                            top: tartar.y - 25,
-                            width: 80,
-                            height: 80,
-                            opacity: foamsOpacity[index],
-                            resizeMode: 'contain',
-                            zIndex: 36,
-                        }}
-                    />
+                    <View key={`foam-${tartar.id}`} pointerEvents="none">
+                        <Animated.Image
+                            source={require('./BrushGame/Foam.png')}
+                            style={{
+                                position: 'absolute',
+                                left: tartar.x - 25,
+                                top: tartar.y - 25,
+                                width: 80,
+                                height: 80,
+                                opacity: foamsOpacity[index],
+                                resizeMode: 'contain',
+                                zIndex: 36,
+                            }}
+                        />
+                    </View>
                 ) : null
             )}
             
@@ -857,7 +1023,10 @@ const BrushTeethGame = () => {
                     />
                 </TouchableOpacity>
             ) : (
-                <Animated.View style={[styles.pasteButton, { opacity: cupFadeOut }]}>
+                <Animated.View
+                    style={[styles.pasteButton, { opacity: cupFadeOut }]}
+                    pointerEvents={showCup1Wiggle ? 'none' : 'auto'}
+                >
                     <Image 
                         source={require('./BrushGame/Cup.png')} 
                         style={styles.cup}
@@ -887,7 +1056,7 @@ const BrushTeethGame = () => {
                             ]
                         }
                     ]}
-                    {...(!cup1Placed ? cup1PanResponder.panHandlers : {})}
+                    {...cup1PanResponder.panHandlers}
                 >
                     <Animated.View
                         style={{
@@ -899,10 +1068,10 @@ const BrushTeethGame = () => {
                             ]
                         }}
                     >
-                    <Image 
-                        source={require('./BrushGame/Cup1.png')} 
-                        style={[styles.cup1, { opacity: cup1FadeOut }]}
-                    />
+                        <Animated.Image 
+                            source={require('./BrushGame/Cup1.png')} 
+                            style={[styles.cup1, { opacity: cup1FadeOut }]}
+                        />
                     </Animated.View>
                 </Animated.View>
             )}
@@ -934,7 +1103,7 @@ const BrushTeethGame = () => {
             )}
             
             {/* Arrow pointing to Cup1 when it should be placed */}
-            {showCup1Wiggle && !cup1Placed && (
+            {showCup1Wiggle && !cup1Placed && !cup1IsDragging && (
                 <Animated.View 
                     style={[
                         styles.cup1ArrowContainer,
@@ -1034,7 +1203,7 @@ const BrushTeethGame = () => {
                     style={[
                         styles.draggableBrushContainer,
                         {
-                            opacity: Animated.multiply(draggableBrushFadeOut, Animated.subtract(1, victoryOpacity)),
+                            opacity: draggableBrushFadeOut,
                             transform: [
                                 { translateX: brushPosition.x },
                                 { translateY: brushPosition.y },
@@ -1042,7 +1211,7 @@ const BrushTeethGame = () => {
                             ]
                         }
                     ]}
-                    pointerEvents="box-none"
+                    pointerEvents={showCup1Wiggle ? 'none' : 'box-none'}
                 >
                     <View {...brushPanResponder.panHandlers} style={styles.touchableArea}>
                         <Image 
@@ -1126,10 +1295,18 @@ const styles = StyleSheet.create({
     },
     brush6: {
         position: 'absolute',
-        top: '18.5%', 
-        left: '-28%', 
-        width: 575,
-        height: 575,
+        top: '26%', 
+        left: '-40%', 
+        width: 690,
+        height: 390,
+        resizeMode: 'contain',
+    },
+    brush7: {
+        position: 'absolute',
+        top: '26%', 
+        left: '-40%', 
+        width: 690,
+        height: 390,
         resizeMode: 'contain',
     },
     paste: {
@@ -1163,7 +1340,16 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: '72%',
         left: '77%',
-        zIndex: 25,
+        zIndex: 200,
+        elevation: 200,
+        width: 120,
+        height: 80,
+    },
+    cup1TouchArea: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     arrowContainer: {
         position: 'absolute',
@@ -1173,9 +1359,9 @@ const styles = StyleSheet.create({
     },
     cup1ArrowContainer: {
         position: 'absolute',
-        top: '67%',
+        top: '74%',
         left: '82%',
-        zIndex: 20,
+        zIndex: 80,
     },
     overlayContainer: {
         position: 'absolute',
