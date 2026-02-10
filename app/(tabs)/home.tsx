@@ -1048,25 +1048,6 @@ export default function Home() {
           />
         </TouchableOpacity>
         
-        {/* TEST BUTTON - Start Tour */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#5DD4B4',
-            paddingHorizontal: scaleSpacing(16),
-            paddingVertical: scaleSpacing(8),
-            borderRadius: scaleSpacing(8),
-            marginLeft: scaleSpacing(10),
-          }}
-          onPress={() => {
-            console.log('🧪 TEST: Starting onboarding tour manually...');
-            startOnboarding();
-          }}
-        >
-          <Text style={{ color: '#fff', fontSize: scaleFont(14), fontWeight: '600' }}>
-            Start Tour
-          </Text>
-        </TouchableOpacity>
-        
         {parentalLockEnabled && (
           <TouchableOpacity
             style={styles.modeButton}
@@ -2563,8 +2544,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   fallingStarsGif: {
     position: "absolute",
+    top: -310,
+    left: 0,
+    right: 0,
     width: "100%",
-    height: "100%",
+    height: "120%",
     zIndex: 10,
     opacity: 0.3,
     tintColor: 'rgba(255, 215, 0, 0.6)',
