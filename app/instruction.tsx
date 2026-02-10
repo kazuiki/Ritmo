@@ -1,4 +1,5 @@
 import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
+import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -77,7 +78,9 @@ export default function InstructionPage() {
   const insets = useSafeAreaInsets();
   const [currentPage, setCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [currentVideoSource, setCurrentVideoSource] = useState<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const videoRef = useRef<Video>(null);
   const dotAnimations = useRef(PAGES.map(() => new Animated.Value(10))).current;
   const [fontsLoaded] = useFonts({
     Fredoka_600SemiBold,
@@ -129,8 +132,24 @@ export default function InstructionPage() {
     }
   };
 
-  const handleVideoButton = () => {
+  const handleVideoButton = (videoNumber: number) => {
+    const videoSources = [
+      require("../assets/Tutorials/1.mp4"),
+      require("../assets/Tutorials/2.mp4"),
+      require("../assets/Tutorials/3.mp4"),
+      require("../assets/Tutorials/4.mp4"),
+      require("../assets/Tutorials/5.mp4"),
+    ];
+    setCurrentVideoSource(videoSources[videoNumber - 1]);
     setVideoModalVisible(true);
+  };
+
+  const handleCloseVideo = () => {
+    if (videoRef.current) {
+      videoRef.current.pauseAsync();
+    }
+    setVideoModalVisible(false);
+    setCurrentVideoSource(null);
   };
 
   const renderPage = (page: typeof PAGES[0]) => {
@@ -174,7 +193,10 @@ export default function InstructionPage() {
               { bottom: Math.max(height * 0.18, 120) + insets.bottom }
             ]}
           >
-            <TouchableOpacity style={styles.videoButton} onPress={handleVideoButton}>
+            <TouchableOpacity 
+              style={styles.videoButton} 
+              onPress={() => handleVideoButton(page.id - 1)}
+            >
               <Image
                 source={require("../assets/images/WhitePlay.png")}
                 style={styles.playIcon}
@@ -244,28 +266,33 @@ export default function InstructionPage() {
         </View>
       </View>
 
-      {/* Video Modal (Static for now) */}
+      {/* Video Modal */}
       <Modal
         visible={videoModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setVideoModalVisible(false)}
+        onRequestClose={handleCloseVideo}
       >
-        <ImageBackground
-          source={require("../assets/background.png")}
-          style={styles.modalOverlay}
-          resizeMode="cover"
-        >
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalText}>Video Coming Soon</Text>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setVideoModalVisible(false)}
-            >
-              <Text style={styles.modalCloseText}>Close</Text>
-            </TouchableOpacity>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalCloseButton}
+            onPress={handleCloseVideo}
+          >
+            <Text style={styles.modalCloseText}>✕</Text>
+          </TouchableOpacity>
+          <View style={styles.videoModalContainer}>
+            {currentVideoSource && (
+              <Video
+                ref={videoRef}
+                source={currentVideoSource}
+                style={styles.video}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+              />
+            )}
           </View>
-        </ImageBackground>
+        </View>
       </Modal>
       </ImageBackground>
     </SafeAreaView>
@@ -413,9 +440,21 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  videoModalContainer: {
+    width: width,
+    height: height * 0.85,
+    backgroundColor: "#000",
+    borderRadius: 0,
+    overflow: "hidden",
+    padding: 0,
+  },
+  video: {
+    width: "100%",
+    height: "100%",
   },
   modalContainer: {
     backgroundColor: "#FFFFFF",
@@ -432,15 +471,26 @@ const styles = StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
   modalCloseButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
     backgroundColor: "#00A980",
-    borderRadius: 50,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
   },
   modalCloseText: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: "700",
     color: "#FFFFFF",
-    fontFamily: "Fredoka_700Bold",
+    lineHeight: 22,
   },
 });

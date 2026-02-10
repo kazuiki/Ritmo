@@ -1,27 +1,28 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
+import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  ImageBackground,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -74,6 +75,8 @@ export default function Settings() {
   const [instructionModalVisible, setInstructionModalVisible] = useState(false);
   const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [currentVideoSource, setCurrentVideoSource] = useState<any>(null);
+  const videoRef = useRef<Video>(null);
   
   // Parental Lock Tip
   const [showParentalLockTip, setShowParentalLockTip] = useState(false);
@@ -225,6 +228,26 @@ export default function Settings() {
   const handleInstruction = () => {
     setInstructionModalVisible(true);
     setInstructionCurrentPage(0);
+  };
+
+  const handleVideoButton = (videoNumber: number) => {
+    const videoSources = [
+      require("../../assets/Tutorials/1.mp4"),
+      require("../../assets/Tutorials/2.mp4"),
+      require("../../assets/Tutorials/3.mp4"),
+      require("../../assets/Tutorials/4.mp4"),
+      require("../../assets/Tutorials/5.mp4"),
+    ];
+    setCurrentVideoSource(videoSources[videoNumber - 1]);
+    setVideoModalVisible(true);
+  };
+
+  const handleCloseVideo = () => {
+    if (videoRef.current) {
+      videoRef.current.pauseAsync();
+    }
+    setVideoModalVisible(false);
+    setCurrentVideoSource(null);
   };
 
   const handleTermsAndConditions = () => {
@@ -1097,7 +1120,7 @@ export default function Settings() {
                   <Text style={styles.instructionDescription}>
                     Made to empower children of{'\n'}Autism Spectrum to develop{'\n'}their daily RITMO.
                   </Text>
-                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => handleVideoButton(1)}>
                     <Image
                       source={require("../../assets/images/WhitePlay.png")}
                       style={styles.instructionPlayIcon}
@@ -1122,7 +1145,7 @@ export default function Settings() {
                   <Text style={styles.instructionDescription}>
                     Track your child daily and weekly{'\n'}routines to support progress.
                   </Text>
-                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => handleVideoButton(2)}>
                     <Image
                       source={require("../../assets/images/WhitePlay.png")}
                       style={styles.instructionPlayIcon}
@@ -1154,7 +1177,7 @@ export default function Settings() {
                   <Text style={styles.instructionDescription}>
                     Enhance child engagement with{'\n'}interactive games and audio-visual{'\n'}book guides.
                   </Text>
-                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => handleVideoButton(3)}>
                     <Image
                       source={require("../../assets/images/WhitePlay.png")}
                       style={styles.instructionPlayIcon}
@@ -1179,7 +1202,7 @@ export default function Settings() {
                   <Text style={styles.instructionDescription}>
                     Parents are advised to guide and{'\n'}supervise children when using Ritmo.
                   </Text>
-                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => handleVideoButton(4)}>
                     <Image
                       source={require("../../assets/images/WhitePlay.png")}
                       style={styles.instructionPlayIcon}
@@ -1204,7 +1227,7 @@ export default function Settings() {
                   <Text style={styles.instructionDescription}>
                     Ritmo provides therapists with{'\n'}PDF reports detailing the child's{'\n'}progress.
                   </Text>
-                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => setVideoModalVisible(true)}>
+                  <TouchableOpacity style={styles.instructionVideoButton} onPress={() => handleVideoButton(5)}>
                     <Image
                       source={require("../../assets/images/WhitePlay.png")}
                       style={styles.instructionPlayIcon}
@@ -1239,17 +1262,26 @@ export default function Settings() {
         visible={videoModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setVideoModalVisible(false)}
+        onRequestClose={handleCloseVideo}
       >
         <View style={styles.videoModalOverlay}>
+          <TouchableOpacity
+            style={styles.videoModalCloseButton}
+            onPress={handleCloseVideo}
+          >
+            <Text style={styles.videoModalCloseText}>✕</Text>
+          </TouchableOpacity>
           <View style={styles.videoModalContainer}>
-            <Text style={styles.videoModalText}>Video Coming Soon</Text>
-            <TouchableOpacity
-              style={styles.videoModalCloseButton}
-              onPress={() => setVideoModalVisible(false)}
-            >
-              <Text style={styles.videoModalCloseText}>Close</Text>
-            </TouchableOpacity>
+            {currentVideoSource && (
+              <Video
+                ref={videoRef}
+                source={currentVideoSource}
+                style={styles.video}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -2227,16 +2259,21 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   // Video Modal Styles
   videoModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
     justifyContent: "center",
     alignItems: "center",
   },
   videoModalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: scale.scaleBorderRadius(20),
-    padding: scale.scaleSpacing(30),
-    alignItems: "center",
-    width: "80%",
+    width: scale.width,
+    height: scale.height * 0.85,
+    backgroundColor: "#000",
+    borderRadius: 0,
+    overflow: "hidden",
+    padding: 0,
+  },
+  video: {
+    width: "100%",
+    height: "100%",
   },
   videoModalText: {
     fontSize: scale.scaleFont(20),
@@ -2246,15 +2283,26 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "Fredoka_700Bold",
   },
   videoModalCloseButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
     backgroundColor: "#00A980",
-    borderRadius: scale.scaleBorderRadius(50),
-    paddingVertical: scale.scaleSpacing(12),
-    paddingHorizontal: scale.scaleSpacing(30),
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
   },
   videoModalCloseText: {
-    fontSize: scale.scaleFont(16),
+    fontSize: 22,
     fontWeight: "700",
     color: "#FFFFFF",
-    fontFamily: "Fredoka_700Bold",
+    lineHeight: 22,
   },
 }));

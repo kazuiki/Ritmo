@@ -6,7 +6,53 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// === RESPONSIVE DESIGN SYSTEM ===
+// Mobile-first: Use exact original values for mobile, scale for tablets only
+const SCREEN_ASPECT_RATIO = SCREEN_WIDTH / SCREEN_HEIGHT;
+const IS_TABLET = SCREEN_ASPECT_RATIO > 0.5 && SCREEN_HEIGHT > 800;
+const IS_LARGE_TABLET = SCREEN_HEIGHT > 1200;
+
+// Scaling only applies to tablets
+const TABLET_SCALE_FACTOR = IS_LARGE_TABLET ? 1.35 : (IS_TABLET ? 1.15 : 1);
+
+// Original mobile values - use exactly as before
+const RESPONSIVE_SIZES = {
+  // Header - original values
+  headerPaddingTop: 40,
+  headerMinHeight: 48,
+  
+  // Child container - CENTERED properly
+  childContainerTop: IS_TABLET ? SCREEN_HEIGHT * 0.20 : SCREEN_HEIGHT * 0.321,
+  childContainerHeight: IS_TABLET ? SCREEN_HEIGHT * 0.62 : SCREEN_HEIGHT * 0.50,
+  childContainerWidth: SCREEN_WIDTH, // 100% width to stay centered
+  childContainerLeft: 0, // No left offset - centered naturally
+  
+  // Plate - scale if tablet
+  plateHeight: IS_TABLET ? 280 * TABLET_SCALE_FACTOR : 250,
+  plateWidth: IS_TABLET ? 380 * TABLET_SCALE_FACTOR : 350,
+  plateBottom: IS_TABLET ? -60 * TABLET_SCALE_FACTOR : -16,
+  
+  // Plate centering - account for screen being centered
+  plateLeftEdge: (SCREEN_WIDTH - (IS_TABLET ? 380 * TABLET_SCALE_FACTOR : 350)) / 2,
+  
+  // Draggable container - scale if tablet, resting on the PLATE surface
+  draggableContainerWidth: IS_TABLET ? 200 * TABLET_SCALE_FACTOR : 200,
+  draggableContainerHeight: IS_TABLET ? 150 * TABLET_SCALE_FACTOR : 150,
+  draggableContainerBottom: IS_TABLET ? 90 * TABLET_SCALE_FACTOR : 90,
+  
+  // Food images - PROPERLY CENTERED
+  foodImageWidth: IS_TABLET ? 320 * TABLET_SCALE_FACTOR : 320,
+  foodImageHeight: IS_TABLET ? 200 * TABLET_SCALE_FACTOR : 200,
+  foodImageBottom: IS_TABLET ? 309 * TABLET_SCALE_FACTOR : 309,
+  foodImageLeft: SCREEN_WIDTH / 2 - (IS_TABLET ? 320 * TABLET_SCALE_FACTOR / 2 : 160), // Center food
+  
+  // Celebration - scale if tablet
+  celebrationTop: IS_TABLET ? SCREEN_HEIGHT * 0.25 : SCREEN_HEIGHT * 0.33,
+  celebrationHeight: SCREEN_HEIGHT * 0.45,
+  celebrationScale: IS_LARGE_TABLET ? 1.8 : (IS_TABLET ? 1.9 : 2.1),
+};
 
 // PRE-LOAD ALL IMAGES AS CONSTANTS - Prevents glitching and ensures instant loading
 const IMAGES = {
@@ -678,12 +724,12 @@ const EatingGame = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: '#D0FFA3' }]}>
       <Image 
         source={IMAGES.eatBG} 
         style={styles.background} 
         fadeDuration={0}
-        resizeMode="cover"
+        resizeMode="stretch"
       />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => {
@@ -712,7 +758,7 @@ const EatingGame = () => {
             style={[
               styles.child,
               // Ensure eat3.gif has same dimensions as eat1/eat2
-              childMouth === 'chewing' ? { resizeMode: 'contain' } : {},
+              childMouth === 'chewing' ? { resizeMode: 'contain', transform: [{ scale: IS_TABLET ? 0.8 : 1 }] } : {},
               // Add eye tracking movement
               getEyeTrackingStyle()
             ]} 
@@ -850,22 +896,21 @@ const styles = StyleSheet.create({
   background: { 
     position: 'absolute', 
     width: '100%', 
-    height: '100%', 
-    resizeMode: 'cover' 
+    height: '100%'
   },
   header: { 
     position: 'absolute', 
     top: 0, 
     left: 0, 
     right: 0, 
-    paddingTop: 40, 
+    paddingTop: RESPONSIVE_SIZES.headerPaddingTop, 
     paddingHorizontal: 16, 
     paddingBottom: 8, 
-    minHeight: 48, 
+    minHeight: RESPONSIVE_SIZES.headerMinHeight, 
     zIndex: 10 
   },
   backText: { 
-    fontSize: 20, 
+    fontSize: Math.max(16, SCREEN_WIDTH * 0.045), 
     color: '#244D4A', 
     textDecorationLine: 'underline', 
     fontWeight: '700', 
@@ -873,104 +918,100 @@ const styles = StyleSheet.create({
   },
   childContainer: {
     position: 'absolute', 
-    top: '32.1%', 
-    left: '2%', 
-    width: '100%', 
-    height: '50%',
-    zIndex: 1, // Back to original layering
+    top: RESPONSIVE_SIZES.childContainerTop, 
+    left: RESPONSIVE_SIZES.childContainerLeft, 
+    width: RESPONSIVE_SIZES.childContainerWidth, 
+    height: RESPONSIVE_SIZES.childContainerHeight,
+    zIndex: 1,
   },
   childContainerChewing: {
     position: 'absolute', 
-    top: '32.1%', // Same position as normal childContainer
-    left: '2%', // Same left position
-    width: '100%', // Same width as normal
-    height: '50%', // Same height as normal childContainer
-    transform: [{ scale: 2.0 }], // Smaller scale para hindi sobrang laki
-    zIndex: 1, // Same level as normal child
+    top: RESPONSIVE_SIZES.childContainerTop,
+    left: RESPONSIVE_SIZES.childContainerLeft,
+    width: RESPONSIVE_SIZES.childContainerWidth,
+    height: RESPONSIVE_SIZES.childContainerHeight,
+    transform: [{ scale: IS_TABLET ? 2.2 : 2.0 }],
+    zIndex: 1,
   },
   child: { 
     width: '100%', 
     height: '100%', 
     resizeMode: 'contain',
-    opacity: 1, // Always fully visible - no transitions
+    opacity: 1,
   },
   plateContainer: { 
     position: 'absolute',
-    bottom: '-2%',
+    bottom: Math.max(RESPONSIVE_SIZES.plateBottom, -20),
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 250,
-    zIndex: 2, // Above child
+    height: RESPONSIVE_SIZES.plateHeight,
+    zIndex: 2,
   },
   plate: { 
     position: 'absolute', 
-    width: 350, 
-    height: 250, 
+    width: RESPONSIVE_SIZES.plateWidth, 
+    height: RESPONSIVE_SIZES.plateHeight, 
     resizeMode: 'contain' 
   },
   draggableRiceContainer: { 
     position: 'absolute', 
-    bottom: '8%', 
-    width: 200, 
-    height: 150, 
+    bottom: IS_TABLET ? RESPONSIVE_SIZES.draggableContainerBottom - (5 * TABLET_SCALE_FACTOR) : RESPONSIVE_SIZES.draggableContainerBottom - 15,
+    left: IS_TABLET ? RESPONSIVE_SIZES.plateLeftEdge + (RESPONSIVE_SIZES.plateWidth - RESPONSIVE_SIZES.draggableContainerWidth) / 2 + 22 : RESPONSIVE_SIZES.plateWidth * 0.314,
+    width: RESPONSIVE_SIZES.draggableContainerWidth, 
+    height: RESPONSIVE_SIZES.draggableContainerHeight, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 // Above plate and child
+    zIndex: 20
   },
   draggableChickenContainer: { 
     position: 'absolute', 
-    bottom: '8%', 
-    width: 200, 
-    height: 150, 
+    bottom: IS_TABLET ? RESPONSIVE_SIZES.draggableContainerBottom : RESPONSIVE_SIZES.draggableContainerBottom - 15, 
+    left: RESPONSIVE_SIZES.plateLeftEdge + RESPONSIVE_SIZES.plateWidth - RESPONSIVE_SIZES.draggableContainerWidth - (IS_TABLET ? 110 : 70),
+    width: RESPONSIVE_SIZES.draggableContainerWidth, 
+    height: RESPONSIVE_SIZES.draggableContainerHeight, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 // Above plate and child
+    zIndex: 20
   },
   draggableVegiContainer: { 
     position: 'absolute', 
-    bottom: '8%', 
-    width: 200, 
-    height: 150, 
+    bottom: IS_TABLET ? RESPONSIVE_SIZES.draggableContainerBottom - (-15 * TABLET_SCALE_FACTOR) : RESPONSIVE_SIZES.draggableContainerBottom, 
+    left: IS_TABLET ? RESPONSIVE_SIZES.plateLeftEdge + (RESPONSIVE_SIZES.plateWidth - RESPONSIVE_SIZES.draggableContainerWidth) / 2 + 50 : RESPONSIVE_SIZES.plateWidth - RESPONSIVE_SIZES.draggableContainerWidth - 30,
+    width: RESPONSIVE_SIZES.draggableContainerWidth, 
+    height: RESPONSIVE_SIZES.draggableContainerHeight, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 // Above plate and child
+    zIndex: 20
   },
   riceImage: { 
-    bottom: '38%', 
-    left: '6%', 
-    width: 320, 
-    height: 200, 
+    width: RESPONSIVE_SIZES.foodImageWidth, 
+    height: RESPONSIVE_SIZES.foodImageHeight, 
     resizeMode: 'contain' 
   },
   chickenImage: { 
-    bottom: '38%', 
-    left: '6%', 
-    width: 320, 
-    height: 200, 
+    width: RESPONSIVE_SIZES.foodImageWidth, 
+    height: RESPONSIVE_SIZES.foodImageHeight, 
     resizeMode: 'contain' 
   },
   vegiImage: { 
-    bottom: '38%', 
-    left: '6%', 
-    width: 320, 
-    height: 200, 
+    width: RESPONSIVE_SIZES.foodImageWidth, 
+    height: RESPONSIVE_SIZES.foodImageHeight, 
     resizeMode: 'contain' 
   },
   draggableWaterContainer: { 
     position: 'absolute', 
-    bottom: '8%', // Same as other containers to align with table
-    width: 200, 
-    height: 150, 
+    bottom: RESPONSIVE_SIZES.draggableContainerBottom,
+    left: IS_TABLET ? RESPONSIVE_SIZES.plateLeftEdge + (RESPONSIVE_SIZES.plateWidth - RESPONSIVE_SIZES.draggableContainerWidth) / 2 : RESPONSIVE_SIZES.plateWidth - RESPONSIVE_SIZES.draggableContainerWidth - 30,
+    width: RESPONSIVE_SIZES.draggableContainerWidth, 
+    height: RESPONSIVE_SIZES.draggableContainerHeight, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    zIndex: 20 // Above plate and child
+    zIndex: 20
   },
   waterImage: { 
-    bottom: '38%', 
-    left: '6%', 
-    width: 320, 
-    height: 200, 
+    width: RESPONSIVE_SIZES.foodImageWidth, 
+    height: RESPONSIVE_SIZES.foodImageHeight, 
     resizeMode: 'contain' 
   },
   waterTouchable: {
@@ -981,10 +1022,10 @@ const styles = StyleSheet.create({
   },
   celebrationContainer: {
     position: 'absolute',
-    top: '34%', // Adjusted position para tulad ng image 2
-    left: '2%', // Same as childContainer position  
-    width: '100%',
-    height: '45%', // Keep the bigger height
+    top: RESPONSIVE_SIZES.celebrationTop,
+    left: RESPONSIVE_SIZES.childContainerLeft,
+    width: RESPONSIVE_SIZES.childContainerWidth,
+    height: RESPONSIVE_SIZES.celebrationHeight,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,
@@ -993,19 +1034,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'contain',
-    transform: [{ scale: 2.1 }], // Slightly smaller scale para balanced
+    transform: [{ scale: RESPONSIVE_SIZES.celebrationScale * (IS_TABLET ? 1.08 : 0.99) }],
   },
   completionContainer: {
     position: 'absolute',
-    bottom: '20%',
+    bottom: SCREEN_HEIGHT * 0.20,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: 20,
-    borderRadius: 15,
+    padding: Math.max(15, SCREEN_WIDTH * 0.04),
+    borderRadius: Math.max(10, SCREEN_WIDTH * 0.03),
     alignItems: 'center',
     justifyContent: 'center',
   },
   completionText: {
-    fontSize: 24,
+    fontSize: Math.max(18, SCREEN_WIDTH * 0.06),
     color: '#244D4A',
     fontWeight: 'bold',
     textAlign: 'center',
