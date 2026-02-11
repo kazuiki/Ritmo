@@ -274,7 +274,7 @@ export default function BathGame() {
   }, []);
 
   const checkToolCollisions = (toolType: string, toolX: number, toolY: number) => {
-    // Stop collision detection once Bath5.gif is triggered to prevent interference with drag state
+    // Stop collision detection once Bath5_anim.gif is triggered to prevent interference with drag state
     if (bath2Triggered) {
       return;
     }
@@ -851,9 +851,9 @@ export default function BathGame() {
             resizeMode="contain" 
           />
         )}
-        {/* Bath5.gif - shown after towel completes */}
+        {/* Bath5_anim.gif - shown after towel completes */}
         <Animated.Image 
-          source={require('./BathGame/Bath5.gif')} 
+          source={require('./BathGame/Bath5_anim.gif')} 
           style={[styles.child, { 
             position: 'absolute',
             width: SCREEN_WIDTH * 1.99,
