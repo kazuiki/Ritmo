@@ -1,14 +1,17 @@
 // @ts-nocheck
-
 import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from '@expo-google-fonts/fredoka';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { LogoutService, supabase } from "../src/supabaseClient";
-
 import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ResponsiveBackButton } from '../src/components/ResponsiveBackButton';
+import { ResponsiveSafeArea } from '../src/components/ResponsiveSafeArea';
+import { useResponsiveDimensions } from '../src/utils/responsive';
 
 export default function TermsAndConditions() {
+  const { scaleFont, scaleSpacing, scaleWidth, scaleHeight } = useResponsiveDimensions();
+  const insets = useSafeAreaInsets();
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
   const [declineModalVisible, setDeclineModalVisible] = useState(false);
   const [fontsLoaded] = useFonts({
@@ -23,40 +26,40 @@ export default function TermsAndConditions() {
       await AsyncStorage.setItem('@termsAccepted', 'true');
       setAcceptModalVisible(true);
     } catch (e) {
+      // Silent fail or show error modal if needed
     }
   };
 
-const handleDeclineTerms = async () => {
-  try {
-    await LogoutService.setManualLogout(true);
-    await supabase.auth.signOut();
-    router.replace("/auth/login");
-  } catch (error) {
-    console.error("Decline logout failed:", error);
-    router.replace("/auth/login");
-  }
-};
-
+  const handleDeclineTerms = async () => {
+    try {
+      await AsyncStorage.setItem('@termsAccepted', 'false');
+      setDeclineModalVisible(true);
+    } catch (e) {
+      // Silent fail or show error modal if needed
+    }
+  };
 
   if (!fontsLoaded) return null;
 
   return (
-    <View style={styles.termsModalOverlay}>
-      {/* Background Image */}
-      <Image source={require('../assets/background.png')} style={styles.backgroundImage} resizeMode="cover" />
+    <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.termsModalOverlay}>
+        {/* Background Image */}
+        <Image source={require('../assets/background.png')} style={styles.backgroundImage} resizeMode="cover" />
 
-      <View style={styles.termsModalContainer}>
-        {/* Back Button */}
-        <TouchableOpacity style={styles.termsBackButton} onPress={() => {
-          if (router.canGoBack()) {
-            router.back();
-          }
-        }}>
-          <Text style={styles.termsBackButtonText}>Back</Text>
-        </TouchableOpacity>
+        <View style={styles.termsModalContainer}>
+          {/* Back Button */}
+          <ResponsiveBackButton />
 
         {/* Scrollable Content */}
-        <ScrollView style={styles.termsScrollView} contentContainerStyle={styles.termsScrollContent} showsVerticalScrollIndicator={true}>
+        <ScrollView
+          style={styles.termsScrollView}
+          contentContainerStyle={[
+            styles.termsScrollContent,
+            { paddingBottom: scaleSpacing(24) + insets.bottom }
+          ]}
+          showsVerticalScrollIndicator={true}
+        >
           <Text style={styles.termsTitle}>Terms & Conditions</Text>
           <Text style={styles.termsSubtitle}>Last updated on November 2025</Text>
 
@@ -208,13 +211,13 @@ const handleDeclineTerms = async () => {
         onRequestClose={() => {
           setAcceptModalVisible(false);
           if (router.canGoBack()) {
-                  router.back();
-                  setTimeout(() => {
-                    if (router.canGoBack()) {
-                      router.back();
-                    }
-                  }, 0);
-                }
+            router.back();
+            setTimeout(() => {
+              if (router.canGoBack()) {
+                router.back();
+              }
+            }, 0);
+          }
         }}
       >
         <View style={styles.alertModalOverlay}>
@@ -234,8 +237,14 @@ const handleDeclineTerms = async () => {
               style={styles.alertOkButton}
               onPress={() => {
                 setAcceptModalVisible(false);
-                
-      router.push("/instruction");
+                if (router.canGoBack()) {
+                  router.back();
+                  setTimeout(() => {
+                    if (router.canGoBack()) {
+                      router.back();
+                    }
+                  }, 0);
+                }
               }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>
@@ -251,8 +260,14 @@ const handleDeclineTerms = async () => {
         visible={declineModalVisible}
         onRequestClose={() => {
           setDeclineModalVisible(false);
-          
-      router.push("/auth/login");
+          if (router.canGoBack()) {
+            router.back();
+            setTimeout(() => {
+              if (router.canGoBack()) {
+                router.back();
+              }
+            }, 0);
+          }
         }}
       >
         <View style={styles.alertModalOverlay}>
@@ -270,21 +285,25 @@ const handleDeclineTerms = async () => {
             </Text>
             <TouchableOpacity
               style={styles.alertOkButtonDecline}
-              onPress={handleDeclineTerms => {
-              setDeclineModalVisible(false);
-              //added jerald (1/22/2026)
-              LogoutService.setManualLogout(true);
-              supabase.auth.signOut({ scope: "global" });
-              router.replace("/auth/login");
-
-            }}
+              onPress={() => {
+                setDeclineModalVisible(false);
+                if (router.canGoBack()) {
+                  router.back();
+                  setTimeout(() => {
+                    if (router.canGoBack()) {
+                      router.back();
+                    }
+                  }, 0);
+                }
+              }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </ResponsiveSafeArea>
   );
 }
 
