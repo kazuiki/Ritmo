@@ -78,28 +78,32 @@ export const preloadGameAssets = async () => {
       require('../../app/game2/EatGame/Water1.png'),
       
       // Bath Game assets
-      require('../../app/game3/BathGame/BathBG.png'),
+      // require('../../app/game3/BathGame/BathBG.png'), // No BathBG.png, only BathBG.mp3
       require('../../app/game3/BathGame/Bath1.png'),
-      require('../../app/game3/BathGame/Bath2.gif'),
-      require('../../app/game3/BathGame/Bath3.gif'),
-      require('../../app/game3/BathGame/Bath4.gif'),
-      require('../../app/game3/BathGame/Bath5.gif'),
-      require('../../app/game3/BathGame/Bubbles.png'),
-      require('../../app/game3/BathGame/Shampoo.png'),
+      require('../../app/game3/BathGame/Bath2_anim.gif'),
+      require('../../app/game3/BathGame/Bath2.png'),
+      require('../../app/game3/BathGame/Bath3.png'),
+      require('../../app/game3/BathGame/Bath4.png'),
+      require('../../app/game3/BathGame/Bath5_anim.gif'),
+      require('../../app/game3/BathGame/Bath5.png'),
+      // require('../../app/game3/BathGame/Bubbles.png'), // File doesn't exist
+      // require('../../app/game3/BathGame/Shampoo.png'), // File doesn't exist
       require('../../app/game3/BathGame/Soap.png'),
       require('../../app/game3/BathGame/Towel.png'),
       
       // School Game assets
       require('../../app/game4/SchoolGame/SchoolBG.png'),
       require('../../app/game4/SchoolGame/School1.png'),
-      require('../../app/game4/SchoolGame/School2.gif'),
-      require('../../app/game4/SchoolGame/School3.gif'),
-      require('../../app/game4/SchoolGame/School4.gif'),
-      require('../../app/game4/SchoolGame/School5.gif'),
+      require('../../app/game4/SchoolGame/School2.png'),
+      require('../../app/game4/SchoolGame/School3.png'),
+      require('../../app/game4/SchoolGame/School4.png'),
+      require('../../app/game4/SchoolGame/School5.png'),
+      require('../../app/game4/SchoolGame/School6.gif'),
+      require('../../app/game4/SchoolGame/School7.gif'),
       require('../../app/game4/SchoolGame/Bag.png'),
-      require('../../app/game4/SchoolGame/Book.png'),
-      require('../../app/game4/SchoolGame/Pencil.png'),
-      require('../../app/game4/SchoolGame/Uniform.png'),
+      // require('../../app/game4/SchoolGame/Book.png'), // File doesn't exist
+      // require('../../app/game4/SchoolGame/Pencil.png'), // File doesn't exist
+      // require('../../app/game4/SchoolGame/Uniform.png'), // File doesn't exist
       
       // Common GIFs used in history/progress
       require('../../assets/gifs/brushStep1.gif'),
