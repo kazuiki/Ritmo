@@ -6,6 +6,27 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+// Base dimensions: Vivo Y20i (720x1600)
+const BASE_WIDTH = 720;
+const BASE_HEIGHT = 1600;
+
+// Calculate responsive scale
+const { width: DEVICE_WIDTH, height: DEVICE_HEIGHT } = Dimensions.get('window');
+const scaleWidth = DEVICE_WIDTH / BASE_WIDTH;
+const scaleHeight = DEVICE_HEIGHT / BASE_HEIGHT;
+const RESPONSIVE_SCALE = Math.min(scaleWidth, scaleHeight);
+
+// Helper function to scale values
+const scale = (size: number) => size * RESPONSIVE_SCALE;
+
+// Tablet vs Phone positioning: lift brushes significantly higher on tablets
+const isTablet = DEVICE_WIDTH > 600; // Lower threshold to catch more tablets
+const brushTopPhone = DEVICE_HEIGHT * 0.816 - scale(850);
+const brushTopTablet = DEVICE_HEIGHT * 0.75 - scale(850); // Higher on tablets (38% vs 80.5%)
+const brushTop = isTablet ? brushTopTablet : brushTopPhone;
+
+console.log('Device Info:', { DEVICE_WIDTH, DEVICE_HEIGHT, isTablet, brushTop });
+
 const BrushTeethGame = () => {
     const [brushIndex, setBrushIndex] = useState(0);
     const [showArrow, setShowArrow] = useState(false);
@@ -38,21 +59,20 @@ const BrushTeethGame = () => {
     const pasteWigglePlayedRef = useRef(false);
     const cupWigglePlayedRef = useRef(false);
 
-    
-    
     // Cleaning state for all 24 tartars
     const [tartarsCleaning, setTartarsCleaning] = useState<boolean[]>(new Array(24).fill(false));
     const [tartarsCleaned, setTartarsCleaned] = useState<boolean[]>(new Array(24).fill(false));
-    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
     const brushes = [
         require('./BrushGame/Brush1.png'), 
         require('./BrushGame/Brush2.png'), 
         require('./BrushGame/Brush3.png'), 
         require('./BrushGame/Brush4.png')
     ];
-    const scaleX = SCREEN_WIDTH / 375;      // your UI width base
-    const scaleY = SCREEN_HEIGHT / 812;     // your UI height base
-    const brushPastePosition = { x: 10 * scaleX, y: 300 * scaleY };
+    
+    // Use the global responsive scale
+    const scaleX = RESPONSIVE_SCALE;
+    const scaleY = RESPONSIVE_SCALE;
+    const brushPastePosition = { x: scale(10), y: scale(300) };
 
     const router = useRouter();
     
@@ -72,35 +92,50 @@ const BrushTeethGame = () => {
         12: require('./BrushGame/Tartar12.png'),
     } as Record<number, any>;
     
+    // Brush4 dimensions and positioning for reference
+    const brush4Width = scale(850);
+    const brush4Height = scale(850);
+    const brush4Left = (DEVICE_WIDTH - brush4Width) / 2;
+    const brush4Top = brushTop;
+    
+    // Calculate tartar positions relative to Brush4 center
+    // Base positions are designed for the brush size and positioning
+    const brush4CenterX = brush4Left + brush4Width / 2;
+    const brush4CenterY = brush4Top + brush4Height / 2;
+    const tartarYOffset = scale(100);
+    const tartarXOffset = scale(35);
+    const tartarSpreadX = 2.05;
+    const tartarSpreadY = 2.11;
+    
     // Tartar definitions - 24 tartars (12 types duplicated)
-    // ADJUST POSITIONS (x, y) AND SIZE (width, height) HERE IN THE CODE
+    // All values are now properly scaled and positioned relative to Brush4
     const tartars = [
         // First set (1-12) - Visible at 100% opacity
-        { id: 1, type: 1, x: 100, y: 410, width: 30, height: 30, opacity: 1 },
-        { id: 2, type: 2, x: 130, y: 412, width: 30, height: 30, opacity: 1 },
-        { id: 3, type: 3, x: 150, y: 412, width: 30, height: 30, opacity: 1 },
-        { id: 4, type: 4, x: 180, y: 410, width: 30, height: 30, opacity: 1 },
-        { id: 5, type: 5, x: 210, y: 412, width: 30, height: 30, opacity: 1 },
-        { id: 6, type: 6, x: 230, y: 410, width: 30, height: 30, opacity: 1 },
-        { id: 7, type: 7, x: 110, y: 470, width: 30, height: 30, opacity: 1 },
-        { id: 8, type: 8, x: 130, y: 473, width: 30, height: 30, opacity: 1 },
-        { id: 9, type: 9, x: 155, y: 475, width: 30, height: 30, opacity: 1 },
-        { id: 10, type: 10, x: 180, y: 475, width: 30, height: 30, opacity: 1 },
-        { id: 11, type: 11, x: 200, y: 473, width: 30, height: 30, opacity: 1 },
-        { id: 12, type: 12, x: 220, y: 465, width: 30, height: 30, opacity: 1 },
+        { id: 1, type: 1, x: brush4CenterX - scale(100 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-40 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 2, type: 2, x: brush4CenterX - scale(70 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-38 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 3, type: 3, x: brush4CenterX - scale(50 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-38 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 4, type: 4, x: brush4CenterX - scale(20 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-40 * tartarSpreadY) + tartarYOffset, width: scale(60), height: scale(60), opacity: 1 },
+        { id: 5, type: 5, x: brush4CenterX + scale(10 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-38 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 6, type: 6, x: brush4CenterX + scale(30 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-40 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 7, type: 7, x: brush4CenterX - scale(90 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(20 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 8, type: 8, x: brush4CenterX - scale(70 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(23 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 9, type: 9, x: brush4CenterX - scale(45 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(25 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 10, type: 10, x: brush4CenterX - scale(20 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(25 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 11, type: 11, x: brush4CenterX + tartarXOffset, y: brush4CenterY + scale(23 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 1 },
+        { id: 12, type: 12, x: brush4CenterX + scale(22 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(20 * tartarSpreadY) + tartarYOffset, width: scale(60), height: scale(60), opacity: 1 },
         // Duplicated set (13-24) - Invisible at 0% opacity
-        { id: 13, type: 1, x: 100, y: 430, width: 30, height: 30, opacity: 0 },
-        { id: 14, type: 2, x: 125, y: 432, width: 30, height: 30, opacity: 0 },
-        { id: 15, type: 3, x: 155, y: 432, width: 30, height: 30, opacity: 0 },
-        { id: 16, type: 4, x: 185, y: 430, width: 30, height: 30, opacity: 0 },
-        { id: 17, type: 5, x: 210, y: 432, width: 30, height: 30, opacity: 0 },
-        { id: 18, type: 6, x: 235, y: 430, width: 30, height: 30, opacity: 0 },
-        { id: 19, type: 7, x: 100, y: 450, width: 30, height: 30, opacity: 0 },
-        { id: 20, type: 8, x: 125, y: 453, width: 30, height: 30, opacity: 0 },
-        { id: 21, type: 9, x: 155, y: 455, width: 30, height: 30, opacity: 0 },
-        { id: 22, type: 10, x: 185, y: 455, width: 30, height: 30, opacity: 0 },
-        { id: 23, type: 11, x: 215, y: 453, width: 30, height: 30, opacity: 0 },
-        { id: 24, type: 12, x: 235, y: 445, width: 30, height: 30, opacity: 0 },
+        { id: 13, type: 1, x: brush4CenterX - scale(100 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-20 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 14, type: 2, x: brush4CenterX - scale(75 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-18 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 15, type: 3, x: brush4CenterX - scale(45 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-18 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 16, type: 4, x: brush4CenterX - scale(15 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-20 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 17, type: 5, x: brush4CenterX + scale(10 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-18 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 18, type: 6, x: brush4CenterX + scale(35 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-20 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 19, type: 7, x: brush4CenterX - scale(100 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(0 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 20, type: 8, x: brush4CenterX - scale(75 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(3 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 21, type: 9, x: brush4CenterX - scale(45 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(5 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 22, type: 10, x: brush4CenterX - scale(15 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(5 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 23, type: 11, x: brush4CenterX + scale(15 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(3 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
+        { id: 24, type: 12, x: brush4CenterX + scale(35 * tartarSpreadX) + tartarXOffset, y: brush4CenterY + scale(-5 * tartarSpreadY) + tartarYOffset, width: scale(55), height: scale(55), opacity: 0 },
     ];    // Opacity values for each brush image
     const opacity1 = useRef(new Animated.Value(1)).current;
     const opacity2 = useRef(new Animated.Value(0)).current;
@@ -144,8 +179,9 @@ const BrushTeethGame = () => {
     const victoryScale = useRef(new Animated.Value(1)).current;
     const victoryOpacity = useRef(new Animated.Value(0)).current;
 
+    // Brush tip position ref for debugging
+    const brushTipRef = useRef({ x: 0, y: 0 });
 
-    
     const playOneShot = async (source: number, volume = 1.0) => {
         try {
             const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true, volume });
@@ -228,7 +264,6 @@ const BrushTeethGame = () => {
         setSwipeProgress(0);
         setPasteComplete(false);
         setShowDraggableBrush(false);
-        setShowTartars(false); // Hide tartars when overlay closes
         // Reset swipe animations
         toothpasteRotation.setValue(0);
         pasteOpacity.setValue(0);
@@ -287,6 +322,15 @@ const BrushTeethGame = () => {
     
     // Simple pan responder for draggable toothbrush
     const dragOffset = useRef({ x: 0, y: 0 });
+
+    // Calculate brush tip position relative to draggable brush
+    const calculateBrushTipPosition = (brushX: number, brushY: number) => {
+        // These values should point to the center of the brush head/bristles
+        // Adjust based on your toothbrush image
+        const brushTipX = brushX + scale(260); // Center of brush head
+        const brushTipY = brushY + scale(70);  // Top of brush head
+        return { x: brushTipX, y: brushTipY };
+    };
     
     const brushPanResponder = useRef(
         PanResponder.create({
@@ -306,35 +350,35 @@ const BrushTeethGame = () => {
                     y: newY
                 });
                 
-                // Calculate brush paste position (where the paste is on the draggable brush)
-                const brushPasteX = newX + 56 + 35; // 56 offset + half paste width (~70/2)
-                const brushPasteY = newY + 350; // top offset + half paste height (~65/2)
+                // Calculate brush tip position (where the cleaning happens)
+                const brushTip = calculateBrushTipPosition(newX, newY);
+                brushTipRef.current = brushTip;
                 
-                const collisionRadius = 10; // Adjust for sensitivity
+                const collisionRadius = scale(60); // Increased collision radius for better detection
                 
                 // Check collision with all tartars
-                let brushingContact = false;
-
                 tartars.forEach((tartar, index) => {
-                    // Calculate tartar center (used for both tartar and foam contact)
+                    // Skip invisible tartars
+                    if (tartar.opacity === 0) return;
+                    
+                    // Calculate tartar center
                     const tartarCenterX = tartar.x + tartar.width / 2;
                     const tartarCenterY = tartar.y + tartar.height / 2;
 
-                    const distance = Math.sqrt(
-                        Math.pow(brushPasteX - tartarCenterX, 2) + 
-                        Math.pow(brushPasteY - tartarCenterY, 2)
-                    );
+                    // Simple distance check
+                    const dx = brushTip.x - tartarCenterX;
+                    const dy = brushTip.y - tartarCenterY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
 
+                    // If brush tip touches tartar
                     if (distance < collisionRadius) {
-                        brushingContact = true; // drive continuous loop
-                        
                         // Set permanent foam flag on first contact
                         if (!brushHasFoam) {
                             setBrushHasFoam(true);
                             // Gradually fade in foam on draggable brush
                             Animated.timing(draggableBrushFoamOpacity, {
                                 toValue: 1,
-                                duration: 1000,
+                                duration: 800,
                                 useNativeDriver: true,
                             }).start();
                         }
@@ -354,20 +398,20 @@ const BrushTeethGame = () => {
                             return newState;
                         });
                         
-                        // Parallel fade animations: tartar fades out, foam fades in
+                        // Parallel fade animations: tartar fades out, foam fades in over time
                         Animated.parallel([
                             Animated.timing(tartarsOpacity[index], {
                                 toValue: 0,
-                                duration: 5000,
+                                duration: 3000, // 3 seconds to fade out tartar
                                 useNativeDriver: true,
                             }),
                             Animated.timing(foamsOpacity[index], {
                                 toValue: 1,
-                                duration: 5000,
+                                duration: 3000, // 3 seconds to fade in foam
                                 useNativeDriver: true,
                             })
                         ]).start(() => {
-                            // After foam forms, mark as cleaned immediately (no fade out)
+                            // After animation completes, mark as cleaned
                             setTartarsCleaned(prev => {
                                 const newState = [...prev];
                                 newState[index] = true;
@@ -377,8 +421,6 @@ const BrushTeethGame = () => {
                         });
                     }
                 });
-
-
             },
             onPanResponderRelease: () => {
                 // Keep the final position
@@ -429,23 +471,23 @@ const BrushTeethGame = () => {
                     const cup1Y = cup1DragOffset.current.y + gestureState.dy;
                     
                     // Convert cup1DraggableContainer percentage position to pixels
-                    // cup1DraggableContainer is at top: '72%', left: '77%'
-                    const cup1InitialScreenX = (SCREEN_WIDTH * 0.77);
-                    const cup1InitialScreenY = (SCREEN_HEIGHT * 0.72);
+                    // cup1DraggableContainer is at top: '72%', left: '80%'
+                    const cup1InitialScreenX = (DEVICE_WIDTH * 0.80);
+                    const cup1InitialScreenY = (DEVICE_HEIGHT * 0.72);
                     
                     // Add drag offset to get actual screen position
                     const cup1ScreenX = cup1InitialScreenX + cup1X;
                     const cup1ScreenY = cup1InitialScreenY + cup1Y;
                     
                     // Cup1 center
-                    const cup1CenterX = cup1ScreenX + 52; // 104/2
-                    const cup1CenterY = cup1ScreenY + 29.5; // 59/2
+                    const cup1CenterX = cup1ScreenX + scale(52); // 104/2
+                    const cup1CenterY = cup1ScreenY + scale(29.5); // 59/2
                     
                     // Define teeth foam area center (middle of Brush4 area)
-                    // Brush4 is approximately at screen center where teeth are
-                    const foamCenterX = 170;  // Middle of teeth area
-                    const foamCenterY = 445;  // Middle of teeth area
-                    const foamRadius = 150;   // Large radius to accept drops in teeth area
+                    // Use the brush4CenterY which is now properly calculated
+                    const foamCenterX = brush4CenterX;
+                    const foamCenterY = brush4CenterY;
+                    const foamRadius = scale(150);   // Large radius to accept drops in teeth area
                     
                     // Check if Cup1 is dropped in the foam area
                     const distance = Math.sqrt(
@@ -988,10 +1030,10 @@ const BrushTeethGame = () => {
                             source={require('./BrushGame/Foam.png')}
                             style={{
                                 position: 'absolute',
-                                left: tartar.x - 25,
-                                top: tartar.y - 25,
-                                width: 80,
-                                height: 80,
+                                left: tartar.x - scale(25),
+                                top: tartar.y - scale(25),
+                                width: scale(80),
+                                height: scale(80),
                                 opacity: foamsOpacity[index],
                                 resizeMode: 'contain',
                                 zIndex: 36,
@@ -1089,11 +1131,11 @@ const BrushTeethGame = () => {
                         }
                     ]}
                 >
-                    <Svg width="60" height="150" viewBox="0 0 60 80">
+                    <Svg width={scale(110)} height={scale(260)} viewBox="0 0 60 80">
                         <Path
                             d="M30 0 L30 55 M30 55 L15 40 M30 55 L45 40"
                             stroke="#FF6B6B"
-                            strokeWidth={4}
+                            strokeWidth={scale(4)}
                             strokeLinecap="round"
                             strokeDasharray="5, 5"
                             fill="none"
@@ -1115,11 +1157,11 @@ const BrushTeethGame = () => {
                         }
                     ]}
                 >
-                    <Svg width="60" height="150" viewBox="0 0 60 80">
+                    <Svg width={scale(60)} height={scale(150)} viewBox="0 0 60 80">
                         <Path
                             d="M30 0 L30 55 M30 55 L15 40 M30 55 L45 40"
                             stroke="#FF6B6B"
-                            strokeWidth="4"
+                            strokeWidth={scale(4)}
                             strokeLinecap="round"
                             strokeDasharray="5, 5"
                             fill="none"
@@ -1175,7 +1217,7 @@ const BrushTeethGame = () => {
                                 style={[
                                     styles.pasteOnBrush,
                                     {
-                                        opacity: pasteOpacity
+                                        opacity: 1
                                     }
                                 ]}
                             />
@@ -1263,9 +1305,11 @@ const styles = StyleSheet.create({
     },
     background: {
         position: 'absolute',
+        top: 0,
+        left: 0,
         width: '100%',
         height: '100%',
-        resizeMode: 'cover',
+        resizeMode: 'stretch',
     },
     header: {
         position: 'absolute',
@@ -1287,63 +1331,63 @@ const styles = StyleSheet.create({
     },
     brush: {
         position: 'absolute',
-        top: '26%', 
-        left: '-3%', 
-        width: 390,
-        height: 390,
+        top: brushTop, // Separate positioning: phone stays at 80.5%, tablet lifted to 55%
+        left: (DEVICE_WIDTH - scale(850)) / 2, // Centered horizontally on any screen size
+        width: scale(850),
+        height: scale(850),
         resizeMode: 'contain',
     },
     brush6: {
         position: 'absolute',
         top: '26%', 
         left: '-40%', 
-        width: 690,
-        height: 390,
+        width: scale(690),
+        height: scale(390),
         resizeMode: 'contain',
     },
     brush7: {
         position: 'absolute',
         top: '26%', 
         left: '-40%', 
-        width: 690,
-        height: 390,
+        width: scale(690),
+        height: scale(390),
         resizeMode: 'contain',
     },
     paste: {
-        width: 110,
-        height: 95,
+        width: scale(210),
+        height: scale(190),
         resizeMode: 'contain',
     },
     pasteButton: {
         position: 'absolute',
-        top: '70%',
-        left: '65%',
+        top: '71%',
+        left: '67%',
         zIndex: 15,
     },
     cup: {
-        width: 110,
-        height: 95,
+        width: scale(210),
+        height: scale(190),
         resizeMode: 'contain',
     },
     cup1Button: {
         position: 'absolute',
         top: '77%',
-        left: '76%',
+        left: '79%',
         zIndex: 15,
     },
     cup1: {
-        width: 104,
-        height: 59,
+        width: scale(180),
+        height: scale(125),
         resizeMode: 'contain',
     },
     cup1DraggableContainer: {
         position: 'absolute',
         top: '72%',
-        left: '77%',
+        left: '80%',
         zIndex: 200,
         elevation: 200,
-        width: 120,
-        height: 80,
+        width: scale(120),
+        height: scale(80),
     },
     cup1TouchArea: {
         width: '100%',
@@ -1353,8 +1397,8 @@ const styles = StyleSheet.create({
     },
     arrowContainer: {
         position: 'absolute',
-        top: '80%',
-        left: '62%',
+        top: '81%',
+        left: '67%',
         zIndex: 20,
     },
     cup1ArrowContainer: {
@@ -1396,92 +1440,92 @@ const styles = StyleSheet.create({
     },
     toothpaste: {
         position: 'absolute',
-        top: '15%',
-        left: '2%',
-        width: 260,
-        height: 420,
+        top: '22%',
+        left: '5%',
+        width: DEVICE_WIDTH * 0.54,
+        height: DEVICE_HEIGHT * 0.40,
         resizeMode: 'contain',
         transform: [{ rotate: '-2deg' }],
     },
     toothbrush: {
         position: 'absolute',
-        top: '48%',
-        left: '6%',
-        width: 330,
-        height: 130,
+        top: '49%',
+        left: '50%',
+        width: DEVICE_WIDTH * 0.93,
+        height: DEVICE_HEIGHT * 0.17,
         resizeMode: 'contain',
-        transform: [{ rotate: '0deg' }],
+        transform: [{ translateX: -(DEVICE_WIDTH * 0.93) / 2 }],
     },
     pasteContainer: {
         position: 'absolute',
-        top: '47%',
-        left: '9%',
-        width: 105,
-        height: 85,
+        top: '45%',
+        left: '15%',
+        width: DEVICE_WIDTH * 0.21,
+        height: DEVICE_HEIGHT * 0.16,
         overflow: 'hidden',
     },
     pasteOnBrush: {
-        width: 100,
-        height: 80,
-        resizeMode: 'contain',
+        width: '100%',
+        height: '100%',
+        resizeMode: 'stretch',
         transform: [{ rotate: '-12deg' }],
     },
     instructionArrow: {
         position: 'absolute',
-        top: '58%',
-        left: '22%',
-        width: 210,
-        height: 110,
+        top: '59%',
+        left: '50%',
+        width: DEVICE_WIDTH * 0.5,
+        height: DEVICE_HEIGHT * 0.11,
         resizeMode: 'contain',
+        transform: [{ translateX: -(DEVICE_WIDTH * 0.5) / 2 }],
     },
     instructionText: {
         position: 'absolute',
         top: '68%',
-        left: '26%',
-        fontSize: 25,
+        left: 0,
+        width: DEVICE_WIDTH,
+        fontSize: DEVICE_HEIGHT * 0.025,
         fontWeight: '700',
         color: '#4DD9C6',
-        fontFamily: 'Fredoka_700Bold',
+        fontFamily: 'Fredoka_700',
         textAlign: 'center',
     },
     draggableBrushContainer: {
         position: 'absolute',
-        width: 360,
-        height: 160,
+        width: scale(660),
+        height: scale(300),
         zIndex: 50,
     },
     touchableArea: {
-        width: 360,
-        height: 160,
+        width: scale(660),
+        height: scale(300),
     },
     draggableToothbrush: {
         position: 'absolute',
-        width: 280,
-        height: 80,
+        width: scale(520),
+        height: scale(150),
         resizeMode: 'contain',
     },
     draggablePaste: {
         position: 'absolute',
-        top: -5,
-        left: 49,
-        width: 57,
-        height: 47,
+        top: scale(-14),
+        left: scale(85),
+        width: scale(115),
+        height: scale(96),
         resizeMode: 'contain',
         transform: [{ rotate: '-12deg' }],
     },
     draggableBrushFoam: {
         position: 'absolute',
-        top: -20,
-        left: 34,
-        width: 90,
-        height: 90,
+        top: scale(-42),
+        left: scale(70),
+        width: scale(175),
+        height: scale(175),
         resizeMode: 'contain',
         zIndex: 49,
     },
     tartar: {
         position: 'absolute',
-        width: 50,
-        height: 50,
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 35,
@@ -1493,39 +1537,39 @@ const styles = StyleSheet.create({
     },
     adjustmentPanel: {
         position: 'absolute',
-        top: 60,
-        right: 16,
+        top: scale(60),
+        right: scale(16),
         backgroundColor: 'rgba(36, 77, 74, 0.9)',
-        borderRadius: 8,
-        padding: 12,
+        borderRadius: scale(8),
+        padding: scale(12),
         zIndex: 1000,
-        minWidth: 180,
+        minWidth: scale(180),
     },
     adjustmentTitle: {
-        fontSize: 14,
+        fontSize: scale(14),
         fontWeight: '700',
         color: '#4DD9C6',
         fontFamily: 'Fredoka_700Bold',
-        marginBottom: 4,
+        marginBottom: scale(4),
     },
     adjustmentInfo: {
-        fontSize: 12,
+        fontSize: scale(12),
         color: '#FFFFFF',
         fontFamily: 'Fredoka_400Regular',
-        marginBottom: 8,
+        marginBottom: scale(8),
     },
     adjustmentControls: {
-        gap: 8,
+        gap: scale(8),
     },
     adjustButton: {
         backgroundColor: '#4DD9C6',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 6,
+        paddingVertical: scale(8),
+        paddingHorizontal: scale(12),
+        borderRadius: scale(6),
         alignItems: 'center',
     },
     adjustButtonText: {
-        fontSize: 12,
+        fontSize: scale(12),
         fontWeight: '600',
         color: '#244D4A',
         fontFamily: 'Fredoka_600SemiBold',
