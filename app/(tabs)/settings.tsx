@@ -1269,7 +1269,7 @@ export default function Settings() {
             style={styles.videoModalCloseButton}
             onPress={handleCloseVideo}
           >
-            <Text style={styles.videoModalCloseText}>✕</Text>
+            <Text style={styles.videoModalCloseText}>Skip</Text>
           </TouchableOpacity>
           <View style={styles.videoModalContainer}>
             {currentVideoSource && (
@@ -1280,6 +1280,11 @@ export default function Settings() {
                 useNativeControls
                 resizeMode={ResizeMode.CONTAIN}
                 shouldPlay
+                onPlaybackStatusUpdate={(status) => {
+                  if (status.isLoaded && status.didJustFinish) {
+                    handleCloseVideo();
+                  }
+                }}
               />
             )}
           </View>
@@ -2288,8 +2293,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     right: 20,
     backgroundColor: "#00A980",
     borderRadius: 20,
-    width: 40,
-    height: 40,
+    paddingHorizontal: 14,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 999,
