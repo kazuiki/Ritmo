@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
@@ -17,21 +17,25 @@ interface ProgressOnboardingProps {
   onComplete: () => void;
   onSkip: () => void;
   weekButtonLayout?: { x: number; y: number; width: number; height: number } | null;
+  savePdfButtonLayout?: { x: number; y: number; width: number; height: number } | null;
 }
 
 export default function ProgressOnboarding({ 
   visible, 
   onComplete, 
   onSkip,
-  weekButtonLayout 
+  weekButtonLayout,
+  savePdfButtonLayout,
 }: ProgressOnboardingProps) {
   const responsive = useResponsiveDimensions();
   const { width: screenWidth, height: screenHeight, scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     if (visible) {
+      setStep(0);
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 300,
@@ -44,23 +48,49 @@ export default function ProgressOnboarding({
 
   if (!visible || !weekButtonLayout) return null;
 
+  const hasSecondStep = !!savePdfButtonLayout;
+  const currentLayout = step === 0 ? weekButtonLayout : savePdfButtonLayout;
+  if (!currentLayout) return null;
+
   const highlightPosition = {
-    left: weekButtonLayout.x,
-    top: weekButtonLayout.y,
-    width: weekButtonLayout.width,
-    height: weekButtonLayout.height,
+    left: currentLayout.x,
+    top: currentLayout.y,
+    width: currentLayout.width,
+    height: currentLayout.height,
   };
+  const highlightBorderRadius = step === 0 ? scaleSpacing(8) : scaleSpacing(16);
+
+  const stepTitle = step === 0 ? 'View History' : 'Save as PDF';
+  const stepDescription = step === 0
+    ? "Tap here to view your weekly progress history and see how you've done over time!"
+    : 'Tap here to download and save your weekly progress report as a PDF file.';
 
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
     const left = (screenWidth - tooltipWidth) / 2;
-    const top = highlightPosition.top + highlightPosition.height + scaleHeight(20);
+    const spaceBelow = screenHeight - (highlightPosition.top + highlightPosition.height);
+
+    if (spaceBelow > scaleHeight(220)) {
+      return {
+        left,
+        top: highlightPosition.top + highlightPosition.height + scaleHeight(20),
+        width: tooltipWidth,
+      };
+    }
 
     return {
       left,
-      top,
+      bottom: screenHeight - highlightPosition.top + scaleHeight(20),
       width: tooltipWidth,
     };
+  };
+
+  const handleNext = () => {
+    if (step === 0 && hasSecondStep) {
+      setStep(1);
+      return;
+    }
+    onComplete();
   };
 
   const screenDimensions = Dimensions.get('screen');
@@ -83,7 +113,7 @@ export default function ProgressOnboarding({
                 y={highlightPosition.top}
                 width={highlightPosition.width}
                 height={highlightPosition.height}
-                rx={scaleSpacing(8)}
+                rx={highlightBorderRadius}
                 fill="#000"
               />
             </Mask>
@@ -99,13 +129,14 @@ export default function ProgressOnboarding({
         <View
           style={[
             styles.highlight,
+            step === 1 && styles.highlightExact,
             {
               position: 'absolute',
               left: highlightPosition.left,
               top: highlightPosition.top,
               width: highlightPosition.width,
               height: highlightPosition.height,
-              borderRadius: scaleSpacing(8),
+              borderRadius: highlightBorderRadius,
             },
           ]}
         />
@@ -113,12 +144,15 @@ export default function ProgressOnboarding({
         <View style={[styles.tooltip, getTooltipStyle()]}>
           <View style={styles.tooltipHeader}>
             <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
-              View History
+              {stepTitle}
+            </Text>
+            <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
+              {step + 1}/{hasSecondStep ? 2 : 1}
             </Text>
           </View>
           
           <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
-            Tap here to view your weekly progress history and see how you've done over time!
+            {stepDescription}
           </Text>
 
           <View style={styles.tooltipActions}>
@@ -127,7 +161,7 @@ export default function ProgressOnboarding({
             </TouchableOpacity>
 
             <TouchableOpacity 
-              onPress={onComplete} 
+              onPress={handleNext} 
               style={[styles.nextButton, { 
                 paddingHorizontal: scaleSpacing(24),
                 paddingVertical: scaleSpacing(12),
@@ -135,9 +169,9 @@ export default function ProgressOnboarding({
               }]}
             >
               <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
-                Got it!
+                {step === 0 && hasSecondStep ? 'Next' : 'Got it!'}
               </Text>
-              <Ionicons name="checkmark-circle" size={scaleFont(18)} color="#fff" />
+              <Ionicons name={step === 0 && hasSecondStep ? 'arrow-forward' : 'checkmark-circle'} size={scaleFont(18)} color="#fff" />
             </TouchableOpacity>
           </View>
         </View>
@@ -161,6 +195,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  highlightExact: {
+    borderWidth: 2,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
   tooltip: {
     position: 'absolute',
     backgroundColor: '#fff',
@@ -173,11 +213,18 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tooltipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
   tooltipTitle: {
     fontWeight: '700',
     color: '#2F7C72',
+  },
+  stepIndicator: {
+    color: '#8AA0A8',
+    fontWeight: '600',
   },
   tooltipDescription: {
     color: '#333',

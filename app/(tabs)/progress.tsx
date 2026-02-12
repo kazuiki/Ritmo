@@ -7,14 +7,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-	Alert,
-	Image,
-	Pressable,
-	ScrollView,
-	StyleSheet,
-	Text,
-	TouchableOpacity,
-	View
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProgressOnboarding } from "../../src/components";
@@ -46,7 +46,9 @@ export default function Progress() {
 	});
 	const printableRef = useRef<View>(null);
 	const weekButtonRef = useRef<View>(null);
+	const savePdfButtonRef = useRef<TouchableOpacity>(null);
 	const [weekButtonLayout, setWeekButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
+	const [savePdfButtonLayout, setSavePdfButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [childName, setChildName] = useState<string>("Kid");
 	const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
@@ -224,6 +226,48 @@ export default function Progress() {
 		return { totalTasks, completed, rate, perTaskDone };
 	}, [tasks]);
 
+	const handleSavePdf = async () => {
+		if (isGeneratingPdf) return;
+		setIsGeneratingPdf(true);
+		try {
+			let logoBase64 = '';
+			try {
+				const asset = Asset.fromModule(RITMO_HEADER);
+				await asset.downloadAsync();
+				if (asset.localUri) {
+					const data = await FileSystem.readAsStringAsync(asset.localUri, {
+						encoding: 'base64',
+					});
+					logoBase64 = data;
+				}
+			} catch (e) {
+				console.warn('Could not load logo image:', e);
+			}
+
+			await saveWeeklyPerformanceReportPdf({
+				childName: childName,
+				weekStart: weekInfo.monday,
+				weekEnd: weekInfo.sunday,
+				totalTasks: totals.totalTasks,
+				completedTasks: totals.completed,
+				completionRate: totals.rate,
+				tasks: tasks.map((task, idx) => ({
+					name: task.name,
+					timestamp: task.timestamp,
+					statuses: task.statuses,
+					routineId: task.routineId,
+					perTaskDone: totals.perTaskDone[idx] || 0,
+				})),
+				logoBase64: logoBase64,
+				openAfterSave: true,
+			});
+		} catch (e: any) {
+			Alert.alert('PDF Error', e?.message || 'Failed to generate PDF');
+		} finally {
+			setIsGeneratingPdf(false);
+		}
+	};
+
 	useFocusEffect(
 		React.useCallback(() => {
 			// Reload data when tab is focused to ensure fresh data
@@ -264,14 +308,19 @@ export default function Progress() {
 			
 			refreshData();
 
-			// Measure week button and trigger onboarding after a delay
+			// Measure onboarding targets and trigger onboarding after a delay
 			const measureTimer = setTimeout(() => {
 				weekButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
 					setWeekButtonLayout({ x: pageX, y: pageY, width, height });
 					console.log('📏 Progress week button measured:', { x: pageX, y: pageY, width, height });
-					
-					// Trigger onboarding after measurement
-					startProgressOnboarding();
+
+					savePdfButtonRef.current?.measure((sx, sy, sWidth, sHeight, sPageX, sPageY) => {
+						setSavePdfButtonLayout({ x: sPageX, y: sPageY, width: sWidth, height: sHeight });
+						console.log('📏 Progress save PDF button measured:', { x: sPageX, y: sPageY, width: sWidth, height: sHeight });
+
+						// Trigger onboarding after targets are measured
+						startProgressOnboarding();
+					});
 				});
 			}, 100);
 
@@ -583,50 +632,7 @@ export default function Progress() {
 				</View>
 
 				{/* Save as PDF Button */}
-				<TouchableOpacity style={styles.pdfButton} disabled={isGeneratingPdf} onPress={async () => {
-					if (isGeneratingPdf) return;
-					setIsGeneratingPdf(true);
-					try {
-						// Load and convert logo to base64
-						let logoBase64 = '';
-						try {
-							const asset = Asset.fromModule(RITMO_HEADER);
-							await asset.downloadAsync();
-							if (asset.localUri) {
-								const data = await FileSystem.readAsStringAsync(asset.localUri, {
-									encoding: 'base64',
-								});
-								logoBase64 = data;
-							}
-						} catch (e) {
-							console.warn('Could not load logo image:', e);
-							// Continue without logo
-						}
-						
-						await saveWeeklyPerformanceReportPdf({
-							childName: childName,
-							weekStart: weekInfo.monday,
-							weekEnd: weekInfo.sunday,
-							totalTasks: totals.totalTasks,
-							completedTasks: totals.completed,
-							completionRate: totals.rate,
-							tasks: tasks.map((task, idx) => ({
-								name: task.name,
-								timestamp: task.timestamp,
-								statuses: task.statuses,
-								routineId: task.routineId,
-								perTaskDone: totals.perTaskDone[idx] || 0,
-							})),
-							logoBase64: logoBase64,
-							openAfterSave: true,
-						});
-						// No alert on success; PDF is opened or share sheet is shown immediately
-					} catch (e: any) {
-						Alert.alert('PDF Error', e?.message || 'Failed to generate PDF');
-					} finally {
-						setIsGeneratingPdf(false);
-					}
-				}}>
+				<TouchableOpacity ref={savePdfButtonRef} collapsable={false} style={styles.pdfButton} disabled={isGeneratingPdf} onPress={handleSavePdf}>
 					<View style={styles.pdfButtonInner}>
 						<Image source={require("../../assets/images/dl.png")} style={styles.pdfIcon} />
 						<Text style={styles.pdfLabel}>Save as PDF</Text>
@@ -639,6 +645,7 @@ export default function Progress() {
 			<ProgressOnboarding
 				visible={showProgressOnboarding}
 				weekButtonLayout={weekButtonLayout}
+				savePdfButtonLayout={savePdfButtonLayout}
 				onComplete={completeProgressOnboarding}
 				onSkip={skipProgressOnboarding}
 			/>
