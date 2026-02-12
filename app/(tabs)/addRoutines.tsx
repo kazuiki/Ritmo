@@ -19,6 +19,7 @@ import {
 import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
 import AddRoutineModalOnboarding from "../../src/components/AddRoutineModalOnboarding";
 import AddRoutineOnboardingTour from "../../src/components/AddRoutineOnboardingTour";
+import RoutinePresetOnboarding from "../../src/components/RoutinePresetOnboarding";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import NotificationService from "../../src/notificationService";
@@ -54,7 +55,11 @@ export default function addRoutines() {
         startAddRoutineModalOnboarding,
         nextAddRoutineModalStep,
         completeAddRoutineModalOnboarding,
-        skipAddRoutineModalOnboarding
+        skipAddRoutineModalOnboarding,
+        showRoutinePresetOnboarding,
+        startRoutinePresetOnboarding,
+        completeRoutinePresetOnboarding,
+        skipRoutinePresetOnboarding
     } = useOnboarding();
     const [modalVisible, setModalVisible] = useState(false);
     const [routineName, setRoutineName] = useState("");
@@ -68,6 +73,11 @@ export default function addRoutines() {
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+
+    const bookGuideIconRef = useRef<View>(null);
+    const gameIconRef = useRef<View>(null);
+    const [bookGuideIconLayout, setBookGuideIconLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    const [gameIconLayout, setGameIconLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
     
     // Onboarding state
     const plusButtonRef = useRef<View>(null);
@@ -471,6 +481,32 @@ export default function addRoutines() {
         setSelectedPresetId(preset.id);
         closePresetModal();
     };
+
+    useEffect(() => {
+        if (!presetModalVisible) {
+            setBookGuideIconLayout(null);
+            setGameIconLayout(null);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            if (bookGuideIconRef.current) {
+                bookGuideIconRef.current.measure((x, y, width, height, pageX, pageY) => {
+                    setBookGuideIconLayout({ x: pageX, y: pageY, width, height });
+                });
+            }
+
+            if (gameIconRef.current) {
+                gameIconRef.current.measure((x, y, width, height, pageX, pageY) => {
+                    setGameIconLayout({ x: pageX, y: pageY, width, height });
+                });
+            }
+
+            startRoutinePresetOnboarding();
+        }, 350);
+
+        return () => clearTimeout(timer);
+    }, [presetModalVisible]);
 
     const confirmSave = async () => {
         setSaveConfirmVisible(false);
@@ -912,12 +948,16 @@ export default function addRoutines() {
                 <Text style={styles.presetTitleCentered}>Routine Preset</Text>
 
                 <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
-                        {PRESETS.map((p) => (
+                        {PRESETS.map((p, index) => (
                             <TouchableOpacity key={p.id} style={styles.presetItem} onPress={() => selectPreset(p)}>
                                 <Image source={p.image} style={styles.presetImage} />
                                 <Text style={styles.presetItemText}>{p.name}</Text>
                                 <View style={styles.presetIconsContainer}>
-                                    <View style={styles.iconSlot}>
+                                    <View
+                                        ref={index === 0 ? bookGuideIconRef : undefined}
+                                        collapsable={false}
+                                        style={styles.iconSlot}
+                                    >
                                         {p.hasBookGuide && (
                                             <Image 
                                                 source={require("../../assets/images/BookGuide.png")} 
@@ -925,7 +965,11 @@ export default function addRoutines() {
                                             />
                                         )}
                                     </View>
-                                    <View style={styles.iconSlot}>
+                                    <View
+                                        ref={index === 0 ? gameIconRef : undefined}
+                                        collapsable={false}
+                                        style={styles.iconSlot}
+                                    >
                                         {p.hasMiniGame && (
                                             <Image 
                                                 source={require("../../assets/images/MiniGame.png")} 
@@ -937,6 +981,14 @@ export default function addRoutines() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
+
+                    <RoutinePresetOnboarding
+                        visible={showRoutinePresetOnboarding}
+                        bookGuideIconLayout={bookGuideIconLayout}
+                        gameIconLayout={gameIconLayout}
+                        onComplete={completeRoutinePresetOnboarding}
+                        onSkip={skipRoutinePresetOnboarding}
+                    />
                 </View>
             </View>
             </Modal>
