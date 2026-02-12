@@ -31,6 +31,11 @@ interface OnboardingContextType {
   nextAddRoutineModalStep: () => void;
   completeAddRoutineModalOnboarding: () => void;
   skipAddRoutineModalOnboarding: () => void;
+  // Routine Preset Onboarding
+  showRoutinePresetOnboarding: boolean;
+  startRoutinePresetOnboarding: () => void;
+  completeRoutinePresetOnboarding: () => void;
+  skipRoutinePresetOnboarding: () => void;
   // Progress Onboarding
   showProgressOnboarding: boolean;
   startProgressOnboarding: () => void;
@@ -46,6 +51,7 @@ const ONBOARDING_KEY_PREFIX = '@ritmo_onboarding_completed_';
 const PARENTAL_LOCK_ONBOARDING_KEY_PREFIX = '@ritmo_pl_onboarding_completed_';
 const ADD_ROUTINE_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_onboarding_completed_';
 const ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_modal_onboarding_completed_';
+const ROUTINE_PRESET_ONBOARDING_KEY_PREFIX = '@ritmo_routine_preset_onboarding_completed_';
 const PROGRESS_ONBOARDING_KEY_PREFIX = '@ritmo_progress_onboarding_completed_';
 const TOTAL_ONBOARDING_STEPS = 5; // Home, Media, Progress, Settings, Add Routine
 const TOTAL_PARENTAL_LOCK_STEPS = 2; // Container, Toggle Switch
@@ -68,6 +74,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   // Add Routine Modal Onboarding State
   const [showAddRoutineModalOnboarding, setShowAddRoutineModalOnboarding] = useState(false);
   const [currentAddRoutineModalStep, setCurrentAddRoutineModalStep] = useState(0);
+
+  // Routine Preset Onboarding State
+  const [showRoutinePresetOnboarding, setShowRoutinePresetOnboarding] = useState(false);
   
   // Progress Onboarding State
   const [showProgressOnboarding, setShowProgressOnboarding] = useState(false);
@@ -417,6 +426,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`,
         `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`,
         `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`,
+        `${ROUTINE_PRESET_ONBOARDING_KEY_PREFIX}${user.id}`,
         `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`,
       ];
 
@@ -429,6 +439,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       setShowAddRoutineOnboarding(false);
       setShowAddRoutineModalOnboarding(false);
       setCurrentAddRoutineModalStep(0);
+      setShowRoutinePresetOnboarding(false);
       setShowProgressOnboarding(false);
       setIsFirstTimeUser(true);
       setHasCheckedFirstLogin(false);
@@ -511,6 +522,58 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  // Routine Preset Onboarding Functions
+  const startRoutinePresetOnboarding = async () => {
+    console.log('🔍 startRoutinePresetOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No user found for Routine Preset onboarding');
+        return;
+      }
+
+      const routinePresetKey = `${ROUTINE_PRESET_ONBOARDING_KEY_PREFIX}${user.id}`;
+      const hasCompleted = await AsyncStorage.getItem(routinePresetKey);
+
+      if (!hasCompleted) {
+        console.log('📘 Starting Routine Preset onboarding...');
+        setShowRoutinePresetOnboarding(true);
+      } else {
+        console.log('✅ Routine Preset onboarding already completed, skipping...');
+      }
+    } catch (error) {
+      console.error('Error starting routine preset onboarding:', error);
+    }
+  };
+
+  const completeRoutinePresetOnboarding = async () => {
+    setShowRoutinePresetOnboarding(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const routinePresetKey = `${ROUTINE_PRESET_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(routinePresetKey, 'true');
+        console.log('✅ Routine Preset onboarding completed for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving routine preset onboarding completion:', error);
+    }
+  };
+
+  const skipRoutinePresetOnboarding = async () => {
+    setShowRoutinePresetOnboarding(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const routinePresetKey = `${ROUTINE_PRESET_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.setItem(routinePresetKey, 'true');
+        console.log('⏭️ Routine Preset onboarding skipped for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving routine preset onboarding skip:', error);
+    }
+  };
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -542,6 +605,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         nextAddRoutineModalStep,
         completeAddRoutineModalOnboarding,
         skipAddRoutineModalOnboarding,
+        // Routine Preset Onboarding
+        showRoutinePresetOnboarding,
+        startRoutinePresetOnboarding,
+        completeRoutinePresetOnboarding,
+        skipRoutinePresetOnboarding,
         // Progress Onboarding
         showProgressOnboarding,
         startProgressOnboarding,
