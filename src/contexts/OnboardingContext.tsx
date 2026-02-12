@@ -36,6 +36,8 @@ interface OnboardingContextType {
   startProgressOnboarding: () => void;
   completeProgressOnboarding: () => void;
   skipProgressOnboarding: () => void;
+  resetProgressOnboarding: () => Promise<void>;
+  resetAllOnboarding: () => Promise<void>;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -388,6 +390,55 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       console.error('Error saving progress onboarding skip:', error);
     }
   };
+
+  const resetProgressOnboarding = async () => {
+    console.log('🔄 resetProgressOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
+        await AsyncStorage.removeItem(progressOnboardingKey);
+        console.log('🔄 Progress onboarding reset for user:', user.id);
+      }
+      setShowProgressOnboarding(false);
+    } catch (error) {
+      console.error('Error resetting progress onboarding:', error);
+    }
+  };
+
+  const resetAllOnboarding = async () => {
+    console.log('🔄 resetAllOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const keysToRemove = [
+        `${ONBOARDING_KEY_PREFIX}${user.id}`,
+        `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`,
+        `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`,
+        `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`,
+        `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`,
+      ];
+
+      await AsyncStorage.multiRemove(keysToRemove);
+
+      setShowOnboarding(false);
+      setCurrentOnboardingStep(0);
+      setShowParentalLockOnboarding(false);
+      setCurrentParentalLockStep(0);
+      setShowAddRoutineOnboarding(false);
+      setShowAddRoutineModalOnboarding(false);
+      setCurrentAddRoutineModalStep(0);
+      setShowProgressOnboarding(false);
+      setIsFirstTimeUser(true);
+      setHasCheckedFirstLogin(false);
+
+      console.log('✅ All onboarding states reset for user:', user.id);
+    } catch (error) {
+      console.error('Error resetting all onboarding state:', error);
+      throw error;
+    }
+  };
   // Add Routine Modal Onboarding Functions
   const startAddRoutineModalOnboarding = async () => {
     console.log('🔍 startAddRoutineModalOnboarding called');
@@ -496,6 +547,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         startProgressOnboarding,
         completeProgressOnboarding,
         skipProgressOnboarding,
+        resetProgressOnboarding,
+        resetAllOnboarding,
       }}
     >
       {children}
