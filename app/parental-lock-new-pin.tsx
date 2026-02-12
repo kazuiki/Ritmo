@@ -15,10 +15,21 @@ import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/re
 const backgroundImage = require("../assets/background.png");
 
 const generateCaptcha = () => {
-  const num1 = Math.floor(Math.random() * 10) + 1;
-  const num2 = Math.floor(Math.random() * 10) + 1;
-  const answer = num1 + num2;
-  return { question: `${num1} + ${num2}`, answer: answer.toString() };
+  const operators = ["+", "-"] as const;
+  const operator = operators[Math.floor(Math.random() * operators.length)];
+  let num1 = Math.floor(Math.random() * 20) + 1;
+  let num2 = Math.floor(Math.random() * 20) + 1;
+
+  if (operator === "-") {
+    if (num2 > num1) {
+      const temp = num1;
+      num1 = num2;
+      num2 = temp;
+    }
+  }
+
+  const answer = operator === "+" ? num1 + num2 : num1 - num2;
+  return { question: `${num1} ${operator} ${num2}`, answer: answer.toString() };
 };
 
 export default function ParentalLockNewPin() {
@@ -116,6 +127,10 @@ export default function ParentalLockNewPin() {
 
         <Text style={styles.title}>New Pin Setup</Text>
 
+        <Text style={styles.instructionText}>
+          Please answer the question below to proceed with changing your PIN.
+        </Text>
+
         <View style={styles.captchaContainer}>
           <Text style={styles.captchaQuestion}>{captcha.question} = ?</Text>
           <TextInput
@@ -127,8 +142,6 @@ export default function ParentalLockNewPin() {
             placeholderTextColor="#9CA3AF"
           />
         </View>
-
-        <Text style={styles.note}>Please verify the captcha to set a new PIN</Text>
 
         <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
           <Text style={styles.continueText}>Continue</Text>
@@ -258,8 +271,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontWeight: "700",
     fontFamily: "ITIM",
     color: "#333",
-    marginBottom: scale.scaleSpacing(40),
+    marginBottom: scale.scaleSpacing(12),
     textAlign: "center",
+  },
+  instructionText: {
+    fontSize: scale.scaleFont(16),
+    color: "#4B5563",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(24),
+    lineHeight: scale.scaleFont(22),
+    fontFamily: "ITIM",
   },
   captchaContainer: {
     width: "100%",
@@ -334,14 +355,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     position: "absolute",
     right: scale.scaleSpacing(15),
     padding: scale.scaleSpacing(10),
-  },
-  note: {
-    fontSize: scale.scaleFont(12),
-    color: "#666",
-    textAlign: "center",
-    marginBottom: scale.scaleSpacing(30),
-    lineHeight: scale.scaleFont(16),
-    fontFamily: "ITIM",
   },
   continueButton: {
     backgroundColor: "#2B6A63",
