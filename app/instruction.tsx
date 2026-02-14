@@ -278,7 +278,7 @@ export default function InstructionPage() {
             style={styles.modalCloseButton}
             onPress={handleCloseVideo}
           >
-            <Text style={styles.modalCloseText}>✕</Text>
+            <Text style={styles.modalCloseText}>Skip</Text>
           </TouchableOpacity>
           <View style={styles.videoModalContainer}>
             {currentVideoSource && (
@@ -289,6 +289,11 @@ export default function InstructionPage() {
                 useNativeControls
                 resizeMode={ResizeMode.CONTAIN}
                 shouldPlay
+                onPlaybackStatusUpdate={(status) => {
+                  if (status.isLoaded && status.didJustFinish) {
+                    handleCloseVideo();
+                  }
+                }}
               />
             )}
           </View>
@@ -476,8 +481,8 @@ const styles = StyleSheet.create({
     right: 20,
     backgroundColor: "#00A980",
     borderRadius: 20,
-    width: 40,
-    height: 40,
+    paddingHorizontal: 14,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 999,

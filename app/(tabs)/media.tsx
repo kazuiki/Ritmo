@@ -42,9 +42,11 @@ export default function Media() {
   const router = useRouter();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
-  // Determine video player height based on device type
+  // Determine video player size based on card width and 16:9 ratio
   const deviceCategory = getDeviceCategory();
-  const videoPlayerHeight = deviceCategory === 'tablet' ? 350 : 320;
+  const cardHorizontalMargin = scaleSpacing(18);
+  const videoPlayerWidth = Math.max(0, responsive.width - cardHorizontalMargin * 2);
+  const videoPlayerHeight = Math.round(videoPlayerWidth * 9 / 16);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -470,6 +472,7 @@ export default function Media() {
             {playingId === video.id ? (
               <YoutubePlayer
                 height={videoPlayerHeight}
+                width={videoPlayerWidth}
                 play={true}
                 videoId={video.youtubeId}
                 onChangeState={(event: PlayerState) => {
@@ -485,9 +488,10 @@ export default function Media() {
                 <Image 
                   source={{ uri: video.thumbnail }} 
                   style={[
-                    styles.thumbnail, 
-                    { height: scaleHeight(deviceCategory === 'tablet' ? 280 : 280) }
+                    styles.thumbnail,
+                    { height: videoPlayerHeight }
                   ]} 
+                  resizeMode="cover"
                 />
                 <View style={styles.playButton}>
                   <Ionicons name="play-circle" size={64} color="#fff" />
@@ -570,6 +574,10 @@ export default function Media() {
                     />
                   ))}
                 </Animated.View>
+
+                <Text style={styles.forgotPinInstruction}>
+                  Forgot your PIN? Tap "Forgot PIN" to set a new one.
+                </Text>
 
                 <TouchableOpacity 
                   style={styles.forgotPin}
@@ -921,6 +929,14 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   forgotPin: {
     marginBottom: scale.scaleSpacing(30),
+  },
+  forgotPinInstruction: {
+    fontSize: scale.scaleFont(13),
+    color: "#666",
+    textAlign: "center",
+    marginTop: scale.scaleSpacing(6),
+    marginBottom: scale.scaleSpacing(8),
+    fontFamily: "Fredoka_400Regular",
   },
   forgotPinText: {
     fontSize: scale.scaleFont(14),
