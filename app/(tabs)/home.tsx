@@ -1831,6 +1831,10 @@ export default function Home() {
                   ))}
                 </Animated.View>
 
+                <Text style={styles.forgotPinInstruction}>
+                  Forgot your PIN? Tap "Forgot PIN" to set a new one.
+                </Text>
+
                 <TouchableOpacity 
                   style={styles.forgotPin}
                   onPress={() => {
@@ -2785,6 +2789,14 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   forgotPin: {
     marginBottom: scale.scaleSpacing(30),
+  },
+  forgotPinInstruction: {
+    fontSize: scale.scaleFont(13),
+    color: "#666",
+    textAlign: "center",
+    marginTop: scale.scaleSpacing(6),
+    marginBottom: scale.scaleSpacing(8),
+    fontFamily: "Fredoka_400Regular",
   },
   forgotPinText: {
     fontSize: scale.scaleFont(14),
