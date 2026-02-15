@@ -60,22 +60,44 @@ export default function AddRoutineOnboardingTour({
     height: plusButtonLayout.height,
   };
 
-  // Calculate tooltip position - show it below the + button
+  // Calculate tooltip position - improved for lower-end devices
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
-    const tooltipPadding = scaleSpacing(20);
+    
+    // Estimated tooltip height based on content
+    const estimatedTooltipHeight = scaleHeight(200);
+    
+    // Navigation bar height estimate
+    const navBarHeight = scaleHeight(100);
     
     // Center tooltip horizontally on screen
     const left = (screenWidth - tooltipWidth) / 2;
     
-    // Position below the highlighted button
-    const top = highlightPosition.top + highlightPosition.height + scaleHeight(20);
-
-    return {
-      left,
-      top,
-      width: tooltipWidth,
-    };
+    // Check available space
+    const spaceAbove = highlightPosition.top;
+    const spaceBelow = screenHeight - (highlightPosition.top + highlightPosition.height);
+    
+    // For elements near the bottom, always show above
+    const distanceFromBottom = screenHeight - (highlightPosition.top + highlightPosition.height);
+    const isBottomElement = distanceFromBottom < navBarHeight + scaleHeight(50);
+    
+    if (isBottomElement || spaceBelow < estimatedTooltipHeight + navBarHeight) {
+      // Show above - with extra padding to ensure no overlap
+      return {
+        left,
+        bottom: screenHeight - highlightPosition.top + scaleHeight(20),
+        width: tooltipWidth,
+        maxHeight: spaceAbove - scaleHeight(40),
+      };
+    } else {
+      // Show below (only when there's plenty of space)
+      return {
+        left,
+        top: highlightPosition.top + highlightPosition.height + scaleHeight(20),
+        width: tooltipWidth,
+        maxHeight: spaceBelow - scaleHeight(40),
+      };
+    }
   };
 
   const screenDimensions = Dimensions.get('screen');

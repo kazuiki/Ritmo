@@ -105,9 +105,15 @@ export default function AddRoutineModalOnboarding({
 
   if (!config.layout) return null;
 
-  // Calculate tooltip position
+  // Calculate tooltip position - improved for lower-end devices
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
+    
+    // Estimated tooltip height based on content
+    const estimatedTooltipHeight = scaleHeight(200);
+    
+    // Keyboard/modal bottom area estimate
+    const bottomAreaHeight = scaleHeight(120);
     
     // Center tooltip horizontally
     const left = (screenWidth - tooltipWidth) / 2;
@@ -116,19 +122,27 @@ export default function AddRoutineModalOnboarding({
     const spaceAbove = config.layout!.y;
     const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
     
-    if (spaceBelow > scaleHeight(200)) {
-      // Show below
+    // For elements near the bottom (keyboard area), always show above
+    const distanceFromBottom = screenHeight - (config.layout!.y + config.layout!.height);
+    const isBottomElement = distanceFromBottom < bottomAreaHeight + scaleHeight(50);
+    
+    // Ensure tooltip has enough space and doesn't overlap with keyboard/bottom elements
+    if (isBottomElement || spaceBelow < estimatedTooltipHeight + bottomAreaHeight) {
+      // Show above - with extra padding to ensure no overlap
+      const bottomPosition = screenHeight - config.layout!.y + scaleHeight(20);
+      return {
+        left,
+        bottom: Math.max(bottomPosition, bottomAreaHeight + scaleHeight(10)),
+        width: tooltipWidth,
+        maxHeight: spaceAbove - scaleHeight(40),
+      };
+    } else {
+      // Show below (only when there's plenty of space)
       return {
         left,
         top: config.layout!.y + config.layout!.height + scaleHeight(20),
         width: tooltipWidth,
-      };
-    } else {
-      // Show above
-      return {
-        left,
-        bottom: screenHeight - config.layout!.y + scaleHeight(20),
-        width: tooltipWidth,
+        maxHeight: spaceBelow - scaleHeight(40),
       };
     }
   };

@@ -116,21 +116,39 @@ export default function RoutinePresetOnboarding({
 
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(290);
+    
+    // Estimated tooltip height based on content
+    const estimatedTooltipHeight = scaleHeight(200);
+    
+    // Navigation bar height estimate
+    const navBarHeight = scaleHeight(100);
+    
     const left = (screenWidth - tooltipWidth) / 2;
+    
+    // Check available space
+    const spaceAbove = highlight.top;
     const spaceBelow = screenHeight - (highlight.top + highlight.height);
+    
+    // For elements near the bottom, always show above
+    const distanceFromBottom = screenHeight - (highlight.top + highlight.height);
+    const isBottomElement = distanceFromBottom < navBarHeight + scaleHeight(50);
 
-    if (spaceBelow > scaleHeight(220)) {
+    if (isBottomElement || spaceBelow < estimatedTooltipHeight + navBarHeight) {
+      // Show above - with extra padding
       return {
         left,
-        top: highlight.top + highlight.height + scaleHeight(20),
+        bottom: screenHeight - highlight.top + scaleHeight(20),
         width: tooltipWidth,
+        maxHeight: spaceAbove - scaleHeight(40),
       };
     }
 
+    // Show below (only when there's plenty of space)
     return {
       left,
-      bottom: screenHeight - highlight.top + scaleHeight(20),
+      top: highlight.top + highlight.height + scaleHeight(20),
       width: tooltipWidth,
+      maxHeight: spaceBelow - scaleHeight(40),
     };
   };
 
