@@ -509,7 +509,7 @@ export default function Progress() {
 						style={styles.brandLogo}
 					/>
 				</TouchableOpacity>
-			{parentalLockEnabled && mode === 'parent' && (
+			{parentalLockEnabled && mode === 'parent' && mode === 'parent' && (
 				<TouchableOpacity
 					style={styles.modeButton}
 					onPress={() => {
