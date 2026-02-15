@@ -1293,9 +1293,10 @@ export default function Home() {
         }}
       >
         <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={styles.termsModalOverlay}>
+          <View style={styles.termsModalOverlay}>
           <View style={[
             styles.termsModalContainer,
+            !activePreset && styles.termsModalContainerNoPreset,
             { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
           ]}>
             {/* Header - Hide for no-preset */}
@@ -2893,6 +2894,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 10,
+  },
+  termsModalContainerNoPreset: {
+    height: "50%",
   },
   termsScrollView: {
     flex: 1,

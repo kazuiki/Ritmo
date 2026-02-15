@@ -23,7 +23,7 @@ const PAGES = [
   {
     id: 1,
     title: "Welcome to Ritmo!",
-    description: "Your account has been successfully created.\n\nLet's get started on your child's journey\nto developing their daily RITMO.",
+    description: "Your account has been successfully created.\n\nLet's get started on your child's journey to developing their daily RITMO.",
     image: require("../assets/ritmo-logo.png"),
     buttonLabel: "",
     showButton: false,
