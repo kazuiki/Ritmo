@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';

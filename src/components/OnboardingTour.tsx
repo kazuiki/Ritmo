@@ -4,7 +4,6 @@ import {
   Animated,
   Dimensions,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
