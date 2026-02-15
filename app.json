@@ -72,6 +72,8 @@
     },
     "extra": {
       "router": {},
+      "profanityCdnUrl": "https://cdn.jsdelivr.net/gh/kazuiki/Ritmo@main/badwords.json",
+      "profanityCdnCacheHours": 24,
       "eas": {
         "projectId": "c58447c0-1e74-4a48-bc88-6d6835a7358e"
       }

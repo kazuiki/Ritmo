@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
+import { getCdnProfanityWords } from "../../src/profanityCdnService";
 
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
@@ -51,6 +52,7 @@ export default function Media() {
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
   const [customBlockedWords, setCustomBlockedWords] = useState<string[]>([]);
+  const [cdnBlockedWords, setCdnBlockedWords] = useState<string[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,6 +87,19 @@ export default function Media() {
     }
   };
 
+  const loadCdnBlockedWords = async () => {
+    try {
+      let words = await getCdnProfanityWords();
+      if (words.length === 0) {
+        words = await getCdnProfanityWords({ forceRefresh: true });
+      }
+      setCdnBlockedWords(words);
+    } catch (err) {
+      console.warn("Failed to load CDN blocked words:", err);
+      setCdnBlockedWords([]);
+    }
+  };
+
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
     React.useCallback(() => {
@@ -95,6 +110,7 @@ export default function Media() {
   useFocusEffect(
     React.useCallback(() => {
       loadCustomBlockedWords();
+      loadCdnBlockedWords();
     }, [])
   );
 
@@ -140,35 +156,15 @@ export default function Media() {
     }
   }, [searchQuery]);
 
-  // Bad words list in multiple languages
-  const BAD_WORDS = [
-    // English
-    'fuck', 'shit', 'ass', 'damn', 'crap', 'bitch', 'bastard', 'asshole', 'dick', 'cock', 'pussy', 'whore', 'slut',
-    'motherfucker', 'prick', 'wanker', 'bollocks', 'twat', 'arsehole', 'jerk', 'cunt', 'hell', 'piss', 'sucks',
-    // Sexual/Explicit terms
-    'sex', 'porn', 'xxx', 'creampie', 'orgasm', 'ejaculation', 'cumshot', 'blowjob', 'handjob', 'deepthroat',
-    'bondage', 'bdsm', 'fetish', 'gangbang', 'bestiality', 'pedophile', 'rape', 'incest', 'horny', 'hornyy',
-    'pinaypie', 'sulasoktv', 'tuwad', 'bembang', 'jakol', 'hentai', 'nude', 'boobs', 'breast', 'masturbate',
-    'vibrator', 'dildo', 'anal', 'threesome', 'foursome', 'orgy', 'prostitute', 'pimp', 'escort',
-    // Filipino/Tagalog - Extensive list
-    'putang', 'bobo', 'gago', 'bayag', 'tite', 'etits', 'puta', 'kantot', 'labas', 'suso', 'iyak',
-    'pakyu', 'tang', 'ulo', 'ulol', 'animal', 'hayop', 'buwaya', 'tsibog', 'lintik', 'titi', 'burat',
-    'tarub', 'kantutan', 'putanginamo', 'putangina', 'kingina', 'kinginamo', 'ogag', 'kupal', 'pepe',
-    'kiffy', 'puday', 'butas', 'kepwet', 'kalabit', 'yusang', 'labong', 'kolokoy', 'ari', 'tol',
-    'ulok', 'talunan', 'tanga', 'bete', 'gusto', 'iyot', 'bugok', 'ampaw', 'kalamay', 'bukid',
-    // Spanish
-    'puta', 'pendejo', 'jodido', 'mierda', 'culo', 'pene', 'verga', 'carajo', 'pinche', 'cabron',
-    // Violence/Dangerous
-    'hate', 'kill', 'death', 'bomb', 'gun', 'drug', 'addict', 'cocaine', 'heroin', 'meth', 'cannabis',
-    'suicide', 'murder', 'rape', 'assault', 'kidnap', 'torture', 'terrorism'
-  ];
-
   const combinedBadWords = useMemo(() => {
     const normalizedCustom = customBlockedWords
       .map(word => word.toLowerCase().trim())
       .filter(Boolean);
-    return Array.from(new Set([...BAD_WORDS, ...normalizedCustom]));
-  }, [customBlockedWords]);
+    const normalizedCdn = cdnBlockedWords
+      .map(word => word.toLowerCase().trim())
+      .filter(Boolean);
+    return Array.from(new Set([...normalizedCdn, ...normalizedCustom]));
+  }, [cdnBlockedWords, customBlockedWords]);
 
   const containsBadWords = (text: string): boolean => {
     const lowerText = text.toLowerCase().trim();

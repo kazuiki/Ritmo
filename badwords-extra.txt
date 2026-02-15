@@ -1,0 +1,2 @@
+# Add extra words here (one per line). Lines starting with # or // are ignored.
+# You can add Tagalog/Filipino words or any custom terms.
