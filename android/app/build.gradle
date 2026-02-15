@@ -152,18 +152,9 @@ android {
     }
 }
 
-repositories {
-    flatDir {
-        dirs "${project(':expo-godot-view').projectDir}/libs"
-    }
-}
-
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-
-    // Godot library for RitmoGodotActivity
-    implementation(name: 'godot-lib.4.6.stable.template_release', ext: 'aar')
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

@@ -16,6 +16,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
 import AddRoutineModalOnboarding from "../../src/components/AddRoutineModalOnboarding";
 import AddRoutineOnboardingTour from "../../src/components/AddRoutineOnboardingTour";
@@ -42,6 +43,7 @@ const ITEM_HEIGHT = 48;
 export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
+    const insets = useSafeAreaInsets();
     const itemHeight = scaleHeight(ITEM_HEIGHT);
     const { mode, parentalLockEnabled, backToChildMode } = useMode();
     const { 
@@ -802,12 +804,12 @@ export default function addRoutines() {
                                 {/* Day of Week Selector */}
                                 <View style={styles.daysRow} ref={daysRef} collapsable={false}>
                                     {[
-                                        { idx: 0, label: 'S' },
-                                        { idx: 1, label: 'M' },
-                                        { idx: 2, label: 'T' },
-                                        { idx: 3, label: 'W' },
+                                        { idx: 0, label: 'Su' },
+                                        { idx: 1, label: 'Mo' },
+                                        { idx: 2, label: 'Tu' },
+                                        { idx: 3, label: 'We' },
                                         { idx: 4, label: 'Th' },
-                                        { idx: 5, label: 'F' },
+                                        { idx: 5, label: 'Fr' },
                                         { idx: 6, label: 'St' },
                                     ].map(d => {
                                         const selected = selectedDays.includes(d.idx);
@@ -902,7 +904,7 @@ export default function addRoutines() {
                 />
                 <View style={styles.presetScreen}>
                 {/* Header with Back button in upper-left */}
-                <View style={styles.presetHeader}>
+                <View style={[styles.presetHeader, { paddingTop: insets.top + scaleSpacing(8) }]}>
                     <TouchableOpacity onPress={closePresetModal}>
                         <Text style={styles.backText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
                     </TouchableOpacity>
@@ -958,7 +960,7 @@ export default function addRoutines() {
                     
                     <View style={styles.presetScreen}>
                         {/* Header with Back button */}
-                        <View style={styles.presetHeader}>
+                        <View style={[styles.presetHeader, { paddingTop: insets.top + scaleSpacing(8) }]}>
                             <TouchableOpacity onPress={closeRingtoneModal}>
                                 <Text style={styles.backText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
                             </TouchableOpacity>
@@ -1373,10 +1375,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         borderBottomColor: "#E0E0E0",
     },
     backText: {
-        fontSize: scale.scaleFont(16),
+        fontSize: scale.scaleFont(18),
         color: "#244D4A",
         textDecorationLine: "underline",
         textDecorationColor: "#244D4A",
+        paddingVertical: scale.scaleSpacing(6),
+        paddingHorizontal: scale.scaleSpacing(6),
     },
     modalTitle: {
         fontSize: scale.scaleFont(18),

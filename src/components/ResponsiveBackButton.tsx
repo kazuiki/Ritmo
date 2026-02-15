@@ -11,6 +11,7 @@ interface ResponsiveBackButtonProps {
   style?: ViewStyle;
   color?: string;
   position?: 'absolute' | 'relative';
+  useSafeAreaPadding?: boolean;
 }
 
 export const ResponsiveBackButton: React.FC<ResponsiveBackButtonProps> = ({
@@ -19,10 +20,13 @@ export const ResponsiveBackButton: React.FC<ResponsiveBackButtonProps> = ({
   style,
   color = '#244D4A',
   position = 'relative',
+  useSafeAreaPadding = true,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { scaleFont, scaleSpacing } = useResponsiveDimensions();
+  const baseTopPadding = position === 'absolute' ? scaleSpacing(8) : scaleSpacing(16);
+  const topPadding = useSafeAreaPadding ? baseTopPadding + insets.top : baseTopPadding;
 
   const handlePress = () => {
     if (onPress) {
@@ -38,16 +42,16 @@ export const ResponsiveBackButton: React.FC<ResponsiveBackButtonProps> = ({
       style={[
         styles.backButton,
         {
-          paddingTop: position === 'absolute' ? insets.top + scaleSpacing(8) : scaleSpacing(16),
-          paddingHorizontal: scaleSpacing(16),
-          paddingBottom: scaleSpacing(8),
+          paddingTop: topPadding,
+          paddingHorizontal: scaleSpacing(20),
+          paddingBottom: scaleSpacing(10),
         },
         position === 'absolute' && styles.absolute,
         style,
       ]}
       activeOpacity={0.7}
     >
-      <Ionicons name="arrow-back" size={scaleFont(24)} color={color} style={styles.icon} />
+      <Ionicons name="arrow-back" size={scaleFont(26)} color={color} style={styles.icon} />
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
@@ -55,7 +59,7 @@ export const ResponsiveBackButton: React.FC<ResponsiveBackButtonProps> = ({
         style={[
           styles.backButtonText,
           {
-            fontSize: scaleFont(18),
+            fontSize: scaleFont(20),
             color: color,
           },
         ]}
