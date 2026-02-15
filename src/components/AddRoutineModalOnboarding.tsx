@@ -4,6 +4,7 @@ import {
     Animated,
     Dimensions,
     Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -105,17 +106,34 @@ export default function AddRoutineModalOnboarding({
 
   if (!config.layout) return null;
 
+
   // Calculate tooltip position
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
     
     // Center tooltip horizontally
     const left = (screenWidth - tooltipWidth) / 2;
+
+  // Calculate tooltip position - improved for lower-end devices with smaller screens
+  const getTooltipStyle = () => {
+    const tooltipWidth = scaleWidth(280);
+    
+    // Estimated tooltip height based on content (more conservative for smaller screens)
+    const estimatedTooltipHeight = scaleHeight(180);
+    
+    // Keyboard/modal bottom area estimate
+    const bottomAreaHeight = scaleHeight(100);
+    
+    // Center tooltip horizontally with safe padding
+    const horizontalPadding = scaleSpacing(16);
+    const left = Math.max(horizontalPadding, (screenWidth - tooltipWidth) / 2);
+
     
     // Position above or below based on available space
     const spaceAbove = config.layout!.y;
     const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
     
+
     // Small gap between tooltip and highlighted element
     const gap = scaleHeight(15);
     
@@ -153,6 +171,68 @@ export default function AddRoutineModalOnboarding({
         top: config.layout!.y + config.layout!.height + gap,
         width: tooltipWidth,
       };
+
+    // Safe margin to avoid overlapping with highlighted element
+    const safeMargin = scaleHeight(30);
+    
+    // For elements in bottom half of screen, prioritize showing above
+    const isInBottomHalf = config.layout!.y > screenHeight / 2;
+    
+    // For very small screens (HD+ and below), be more aggressive with positioning above
+    const isSmallScreen = screenHeight < 1700; // Detects 1600x720 and similar resolutions
+    
+    // Check if we have enough space above without blocking the element
+    const hasEnoughSpaceAbove = spaceAbove > estimatedTooltipHeight + safeMargin;
+    
+    // Check if we have enough space below without blocking keyboard/bottom areas
+    const hasEnoughSpaceBelow = spaceBelow > estimatedTooltipHeight + bottomAreaHeight + safeMargin;
+    
+    // Decision logic for smaller screens
+    if (isSmallScreen || isInBottomHalf) {
+      if (hasEnoughSpaceAbove) {
+        // Position above with safe margin
+        return {
+          left,
+          bottom: screenHeight - config.layout!.y + safeMargin,
+          width: tooltipWidth,
+          maxHeight: spaceAbove - safeMargin - scaleHeight(20),
+        };
+      } else if (hasEnoughSpaceBelow) {
+        // Position below only if there's really enough space
+        return {
+          left,
+          top: config.layout!.y + config.layout!.height + safeMargin,
+          width: tooltipWidth,
+          maxHeight: spaceBelow - bottomAreaHeight - safeMargin,
+        };
+      } else {
+        // Fallback: position at top of screen with scrolling content
+        return {
+          left,
+          top: scaleHeight(60),
+          width: tooltipWidth,
+          maxHeight: screenHeight - scaleHeight(140),
+        };
+      }
+    } else {
+      // For elements in top half with sufficient space, prefer below
+      if (hasEnoughSpaceBelow) {
+        return {
+          left,
+          top: config.layout!.y + config.layout!.height + safeMargin,
+          width: tooltipWidth,
+          maxHeight: spaceBelow - bottomAreaHeight - safeMargin,
+        };
+      } else {
+        // Fall back to above
+        return {
+          left,
+          bottom: screenHeight - config.layout!.y + safeMargin,
+          width: tooltipWidth,
+          maxHeight: spaceAbove - safeMargin - scaleHeight(20),
+        };
+      }
+
     }
   };
 
@@ -207,38 +287,44 @@ export default function AddRoutineModalOnboarding({
 
         {/* Tooltip */}
         <View style={[styles.tooltip, getTooltipStyle()]}>
-          <View style={styles.tooltipHeader}>
-            <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
-              {config.title}
-            </Text>
-            <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
-              {step + 1}/5
-            </Text>
-          </View>
-          
-          <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
-            {config.description}
-          </Text>
-
-          <View style={styles.tooltipActions}>
-            <TouchableOpacity onPress={onSkip} style={styles.skipButton}>
-              <Text style={[styles.skipText, { fontSize: scaleFont(16) }]}>Skip</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              onPress={onNext} 
-              style={[styles.nextButton, { 
-                paddingHorizontal: scaleSpacing(24),
-                paddingVertical: scaleSpacing(12),
-                borderRadius: scaleSpacing(25),
-              }]}
-            >
-              <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
-                {step === 4 ? 'Got it!' : 'Next'}
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={styles.tooltipScrollContent}
+          >
+            <View style={styles.tooltipHeader}>
+              <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
+                {config.title}
               </Text>
-              {step < 4 && <Ionicons name="arrow-forward" size={scaleFont(18)} color="#fff" />}
-            </TouchableOpacity>
-          </View>
+              <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
+                {step + 1}/5
+              </Text>
+            </View>
+            
+            <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
+              {config.description}
+            </Text>
+
+            <View style={styles.tooltipActions}>
+              <TouchableOpacity onPress={onSkip} style={styles.skipButton}>
+                <Text style={[styles.skipText, { fontSize: scaleFont(16) }]}>Skip</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onPress={onNext} 
+                style={[styles.nextButton, { 
+                  paddingHorizontal: scaleSpacing(24),
+                  paddingVertical: scaleSpacing(12),
+                  borderRadius: scaleSpacing(25),
+                }]}
+              >
+                <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
+                  {step === 4 ? 'Got it!' : 'Next'}
+                </Text>
+                {step < 4 && <Ionicons name="arrow-forward" size={scaleFont(18)} color="#fff" />}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </Animated.View>
       </View>
@@ -270,6 +356,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
+
+  },
+  tooltipScrollContent: {
+    flexGrow: 1,
+
   },
   tooltipHeader: {
     flexDirection: 'row',
