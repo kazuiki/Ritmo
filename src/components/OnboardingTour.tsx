@@ -110,9 +110,15 @@ export default function OnboardingTour({ visible, step, onNext, onSkip, buttonLa
   // If no layout available for this step, don't render
   if (!config.layout) return null;
 
-  // Calculate tooltip position - same as AddRoutineModalOnboarding
+  // Calculate tooltip position - improved for lower-end devices
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
+    
+    // Estimated tooltip height based on content
+    const estimatedTooltipHeight = scaleHeight(180);
+    
+    // Navigation bar height estimate (tab bar + safe area)
+    const navBarHeight = scaleHeight(100);
     
     // Center tooltip horizontally
     const left = (screenWidth - tooltipWidth) / 2;
@@ -121,19 +127,28 @@ export default function OnboardingTour({ visible, step, onNext, onSkip, buttonLa
     const spaceAbove = config.layout!.y;
     const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
     
-    if (spaceBelow > scaleHeight(200)) {
-      // Show below
+    // For bottom navigation elements (less than navBarHeight from bottom),
+    // ALWAYS show above to avoid overlap
+    const distanceFromBottom = screenHeight - (config.layout!.y + config.layout!.height);
+    const isBottomElement = distanceFromBottom < navBarHeight + scaleHeight(50);
+    
+    // Ensure tooltip has enough space and doesn't overlap navigation
+    if (isBottomElement || spaceBelow < estimatedTooltipHeight + navBarHeight) {
+      // Show above - with extra padding to ensure no overlap
+      const bottomPosition = screenHeight - config.layout!.y + scaleHeight(20);
+      return {
+        left,
+        bottom: Math.max(bottomPosition, navBarHeight + scaleHeight(10)), // Ensure minimum distance from bottom
+        width: tooltipWidth,
+        maxHeight: spaceAbove - scaleHeight(40), // Limit height to available space
+      };
+    } else {
+      // Show below (only when there's plenty of space)
       return {
         left,
         top: config.layout!.y + config.layout!.height + scaleHeight(20),
         width: tooltipWidth,
-      };
-    } else {
-      // Show above
-      return {
-        left,
-        bottom: screenHeight - config.layout!.y + scaleHeight(20),
-        width: tooltipWidth,
+        maxHeight: spaceBelow - scaleHeight(40),
       };
     }
   };

@@ -8,7 +8,7 @@ import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
 import { router } from "expo-router";
-import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { Alert, Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
@@ -45,7 +45,7 @@ export default function Home() {
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
-  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin } = useOnboarding();
+  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin, resetAllOnboarding } = useOnboarding();
   const insets = useSafeAreaInsets();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -1014,6 +1014,28 @@ export default function Home() {
     openTaskModal();
   };
 
+    const handleResetAllOnboarding = () => {
+      Alert.alert(
+        'Reset Onboarding',
+        'Ire-reset nito lahat ng onboarding tours para ulitin ulit sa account mo. Ituloy?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Reset',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await resetAllOnboarding();
+                Alert.alert('Done', 'Na-reset na lahat ng user onboarding.');
+              } catch {
+                Alert.alert('Error', 'Hindi na-reset ang onboarding. Subukan ulit.');
+              }
+            },
+          },
+        ]
+      );
+    };
+
   return (
     <View style={{ flex: 1 }}>
       {/* Loading overlay to prevent flash when checking minigame completion */}
@@ -1048,25 +1070,31 @@ export default function Home() {
           />
         </TouchableOpacity>
         
-        {parentalLockEnabled && (
-          <TouchableOpacity
-            style={styles.modeButton}
-            onPress={() => {
-              if (mode === 'child') {
-                setShowParentalLockModal(true);
-              } else {
-                backToChildMode();
-              }
-            }}
-          >
-            <View style={styles.modeButtonContent}>
-              <Image source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
-              <Text style={styles.modeButtonText}>
-                {mode === 'child' ? 'Parent Mode' : 'Back to Child Mode'}
-              </Text>
-            </View>
+        <View style={styles.headerActions}>
+          {parentalLockEnabled && (
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={() => {
+                if (mode === 'child') {
+                  setShowParentalLockModal(true);
+                } else {
+                  backToChildMode();
+                }
+              }}
+            >
+              <View style={styles.modeButtonContent}>
+                <Image source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
+                <Text style={styles.modeButtonText}>
+                  {mode === 'child' ? 'Parent Mode' : 'Back to Child Mode'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.resetOnboardingButton} onPress={handleResetAllOnboarding}>
+            <Text style={styles.resetOnboardingText}>Reset Onboarding</Text>
           </TouchableOpacity>
-        )}
+        </View>
       </View>
 
       {/* Daily Progress tracker - Fixed */}
@@ -1859,6 +1887,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerActions: {
+    alignItems: 'flex-end',
+  },
   brand: { 
     fontSize: scale.scaleFont(22), 
     color: "#276a63", 
@@ -1878,6 +1909,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderRadius: 20,
     marginTop: scale.scaleSpacing(10),
     alignSelf: 'flex-end',
+  },
+  resetOnboardingButton: {
+    marginTop: scale.scaleSpacing(2),
+    paddingHorizontal: scale.scaleSpacing(8),
+    paddingVertical: scale.scaleSpacing(6),
+  },
+  resetOnboardingText: {
+    color: '#2F7C72',
+    fontSize: scale.scaleFont(13),
+    fontFamily: 'Fredoka_600SemiBold',
+    textDecorationLine: 'underline',
   },
   modeButtonContent: {
     flexDirection: 'row',
