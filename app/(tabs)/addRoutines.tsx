@@ -846,7 +846,7 @@ export default function addRoutines() {
                                         { idx: 3, label: 'We' },
                                         { idx: 4, label: 'Th' },
                                         { idx: 5, label: 'Fr' },
-                                        { idx: 6, label: 'St' },
+                                        { idx: 6, label: 'Sa' },
                                     ].map(d => {
                                         const selected = selectedDays.includes(d.idx);
                                         return (
@@ -1569,14 +1569,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: scale.scaleSpacing(16),
+        gap: scale.scaleSpacing(6),
     },
     dayChip: {
+        flex: 1,
         backgroundColor: '#FFFFFF',
         borderWidth: 2,
         borderColor: '#B8E6D9',
         borderRadius: scale.scaleBorderRadius(12),
         paddingVertical: scale.scaleSpacing(8),
-        paddingHorizontal: scale.scaleSpacing(12),
+        alignItems: 'center',
+        justifyContent: 'center',
         shadowColor: '#000',
         shadowOpacity: 0.08,
         shadowOffset: { width: 0, height: scale.scaleHeight(2) },
