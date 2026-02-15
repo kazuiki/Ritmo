@@ -1,5 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import {
+    clearOnboardingCache,
+    getOnboardingPreferences,
+    resetAllOnboardingPreferences,
+    updateOnboardingStatus
+} from '../onboardingService';
 import { supabase } from '../supabaseClient';
 
 interface OnboardingContextType {
@@ -31,20 +36,22 @@ interface OnboardingContextType {
   nextAddRoutineModalStep: () => void;
   completeAddRoutineModalOnboarding: () => void;
   skipAddRoutineModalOnboarding: () => void;
+  // Routine Preset Onboarding
+  showRoutinePresetOnboarding: boolean;
+  startRoutinePresetOnboarding: () => void;
+  completeRoutinePresetOnboarding: () => void;
+  skipRoutinePresetOnboarding: () => void;
   // Progress Onboarding
   showProgressOnboarding: boolean;
   startProgressOnboarding: () => void;
   completeProgressOnboarding: () => void;
   skipProgressOnboarding: () => void;
+  resetProgressOnboarding: () => Promise<void>;
+  resetAllOnboarding: () => Promise<void>;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
-const ONBOARDING_KEY_PREFIX = '@ritmo_onboarding_completed_';
-const PARENTAL_LOCK_ONBOARDING_KEY_PREFIX = '@ritmo_pl_onboarding_completed_';
-const ADD_ROUTINE_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_onboarding_completed_';
-const ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX = '@ritmo_add_routine_modal_onboarding_completed_';
-const PROGRESS_ONBOARDING_KEY_PREFIX = '@ritmo_progress_onboarding_completed_';
 const TOTAL_ONBOARDING_STEPS = 5; // Home, Media, Progress, Settings, Add Routine
 const TOTAL_PARENTAL_LOCK_STEPS = 2; // Container, Toggle Switch
 
@@ -66,6 +73,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   // Add Routine Modal Onboarding State
   const [showAddRoutineModalOnboarding, setShowAddRoutineModalOnboarding] = useState(false);
   const [currentAddRoutineModalStep, setCurrentAddRoutineModalStep] = useState(0);
+
+  // Routine Preset Onboarding State
+  const [showRoutinePresetOnboarding, setShowRoutinePresetOnboarding] = useState(false);
   
   // Progress Onboarding State
   const [showProgressOnboarding, setShowProgressOnboarding] = useState(false);
@@ -79,8 +89,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
-        console.log('🔄 User signed out, resetting first login check flag');
+        console.log('🔄 User signed out, resetting first login check flag and clearing cache');
         setHasCheckedFirstLogin(false);
+        await clearOnboardingCache();
       }
     });
 
@@ -105,12 +116,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         return;
       }
       
-      const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
-      const hasCompleted = await AsyncStorage.getItem(userOnboardingKey);
+      // Get onboarding preferences from database
+      const preferences = await getOnboardingPreferences(user.id);
       
-      console.log('🎯 Onboarding Check:', { userId: user.id.substring(0, 8), hasCompleted, isFirstTime: !hasCompleted });
+      console.log('🎯 Onboarding Check:', { 
+        userId: user.id.substring(0, 8), 
+        hasCompleted: preferences?.main_tour_completed,
+        isFirstTime: !preferences?.main_tour_completed 
+      });
       
-      if (!hasCompleted) {
+      if (!preferences || !preferences.main_tour_completed) {
         setIsFirstTimeUser(true);
       } else {
         setIsFirstTimeUser(false);
@@ -149,12 +164,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         return;
       }
       
-      const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
-      console.log('🔑 Checking key:', userOnboardingKey);
-      const hasCompleted = await AsyncStorage.getItem(userOnboardingKey);
-      console.log('📋 AsyncStorage value:', hasCompleted);
+      // Get onboarding preferences from database
+      const preferences = await getOnboardingPreferences(user.id);
+      console.log('📋 Database preferences:', preferences);
       
-      if (!hasCompleted) {
+      if (!preferences || !preferences.main_tour_completed) {
         console.log('🎯 First login detected - starting onboarding tour...');
         // Delay to let the screen render first
         setTimeout(() => {
@@ -182,8 +196,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.setItem(userOnboardingKey, 'true');
+        await updateOnboardingStatus(user.id, 'main_tour_completed', true);
         console.log('⏭️ Onboarding skipped for user:', user.id);
       }
       setIsFirstTimeUser(false);
@@ -199,13 +212,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
-        console.log('💾 Saving onboarding completion to:', userOnboardingKey);
-        await AsyncStorage.setItem(userOnboardingKey, 'true');
-        console.log('✅ Onboarding completed for user:', user.id);
-        // Verify it was saved
-        const verified = await AsyncStorage.getItem(userOnboardingKey);
-        console.log('✔️ Verified saved value:', verified);
+        console.log('💾 Saving onboarding completion to database');
+        const success = await updateOnboardingStatus(user.id, 'main_tour_completed', true);
+        if (success) {
+          console.log('✅ Onboarding completed for user:', user.id);
+        } else {
+          console.log('⚠️ Failed to save onboarding completion');
+        }
       } else {
         console.log('⚠️ No user found when completing onboarding');
       }
@@ -219,8 +232,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const userOnboardingKey = `${ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.removeItem(userOnboardingKey);
+        await updateOnboardingStatus(user.id, 'main_tour_completed', false);
         console.log('🔄 Onboarding reset for user:', user.id);
       }
       setIsFirstTimeUser(true);
@@ -238,10 +250,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       if (!user) return;
       
       // Check if user has already completed this onboarding
-      const plOnboardingKey = `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`;
-      const hasCompleted = await AsyncStorage.getItem(plOnboardingKey);
+      const preferences = await getOnboardingPreferences(user.id);
       
-      if (!hasCompleted) {
+      if (!preferences || !preferences.parental_lock_completed) {
         console.log('🔒 Starting Parental Lock onboarding...');
         setShowParentalLockOnboarding(true);
         setCurrentParentalLockStep(0);
@@ -267,8 +278,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const plOnboardingKey = `${PARENTAL_LOCK_ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.setItem(plOnboardingKey, 'true');
+        await updateOnboardingStatus(user.id, 'parental_lock_completed', true);
         console.log('✅ Parental Lock onboarding completed for user:', user.id);
       }
     } catch (error) {
@@ -287,10 +297,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
       
       // Check if user has already completed this onboarding
-      const addRoutineOnboardingKey = `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`;
-      const hasCompleted = await AsyncStorage.getItem(addRoutineOnboardingKey);
+      const preferences = await getOnboardingPreferences(user.id);
       
-      if (!hasCompleted) {
+      if (!preferences || !preferences.add_routine_completed) {
         console.log('➕ Starting Add Routine onboarding...');
         setShowAddRoutineOnboarding(true);
       } else {
@@ -306,8 +315,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const addRoutineOnboardingKey = `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.setItem(addRoutineOnboardingKey, 'true');
+        await updateOnboardingStatus(user.id, 'add_routine_completed', true);
         console.log('✅ Add Routine onboarding completed for user:', user.id);
       }
     } catch (error) {
@@ -320,8 +328,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const addRoutineOnboardingKey = `${ADD_ROUTINE_ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.setItem(addRoutineOnboardingKey, 'true');
+        await updateOnboardingStatus(user.id, 'add_routine_completed', true);
         console.log('⏭️ Add Routine onboarding skipped for user:', user.id);
       }
     } catch (error) {
@@ -339,12 +346,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
       
       // Check if user has already completed this onboarding
-      const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
-      console.log('🔑 Progress key:', progressOnboardingKey);
-      const hasCompleted = await AsyncStorage.getItem(progressOnboardingKey);
-      console.log('📋 Progress AsyncStorage value:', hasCompleted);
+      const preferences = await getOnboardingPreferences(user.id);
+      console.log('🔑 Progress preferences:', preferences);
       
-      if (!hasCompleted) {
+      if (!preferences || !preferences.progress_completed) {
         console.log('📊 Starting Progress onboarding...');
         setShowProgressOnboarding(true);
       } else {
@@ -361,13 +366,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
-        console.log('💾 Saving Progress completion to:', progressOnboardingKey);
-        await AsyncStorage.setItem(progressOnboardingKey, 'true');
+        console.log('💾 Saving Progress completion to database');
+        await updateOnboardingStatus(user.id, 'progress_completed', true);
         console.log('✅ Progress onboarding completed for user:', user.id);
-        // Verify it was saved
-        const verified = await AsyncStorage.getItem(progressOnboardingKey);
-        console.log('✔️ Verified Progress saved value:', verified);
       }
     } catch (error) {
       console.error('Error saving progress onboarding completion:', error);
@@ -380,12 +381,53 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const progressOnboardingKey = `${PROGRESS_ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.setItem(progressOnboardingKey, 'true');
+        await updateOnboardingStatus(user.id, 'progress_completed', true);
         console.log('⏭️ Progress onboarding skipped for user:', user.id);
       }
     } catch (error) {
       console.error('Error saving progress onboarding skip:', error);
+    }
+  };
+
+  const resetProgressOnboarding = async () => {
+    console.log('🔄 resetProgressOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await updateOnboardingStatus(user.id, 'progress_completed', false);
+        console.log('🔄 Progress onboarding reset for user:', user.id);
+      }
+      setShowProgressOnboarding(false);
+    } catch (error) {
+      console.error('Error resetting progress onboarding:', error);
+    }
+  };
+
+  const resetAllOnboarding = async () => {
+    console.log('🔄 resetAllOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Reset all onboarding preferences in database
+      await resetAllOnboardingPreferences(user.id);
+
+      setShowOnboarding(false);
+      setCurrentOnboardingStep(0);
+      setShowParentalLockOnboarding(false);
+      setCurrentParentalLockStep(0);
+      setShowAddRoutineOnboarding(false);
+      setShowAddRoutineModalOnboarding(false);
+      setCurrentAddRoutineModalStep(0);
+      setShowRoutinePresetOnboarding(false);
+      setShowProgressOnboarding(false);
+      setIsFirstTimeUser(true);
+      setHasCheckedFirstLogin(false);
+
+      console.log('✅ All onboarding states reset for user:', user.id);
+    } catch (error) {
+      console.error('Error resetting all onboarding state:', error);
+      throw error;
     }
   };
   // Add Routine Modal Onboarding Functions
@@ -399,12 +441,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
       
       // Check if user has already completed this onboarding
-      const modalOnboardingKey = `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`;
-      console.log('🔑 Add Routine Modal key:', modalOnboardingKey);
-      const hasCompleted = await AsyncStorage.getItem(modalOnboardingKey);
-      console.log('📋 Add Routine Modal AsyncStorage value:', hasCompleted);
+      const preferences = await getOnboardingPreferences(user.id);
+      console.log('🔑 Add Routine Modal preferences:', preferences);
       
-      if (!hasCompleted) {
+      if (!preferences || !preferences.add_routine_modal_completed) {
         console.log('📝 Starting Add Routine Modal onboarding...');
         setShowAddRoutineModalOnboarding(true);
         setCurrentAddRoutineModalStep(0);
@@ -431,13 +471,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const modalOnboardingKey = `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`;
-        console.log('💾 Saving Add Routine Modal completion to:', modalOnboardingKey);
-        await AsyncStorage.setItem(modalOnboardingKey, 'true');
+        console.log('💾 Saving Add Routine Modal completion to database');
+        await updateOnboardingStatus(user.id, 'add_routine_modal_completed', true);
         console.log('✅ Add Routine Modal onboarding completed for user:', user.id);
-        // Verify it was saved
-        const verified = await AsyncStorage.getItem(modalOnboardingKey);
-        console.log('✔️ Verified Add Routine Modal saved value:', verified);
       }
     } catch (error) {
       console.error('Error saving add routine modal onboarding completion:', error);
@@ -451,12 +487,60 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const modalOnboardingKey = `${ADD_ROUTINE_MODAL_ONBOARDING_KEY_PREFIX}${user.id}`;
-        await AsyncStorage.setItem(modalOnboardingKey, 'true');
+        await updateOnboardingStatus(user.id, 'add_routine_modal_completed', true);
         console.log('⏭️ Add Routine Modal onboarding skipped for user:', user.id);
       }
     } catch (error) {
       console.error('Error saving add routine modal onboarding skip:', error);
+    }
+  };
+
+  // Routine Preset Onboarding Functions
+  const startRoutinePresetOnboarding = async () => {
+    console.log('🔍 startRoutinePresetOnboarding called');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No user found for Routine Preset onboarding');
+        return;
+      }
+
+      const preferences = await getOnboardingPreferences(user.id);
+
+      if (!preferences || !preferences.routine_preset_completed) {
+        console.log('📘 Starting Routine Preset onboarding...');
+        setShowRoutinePresetOnboarding(true);
+      } else {
+        console.log('✅ Routine Preset onboarding already completed, skipping...');
+      }
+    } catch (error) {
+      console.error('Error starting routine preset onboarding:', error);
+    }
+  };
+
+  const completeRoutinePresetOnboarding = async () => {
+    setShowRoutinePresetOnboarding(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await updateOnboardingStatus(user.id, 'routine_preset_completed', true);
+        console.log('✅ Routine Preset onboarding completed for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving routine preset onboarding completion:', error);
+    }
+  };
+
+  const skipRoutinePresetOnboarding = async () => {
+    setShowRoutinePresetOnboarding(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await updateOnboardingStatus(user.id, 'routine_preset_completed', true);
+        console.log('⏭️ Routine Preset onboarding skipped for user:', user.id);
+      }
+    } catch (error) {
+      console.error('Error saving routine preset onboarding skip:', error);
     }
   };
 
@@ -491,11 +575,18 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         nextAddRoutineModalStep,
         completeAddRoutineModalOnboarding,
         skipAddRoutineModalOnboarding,
+        // Routine Preset Onboarding
+        showRoutinePresetOnboarding,
+        startRoutinePresetOnboarding,
+        completeRoutinePresetOnboarding,
+        skipRoutinePresetOnboarding,
         // Progress Onboarding
         showProgressOnboarding,
         startProgressOnboarding,
         completeProgressOnboarding,
         skipProgressOnboarding,
+        resetProgressOnboarding,
+        resetAllOnboarding,
       }}
     >
       {children}

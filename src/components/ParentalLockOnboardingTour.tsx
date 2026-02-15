@@ -86,10 +86,45 @@ export default function ParentalLockOnboardingTour({
 
   const config = getStepConfig();
 
-  // Calculate tooltip position - moved down more to avoid covering highlight
-  const tooltipTop = config.tooltipPosition === 'bottom'
-    ? config.highlightPosition.top + config.highlightPosition.height + scaleHeight(60)
-    : config.highlightPosition.top - scaleHeight(200);
+  // Calculate tooltip position - improved for lower-end devices
+  const getTooltipStyle = () => {
+    const estimatedTooltipHeight = scaleHeight(180);
+    const navBarHeight = scaleHeight(100);
+    
+    const highlightTop = config.highlightPosition.top - (step === 1 ? scaleSpacing(12) : 0);
+    const highlightHeight = config.highlightPosition.height + (step === 1 ? scaleSpacing(24) : 0);
+    
+    const spaceAbove = highlightTop;
+    const spaceBelow = screenHeight - (highlightTop + highlightHeight);
+    
+    const distanceFromBottom = screenHeight - (highlightTop + highlightHeight);
+    const isBottomElement = distanceFromBottom < navBarHeight + scaleHeight(50);
+    
+    // Determine position based on available space
+    if (config.tooltipPosition === 'bottom') {
+      if (isBottomElement || spaceBelow < estimatedTooltipHeight + scaleHeight(20)) {
+        // Show above if no room below
+        return {
+          bottom: screenHeight - highlightTop + scaleHeight(20),
+          maxHeight: spaceAbove - scaleHeight(40),
+        };
+      } else {
+        // Show below
+        return {
+          top: highlightTop + highlightHeight + scaleHeight(60),
+          maxHeight: spaceBelow - scaleHeight(80),
+        };
+      }
+    } else {
+      // Show above
+      return {
+        bottom: screenHeight - highlightTop + scaleHeight(20),
+        maxHeight: spaceAbove - scaleHeight(40),
+      };
+    }
+  };
+
+  const tooltipStyle = getTooltipStyle();
 
   const screenDimensions = Dimensions.get('screen');
 
@@ -148,7 +183,7 @@ export default function ParentalLockOnboardingTour({
             styles.tooltip,
             {
               position: 'absolute',
-              top: tooltipTop,
+              ...tooltipStyle,
               left: scaleWidth(20),
               right: scaleWidth(20),
             },
