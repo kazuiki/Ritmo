@@ -106,6 +106,14 @@ export default function AddRoutineModalOnboarding({
 
   if (!config.layout) return null;
 
+
+  // Calculate tooltip position
+  const getTooltipStyle = () => {
+    const tooltipWidth = scaleWidth(280);
+    
+    // Center tooltip horizontally
+    const left = (screenWidth - tooltipWidth) / 2;
+
   // Calculate tooltip position - improved for lower-end devices with smaller screens
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
@@ -119,11 +127,51 @@ export default function AddRoutineModalOnboarding({
     // Center tooltip horizontally with safe padding
     const horizontalPadding = scaleSpacing(16);
     const left = Math.max(horizontalPadding, (screenWidth - tooltipWidth) / 2);
+
     
     // Position above or below based on available space
     const spaceAbove = config.layout!.y;
     const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
     
+
+    // Small gap between tooltip and highlighted element
+    const gap = scaleHeight(15);
+    
+    // Minimum space needed (estimated based on typical tooltip height ~150-170dp)
+    const minSpaceNeeded = scaleHeight(160);
+    
+    // For elements in bottom 40% of screen, try to show above
+    const isInLowerPortion = config.layout!.y > screenHeight * 0.6;
+    
+    if (isInLowerPortion && spaceAbove >= minSpaceNeeded) {
+      // Position above
+      return {
+        left,
+        bottom: screenHeight - config.layout!.y + gap,
+        width: tooltipWidth,
+      };
+    } else if (spaceBelow >= minSpaceNeeded) {
+      // Position below (preferred for upper and middle elements)
+      return {
+        left,
+        top: config.layout!.y + config.layout!.height + gap,
+        width: tooltipWidth,
+      };
+    } else if (spaceAbove >= minSpaceNeeded) {
+      // Fallback to above if below doesn't have space
+      return {
+        left,
+        bottom: screenHeight - config.layout!.y + gap,
+        width: tooltipWidth,
+      };
+    } else {
+      // Last resort: position below with limited space
+      return {
+        left,
+        top: config.layout!.y + config.layout!.height + gap,
+        width: tooltipWidth,
+      };
+
     // Safe margin to avoid overlapping with highlighted element
     const safeMargin = scaleHeight(30);
     
@@ -184,6 +232,7 @@ export default function AddRoutineModalOnboarding({
           maxHeight: spaceAbove - safeMargin - scaleHeight(20),
         };
       }
+
     }
   };
 
@@ -307,9 +356,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
+
   },
   tooltipScrollContent: {
     flexGrow: 1,
+
   },
   tooltipHeader: {
     flexDirection: 'row',
