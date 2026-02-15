@@ -7,14 +7,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+	Alert,
+	Image,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TouchableOpacity,
+	View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProgressOnboarding } from "../../src/components";
@@ -46,7 +46,7 @@ export default function Progress() {
 	});
 	const printableRef = useRef<View>(null);
 	const weekButtonRef = useRef<View>(null);
-	const savePdfButtonRef = useRef<TouchableOpacity>(null);
+	const savePdfButtonRef = useRef<View>(null);
 	const [weekButtonLayout, setWeekButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [savePdfButtonLayout, setSavePdfButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [childName, setChildName] = useState<string>("Kid");
@@ -632,13 +632,15 @@ export default function Progress() {
 				</View>
 
 				{/* Save as PDF Button */}
-				<TouchableOpacity ref={savePdfButtonRef} collapsable={false} style={styles.pdfButton} disabled={isGeneratingPdf} onPress={handleSavePdf}>
-					<View style={styles.pdfButtonInner}>
-						<Image source={require("../../assets/images/dl.png")} style={styles.pdfIcon} />
-						<Text style={styles.pdfLabel}>Save as PDF</Text>
-						<Image source={require("../../assets/images/PDF.png")} style={styles.pdfIcon} />
-					</View>
-				</TouchableOpacity>
+				<View ref={savePdfButtonRef} collapsable={false}>
+					<TouchableOpacity style={styles.pdfButton} disabled={isGeneratingPdf} onPress={handleSavePdf}>
+						<View style={styles.pdfButtonInner}>
+							<Image source={require("../../assets/images/dl.png")} style={styles.pdfIcon} />
+							<Text style={styles.pdfLabel}>Save as PDF</Text>
+							<Image source={require("../../assets/images/PDF.png")} style={styles.pdfIcon} />
+						</View>
+					</TouchableOpacity>
+				</View>
 			</ScrollView>
 
 			{/* Progress Onboarding */}

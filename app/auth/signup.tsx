@@ -75,6 +75,7 @@ export default function SignUp() {
     setLocalNetworkFailure(false);
   };
 
+  
   const reduceMotionRef = useRef(false);
   const isInitialMount = useRef(true);
 
@@ -83,8 +84,6 @@ export default function SignUp() {
     const initInputs = async () => {
       try {
         await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm', '@signupVerificationCode']);
-        // Reset acceptance on fresh visit from Login to prevent stale check
-        await AsyncStorage.setItem('@termsAccepted', 'false');
       } catch {}
       setEmail('');
       setPassword('');
@@ -126,10 +125,6 @@ export default function SignUp() {
     (() => {
       let mounted = true;
       const checkAccepted = async () => {
-        if (isInitialMount.current) {
-          isInitialMount.current = false;
-          return;
-        }
         try {
           const val = await AsyncStorage.getItem("@termsAccepted");
           if (mounted) setAgreed(Boolean(val === "true"));
