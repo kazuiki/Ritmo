@@ -119,7 +119,7 @@ export default function Home() {
   // Autoplay step audio and gate Next until clip finishes
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
   const currentAudioModule = playbook?.steps?.[currentStepIndex]?.audio;
-  const { isNextDisabled, isPlaying: isAudioPlaying } = useStepAudio(currentAudioModule, playbookModalVisible);
+  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible);
 
   // Ensure Android audio mode when playbook opens
   useEffect(() => {
@@ -1293,9 +1293,10 @@ export default function Home() {
         }}
       >
         <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={styles.termsModalOverlay}>
+          <View style={styles.termsModalOverlay}>
           <View style={[
             styles.termsModalContainer,
+            !activePreset && styles.termsModalContainerNoPreset,
             { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
           ]}>
             {/* Header - Hide for no-preset */}
@@ -1634,6 +1635,26 @@ export default function Home() {
             <TouchableOpacity 
               style={[styles.nextButton, isNextDisabled && { opacity: 0.5 }]}
               onPress={() => {
+                // Triple guard: check the ref + debounce to prevent spam clicks
+                if (isNextDisabledRef?.current) {
+                  return;
+                }
+                
+                // Debounce check: ensure minimum gap between clicks
+                const now = Date.now();
+                if (lastClickTimeRef && lastClickTimeRef.current) {
+                  const timeSinceLastClick = now - lastClickTimeRef.current;
+                  if (timeSinceLastClick < minClickGapMs) {
+                    // Click came too soon after previous click - ignore it
+                    return;
+                  }
+                }
+                
+                // Update last click time before state changes
+                if (lastClickTimeRef) {
+                  lastClickTimeRef.current = now;
+                }
+                
                 if (currentStep < 4) {
                   setCurrentStep(currentStep + 1);
                   setIsPlaying(false);
@@ -2874,6 +2895,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: scale.scaleSpacing(12),
     elevation: 10,
   },
+  termsModalContainerNoPreset: {
+    height: "50%",
+  },
   termsScrollView: {
     flex: 1,
     marginTop: scale.scaleSpacing(12),
@@ -2887,11 +2911,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     top: scale.scaleSpacing(5),
     left: scale.scaleSpacing(10),
     zIndex: 10,
-    paddingVertical: scale.scaleSpacing(8),
-    paddingHorizontal: scale.scaleSpacing(4),
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(10),
   },
   termsBackButtonText: {
-    fontSize: scale.scaleFont(18),
+    fontSize: scale.scaleFont(20),
     color: "#2A3B4D",
     fontWeight: "600",
     textDecorationLine: "underline",

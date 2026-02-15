@@ -5,10 +5,22 @@ import { useEffect, useRef, useState } from 'react';
 // Pass the require('...mp3') module reference for audioModule
 export function useStepAudio(audioModule?: any, enabled: boolean = true) {
   const soundRef = useRef<Audio.Sound | null>(null);
+  const audioKeyRef = useRef<any>(null);
+  const initializingRef = useRef(false);
+  const isNextDisabledRef = useRef(false); // Track disabled state to prevent race conditions
+  const lastClickTimeRef = useRef<number>(0); // Track last click time for debounce
+  const minClickGapMs = 500; // Minimum milliseconds between step advances (debounce)
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [disabledUntil, setDisabledUntil] = useState<number>(0);
   const [hasStarted, setHasStarted] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+
+  const audioKey = enabled ? audioModule ?? null : null;
+  if (audioKey !== audioKeyRef.current) {
+    audioKeyRef.current = audioKey;
+    initializingRef.current = !!audioKey;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -21,10 +33,18 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
         // No audio for this step, enable Next button immediately
         setDisabledUntil(0);
         setIsPlaying(false);
+        setIsInitializing(false);
+        initializingRef.current = false;
         return;
       }
 
       try {
+        // Disable Next immediately while loading/starting audio
+        setIsInitializing(true);
+        setDisabledUntil(Date.now() + 1);
+        initializingRef.current = true;
+        isNextDisabledRef.current = true; // Keep button disabled during init
+
         // IMPORTANT: Stop and unload any previous sound first
         if (soundRef.current) {
           try {
@@ -71,16 +91,21 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
 
         soundRef.current = sound;
         setHasStarted(true);
+        isNextDisabledRef.current = true; // Still disabled until fully playing
         
         // Start playback immediately
         await sound.playAsync();
         setIsPlaying(true);
+        isNextDisabledRef.current = true; // Keep disabled
 
       } catch (err) {
         console.log('Audio playback error:', err);
         // If audio fails to load/play, enable Next button immediately
         setIsPlaying(false);
         setDisabledUntil(0);
+        setIsInitializing(false);
+        initializingRef.current = false;
+        isNextDisabledRef.current = false; // Actually enable on error
       }
     }
 
@@ -89,6 +114,9 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
         // Not loaded; treat as error and enable Next
         setIsPlaying(false);
         setDisabledUntil(0);
+        setIsInitializing(false);
+        initializingRef.current = false;
+        isNextDisabledRef.current = false; // Actually enable on error
         return;
       }
 
@@ -96,10 +124,16 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
         // Audio finished playing
         setIsPlaying(false);
         setDisabledUntil(0);
+        setIsInitializing(false);
+        initializingRef.current = false;
+        isNextDisabledRef.current = false; // Now we can enable
       } else {
         // Audio is playing or paused
         if (status.isPlaying) {
+          setIsInitializing(false);
+          initializingRef.current = false;
           setIsPlaying(true);
+          isNextDisabledRef.current = true; // Still disabled while playing
           if (status.positionMillis > 0 && status.durationMillis) {
             const remainingTime = status.durationMillis - status.positionMillis;
             setDisabledUntil(Date.now() + remainingTime);
@@ -107,6 +141,15 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
           }
         } else {
           setIsPlaying(false);
+          if (initializingRef.current) {
+            setIsInitializing(true);
+            isNextDisabledRef.current = true; // Keep disabled while initializing
+          } else {
+            // Paused but not initializing - check if we should enable
+            if (disabledUntil <= Date.now()) {
+              isNextDisabledRef.current = false;
+            }
+          }
         }
       }
     };
@@ -134,15 +177,23 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true) {
     };
   }, [audioModule, enabled]);
 
-  const isNextDisabled = isPlaying || (disabledUntil > Date.now());
+  const isNextDisabled = (!!enabled && !!audioModule && (isInitializing || initializingRef.current)) || isPlaying || (disabledUntil > Date.now());
   const remainingMs = Math.max(0, disabledUntil - Date.now());
+
+  // Always keep ref in sync with calculated state
+  if (isNextDisabled) {
+    isNextDisabledRef.current = true;
+  }
 
   return { 
     isPlaying, 
     durationMs, 
     isNextDisabled, 
     remainingMs,
-    hasStarted 
+    hasStarted,
+    isNextDisabledRef, // Export ref for use in button handler
+    lastClickTimeRef, // Export for debounce check
+    minClickGapMs, // Export the minimum gap
   };
 }
 
