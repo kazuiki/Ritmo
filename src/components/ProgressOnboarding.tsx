@@ -52,11 +52,14 @@ export default function ProgressOnboarding({
   const currentLayout = step === 0 ? weekButtonLayout : savePdfButtonLayout;
   if (!currentLayout) return null;
 
+  // For PDF button (step 1), adjust for the marginTop in the button style
+  const pdfButtonMarginTop = step === 1 ? scaleSpacing(16) : 0;
+  
   const highlightPosition = {
     left: currentLayout.x,
-    top: currentLayout.y,
+    top: currentLayout.y + pdfButtonMarginTop,
     width: currentLayout.width,
-    height: currentLayout.height,
+    height: currentLayout.height - pdfButtonMarginTop,
   };
   const highlightBorderRadius = step === 0 ? scaleSpacing(8) : scaleSpacing(16);
 
@@ -67,21 +70,39 @@ export default function ProgressOnboarding({
 
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
+    
+    // Estimated tooltip height based on content
+    const estimatedTooltipHeight = scaleHeight(200);
+    
+    // Navigation bar height estimate
+    const navBarHeight = scaleHeight(100);
+    
     const left = (screenWidth - tooltipWidth) / 2;
+    
+    // Check available space
+    const spaceAbove = highlightPosition.top;
     const spaceBelow = screenHeight - (highlightPosition.top + highlightPosition.height);
+    
+    // For elements near the bottom, always show above
+    const distanceFromBottom = screenHeight - (highlightPosition.top + highlightPosition.height);
+    const isBottomElement = distanceFromBottom < navBarHeight + scaleHeight(50);
 
-    if (spaceBelow > scaleHeight(220)) {
+    if (isBottomElement || spaceBelow < estimatedTooltipHeight + navBarHeight) {
+      // Show above - with extra padding
       return {
         left,
-        top: highlightPosition.top + highlightPosition.height + scaleHeight(20),
+        bottom: screenHeight - highlightPosition.top + scaleHeight(20),
         width: tooltipWidth,
+        maxHeight: spaceAbove - scaleHeight(40),
       };
     }
 
+    // Show below (only when there's plenty of space)
     return {
       left,
-      bottom: screenHeight - highlightPosition.top + scaleHeight(20),
+      top: highlightPosition.top + highlightPosition.height + scaleHeight(20),
       width: tooltipWidth,
+      maxHeight: spaceBelow - scaleHeight(40),
     };
   };
 
