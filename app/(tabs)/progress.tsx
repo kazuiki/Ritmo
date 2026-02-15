@@ -275,6 +275,8 @@ export default function Progress() {
 				try {
 					const { data: { user } } = await supabase.auth.getUser();
 					if (!user) return;
+					const meta = (user.user_metadata ?? {}) as any;
+					setChildName(meta?.child_name ?? "Kid");
 
 				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
 					getRoutinesForCurrentUser(),
@@ -328,15 +330,6 @@ export default function Progress() {
 		}, [weekInfo.monday, weekInfo.sunday])
 	);
 
-	// Load child name from auth profile
-	useEffect(() => {
-		(async () => {
-			const { data } = await supabase.auth.getUser();
-			const meta = (data?.user?.user_metadata ?? {}) as any;
-			setChildName(meta?.child_name ?? "Kid");
-		})();
-	}, []);
-
 	// Update current time every minute to refresh status
 	useEffect(() => {
 		const interval = setInterval(() => {
@@ -358,6 +351,8 @@ export default function Progress() {
 					console.log('User not authenticated, skipping data load');
 					return;
 				}
+				const meta = (user.user_metadata ?? {}) as any;
+				setChildName(meta?.child_name ?? "Kid");
 
 			// Fetch routines from Supabase
 			const routinesData = await getRoutinesForCurrentUser();
@@ -791,7 +786,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		color: '#2A3B4D',
 		fontSize: scale.scaleFont(12),
 		fontFamily: 'Fredoka_500Medium',
-		letterSpacing: 1.2,
 		flex: 1,
 		flexShrink: 1,
 		minWidth: 0,

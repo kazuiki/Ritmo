@@ -5,7 +5,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/fredoka";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Image,
   ImageBackground,
@@ -18,12 +18,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { addBlockedWord, clearBlockedWords, getBlockedWords, removeBlockedWord, subscribeToBlockedWords } from "../src/blockedWordsService";
 import { useResponsiveDimensions } from "../src/utils/responsive";
 
 const backgroundImage = require("../assets/background.png");
 const trashIcon = require("../assets/images/Trash.png");
-
-const DEFAULT_WORDS = ["gun", "blood", "kill", "scary", "death", "violence", "terror", "horror", "fight", "war", "bomb", "explosion", "weapon", "crime", "abuse"];
 
 export default function ContentFilter() {
   const router = useRouter();
@@ -37,34 +36,80 @@ export default function ContentFilter() {
     deviceCategory,
   } = useResponsiveDimensions();
   const [inputValue, setInputValue] = useState("");
-  const [blockedWords, setBlockedWords] = useState<string[]>(DEFAULT_WORDS);
+  const [blockedWords, setBlockedWords] = useState<string[]>([]);
   const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
+  const [emptyListAlertVisible, setEmptyListAlertVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [fontsLoaded] = useFonts({
     Fredoka_400Regular,
     Fredoka_600SemiBold,
     Fredoka_700Bold,
   });
 
+  useEffect(() => {
+    const loadBlockedWords = async () => {
+      try {
+        const words = await getBlockedWords();
+        setBlockedWords(words);
+      } catch (err) {
+        console.warn("Failed to load blocked words:", err);
+      }
+    };
+
+    loadBlockedWords();
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToBlockedWords((words) => {
+      setBlockedWords(words);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const normalizedValue = inputValue.trim().toLowerCase();
   const canAddWord = normalizedValue.length > 0;
 
-  const handleAddWord = () => {
+  const handleAddWord = async () => {
     if (!canAddWord) return;
     if (blockedWords.includes(normalizedValue)) {
       setInputValue("");
       return;
     }
-    setBlockedWords((prev) => [...prev, normalizedValue]);
-    setInputValue("");
+    try {
+      setIsLoading(true);
+      await addBlockedWord(normalizedValue);
+      setBlockedWords((prev) => [...prev, normalizedValue]);
+      setInputValue("");
+    } catch (err) {
+      console.error("Error adding blocked word:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRemoveWord = (word: string) => {
-    setBlockedWords((prev) => prev.filter((item) => item !== word));
+  const handleRemoveWord = async (word: string) => {
+    try {
+      setIsLoading(true);
+      await removeBlockedWord(word);
+      setBlockedWords((prev) => prev.filter((item) => item !== word));
+    } catch (err) {
+      console.error("Error removing blocked word:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReset = () => {
-    setBlockedWords(DEFAULT_WORDS);
-    setInputValue("");
+  const handleReset = async () => {
+    try {
+      setIsLoading(true);
+      await clearBlockedWords();
+      setBlockedWords([]);
+      setInputValue("");
+    } catch (err) {
+      console.error("Error clearing blocked words:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const confirmReset = () => {
@@ -173,13 +218,51 @@ export default function ContentFilter() {
 
           <TouchableOpacity
             style={styles.resetButton}
-            onPress={() => setResetConfirmVisible(true)}
+            onPress={() => {
+              if (blockedWords.length === 0) {
+                setEmptyListAlertVisible(true);
+              } else {
+                setResetConfirmVisible(true);
+              }
+            }}
           >
-            <Text style={styles.resetButtonText}>Reset to Default List</Text>
+            <Text style={styles.resetButtonText}>Clear List</Text>
           </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={emptyListAlertVisible}
+        onRequestClose={() => setEmptyListAlertVisible(false)}
+      >
+        <View style={styles.resetModalOverlay}>
+          <View style={styles.resetModalContainer}>
+            <View style={styles.resetIconCircle}>
+              <Image
+                source={require("../assets/images/Error.png")}
+                style={styles.resetIcon}
+              />
+            </View>
+
+            <Text style={styles.resetModalTitle}>Empty List</Text>
+            <Text style={styles.resetModalMessage}>
+              You don't have a blocked word list.
+            </Text>
+
+            <View style={styles.resetModalButtons}>
+              <TouchableOpacity
+                style={[styles.resetConfirmButton, { flex: 1 }]}
+                onPress={() => setEmptyListAlertVisible(false)}
+              >
+                <Text style={styles.resetConfirmButtonText}>Okay</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -196,10 +279,10 @@ export default function ContentFilter() {
               />
             </View>
 
-            <Text style={styles.resetModalTitle}>Reset?</Text>
+            <Text style={styles.resetModalTitle}>Clear?</Text>
             <Text style={styles.resetModalMessage}>
-              Are you sure you want to reset the blocked words to default?
-              This will remove all custom added words.
+              Are you sure you want to clear the blocked words list?
+              This will remove all added words.
             </Text>
 
             <View style={styles.resetModalButtons}>
@@ -214,7 +297,7 @@ export default function ContentFilter() {
                 style={styles.resetConfirmButton}
                 onPress={confirmReset}
               >
-                <Text style={styles.resetConfirmButtonText}>Reset</Text>
+                <Text style={styles.resetConfirmButtonText}>Clear</Text>
               </TouchableOpacity>
             </View>
           </View>
