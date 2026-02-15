@@ -541,8 +541,8 @@ export default function Progress() {
 
 					{/* Week of (pressable text + inline icon) */}
 					<View style={styles.weekRow}>
-						<Text style={styles.subtleText}>Week of: </Text>
-						<View ref={weekButtonRef} collapsable={false}>
+						<Text style={[styles.subtleText, styles.weekLabel]} numberOfLines={1}>Week of: </Text>
+						<View ref={weekButtonRef} collapsable={false} style={styles.weekButtonWrap}>
 							<Pressable 
 								style={({ pressed }) => [
 									styles.weekDateButton,
@@ -550,7 +550,9 @@ export default function Progress() {
 								]}
 								onPress={() => router.push("/history")}
 							>
-								<Text style={styles.weekRangeText}>{weekInfo.rangeText}</Text>
+								<Text style={styles.weekRangeText} numberOfLines={1} ellipsizeMode="tail">
+									{weekInfo.rangeText}
+								</Text>
 								<Image source={require("../../assets/images/history.png")} style={styles.weekInlineIcon} />
 							</Pressable>
 						</View>
@@ -750,9 +752,18 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		alignItems: 'center',
 		marginTop: scale.scaleSpacing(8),
 	},
+	weekLabel: {
+		marginRight: scale.scaleSpacing(8),
+		flexShrink: 0,
+	},
+	weekButtonWrap: {
+		flex: 1,
+		minWidth: 0,
+	},
 	weekDateButton: {
 		flexDirection: 'row',
 		alignItems: 'center',
+		justifyContent: 'space-between',
 		borderWidth: 1,
 		borderColor: '#5BDFC9',
 		borderRadius: scale.scaleBorderRadius(8),
@@ -760,8 +771,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		paddingVertical: scale.scaleSpacing(6),
 		backgroundColor: '#FFFFFF',
 		flex: 1,
+		width: '100%',
 		maxWidth: '100%',
-		flexWrap: 'wrap',
+		minWidth: 0,
+		overflow: 'hidden',
 		shadowColor: '#000',
 		shadowOffset: { width: 0, height: scale.scaleHeight(5) },
 		shadowOpacity: 0.25,
@@ -778,8 +791,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		color: '#2A3B4D',
 		fontSize: scale.scaleFont(12),
 		fontFamily: 'Fredoka_500Medium',
+		letterSpacing: 1.2,
+		flex: 1,
 		flexShrink: 1,
-		paddingHorizontal: scale.scaleSpacing(3),
+		minWidth: 0,
+		textAlign: 'left',
+		paddingHorizontal: 0,
 		paddingVertical: scale.scaleSpacing(1),
 	},
 	weekInlineIcon: {
@@ -788,6 +805,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		marginLeft: scale.scaleSpacing(6),
 		resizeMode: 'contain',
 		opacity: 0.8,
+		flexShrink: 0,
 	},
 	smallIcon: {
 		width: scale.scaleWidth(18),
