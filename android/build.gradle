@@ -17,9 +17,10 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
-    flatDir {
-      dirs rootProject.projectDir.parent + '/modules/expo-godot-view/android/libs'
-    }
+
+	flatDir {
+            dirs 'libs', project(':expo-godot-view').file('libs')
+        }
   }
 }
 
