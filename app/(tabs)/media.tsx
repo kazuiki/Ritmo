@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -18,6 +18,7 @@ import {
   View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
+import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
 
 import { useMode } from "../../src/contexts/ModeContext";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
@@ -49,6 +50,7 @@ export default function Media() {
   const videoPlayerHeight = Math.round(videoPlayerWidth * 9 / 16);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
+  const [customBlockedWords, setCustomBlockedWords] = useState<string[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,10 +75,26 @@ export default function Media() {
     'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
   ];
 
+  const loadCustomBlockedWords = async () => {
+    try {
+      const words = await getBlockedWords();
+      setCustomBlockedWords(words);
+    } catch (err) {
+      console.warn('Failed to load custom blocked words:', err);
+      setCustomBlockedWords([]);
+    }
+  };
+
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
     React.useCallback(() => {
       ParentalLockAuthService.onNavigateToPublicTab();
+    }, [])
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadCustomBlockedWords();
     }, [])
   );
 
@@ -101,9 +119,15 @@ export default function Media() {
 
     setNetworkRetryTimer(retryTimer);
 
+    // Subscribe to real-time blocked words updates
+    const unsubscribeBlockedWords = subscribeToBlockedWords((words) => {
+      setCustomBlockedWords(words);
+    });
+
     return () => {
       networkListener?.();
       if (retryTimer) clearInterval(retryTimer);
+      unsubscribeBlockedWords();
     };
   }, []);
 
@@ -139,9 +163,16 @@ export default function Media() {
     'suicide', 'murder', 'rape', 'assault', 'kidnap', 'torture', 'terrorism'
   ];
 
+  const combinedBadWords = useMemo(() => {
+    const normalizedCustom = customBlockedWords
+      .map(word => word.toLowerCase().trim())
+      .filter(Boolean);
+    return Array.from(new Set([...BAD_WORDS, ...normalizedCustom]));
+  }, [customBlockedWords]);
+
   const containsBadWords = (text: string): boolean => {
     const lowerText = text.toLowerCase().trim();
-    return BAD_WORDS.some(word => lowerText.includes(word));
+    return combinedBadWords.some(word => lowerText.includes(word));
   };
 
   // Dynamic search - fetch from YouTube when user types
