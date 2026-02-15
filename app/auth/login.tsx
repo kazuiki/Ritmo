@@ -15,7 +15,6 @@ import {
   PixelRatio,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -467,16 +466,16 @@ export default function Login() {
     }
   };
 
-   /* -------------------------
-     Responsive styles (uses scale/vscale/scaleFont)
-     ------------------------- */
-  const styles = createStyles({ scale, vscale, scaleFont, width, height });
-
   const bubbleBase = bubbleBaseRef.current;
 
   return (
-    <ImageBackground source={require("../../assets/background.png")} style={styles.background} resizeMode="cover">
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.outer} keyboardVerticalOffset={0}>
+    <ImageBackground
+      source={require("../../assets/background.png")}
+      className="absolute w-full h-full"
+      style={{ top: 0, left: 0 }}
+      resizeMode="cover"
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} className="flex-1" keyboardVerticalOffset={0}>
         <Stack.Screen options={{ title: "Log in", headerShown: false }} />
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
@@ -485,7 +484,14 @@ export default function Login() {
           bounces={false}
         >
           <TouchableWithoutFeedback onPress={togglePause}>
-            <View style={styles.container}>
+            <View
+              className="flex-1 justify-center items-center"
+              style={{
+                paddingHorizontal: scale(20),
+                paddingVertical: vscale(20),
+                minHeight: Math.max(vscale(700), height),
+              }}
+            >
             {/* Animated bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -510,7 +516,11 @@ export default function Login() {
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ type: "timing", duration: 800 }}
               source={require("../../assets/ritmo-logo.png")}
-              style={styles.logo}
+              style={{
+                width: Math.min(scale(300), width * 0.78),
+                height: Math.min(vscale(220), height * 0.22),
+                marginBottom: vscale(6),
+              }}
               resizeMode="contain"
             />
 
@@ -521,9 +531,21 @@ export default function Login() {
               transition={{ delay: 400, duration: 600 }}
               style={{ width: "100%", alignItems: "center" }}
             >
-              <Text style={styles.label}>Email:</Text>
+              <Text className="self-start text-[#276a63] font-semibold" style={{ marginTop: vscale(8), fontSize: scaleFont(14) }}>Email:</Text>
               <TextInput
-                style={styles.input}
+                className="w-full bg-white text-[#333]"
+                style={{
+                  maxWidth: Math.max(scale(340), width * 0.92),
+                  borderRadius: scale(8),
+                  paddingHorizontal: scale(14),
+                  paddingVertical: vscale(12),
+                  marginTop: vscale(10),
+                  shadowColor: "#000",
+                  shadowOpacity: 0.05,
+                  shadowRadius: scale(4),
+                  elevation: 2,
+                  fontSize: scaleFont(15),
+                }}
                 placeholder="Enter email here"
                 value={email}
                 onChangeText={setEmail}
@@ -532,10 +554,19 @@ export default function Login() {
                 placeholderTextColor="#6b6b6b"
               />
 
-              <Text style={styles.label}>Password:</Text>
-              <View style={styles.inputRow}>
+              <Text className="self-start text-[#276a63] font-semibold" style={{ marginTop: vscale(8), fontSize: scaleFont(14) }}>Password:</Text>
+              <View
+                className="w-full flex-row items-center bg-white"
+                style={{
+                  maxWidth: Math.max(scale(340), width * 0.92),
+                  borderRadius: scale(8),
+                  paddingHorizontal: scale(10),
+                  marginTop: vscale(10),
+                  elevation: 2,
+                }}
+              >
                 <TextInput
-                  style={styles.inputFlex}
+                  style={{ flex: 1, paddingVertical: vscale(10), fontSize: scaleFont(15), color: "#333" }}
                   placeholder="Enter password here"
                   value={password}
                   onChangeText={setPassword}
@@ -543,7 +574,7 @@ export default function Login() {
                   autoCapitalize="none"
                   placeholderTextColor="#6b6b6b"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ paddingHorizontal: scale(6), paddingVertical: vscale(6) }}>
                   <Ionicons name={showPassword ? "eye-off" : "eye"} size={scaleFont(18)} color="#276a63" />
                 </TouchableOpacity>
               </View>
@@ -551,7 +582,8 @@ export default function Login() {
               {/* Forgot Password Link */}
               <TouchableOpacity onPress={() => router.push("./forgot-password")} style={{ alignSelf: "flex-end" }}>
                 <Text
-                  style={[styles.link, { marginTop: vscale(8) }]}
+                  className="text-[#276a63] underline"
+                  style={{ marginTop: vscale(8), fontSize: scaleFont(13) }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.85}
@@ -568,8 +600,20 @@ export default function Login() {
               transition={{ delay: 700, type: "spring" }}
               style={{ width: "100%", alignItems: "center" }}
             >
-              <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-                <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
+              <TouchableOpacity
+                className="bg-[#2D7778] items-center"
+                style={{
+                  marginTop: vscale(22),
+                  paddingVertical: vscale(12),
+                  width: width >= 800 ? "45%" : "60%",
+                  maxWidth: Math.max(scale(420), 420),
+                  borderRadius: scale(20),
+                  elevation: 3,
+                }}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                <Text className="text-white font-semibold" style={{ fontSize: scaleFont(16) }}>{loading ? "Logging in..." : "Login"}</Text>
               </TouchableOpacity>
             </MotiView>
 
@@ -580,14 +624,25 @@ export default function Login() {
               transition={{ delay: 900, duration: 600 }}
               style={{ width: "100%", alignItems: "center" }}
             >
-              <TouchableOpacity style={[styles.button, styles.signUpButton]} onPress={() => router.push("/auth/signup")}>
-                <Text style={styles.buttonText}>Sign Up</Text>
+              <TouchableOpacity
+                className="bg-[#5BDFC9] items-center"
+                style={{
+                  marginTop: vscale(10),
+                  paddingVertical: vscale(12),
+                  width: width >= 800 ? "45%" : "60%",
+                  maxWidth: Math.max(scale(420), 420),
+                  borderRadius: scale(20),
+                  elevation: 3,
+                }}
+                onPress={() => router.push("/auth/signup")}
+              >
+                <Text className="text-white font-semibold" style={{ fontSize: scaleFont(16) }}>Sign Up</Text>
               </TouchableOpacity>
 
-              <Text style={styles.orText}>Or sign in with</Text>
+              <Text className="text-[#244D4A] font-medium" style={{ marginTop: vscale(16), fontSize: scaleFont(14) }}>Or sign in with</Text>
 
-              <TouchableOpacity style={styles.gmailIconWrapper} onPress={handleGoogleSignIn} disabled={loading}>
-                <ImageBackground source={require("../../assets/Google.png")} style={styles.gmailIcon} resizeMode="contain" />
+              <TouchableOpacity className="mt-[10px]" onPress={handleGoogleSignIn} disabled={loading}>
+                <ImageBackground source={require("../../assets/Google.png")} style={{ width: scale(44), height: scale(44), backgroundColor: "transparent" }} resizeMode="contain" />
               </TouchableOpacity>
             </MotiView>
           </View>
@@ -597,17 +652,35 @@ export default function Login() {
 
       {/* Alert Modal */}
       <Modal animationType="fade" transparent={true} visible={alertModalVisible} onRequestClose={() => setAlertModalVisible(false)}>
-        <View style={styles.alertModalOverlay}>
-          <View style={styles.alertModalContainer}>
-            <View style={styles.alertIconCircle}>
-              <Image source={require("../../assets/images/Pencil.png")} style={styles.alertIcon} />
+        <View className="flex-1 bg-black/50 justify-center items-center">
+          <View
+            className="bg-white items-center border-[#FFB3BA]"
+            style={{
+              borderRadius: scale(18),
+              padding: scale(18),
+              width: "82%",
+              maxWidth: Math.min(scale(420), 420),
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: scale(12),
+              elevation: 8,
+              borderWidth: scale(3),
+            }}
+          >
+            <View className="justify-center items-center bg-[#FFE5E7]" style={{ width: scale(64), height: scale(64), borderRadius: scale(32), marginBottom: vscale(12) }}>
+              <Image source={require("../../assets/images/Pencil.png")} style={{ width: scale(36), height: scale(36), resizeMode: "contain" }} />
             </View>
 
-            <Text style={styles.alertModalTitle}>Alert!</Text>
-            <Text style={styles.alertModalMessage}>{alertMessage}</Text>
+            <Text className="font-bold text-[#1A1A1A]" style={{ fontSize: scaleFont(20), marginBottom: vscale(8) }}>Alert!</Text>
+            <Text className="text-[#4A4A4A] text-center" style={{ fontSize: scaleFont(14), lineHeight: scaleFont(18), marginBottom: vscale(16), paddingHorizontal: scale(8), flexWrap: "wrap" }}>{alertMessage}</Text>
 
-            <TouchableOpacity style={styles.alertOkButton} onPress={() => setAlertModalVisible(false)}>
-              <Text style={styles.alertOkButtonText}>OK</Text>
+            <TouchableOpacity
+              className="bg-[#FF6B7A] items-center justify-center"
+              style={{ paddingVertical: vscale(10), paddingHorizontal: scale(28), borderRadius: scale(40), minWidth: scale(110) }}
+              onPress={() => setAlertModalVisible(false)}
+            >
+              <Text className="text-white font-semibold" style={{ fontSize: scaleFont(15) }}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -620,187 +693,4 @@ export default function Login() {
       />
     </ImageBackground>
   );
-}
-
-/* -------------------------
-   createStyles factory using scale/vscale/scaleFont
-   (keeps everything responsive for hybrid mode)
-   ------------------------- */
-function createStyles({ scale, vscale, scaleFont, width, height }: any) {
-  return StyleSheet.create({
-    outer: { flex: 1 },
-    background: { 
-      position: 'absolute',
-      width: "100%", 
-      height: "100%",
-      top: 0,
-      left: 0,
-    },
-    container: {
-      flex: 1,
-      paddingHorizontal: scale(20),
-      paddingVertical: vscale(20),
-      justifyContent: "center",
-      alignItems: "center",
-      minHeight: Math.max(vscale(700), height),
-    },
-    logo: {
-      width: Math.min(scale(300), width * 0.78),
-      height: Math.min(vscale(220), height * 0.22),
-      marginBottom: vscale(6),
-    },
-    label: {
-      alignSelf: "flex-start",
-      color: "#276a63",
-      marginTop: vscale(8),
-      fontSize: scaleFont(14),
-      fontWeight: "600",
-    },
-    input: {
-      width: "100%",
-      maxWidth: Math.max(scale(340), width * 0.92),
-      backgroundColor: "#fff",
-      borderRadius: scale(8),
-      paddingHorizontal: scale(14),
-      paddingVertical: vscale(12),
-      marginTop: vscale(10),
-      shadowColor: "#000",
-      shadowOpacity: 0.05,
-      shadowRadius: scale(4),
-      elevation: 2,
-      fontSize: scaleFont(15),
-      color: "#333",
-    },
-    inputRow: {
-      width: "100%",
-      maxWidth: Math.max(scale(340), width * 0.92),
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: "#fff",
-      borderRadius: scale(8),
-      paddingHorizontal: scale(10),
-      marginTop: vscale(10),
-      elevation: 2,
-    },
-    inputFlex: { flex: 1, paddingVertical: vscale(10), fontSize: scaleFont(15), color: "#333" },
-    eyeButton: { paddingHorizontal: scale(6), paddingVertical: vscale(6) },
-    button: {
-      marginTop: vscale(22),
-      backgroundColor: "#2D7778",
-      paddingVertical: vscale(12),
-      width: width >= 800 ? "45%" : "60%",
-      maxWidth: Math.max(scale(420), 420),
-      borderRadius: scale(20),
-      alignItems: "center",
-      elevation: 3,
-    },
-    signUpButton: {
-      marginTop: vscale(10),
-      backgroundColor: "#5BDFC9",
-    },
-    buttonText: { color: "#fff", fontWeight: "600", fontSize: scaleFont(16) },
-    link: { marginTop: vscale(12), color: "#276a63", textDecorationLine: "underline", fontSize: scaleFont(13) },
-    orText: {
-      marginTop: vscale(16),
-      color: "#244D4A",
-      fontWeight: "500",
-      fontSize: scaleFont(14),
-    },
-    createAccountBtn: {
-      marginTop: vscale(18),
-      backgroundColor: "#fff",
-      borderWidth: 1,
-      borderColor: "#2D7778",
-      borderRadius: scale(8),
-      paddingVertical: vscale(12),
-      paddingHorizontal: scale(10),
-      width: "50%",
-      alignItems: "center",
-      justifyContent: "center",
-      elevation: 2,
-    },
-    createAccountText: {
-      color: "#2D7778",
-      fontWeight: "600",
-      fontSize: scaleFont(15),
-    },
-    gmailIconWrapper: {
-      marginTop: vscale(10),
-      backgroundColor: "transparent",
-      padding: 0,
-    },
-    gmailIcon: {
-      width: scale(44),
-      height: scale(44),
-      backgroundColor: "transparent",
-    },
-
-    // Alert Modal Styles
-    alertModalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    alertModalContainer: {
-      backgroundColor: "#FFFFFF",
-      borderRadius: scale(18),
-      padding: scale(18),
-      width: "82%",
-      maxWidth: Math.min(scale(420), 420),
-      alignItems: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: scale(12),
-      elevation: 8,
-      borderWidth: scale(3),
-      borderColor: "#FFB3BA",
-    },
-    alertIconCircle: {
-      width: scale(64),
-      height: scale(64),
-      borderRadius: scale(32),
-      backgroundColor: "#FFE5E7",
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: vscale(12),
-    },
-    alertIcon: {
-      width: scale(36),
-      height: scale(36),
-      resizeMode: "contain",
-    },
-    alertModalTitle: {
-      fontSize: scaleFont(20),
-      fontWeight: "700",
-      color: "#1A1A1A",
-      marginBottom: vscale(8),
-      // fontFamily: "Fredoka_700Bold", // keep if available
-    },
-    alertModalMessage: {
-      fontSize: scaleFont(14),
-      color: "#4A4A4A",
-      textAlign: "center",
-      lineHeight: scaleFont(18),
-      marginBottom: vscale(16),
-      paddingHorizontal: scale(8),
-      flexWrap: "wrap",
-    },
-    alertOkButton: {
-      backgroundColor: "#FF6B7A",
-      paddingVertical: vscale(10),
-      paddingHorizontal: scale(28),
-      borderRadius: scale(40),
-      alignItems: "center",
-      justifyContent: "center",
-      minWidth: scale(110),
-    },
-    alertOkButtonText: {
-      fontSize: scaleFont(15),
-      fontWeight: "600",
-      color: "#FFFFFF",
-      // fontFamily: "Fredoka_600SemiBold",
-    },
-  });
 }
