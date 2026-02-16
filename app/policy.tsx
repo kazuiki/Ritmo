@@ -4,8 +4,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ResponsiveBackButton } from '../src/components/ResponsiveBackButton';
+import { ResponsiveSafeArea } from '../src/components/ResponsiveSafeArea';
+import { useResponsiveDimensions } from '../src/utils/responsive';
 
 export default function PrivacyPolicy() {
+  const { scaleFont, scaleSpacing } = useResponsiveDimensions();
+  const insets = useSafeAreaInsets();
   const [fontsLoaded] = useFonts({
     Fredoka_400Regular,
     Fredoka_500Medium,
@@ -22,29 +28,24 @@ export default function PrivacyPolicy() {
   if (!fontsLoaded) return null;
 
   return (
-    <View style={styles.termsModalOverlay}>
-      {/* Background Image */}
-      <Image source={require('../assets/background.png')} style={styles.backgroundImage} resizeMode="cover" />
+    <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.termsModalOverlay}>
+        {/* Background Image */}
+        <Image source={require('../assets/background.png')} style={styles.backgroundImage} resizeMode="cover" />
 
-      <View style={styles.termsModalContainer}>
-        {/* Back Button */}
-        <TouchableOpacity 
-          style={styles.termsBackButton}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            }
-          }}
-        >
-          <Text style={styles.termsBackButtonText}>Back</Text>
-        </TouchableOpacity>
+        <View style={styles.termsModalContainer}>
+          {/* Back Button */}
+          <ResponsiveBackButton />
 
-        {/* Scrollable Content */}
-        <ScrollView 
-          style={styles.termsScrollView}
-          contentContainerStyle={styles.termsScrollContent}
-          showsVerticalScrollIndicator={true}
-        >
+          {/* Scrollable Content */}
+          <ScrollView 
+            style={styles.termsScrollView}
+            contentContainerStyle={[
+              styles.termsScrollContent,
+              { paddingBottom: scaleSpacing(24) + insets.bottom }
+            ]}
+            showsVerticalScrollIndicator={true}
+          >
           <Text style={styles.termsTitle}>Privacy Policy</Text>
           <Text style={styles.termsSubtitle}>Last Updated: November 2025</Text>
 
@@ -258,17 +259,18 @@ export default function PrivacyPolicy() {
 
           {/* Next button below Section 8 */}
           <TouchableOpacity 
-            style={styles.termsNextButton}
+            style={[styles.termsNextButton, { paddingTop: scaleSpacing(16), paddingBottom: scaleSpacing(8) }]}
             onPress={() => router.push('/terms')}
           >
-            <Text style={styles.termsNextButtonText}>Next</Text>
+            <Text style={[styles.termsNextButtonText, { fontSize: scaleFont(20) }]}>Next</Text>
           </TouchableOpacity>
 
           {/* Bottom spacing */}
-          <View style={{ height: 30 }} />
+          <View style={{ height: scaleSpacing(30) }} />
         </ScrollView>
       </View>
-    </View>
+      </View>
+    </ResponsiveSafeArea>
   );
 }
 
@@ -338,21 +340,21 @@ const styles = StyleSheet.create({
   termsTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#244D4A',
+    color: '#2A3B4D',
     marginBottom: 6,
     textAlign: 'center',
     fontFamily: 'Fredoka_700Bold',
   },
   termsSubtitle: {
     fontSize: 14,
-    color: '#4A4A4A',
+    color: '#6B8E7E',
     marginBottom: 16,
     textAlign: 'center',
     fontFamily: 'Fredoka_500Medium',
   },
   termsText: {
     fontSize: 14,
-    color: '#244D4A',
+    color: '#2A3B4D',
     lineHeight: 20,
     marginBottom: 8,
     fontFamily: 'Fredoka_500Medium',
@@ -382,7 +384,7 @@ const styles = StyleSheet.create({
   privacyAccordionHeader: {
     marginTop: 12,
     marginBottom: 6,
-    backgroundColor: '#2F7D73',
+    backgroundColor: '#C4DFE6',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -398,7 +400,7 @@ const styles = StyleSheet.create({
   privacyAccordionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#2A3B4D',
     fontFamily: 'Fredoka_700Bold',
   },
   privacyAccordionContent: {

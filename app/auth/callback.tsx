@@ -90,7 +90,7 @@ export default function AuthCallback() {
       const childName = (userData?.user?.user_metadata as any)?.child_name;
       if (!childName) {
         console.log("→ No child_name, routing to /instruction");
-        router.replace("/instruction");
+        router.replace("/policy");
       } else {
         console.log("→ Child name found, routing to greetings");
         navigateToGreetingsWithNetworkCheck(router);
@@ -106,9 +106,9 @@ export default function AuthCallback() {
           const { data: userData } = await supabase.auth.getUser();
           const childName = (userData?.user?.user_metadata as any)?.child_name;
           if (!childName) {
-            router.replace("/instruction");
+            router.replace("/policy");
           } else {
-            navigateToGreetingsWithNetworkCheck(router);
+
           }
           return;
         }
@@ -134,9 +134,9 @@ export default function AuthCallback() {
             const { data: userData } = await supabase.auth.getUser();
             const childName = (userData?.user?.user_metadata as any)?.child_name;
             if (!childName) {
-              router.replace("/instruction");
+              router.replace("/policy");
             } else {
-              navigateToGreetingsWithNetworkCheck(router);
+              
             }
             subscription.remove?.();
             return;
