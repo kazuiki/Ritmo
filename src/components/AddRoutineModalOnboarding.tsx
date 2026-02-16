@@ -120,20 +120,17 @@ export default function AddRoutineModalOnboarding({
     const spaceAbove = highlightTop;
     const spaceBelow = screenHeight - highlightBottom;
     
-    // Conservative gap to avoid overlap - larger for smaller screens
-    const gap = scaleHeight(25);
+    // Gap between tooltip and highlighted element
+    const gap = scaleHeight(20);
     
-    // For steps 3 and 4 (Name and Ringtone), ALWAYS position at top of modal
-    // because there are other UI elements below that shouldn't be covered
+    // For steps 3 and 4 (Name and Ringtone), ALWAYS show ABOVE the highlighted element
+    // to avoid covering the Ringtone selector and Add Routine button below
     if (step === 3 || step === 4) {
-      // Position tooltip near the top of the screen with safe padding
-      const topPadding = scaleHeight(60); // Account for modal header
-      
       return {
         left,
-        top: topPadding,
+        bottom: screenHeight - highlightTop + gap,
         width: tooltipWidth,
-        maxHeight: highlightTop - topPadding - gap,
+        maxHeight: spaceAbove - gap - scaleHeight(30),
       };
     }
     
@@ -152,7 +149,7 @@ export default function AddRoutineModalOnboarding({
         left,
         bottom: screenHeight - highlightTop + gap,
         width: tooltipWidth,
-        maxHeight: spaceAbove - gap - scaleHeight(20),
+        maxHeight: spaceAbove - gap - scaleHeight(30),
       };
     }
   };
