@@ -89,7 +89,7 @@ export default function AuthCallback() {
       const childName = (userData?.user?.user_metadata as any)?.child_name;
       if (!childName) {
         console.log("→ No child_name, routing to /instruction");
-        router.replace("/policy");
+        router.push("/policy");
       } else {
         console.log("→ Child name found, routing to greetings");
         router.push("/greetings")
