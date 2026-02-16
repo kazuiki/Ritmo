@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
@@ -106,62 +106,51 @@ export default function AddRoutineModalOnboarding({
 
   if (!config.layout) return null;
 
-  // Calculate tooltip position - improved for lower-end devices with smaller screens
+  // Calculate tooltip position - ensure no overlap with highlighted element
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
     
-    // Estimated tooltip height based on content (more conservative for smaller screens)
-    const estimatedTooltipHeight = scaleHeight(180);
-    
-    // Keyboard/modal bottom area estimate
-    const bottomAreaHeight = scaleHeight(100);
-    
-    // Center tooltip horizontally with safe padding
+    // Center tooltip horizontally
     const horizontalPadding = scaleSpacing(16);
     const left = Math.max(horizontalPadding, (screenWidth - tooltipWidth) / 2);
-
     
-    // Position above or below based on available space
-    const spaceAbove = config.layout!.y;
-    const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
+    // Position relative to highlighted element
+    const highlightTop = config.layout!.y;
+    const highlightBottom = config.layout!.y + config.layout!.height;
+    const spaceAbove = highlightTop;
+    const spaceBelow = screenHeight - highlightBottom;
     
-
-    // Small gap between tooltip and highlighted element
-    const gap = scaleHeight(15);
+    // Gap between tooltip and highlighted element
+    const gap = scaleHeight(20);
     
-    // Minimum space needed (estimated based on typical tooltip height ~150-170dp)
+    // Priority: Always show above for bottom elements to avoid overlap
+    // For steps 3 and 4 (Name and Ringtone), these are typically at bottom
+    if (step === 3 || step === 4) {
+      // Force position above for these bottom elements
+      return {
+        left,
+        bottom: screenHeight - highlightTop + gap,
+        width: tooltipWidth,
+        maxHeight: spaceAbove - gap - scaleHeight(20),
+      };
+    }
+    
+    // For other elements, prefer showing below if there's space
     const minSpaceNeeded = scaleHeight(160);
     
-    // For elements in bottom 40% of screen, try to show above
-    const isInLowerPortion = config.layout!.y > screenHeight * 0.6;
-    
-    if (isInLowerPortion && spaceAbove >= minSpaceNeeded) {
-      // Position above
+    if (spaceBelow >= minSpaceNeeded) {
       return {
         left,
-        bottom: screenHeight - config.layout!.y + gap,
-        width: tooltipWidth,
-      };
-    } else if (spaceBelow >= minSpaceNeeded) {
-      // Position below (preferred for upper and middle elements)
-      return {
-        left,
-        top: config.layout!.y + config.layout!.height + gap,
-        width: tooltipWidth,
-      };
-    } else if (spaceAbove >= minSpaceNeeded) {
-      // Fallback to above if below doesn't have space
-      return {
-        left,
-        bottom: screenHeight - config.layout!.y + gap,
+        top: highlightBottom + gap,
         width: tooltipWidth,
       };
     } else {
-      // Last resort: position below with limited space
+      // Show above as fallback
       return {
         left,
-        top: config.layout!.y + config.layout!.height + gap,
+        bottom: screenHeight - highlightTop + gap,
         width: tooltipWidth,
+        maxHeight: spaceAbove - gap - scaleHeight(20),
       };
     }
   };
