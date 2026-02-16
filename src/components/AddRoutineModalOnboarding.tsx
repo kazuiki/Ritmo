@@ -120,18 +120,29 @@ export default function AddRoutineModalOnboarding({
     const spaceAbove = highlightTop;
     const spaceBelow = screenHeight - highlightBottom;
     
-    // Gap between tooltip and highlighted element
-    const gap = scaleHeight(20);
+    // Debug logging
+    console.log(`📍 Step ${step} positioning:`, {
+      highlightTop,
+      highlightBottom,
+      spaceAbove,
+      spaceBelow,
+      screenHeight,
+    });
+    
+    // Larger gap for steps 3 and 4 to ensure no overlap
+    const gap = (step === 3 || step === 4) ? scaleHeight(35) : scaleHeight(20);
     
     // For steps 3 and 4 (Name and Ringtone), ALWAYS show ABOVE the highlighted element
     // to avoid covering the Ringtone selector and Add Routine button below
     if (step === 3 || step === 4) {
-      return {
+      const positioning = {
         left,
         bottom: screenHeight - highlightTop + gap,
         width: tooltipWidth,
-        maxHeight: spaceAbove - gap - scaleHeight(30),
+        maxHeight: Math.min(spaceAbove - gap - scaleHeight(40), scaleHeight(200)),
       };
+      console.log(`📍 Step ${step} - Positioning ABOVE:`, positioning);
+      return positioning;
     }
     
     // For other elements, prefer showing below if there's space
