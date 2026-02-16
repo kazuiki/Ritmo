@@ -24,7 +24,6 @@ import {
 } from "react-native";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
-import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 import NetworkFailureModal from "../components/NetworkFailureModal";
 
 /* -------------------------
@@ -279,7 +278,7 @@ export default function Login() {
 
       if (!childName) {
         // Show instruction first; child-nickname will appear after completing instruction flow
-        router.replace("/instruction");
+        router.replace("/policy");
       } else {
         // Single replace to loading with next param – avoids sequential replaces
         router.replace("/greetings");
@@ -430,7 +429,7 @@ export default function Login() {
                 if (!childName) {
                   router.replace('/policy');
                 } else {
-                  navigateToGreetingsWithNetworkCheck(router);
+                  //navigateToGreetingsWithNetworkCheck(router);
                 }
                 setLoading(false);
                 return;
