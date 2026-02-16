@@ -19,7 +19,6 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "backgroundImage": "#ffffff",
         "foregroundImage": "./assets/ritmo-logo.png"
       },
       "edgeToEdgeEnabled": true,
