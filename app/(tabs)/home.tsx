@@ -1312,17 +1312,16 @@ export default function Home() {
             )}
 
             {/* Body content */}
-            <ScrollView 
-              style={styles.termsScrollView}
-              contentContainerStyle={[
-                styles.termsScrollContent,
-                { paddingBottom: scaleSpacing(12) }
-              ]}
-              showsVerticalScrollIndicator={true}
-            >
-              <View style={[styles.taskDialogContent, !activePreset && styles.taskDialogContentCompact]}>
-              {activePreset ? (
-                <>
+            {activePreset ? (
+              <ScrollView 
+                style={styles.termsScrollView}
+                contentContainerStyle={[
+                  styles.termsScrollContent,
+                  { paddingBottom: scaleSpacing(12) }
+                ]}
+                showsVerticalScrollIndicator={true}
+              >
+                <View style={styles.taskDialogContent}>
                   <TouchableOpacity 
                     style={styles.taskItem}
                     onPress={() => {
@@ -1369,17 +1368,18 @@ export default function Home() {
                     />
                     <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
                   </TouchableOpacity>
-                </>
-              ) : (
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={[styles.taskDialogContent, styles.taskDialogContentCompact]}>
                 <View style={styles.noPresetContent}>
                   <Text style={styles.noPresetTitle}>"{activeRoutine?.name ?? 'Routine'}"</Text>
                   <Text style={styles.noPresetMessage}>
-                    {isReplayMode ? 'This task is already finished' : 'Do you want to \n finish this task?'}
+                    {isReplayMode ? 'This task is already finished' : 'Do you want to finish \nthis task?'}
                   </Text>
                 </View>
-              )}
               </View>
-            </ScrollView>
+            )}
 
             {/* Footer - Different layouts for preset vs no-preset */}
             {activePreset ? (
@@ -2237,30 +2237,40 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginTop: 0,
   },
   taskDialogContentCompact: {
-    marginTop: 0,
-    gap: scale.scaleSpacing(16),
+    marginTop: -30,
+    gap: 0,
+    paddingHorizontal: scale.scaleSpacing(16),
     paddingVertical: scale.scaleSpacing(20),
+    paddingBottom: scale.scaleSpacing(12),
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'auto',
+    flex: 0,
   },
   noPresetContent: {
     width: '100%',
     alignItems: 'center',
-    gap: scale.scaleSpacing(12),
-    marginTop: scale.scaleSpacing(30),
-    paddingHorizontal: scale.scaleSpacing(12),
+    gap: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(20),
   },
   noPresetTitle: {
-    fontSize: scale.scaleFont(26),
-    fontWeight: '700',
-    color: '#244D4A',
-    textAlign: 'center',
-    fontFamily: 'Fredoka_700Bold',
-  },
-  noPresetMessage: {
     fontSize: scale.scaleFont(24),
     fontWeight: '700',
     color: '#244D4A',
     textAlign: 'center',
     fontFamily: 'Fredoka_700Bold',
+    lineHeight: scale.scaleHeight(32),
+    flexWrap: 'wrap',
+  },
+  noPresetMessage: {
+    fontSize: scale.scaleFont(19),
+    fontWeight: '700',
+    color: '#244D4A',
+    textAlign: 'center',
+    fontFamily: 'Fredoka_700Bold',
+    lineHeight: scale.scaleHeight(28),
+    flexWrap: 'wrap',
   },
   taskDialogFooter: {
     paddingHorizontal: scale.scaleSpacing(20),
@@ -2269,8 +2279,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   taskDialogFooterTwoButtons: {
     flexDirection: 'row',
     paddingHorizontal: scale.scaleSpacing(16),
+    paddingTop: scale.scaleSpacing(8),
     paddingBottom: scale.scaleSpacing(20),
     gap: scale.scaleSpacing(12),
+    flex: 0,
   },
   backButtonNoPreset: {
     flex: 1,
@@ -2894,9 +2906,13 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 10,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
   },
   termsModalContainerNoPreset: {
-    height: "50%",
+    height: "auto",
+    minHeight: "20%",
+    maxHeight: "75%",
   },
   termsScrollView: {
     flex: 1,

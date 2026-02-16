@@ -28,7 +28,7 @@ import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function SignUp() {
   const router = useRouter();
-  const { scale } = useResponsiveDimensions();
+  const { scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isEmailVerified, setIsEmailVerified] = useState(false);
@@ -53,12 +53,23 @@ export default function SignUp() {
   const [passwordMismatchModalVisible, setPasswordMismatchModalVisible] = useState(false);
   const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
   const [invalidEmailModalVisible, setInvalidEmailModalVisible] = useState(false);
-  const [weakPasswordModalVisible, setWeakPasswordModalVisible] = useState(false);
   const [emailErrorModalVisible, setEmailErrorModalVisible] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState("");
   const [verificationErrorModalVisible, setVerificationErrorModalVisible] = useState(false);
   const [verificationSuccessModalVisible, setVerificationSuccessModalVisible] = useState(false);
   const [emailRequiredModalVisible, setEmailRequiredModalVisible] = useState(false);
+
+  const unmetRequirements = [
+    { key: 'minLength', label: 'Must be at least 8 characters' },
+    { key: 'hasNumber', label: 'Must contain at least 1 number' },
+    { key: 'hasUppercase', label: 'Must contain at least 1 uppercase' },
+    { key: 'hasLowercase', label: 'Must contain at least 1 lowercase' },
+    { key: 'hasSpecial', label: 'Must contain at least 1 special character' },
+    { key: 'noSpaces', label: 'Must not contain spaces' },
+  ].filter((item) => !passwordRequirements[item.key as keyof typeof passwordRequirements]);
+  const showRequirements = password.length > 0 && unmetRequirements.length > 0;
+  const showConfirmMismatch =
+    confirmPassword.length > 0 && password.length > 0 && password !== confirmPassword;
 
   const [agreed, setAgreed] = useState(false);
   const [agreementRequiredModalVisible, setAgreementRequiredModalVisible] = useState(false);
@@ -302,7 +313,6 @@ export default function SignUp() {
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
       setEmailErrorMessage(passwordValidation.message || 'Invalid password');
-      setWeakPasswordModalVisible(true);
       return;
     }
 
@@ -515,6 +525,31 @@ export default function SignUp() {
                 </TouchableOpacity>
               </View>
 
+              <MotiView
+                animate={{
+                  opacity: showRequirements ? 1 : 0,
+                  translateY: showRequirements ? 0 : -8,
+                  maxHeight: showRequirements ? scaleHeight(200) : 0,
+                  marginTop: showRequirements ? scaleSpacing(8) : 0,
+                }}
+                transition={{ type: "timing", duration: 240 }}
+                style={styles.requirementsContainer}
+              >
+                {unmetRequirements.map((item) => (
+                  <View key={item.key} style={styles.requirementRow}>
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color="#FF6B7A"
+                      style={styles.requirementIcon}
+                    />
+                    <Text style={[styles.requirementText, { color: "#FF6B7A" }]}>
+                      {item.label}
+                    </Text>
+                  </View>
+                ))}
+              </MotiView>
+
               <Text style={styles.label}>Confirm Password:</Text>
               <View style={styles.inputRow}>
                 <TextInput
@@ -539,6 +574,31 @@ export default function SignUp() {
                   />
                 </TouchableOpacity>
               </View>
+
+              <MotiView
+                animate={{
+                  opacity: showConfirmMismatch ? 1 : 0,
+                  translateY: showConfirmMismatch ? 0 : -8,
+                  maxHeight: showConfirmMismatch ? scaleHeight(60) : 0,
+                  marginTop: showConfirmMismatch ? scaleSpacing(8) : 0,
+                }}
+                transition={{ type: "timing", duration: 240 }}
+                style={styles.requirementsContainer}
+              >
+                {showConfirmMismatch && (
+                  <View style={styles.requirementRow}>
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color="#FF6B7A"
+                      style={styles.requirementIcon}
+                    />
+                    <Text style={[styles.requirementText, { color: "#FF6B7A" }]}>
+                      Passwords do not match
+                    </Text>
+                  </View>
+                )}
+              </MotiView>
 
               {/* Agreement checkbox + text */}
               <View style={styles.agreeRow}>
@@ -735,89 +795,6 @@ export default function SignUp() {
         </View>
       </Modal>
 
-      {/* Weak Password Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={weakPasswordModalVisible}
-        onRequestClose={() => setWeakPasswordModalVisible(false)}
-      >
-        <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
-              <Image
-                source={require("../../assets/images/Error.png")}
-                style={styles.errorIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.errorModalTitle}>Weak Password</Text>
-            <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 8, marginBottom: 8 }}>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.minLength ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.minLength ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must be at least 8 characters!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasNumber ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasNumber ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 number!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasUppercase ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasUppercase ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 uppercase!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasLowercase ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasLowercase ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 lowercase!
-                </Text>
-              </View>
-              <View style={styles.requirementRow}>
-                <Ionicons 
-                  name={passwordRequirements.hasSpecial ? "checkmark-circle" : "close-circle"} 
-                  size={18} 
-                  color={passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A"}
-                  style={styles.requirementIcon}
-                />
-                <Text style={[styles.requirementText, { color: passwordRequirements.hasSpecial ? "#4CAF50" : "#FF6B7A" }]}>
-                  Must contain at least 1 special character!
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.errorOkButton}
-              onPress={() => setWeakPasswordModalVisible(false)}
-            >
-              <Text style={styles.errorOkButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* Password Length Modal */}
       <Modal
@@ -1508,6 +1485,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: scale.scaleSpacing(8),
+  },
+  requirementsContainer: {
+    width: "100%",
+    maxWidth: scale.scaleWidth(340),
+    paddingHorizontal: scale.scaleSpacing(6),
+    overflow: "hidden",
   },
   requirementIcon: {
     marginRight: scale.scaleSpacing(8),
