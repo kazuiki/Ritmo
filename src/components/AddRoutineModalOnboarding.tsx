@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
@@ -106,14 +106,6 @@ export default function AddRoutineModalOnboarding({
 
   if (!config.layout) return null;
 
-
-  // Calculate tooltip position
-  const getTooltipStyle = () => {
-    const tooltipWidth = scaleWidth(280);
-    
-    // Center tooltip horizontally
-    const left = (screenWidth - tooltipWidth) / 2;
-
   // Calculate tooltip position - improved for lower-end devices with smaller screens
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
@@ -171,68 +163,6 @@ export default function AddRoutineModalOnboarding({
         top: config.layout!.y + config.layout!.height + gap,
         width: tooltipWidth,
       };
-
-    // Safe margin to avoid overlapping with highlighted element
-    const safeMargin = scaleHeight(30);
-    
-    // For elements in bottom half of screen, prioritize showing above
-    const isInBottomHalf = config.layout!.y > screenHeight / 2;
-    
-    // For very small screens (HD+ and below), be more aggressive with positioning above
-    const isSmallScreen = screenHeight < 1700; // Detects 1600x720 and similar resolutions
-    
-    // Check if we have enough space above without blocking the element
-    const hasEnoughSpaceAbove = spaceAbove > estimatedTooltipHeight + safeMargin;
-    
-    // Check if we have enough space below without blocking keyboard/bottom areas
-    const hasEnoughSpaceBelow = spaceBelow > estimatedTooltipHeight + bottomAreaHeight + safeMargin;
-    
-    // Decision logic for smaller screens
-    if (isSmallScreen || isInBottomHalf) {
-      if (hasEnoughSpaceAbove) {
-        // Position above with safe margin
-        return {
-          left,
-          bottom: screenHeight - config.layout!.y + safeMargin,
-          width: tooltipWidth,
-          maxHeight: spaceAbove - safeMargin - scaleHeight(20),
-        };
-      } else if (hasEnoughSpaceBelow) {
-        // Position below only if there's really enough space
-        return {
-          left,
-          top: config.layout!.y + config.layout!.height + safeMargin,
-          width: tooltipWidth,
-          maxHeight: spaceBelow - bottomAreaHeight - safeMargin,
-        };
-      } else {
-        // Fallback: position at top of screen with scrolling content
-        return {
-          left,
-          top: scaleHeight(60),
-          width: tooltipWidth,
-          maxHeight: screenHeight - scaleHeight(140),
-        };
-      }
-    } else {
-      // For elements in top half with sufficient space, prefer below
-      if (hasEnoughSpaceBelow) {
-        return {
-          left,
-          top: config.layout!.y + config.layout!.height + safeMargin,
-          width: tooltipWidth,
-          maxHeight: spaceBelow - bottomAreaHeight - safeMargin,
-        };
-      } else {
-        // Fall back to above
-        return {
-          left,
-          bottom: screenHeight - config.layout!.y + safeMargin,
-          width: tooltipWidth,
-          maxHeight: spaceAbove - safeMargin - scaleHeight(20),
-        };
-      }
-
     }
   };
 
