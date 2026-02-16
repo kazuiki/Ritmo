@@ -197,6 +197,18 @@ export default function addRoutines() {
         }, [])
     );
 
+    // Re-measure modal layouts when step changes to ensure accurate positioning
+    useEffect(() => {
+        if (showAddRoutineModalOnboarding && modalVisible) {
+            // Longer delay to allow any scroll animations to complete
+            const timer = setTimeout(() => {
+                console.log(`🔄 Re-measuring layouts for step ${currentAddRoutineModalStep}`);
+                measureModalLayouts();
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [currentAddRoutineModalStep, showAddRoutineModalOnboarding, modalVisible]);
+
     const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
         ref.current?.scrollTo({ y: index * itemHeight, animated: true });
     };
@@ -310,6 +322,7 @@ export default function addRoutines() {
         
         if (timePickerRef.current) {
             timePickerRef.current.measure((x, y, width, height, pageX, pageY) => {
+                console.log('📏 Time Picker:', { pageX, pageY, width, height });
                 layouts.timePicker = { x: pageX, y: pageY, width, height };
                 setModalOnboardingLayouts(prev => ({ ...prev, timePicker: layouts.timePicker }));
             });
@@ -317,6 +330,7 @@ export default function addRoutines() {
         
         if (daysRef.current) {
             daysRef.current.measure((x, y, width, height, pageX, pageY) => {
+                console.log('📏 Days:', { pageX, pageY, width, height });
                 layouts.days = { x: pageX, y: pageY, width, height };
                 setModalOnboardingLayouts(prev => ({ ...prev, days: layouts.days }));
             });
@@ -324,6 +338,7 @@ export default function addRoutines() {
         
         if (presetRef.current) {
             presetRef.current.measure((x, y, width, height, pageX, pageY) => {
+                console.log('📏 Preset:', { pageX, pageY, width, height });
                 layouts.preset = { x: pageX, y: pageY, width, height };
                 setModalOnboardingLayouts(prev => ({ ...prev, preset: layouts.preset }));
             });
@@ -331,6 +346,7 @@ export default function addRoutines() {
         
         if (routineNameRef.current) {
             routineNameRef.current.measure((x, y, width, height, pageX, pageY) => {
+                console.log('📏 Routine Name:', { pageX, pageY, width, height });
                 layouts.routineName = { x: pageX, y: pageY, width, height };
                 setModalOnboardingLayouts(prev => ({ ...prev, routineName: layouts.routineName }));
             });
@@ -338,6 +354,7 @@ export default function addRoutines() {
         
         if (ringtoneRef.current) {
             ringtoneRef.current.measure((x, y, width, height, pageX, pageY) => {
+                console.log('📏 Ringtone:', { pageX, pageY, width, height });
                 layouts.ringtone = { x: pageX, y: pageY, width, height };
                 setModalOnboardingLayouts(prev => ({ ...prev, ringtone: layouts.ringtone }));
             });
