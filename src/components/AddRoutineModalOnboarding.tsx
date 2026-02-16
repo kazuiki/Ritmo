@@ -4,7 +4,6 @@ import {
     Animated,
     Dimensions,
     Modal,
-    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -216,44 +215,38 @@ export default function AddRoutineModalOnboarding({
 
         {/* Tooltip */}
         <View style={[styles.tooltip, getTooltipStyle()]}>
-          <ScrollView 
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            contentContainerStyle={styles.tooltipScrollContent}
-          >
-            <View style={styles.tooltipHeader}>
-              <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
-                {config.title}
-              </Text>
-              <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
-                {step + 1}/5
-              </Text>
-            </View>
-            
-            <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
-              {config.description}
+          <View style={styles.tooltipHeader}>
+            <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
+              {config.title}
             </Text>
+            <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
+              {step + 1}/5
+            </Text>
+          </View>
+          
+          <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
+            {config.description}
+          </Text>
 
-            <View style={styles.tooltipActions}>
-              <TouchableOpacity onPress={onSkip} style={styles.skipButton}>
-                <Text style={[styles.skipText, { fontSize: scaleFont(16) }]}>Skip</Text>
-              </TouchableOpacity>
+          <View style={styles.tooltipActions}>
+            <TouchableOpacity onPress={onSkip} style={styles.skipButton}>
+              <Text style={[styles.skipText, { fontSize: scaleFont(16) }]}>Skip</Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity 
-                onPress={onNext} 
-                style={[styles.nextButton, { 
-                  paddingHorizontal: scaleSpacing(24),
-                  paddingVertical: scaleSpacing(12),
-                  borderRadius: scaleSpacing(25),
-                }]}
-              >
-                <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
-                  {step === 4 ? 'Got it!' : 'Next'}
-                </Text>
-                {step < 4 && <Ionicons name="arrow-forward" size={scaleFont(18)} color="#fff" />}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+            <TouchableOpacity 
+              onPress={onNext} 
+              style={[styles.nextButton, { 
+                paddingHorizontal: scaleSpacing(24),
+                paddingVertical: scaleSpacing(12),
+                borderRadius: scaleSpacing(25),
+              }]}
+            >
+              <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
+                {step === 4 ? 'Got it!' : 'Next'}
+              </Text>
+              {step < 4 && <Ionicons name="arrow-forward" size={scaleFont(18)} color="#fff" />}
+            </TouchableOpacity>
+          </View>
         </View>
       </Animated.View>
       </View>
@@ -285,11 +278,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
-
-  },
-  tooltipScrollContent: {
-    flexGrow: 1,
-
   },
   tooltipHeader: {
     flexDirection: 'row',
