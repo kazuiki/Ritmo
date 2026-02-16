@@ -1,14 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useResponsiveDimensions } from '../utils/responsive';
@@ -106,62 +105,61 @@ export default function AddRoutineModalOnboarding({
 
   if (!config.layout) return null;
 
-  // Calculate tooltip position - improved for lower-end devices with smaller screens
+  // Calculate tooltip position - ensure no overlap with ANY visible elements
   const getTooltipStyle = () => {
     const tooltipWidth = scaleWidth(280);
     
-    // Estimated tooltip height based on content (more conservative for smaller screens)
-    const estimatedTooltipHeight = scaleHeight(180);
-    
-    // Keyboard/modal bottom area estimate
-    const bottomAreaHeight = scaleHeight(100);
-    
-    // Center tooltip horizontally with safe padding
+    // Center tooltip horizontally
     const horizontalPadding = scaleSpacing(16);
     const left = Math.max(horizontalPadding, (screenWidth - tooltipWidth) / 2);
-
     
-    // Position above or below based on available space
-    const spaceAbove = config.layout!.y;
-    const spaceBelow = screenHeight - (config.layout!.y + config.layout!.height);
+    // Position relative to highlighted element
+    const highlightTop = config.layout!.y;
+    const highlightBottom = config.layout!.y + config.layout!.height;
+    const spaceAbove = highlightTop;
+    const spaceBelow = screenHeight - highlightBottom;
     
-
-    // Small gap between tooltip and highlighted element
-    const gap = scaleHeight(15);
+    // Debug logging
+    console.log(`📍 Step ${step} positioning:`, {
+      highlightTop,
+      highlightBottom,
+      spaceAbove,
+      spaceBelow,
+      screenHeight,
+    });
     
-    // Minimum space needed (estimated based on typical tooltip height ~150-170dp)
-    const minSpaceNeeded = scaleHeight(160);
+    // Larger gap for steps 3 and 4 to ensure no overlap
+    const gap = (step === 3 || step === 4) ? scaleHeight(35) : scaleHeight(20);
     
-    // For elements in bottom 40% of screen, try to show above
-    const isInLowerPortion = config.layout!.y > screenHeight * 0.6;
-    
-    if (isInLowerPortion && spaceAbove >= minSpaceNeeded) {
-      // Position above
-      return {
+    // For steps 3 and 4 (Name and Ringtone), ALWAYS show ABOVE the highlighted element
+    // to avoid covering the Ringtone selector and Add Routine button below
+    if (step === 3 || step === 4) {
+      const positioning = {
         left,
-        bottom: screenHeight - config.layout!.y + gap,
+        bottom: screenHeight - highlightTop + gap,
         width: tooltipWidth,
+        maxHeight: Math.min(spaceAbove - gap - scaleHeight(40), scaleHeight(200)),
       };
-    } else if (spaceBelow >= minSpaceNeeded) {
-      // Position below (preferred for upper and middle elements)
+      console.log(`📍 Step ${step} - Positioning ABOVE:`, positioning);
+      return positioning;
+    }
+    
+    // For other elements, prefer showing below if there's space
+    const minSpaceNeeded = scaleHeight(180);
+    
+    if (spaceBelow >= minSpaceNeeded) {
       return {
         left,
-        top: config.layout!.y + config.layout!.height + gap,
-        width: tooltipWidth,
-      };
-    } else if (spaceAbove >= minSpaceNeeded) {
-      // Fallback to above if below doesn't have space
-      return {
-        left,
-        bottom: screenHeight - config.layout!.y + gap,
+        top: highlightBottom + gap,
         width: tooltipWidth,
       };
     } else {
-      // Last resort: position below with limited space
+      // Show above as fallback
       return {
         left,
-        top: config.layout!.y + config.layout!.height + gap,
+        bottom: screenHeight - highlightTop + gap,
         width: tooltipWidth,
+        maxHeight: spaceAbove - gap - scaleHeight(30),
       };
     }
   };
@@ -217,44 +215,38 @@ export default function AddRoutineModalOnboarding({
 
         {/* Tooltip */}
         <View style={[styles.tooltip, getTooltipStyle()]}>
-          <ScrollView 
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            contentContainerStyle={styles.tooltipScrollContent}
-          >
-            <View style={styles.tooltipHeader}>
-              <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
-                {config.title}
-              </Text>
-              <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
-                {step + 1}/5
-              </Text>
-            </View>
-            
-            <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
-              {config.description}
+          <View style={styles.tooltipHeader}>
+            <Text style={[styles.tooltipTitle, { fontSize: scaleFont(20) }]}>
+              {config.title}
             </Text>
+            <Text style={[styles.stepIndicator, { fontSize: scaleFont(14) }]}>
+              {step + 1}/5
+            </Text>
+          </View>
+          
+          <Text style={[styles.tooltipDescription, { fontSize: scaleFont(16) }]}>
+            {config.description}
+          </Text>
 
-            <View style={styles.tooltipActions}>
-              <TouchableOpacity onPress={onSkip} style={styles.skipButton}>
-                <Text style={[styles.skipText, { fontSize: scaleFont(16) }]}>Skip</Text>
-              </TouchableOpacity>
+          <View style={styles.tooltipActions}>
+            <TouchableOpacity onPress={onSkip} style={styles.skipButton}>
+              <Text style={[styles.skipText, { fontSize: scaleFont(16) }]}>Skip</Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity 
-                onPress={onNext} 
-                style={[styles.nextButton, { 
-                  paddingHorizontal: scaleSpacing(24),
-                  paddingVertical: scaleSpacing(12),
-                  borderRadius: scaleSpacing(25),
-                }]}
-              >
-                <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
-                  {step === 4 ? 'Got it!' : 'Next'}
-                </Text>
-                {step < 4 && <Ionicons name="arrow-forward" size={scaleFont(18)} color="#fff" />}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+            <TouchableOpacity 
+              onPress={onNext} 
+              style={[styles.nextButton, { 
+                paddingHorizontal: scaleSpacing(24),
+                paddingVertical: scaleSpacing(12),
+                borderRadius: scaleSpacing(25),
+              }]}
+            >
+              <Text style={[styles.nextText, { fontSize: scaleFont(16) }]}>
+                {step === 4 ? 'Got it!' : 'Next'}
+              </Text>
+              {step < 4 && <Ionicons name="arrow-forward" size={scaleFont(18)} color="#fff" />}
+            </TouchableOpacity>
+          </View>
         </View>
       </Animated.View>
       </View>
@@ -286,11 +278,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
-
-  },
-  tooltipScrollContent: {
-    flexGrow: 1,
-
   },
   tooltipHeader: {
     flexDirection: 'row',
