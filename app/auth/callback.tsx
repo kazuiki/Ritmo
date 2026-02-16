@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { useResponsiveDimensions } from "../../src/utils/responsive";
-import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -93,7 +92,7 @@ export default function AuthCallback() {
         router.replace("/policy");
       } else {
         console.log("→ Child name found, routing to greetings");
-        navigateToGreetingsWithNetworkCheck(router);
+        router.push("/greetings")
       }
 
       return true;
@@ -136,7 +135,7 @@ export default function AuthCallback() {
             if (!childName) {
               router.replace("/policy");
             } else {
-              
+
             }
             subscription.remove?.();
             return;
