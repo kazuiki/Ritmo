@@ -57,7 +57,12 @@
         "expo-notifications",
         {
           "icon": "./assets/ritmo-header.png",
-          "color": "#5BDFC9"
+          "color": "#5BDFC9",
+          "sounds": [
+            "./assets/sounds/alarm1.mp3",
+            "./assets/sounds/alarm2.mp3",
+            "./assets/sounds/alarm3.mp3"
+          ]
         }
       ]
     ],
