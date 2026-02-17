@@ -2,7 +2,7 @@ import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 
 // Suppress remote notifications warning in expo go
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
 
 // Configure notification handler
@@ -33,57 +33,70 @@ class NotificationService {
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
 
   async initialize() {
-    try {
-      // Request permissions for LOCAL notifications only
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Notification permissions not granted');
-        return false;
-      }
-
-      // Clean up old/expired notifications to avoid hitting 500 limit
-      await this.cleanupExpiredNotifications();
-
-      // Remove existing listener to prevent duplicates
-      if (this.notificationListener) {
-        this.notificationListener.remove();
-        this.notificationListener = null;
-      }
-
-      // Setup notification received listener (only one active at a time)
-      this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
-        const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
-        await this.playAlarmSound(ringtone);
+  try {
+    // 1. Android Channel Setup (Must be first for system to recognize the channel)
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('alarm-channel', {
+        name: 'Routine Alarms',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        // CRITICAL: lowercase only, must match the file in your assets and app.json
+        sound: 'alarm1.mp3', 
+        bypassDnd: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
+    }
 
-      // Configure audio for notifications
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      console.log('✅ Local notification service initialized successfully');
-      return true;
-    } catch (error) {
-      // Suppress Expo Go remote notification warnings
-      if (error instanceof Error && error.message.includes('remote notifications')) {
-        console.log('ℹ️ Remote notifications not available in Expo Go (not needed for local alarms)');
-        return true; // Still return true as local notifications work fine
-      }
-      console.error('Error initializing notifications:', error);
+    // 2. Permission Handling
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    
+    if (finalStatus !== 'granted') {
+      console.log('❌ Notification permissions not granted');
       return false;
     }
+
+    // 3. Cleanup & Listeners
+    await this.cleanupExpiredNotifications();
+
+    if (this.notificationListener) {
+      this.notificationListener.remove();
+      this.notificationListener = null;
+    }
+
+    // This listener handles sound ONLY when the app is OPEN (Foreground)
+    this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
+      const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
+      // When app is open, we can still use your custom JS logic for 12-second stop
+      await this.playAlarmSound(ringtone);
+    });
+
+    // 4. Audio Engine Configuration
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      staysActiveInBackground: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+
+    console.log('✅ Notification service initialized');
+    return true;
+
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('remote notifications')) {
+      return true; 
+    }
+    console.error('Error initializing notifications:', error);
+    return false;
   }
+}  
 
   // Clean up expired notifications
   private async cleanupExpiredNotifications() {
@@ -174,14 +187,17 @@ class NotificationService {
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
-                ringtone: routine.ringtone,
+                ringtone: 'alarm1',
               },
+              sound: 'alarm1.mp3',
               priority: Notifications.AndroidNotificationPriority.MAX,
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
               seconds: secondsUntilTrigger,
               repeats: false,
+
+              channelId: 'alarm-channel',
             },
           });
 
