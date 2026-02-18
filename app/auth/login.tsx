@@ -24,7 +24,6 @@ import {
 } from "react-native";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
-import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 import NetworkFailureModal from "../components/NetworkFailureModal";
 
 /* -------------------------
@@ -282,7 +281,7 @@ export default function Login() {
         router.replace("/instruction");
       } else {
         // Single replace to loading with next param – avoids sequential replaces
-        navigateToGreetingsWithNetworkCheck(router);
+        router.replace("/greetings");
       }
     } catch (networkError) {
       setLoading(false);
@@ -336,9 +335,9 @@ export default function Login() {
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
 
         if (!childName) {
-          router.replace("/instruction");
+          router.push("/policy");
         } else {
-          navigateToGreetingsWithNetworkCheck(router);
+
         }
         setLoading(false);
         return;
@@ -428,9 +427,9 @@ export default function Login() {
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
                 if (!childName) {
-                  router.replace('/privacy-policy');
+                  router.replace("/policy");
                 } else {
-                  navigateToGreetingsWithNetworkCheck(router);
+                  //navigateToGreetingsWithNetworkCheck(router);
                 }
                 setLoading(false);
                 return;
