@@ -278,7 +278,7 @@ export default function Login() {
 
       if (!childName) {
         // Show instruction first; child-nickname will appear after completing instruction flow
-        router.replace("/policy");
+        router.replace("/instruction");
       } else {
         // Single replace to loading with next param – avoids sequential replaces
         router.replace("/greetings");
@@ -427,7 +427,7 @@ export default function Login() {
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
                 if (!childName) {
-                  router.replace('/policy');
+                  router.replace("/policy");
                 } else {
                   //navigateToGreetingsWithNetworkCheck(router);
                 }
