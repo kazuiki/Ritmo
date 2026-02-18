@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { useResponsiveDimensions } from "../../src/utils/responsive";
-import { navigateToGreetingsWithNetworkCheck } from "../../src/utils/smartNavigation";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -90,10 +89,10 @@ export default function AuthCallback() {
       const childName = (userData?.user?.user_metadata as any)?.child_name;
       if (!childName) {
         console.log("→ No child_name, routing to /instruction");
-        router.replace("/instruction");
+        router.push("/instruction");
       } else {
         console.log("→ Child name found, routing to greetings");
-        navigateToGreetingsWithNetworkCheck(router);
+        router.push("/greetings")
       }
 
       return true;
@@ -106,9 +105,9 @@ export default function AuthCallback() {
           const { data: userData } = await supabase.auth.getUser();
           const childName = (userData?.user?.user_metadata as any)?.child_name;
           if (!childName) {
-            router.replace("/instruction");
+            router.replace("/auth/child-nickname");
           } else {
-            navigateToGreetingsWithNetworkCheck(router);
+
           }
           return;
         }
@@ -134,16 +133,16 @@ export default function AuthCallback() {
             const { data: userData } = await supabase.auth.getUser();
             const childName = (userData?.user?.user_metadata as any)?.child_name;
             if (!childName) {
-              router.replace("/instruction");
+              router.replace("/auth/child-nickname");
             } else {
-              navigateToGreetingsWithNetworkCheck(router);
+
             }
             subscription.remove?.();
             return;
           }
           setMessage("Sign-in failed. Please try again.");
           subscription.remove?.();
-        }, 15000);
+        }, 600000);
       } catch (err) {
         console.error("Unexpected OAuth callback error:", err);
         setMessage("Sign-in failed. Please try again.");
