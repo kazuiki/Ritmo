@@ -8,7 +8,7 @@ import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
 import { router } from "expo-router";
-import { Alert, Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
+import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
