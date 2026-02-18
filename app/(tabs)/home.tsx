@@ -45,7 +45,7 @@ export default function Home() {
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
-  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin, resetAllOnboarding } = useOnboarding();
+  const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin } = useOnboarding();
   const insets = useSafeAreaInsets();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -1014,28 +1014,6 @@ export default function Home() {
     openTaskModal();
   };
 
-    const handleResetAllOnboarding = () => {
-      Alert.alert(
-        'Reset Onboarding',
-        'Ire-reset nito lahat ng onboarding tours para ulitin ulit sa account mo. Ituloy?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Reset',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await resetAllOnboarding();
-                Alert.alert('Done', 'Na-reset na lahat ng user onboarding.');
-              } catch {
-                Alert.alert('Error', 'Hindi na-reset ang onboarding. Subukan ulit.');
-              }
-            },
-          },
-        ]
-      );
-    };
-
   return (
     <View style={{ flex: 1 }}>
       {/* Loading overlay to prevent flash when checking minigame completion */}
@@ -1090,10 +1068,6 @@ export default function Home() {
               </View>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity style={styles.resetOnboardingButton} onPress={handleResetAllOnboarding}>
-            <Text style={styles.resetOnboardingText}>Reset Onboarding</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -1930,17 +1904,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderRadius: 20,
     marginTop: scale.scaleSpacing(10),
     alignSelf: 'flex-end',
-  },
-  resetOnboardingButton: {
-    marginTop: scale.scaleSpacing(2),
-    paddingHorizontal: scale.scaleSpacing(8),
-    paddingVertical: scale.scaleSpacing(6),
-  },
-  resetOnboardingText: {
-    color: '#2F7C72',
-    fontSize: scale.scaleFont(13),
-    fontFamily: 'Fredoka_600SemiBold',
-    textDecorationLine: 'underline',
   },
   modeButtonContent: {
     flexDirection: 'row',
