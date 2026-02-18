@@ -128,7 +128,16 @@ android {
         }
     }
     androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+        // Do not ignore any assets so .godot is packaged.
+        ignoreAssetsPattern ''
+    }
+
+    // Prevent compression of Godot asset files so they can be read
+    // with random-access (AAsset) by the Godot engine sparse pack loader
+    aaptOptions {
+        noCompress 'sparsepck', 'pck', 'bin', 'cfg', 'ctex', 'mp3str',
+                   'gdc', 'tscn', 'import', 'tres', 'remap', 'res',
+                   'scn', 'gdshader', 'binary', 'translation'
     }
 }
 

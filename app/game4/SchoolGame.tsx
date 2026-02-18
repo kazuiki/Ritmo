@@ -4,6 +4,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../../src/supabaseClient';
 
 export default function SchoolGame() {
   const router = useRouter();
@@ -12,31 +13,39 @@ export default function SchoolGame() {
     const launchGame = async () => {
       if (Platform.OS === 'android') {
         try {
-          const gameStartTime = Date.now();
-          
-          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-            className: 'com.anonymous.ritmo.RitmoGodotActivity',
+          // Get the child's nickname from Supabase user metadata
+          let childName = 'Kid';
+          try {
+            const { data } = await supabase.auth.getUser();
+            childName = (data?.user?.user_metadata as any)?.child_name || 'Kid';
+          } catch {
+            // Fallback to 'Kid' if offline or error
+          }
+
+          const result = await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            className: 'expo.modules.godotview.RitmoGodotActivity',
             packageName: 'com.anonymous.ritmo',
+            extra: {
+              child_name: childName,
+            },
           });
-          
-          // Game has finished/closed
-          const gameDuration = (Date.now() - gameStartTime) / 1000;
-          console.log(`Game duration: ${gameDuration} seconds`);
-          
-          // If game lasted > 60 seconds, consider it completed
-          if (gameDuration > 60) {
+
+          // Check result code from Godot activity
+          // ResultCode.Success (-1) = game completed  |  ResultCode.Canceled (0) = back button
+          if (result.resultCode === IntentLauncher.ResultCode.Success) {
             await new Promise(resolve => setTimeout(resolve, 800));
             await AsyncStorage.setItem('@minigameCompleted', 'true');
             console.log('✓ Game completed - success modal will show');
           } else {
-            console.log('Game exited early - no success modal');
+            console.log('Game exited via back button - no success modal');
           }
-          
+
           // Go back to home
           router.back();
         } catch (error) {
           console.error('Failed to launch Godot game:', error);
           Alert.alert('Error', 'Failed to start the game');
+          router.back();
         }
       }
     };
