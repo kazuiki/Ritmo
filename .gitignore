@@ -53,3 +53,7 @@ modules/expo-godot-view/android/build/
 *.dex
 *.ap_
 *.class
+
+# Godot APK exports
+Ritmo.apk
+*.apk
