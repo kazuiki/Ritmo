@@ -21,6 +21,18 @@ android {
   kotlinOptions {
     jvmTarget = '17'
   }
+
+  // Prevent compression of Godot asset files for sparse pack random access
+  aaptOptions {
+    noCompress 'sparsepck', 'pck', 'bin', 'cfg', 'ctex', 'mp3str',
+               'gdc', 'tscn', 'import', 'tres', 'remap', 'res',
+               'scn', 'gdshader', 'binary', 'translation'
+  }
+
+  androidResources {
+    // Do not ignore any assets so .godot is packaged.
+    ignoreAssetsPattern ''
+  }
 }
 
 repositories {

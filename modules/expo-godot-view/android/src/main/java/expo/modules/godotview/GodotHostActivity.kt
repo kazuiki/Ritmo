@@ -28,7 +28,6 @@ class GodotHostActivity(
     }
     
     override fun getCommandLine(): List<String> {
-        // Tell Godot to load Ritmo.pck from the assets folder
-        return listOf("--main-pack", "Ritmo.pck")
+        return listOf()
     }
 }
