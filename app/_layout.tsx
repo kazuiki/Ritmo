@@ -152,7 +152,7 @@ export default function RootLayout() {
               router.push('/policy');
               setTimeout(() => {
                 isNavigatingRef.current = false;
-              }, 1000);
+              }, 600000);
             } else {
               console.log('🔄 Starting navigation to greetings...');
               navigateToGreetingsWithNetworkCheck(router).finally(() => {
