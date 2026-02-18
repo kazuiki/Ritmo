@@ -40,7 +40,7 @@ class ExpoGodotView(context: Context, appContext: AppContext) : ExpoView(context
         // Create GodotFragment with command line arguments in Bundle
         godotFragment = GodotFragment()
         val args = Bundle()
-        args.putStringArray("command_line_params", arrayOf("--main-pack", "Ritmo.pck"))
+        args.putStringArray("command_line_params", arrayOf("--rendering-driver", "opengl3"))
         godotFragment!!.arguments = args
         
         activity.runOnUiThread {
