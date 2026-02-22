@@ -21,6 +21,7 @@ import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
 
 import { useMode } from "../../src/contexts/ModeContext";
+import { addMediaSearchHistory } from "../../src/mediaSearchHistoryService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
@@ -65,7 +66,6 @@ export default function Media() {
   const [pinError, setPinError] = useState('');
   const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const CACHE_KEY = 'mediaCache:main';
   
@@ -204,7 +204,7 @@ export default function Media() {
     }
   };
 
-  // Debounced search handler
+  // Search input handler (Enter key triggers actual fetch)
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
 
@@ -212,9 +212,6 @@ export default function Media() {
     if (!text.trim()) {
       setHasBadWords(false);
       loadCachedVideos();
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
       return;
     }
 
@@ -222,25 +219,25 @@ export default function Media() {
     if (containsBadWords(text)) {
       setHasBadWords(true);
       Vibration.vibrate([100, 50, 100]); // Vibrate pattern
-      
-      // Clear previous timeout
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
       return;
     }
 
     setHasBadWords(false);
-    
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+  };
+
+  const handleSearchSubmit = async () => {
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return;
+
+    if (containsBadWords(trimmedQuery)) {
+      setHasBadWords(true);
+      Vibration.vibrate([100, 50, 100]);
+      return;
     }
 
-    // Debounce the search by 500ms
-    searchTimeoutRef.current = setTimeout(() => {
-      performDynamicSearch(text);
-    }, 500);
+    setHasBadWords(false);
+    await addMediaSearchHistory(trimmedQuery);
+    await performDynamicSearch(trimmedQuery);
   };
 
   // Filter videos based on search query (for local filtering if needed)
@@ -456,13 +453,14 @@ export default function Media() {
           placeholderTextColor="#999"
           value={searchQuery}
           onChangeText={handleSearchChange}
+          returnKeyType="search"
+          onSubmitEditing={handleSearchSubmit}
         />
         {(searchQuery.length > 0 || searchLoading) && (
           <TouchableOpacity onPress={() => {
             setSearchQuery('');
             setHasBadWords(false);
             loadCachedVideos();
-            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
           }}>
             {searchLoading ? (
               <ActivityIndicator size="small" color="#999" />

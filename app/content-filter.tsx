@@ -4,8 +4,9 @@ import {
   Fredoka_700Bold,
   useFonts,
 } from "@expo-google-fonts/fredoka";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
   ImageBackground,
@@ -19,10 +20,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { addBlockedWord, clearBlockedWords, getBlockedWords, removeBlockedWord, subscribeToBlockedWords } from "../src/blockedWordsService";
+import { clearMediaSearchHistory, getMediaSearchHistoryEntries, type MediaSearchHistoryEntry } from "../src/mediaSearchHistoryService";
 import { useResponsiveDimensions } from "../src/utils/responsive";
 
 const backgroundImage = require("../assets/background.png");
 const trashIcon = require("../assets/images/Trash.png");
+const historyIcon = require("../assets/images/history.png");
 
 export default function ContentFilter() {
   const router = useRouter();
@@ -37,6 +40,9 @@ export default function ContentFilter() {
   } = useResponsiveDimensions();
   const [inputValue, setInputValue] = useState("");
   const [blockedWords, setBlockedWords] = useState<string[]>([]);
+  const [searchHistory, setSearchHistory] = useState<MediaSearchHistoryEntry[]>([]);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [clearHistoryConfirmVisible, setClearHistoryConfirmVisible] = useState(false);
   const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
   const [emptyListAlertVisible, setEmptyListAlertVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,6 +51,29 @@ export default function ContentFilter() {
     Fredoka_600SemiBold,
     Fredoka_700Bold,
   });
+
+  const loadSearchHistory = useCallback(async () => {
+    try {
+      const history = await getMediaSearchHistoryEntries();
+      setSearchHistory(history);
+    } catch (err) {
+      console.warn("Failed to load media search history:", err);
+      setSearchHistory([]);
+    }
+  }, []);
+
+  const getFormattedDateTime = (searchedAt: string) => {
+    if (searchedAt === new Date(0).toISOString()) {
+      return "Saved from older history";
+    }
+
+    const parsedDate = new Date(searchedAt);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "Unknown date";
+    }
+
+    return parsedDate.toLocaleString();
+  };
 
   useEffect(() => {
     const loadBlockedWords = async () => {
@@ -57,6 +86,7 @@ export default function ContentFilter() {
     };
 
     loadBlockedWords();
+    loadSearchHistory();
 
     // Subscribe to real-time updates
     const unsubscribe = subscribeToBlockedWords((words) => {
@@ -64,7 +94,13 @@ export default function ContentFilter() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [loadSearchHistory]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSearchHistory();
+    }, [loadSearchHistory])
+  );
 
   const normalizedValue = inputValue.trim().toLowerCase();
   const canAddWord = normalizedValue.length > 0;
@@ -117,6 +153,20 @@ export default function ContentFilter() {
     handleReset();
   };
 
+  const handleClearSearchHistory = () => {
+    setClearHistoryConfirmVisible(true);
+  };
+
+  const confirmClearSearchHistory = async () => {
+    setClearHistoryConfirmVisible(false);
+    try {
+      await clearMediaSearchHistory();
+      setSearchHistory([]);
+    } catch (err) {
+      console.error("Failed to clear media search history:", err);
+    }
+  };
+
   const styles = useMemo(
     () =>
       createStyles({
@@ -164,13 +214,24 @@ export default function ContentFilter() {
           },
         ]}
       >
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.historyIconButton}
+            onPress={() => {
+              loadSearchHistory();
+              setHistoryModalVisible(true);
+            }}
+          >
+            <Image source={historyIcon} style={styles.historyIcon} />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.contentArea}>
           <View style={styles.contentContainer}>
@@ -231,6 +292,95 @@ export default function ContentFilter() {
           </View>
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={historyModalVisible}
+        onRequestClose={() => setHistoryModalVisible(false)}
+      >
+        <View style={styles.resetModalOverlay}>
+          <View style={styles.historyModalContainer}>
+            <View style={styles.historyModalHeader}>
+              <Text style={styles.historyModalTitle}>Media Search History</Text>
+              <TouchableOpacity
+                style={styles.historyModalCloseIconButton}
+                onPress={() => setHistoryModalVisible(false)}
+              >
+                <Text style={styles.historyModalCloseIconText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.historyList}
+              contentContainerStyle={styles.historyListContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {searchHistory.length === 0 ? (
+                <Text style={styles.historyEmptyText}>No searches yet.</Text>
+              ) : (
+                searchHistory.map((entry, index) => (
+                  <View key={`${entry.query}-${entry.searchedAt}-${index}`} style={styles.historyRow}>
+                    <Text style={styles.historyText} numberOfLines={1}>
+                      {entry.query}
+                    </Text>
+                    <Text style={styles.historyDateText}>
+                      {getFormattedDateTime(entry.searchedAt)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.historyClearButton}
+              onPress={handleClearSearchHistory}
+            >
+              <Text style={styles.historyClearButtonText}>Clear History</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={clearHistoryConfirmVisible}
+        onRequestClose={() => setClearHistoryConfirmVisible(false)}
+      >
+        <View style={styles.resetModalOverlay}>
+          <View style={styles.resetModalContainer}>
+            <View style={styles.resetIconCircle}>
+              <Image
+                source={require("../assets/images/Error.png")}
+                style={styles.resetIcon}
+              />
+            </View>
+
+            <Text style={styles.resetModalTitle}>Clear History?</Text>
+            <Text style={styles.resetModalMessage}>
+              Are you sure you want to clear the media search history?
+              This will remove all saved searches.
+            </Text>
+
+            <View style={styles.resetModalButtons}>
+              <TouchableOpacity
+                style={styles.resetCancelButton}
+                onPress={() => setClearHistoryConfirmVisible(false)}
+              >
+                <Text style={styles.resetCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.resetConfirmButton}
+                onPress={confirmClearSearchHistory}
+              >
+                <Text style={styles.resetConfirmButtonText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -332,11 +482,15 @@ const createStyles = ({
     flex: 1,
   },
   backButton: {
-    alignSelf: "flex-start",
     paddingVertical: scaleSpacing(6),
     paddingHorizontal: scaleSpacing(6),
+  },
+  topBar: {
     marginTop: scaleSpacing(6),
     marginBottom: scaleSpacing(18),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   backButtonText: {
     fontFamily: "Fredoka_400Regular",
@@ -344,6 +498,14 @@ const createStyles = ({
     color: "#244D4A",
     textDecorationLine: "underline",
     textDecorationColor: "#244D4A",
+  },
+  historyIconButton: {
+    padding: scaleSpacing(6),
+  },
+  historyIcon: {
+    width: scaleWidth(28),
+    height: scaleWidth(28),
+    resizeMode: "contain",
   },
   contentArea: {
     flex: 1,
@@ -410,6 +572,97 @@ const createStyles = ({
   },
   blockedListContent: {
     paddingBottom: scaleSpacing(4),
+  },
+  historyModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scaleBorderRadius(20),
+    padding: scaleSpacing(20),
+    width: "84%",
+    maxWidth: scaleWidth(420),
+    maxHeight: height > 760 ? scaleSpacing(520) : scaleSpacing(420),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: scaleSpacing(12),
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: "#CFF6EB",
+  },
+  historyModalHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: scaleSpacing(12),
+  },
+  historyModalTitle: {
+    fontSize: scaleFont(22),
+    fontWeight: "700",
+    color: "#1A1A1A",
+    fontFamily: "Fredoka_700Bold",
+  },
+  historyModalCloseIconButton: {
+    paddingHorizontal: scaleSpacing(8),
+    paddingVertical: scaleSpacing(2),
+  },
+  historyModalCloseIconText: {
+    fontSize: scaleFont(22),
+    color: "#4A4A4A",
+    fontFamily: "Fredoka_700Bold",
+  },
+  historyList: {
+    marginTop: scaleSpacing(2),
+    marginBottom: scaleSpacing(14),
+    width: "100%",
+    maxHeight: height > 760 ? scaleSpacing(340) : scaleSpacing(250),
+    borderRadius: scaleBorderRadius(14),
+    borderWidth: 1,
+    borderColor: "#CFF6EB",
+    backgroundColor: "#FFFFFF",
+  },
+  historyListContent: {
+    paddingVertical: scaleSpacing(8),
+    paddingHorizontal: scaleSpacing(10),
+  },
+  historyRow: {
+    paddingVertical: scaleSpacing(6),
+    borderBottomWidth: 1,
+    borderBottomColor: "#EAF7F3",
+  },
+  historyText: {
+    fontFamily: "Fredoka_400Regular",
+    fontSize: scaleFont(16),
+    color: "#203A3A",
+  },
+  historyDateText: {
+    fontFamily: "Fredoka_400Regular",
+    fontSize: scaleFont(12),
+    color: "#5E6C67",
+    marginTop: scaleSpacing(2),
+  },
+  historyEmptyText: {
+    fontFamily: "Fredoka_400Regular",
+    fontSize: scaleFont(15),
+    color: "#5E6C67",
+    textAlign: "center",
+    paddingVertical: scaleSpacing(10),
+  },
+  historyClearButton: {
+    backgroundColor: "#2D7778",
+    paddingVertical: scaleSpacing(12),
+    borderRadius: scaleBorderRadius(50),
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    borderWidth: 2,
+    borderColor: "#245F60",
+  },
+  historyClearButtonText: {
+    fontSize: scaleFont(16),
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
   },
   wordRow: {
     flexDirection: "row",
