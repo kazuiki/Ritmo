@@ -1,9 +1,9 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -12,24 +12,23 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
-import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
@@ -138,27 +137,14 @@ export default function Settings() {
   // Parental Lock Tip
   const [showParentalLockTip, setShowParentalLockTip] = useState(false);
   
-  // Media Time Limit
-  const [showTimeLimitModal, setShowTimeLimitModal] = useState(false);
-  const [timeLimitHours, setTimeLimitHours] = useState('');
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState('');
-  const [timeLimitSuccessVisible, setTimeLimitSuccessVisible] = useState(false);
-  const [showCancelTimeLimitModal, setShowCancelTimeLimitModal] = useState(false);
-  const [hasActiveTimeLimit, setHasActiveTimeLimit] = useState(false);
-  const [remainingTime, setRemainingTime] = useState(0);
-  const [isTimeLimitLocked, setIsTimeLimitLocked] = useState(false);
-  const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
   useEffect(() => {
     fetchUserData();
     checkParentalLockStatus();
-    checkActiveTimeLimit();
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
       checkParentalLockStatus();
-      checkActiveTimeLimit();
     }, [])
   );
 
@@ -203,71 +189,6 @@ export default function Settings() {
       setShowParentalLockTip(false);
     }
   };
-
-  const checkActiveTimeLimit = async () => {
-    try {
-      const timeLimit = await MediaTimeLimitService.getTimeLimit();
-      setHasActiveTimeLimit(timeLimit !== null);
-      if (timeLimit) {
-        const locked = await MediaTimeLimitService.isMediaLocked();
-        setIsTimeLimitLocked(locked);
-        if (!locked) {
-          const remaining = await MediaTimeLimitService.getRemainingTime();
-          setRemainingTime(remaining);
-        }
-      }
-    } catch (error) {
-      console.error("Error checking time limit:", error);
-      setHasActiveTimeLimit(false);
-    }
-  };
-
-  const formatRemainingTime = (seconds: number): string => {
-    if (seconds <= 0) return "0:00";
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const startTimeLimitCountdown = () => {
-    if (timeLimitTimerRef.current) {
-      clearInterval(timeLimitTimerRef.current);
-    }
-    
-    timeLimitTimerRef.current = setInterval(async () => {
-      const locked = await MediaTimeLimitService.isMediaLocked();
-      setIsTimeLimitLocked(locked);
-      
-      if (!locked) {
-        const remaining = await MediaTimeLimitService.getRemainingTime();
-        setRemainingTime(remaining);
-      } else {
-        setRemainingTime(0);
-        if (timeLimitTimerRef.current) {
-          clearInterval(timeLimitTimerRef.current);
-          timeLimitTimerRef.current = null;
-        }
-      }
-    }, 1000);
-  };
-
-  useEffect(() => {
-    if (showCancelTimeLimitModal && hasActiveTimeLimit) {
-      startTimeLimitCountdown();
-    }
-    
-    return () => {
-      if (timeLimitTimerRef.current) {
-        clearInterval(timeLimitTimerRef.current);
-        timeLimitTimerRef.current = null;
-      }
-    };
-  }, [showCancelTimeLimitModal, hasActiveTimeLimit]);
 
   const startEditingNickname = () => {
     setTempNickname(childNickname);
@@ -368,69 +289,6 @@ export default function Settings() {
 
   const handleContentFilter = () => {
     router.push("/content-filter");
-  };
-
-  const handleSetTimeLimit = () => {
-    setShowTimeLimitModal(true);
-  };
-
-  const handleSaveTimeLimit = async () => {
-    const hours = parseInt(timeLimitHours) || 0;
-    const minutes = parseInt(timeLimitMinutes) || 0;
-
-    if (hours === 0 && minutes === 0) {
-      setErrorType("error");
-      setErrorMessage("Please set at least 1 minute");
-      setErrorModalVisible(true);
-      return;
-    }
-
-    if (hours < 0 || minutes < 0 || minutes >= 60) {
-      setErrorType("error");
-      setErrorMessage("Please enter valid time values");
-      setErrorModalVisible(true);
-      return;
-    }
-
-    try {
-      await MediaTimeLimitService.setTimeLimit(hours, minutes);
-      setShowTimeLimitModal(false);
-      setTimeLimitSuccessVisible(true);
-      setTimeLimitHours('');
-      setTimeLimitMinutes('');
-    } catch (error) {
-      setErrorType("error");
-      setErrorMessage("Failed to set time limit. Please try again.");
-      setErrorModalVisible(true);
-    }
-  };
-
-  const handleCancelTimeLimit = () => {
-    setShowTimeLimitModal(false);
-    setTimeLimitHours('');
-    setTimeLimitMinutes('');
-  };
-
-  const handleClearTimeLimit = () => {
-    setShowCancelTimeLimitModal(true);
-  };
-
-  const confirmClearTimeLimit = async () => {
-    try {
-      await MediaTimeLimitService.clearTimeLimit();
-      setShowCancelTimeLimitModal(false);
-      setHasActiveTimeLimit(false);
-      setRemainingTime(0);
-      setIsTimeLimitLocked(false);
-      if (timeLimitTimerRef.current) {
-        clearInterval(timeLimitTimerRef.current);
-        timeLimitTimerRef.current = null;
-      }
-    } catch (error) {
-      setErrorType("error");
-      setErrorMessage("Failed to clear time limit. Please try again.");
-      setErrorModalVisible(true);
-    }
   };
 
   const handleInstruction = () => {
@@ -722,17 +580,6 @@ export default function Settings() {
           <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
 
-        {/* Set Time Limit */}
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={hasActiveTimeLimit ? handleClearTimeLimit : handleSetTimeLimit}
-        >
-          <Text style={styles.menuButtonText}>
-            {hasActiveTimeLimit ? 'Manage Media Time Limit' : 'Set Time Limit for Media'}
-          </Text>
-          <Ionicons name="chevron-forward" size={24} color="#333" />
-        </TouchableOpacity>
-
         {/* Instruction */}
         <TouchableOpacity
           style={styles.menuButton}
@@ -953,183 +800,6 @@ export default function Settings() {
               <Text style={styles.successPasswordOkButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-
-      {/* Set Time Limit Modal */}
-      <Modal
-        visible={showTimeLimitModal}
-        animationType="slide"
-        transparent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="stretch"
-          >
-            <View style={styles.changePasswordContainer}>
-              <View style={styles.changePasswordContent}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                  style={[styles.backButton, { marginTop: scaleSpacing(10) + insets.top }]}
-                  onPress={handleCancelTimeLimit}
-                >
-                  <Text style={styles.backButtonText}>Back</Text>
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={styles.changePasswordLabel}>Set Media Time Limit</Text>
-                
-                {/* Hours Input */}
-                <View style={styles.timeLimitInputRow}>
-                  <View style={styles.timeLimitInputWrapper}>
-                    <Text style={styles.timeLimitInputLabel}>Hours</Text>
-                    <TextInput
-                      style={styles.timeLimitInput}
-                      value={timeLimitHours}
-                      onChangeText={setTimeLimitHours}
-                      placeholder="0"
-                      keyboardType="number-pad"
-                      maxLength={2}
-                    />
-                  </View>
-                  
-                  <Text style={styles.timeLimitSeparator}>:</Text>
-                  
-                  {/* Minutes Input */}
-                  <View style={styles.timeLimitInputWrapper}>
-                    <Text style={styles.timeLimitInputLabel}>Minutes</Text>
-                    <TextInput
-                      style={styles.timeLimitInput}
-                      value={timeLimitMinutes}
-                      onChangeText={setTimeLimitMinutes}
-                      placeholder="0"
-                      keyboardType="number-pad"
-                      maxLength={2}
-                    />
-                  </View>
-                </View>
-
-                {/* Info Text */}
-                <Text style={styles.timeLimitInfoText}>
-                  Set how long your child can use the Media page. Once the time expires, the Media page will be locked until you set a new time limit.
-                </Text>
-
-                {/* Save Button */}
-                <TouchableOpacity 
-                  style={styles.savePasswordButton}
-                  onPress={handleSaveTimeLimit}
-                >
-                  <Text style={styles.savePasswordButtonText}>SET TIME LIMIT</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ImageBackground>
-        </View>
-      </Modal>
-
-      {/* Time Limit Success Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={timeLimitSuccessVisible}
-        onRequestClose={() => setTimeLimitSuccessVisible(false)}
-      >
-        <View style={styles.successPasswordModalOverlay}>
-          <View style={styles.successPasswordModalContainer}>
-            <View style={styles.successPasswordIconCircle}>
-              <Image
-                source={require("../../assets/images/Checkmark.png")}
-                style={styles.successPasswordIcon}
-              />
-            </View>
-            
-            <Text style={styles.successPasswordModalTitle}>Success!</Text>
-            <Text style={styles.successPasswordModalMessage}>
-              Media time limit has been set!
-            </Text>
-            
-            <TouchableOpacity
-              style={styles.successPasswordOkButton}
-              onPress={() => {
-                setTimeLimitSuccessVisible(false);
-                setHasActiveTimeLimit(true);
-              }}
-            >
-              <Text style={styles.successPasswordOkButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Manage Time Limit Options Modal */}
-      <Modal
-        visible={showCancelTimeLimitModal}
-        animationType="slide"
-        transparent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <ImageBackground
-            source={require("../../assets/background.png")}
-            style={styles.modalBackground}
-            resizeMode="stretch"
-          >
-            <View style={styles.changePasswordContainer}>
-              <View style={styles.changePasswordContent}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                  style={[styles.backButton, { marginTop: scaleSpacing(10) + insets.top }]}
-                  onPress={() => setShowCancelTimeLimitModal(false)}
-                >
-                  <Text style={styles.backButtonText}>Back</Text>
-                </TouchableOpacity>
-
-                {/* Title */}
-                <Text style={styles.changePasswordLabel}>Manage Media Time Limit</Text>
-                
-                {/* Countdown Display */}
-                {!isTimeLimitLocked && remainingTime > 0 ? (
-                  <View style={styles.countdownContainer}>
-                    <Ionicons name="time-outline" size={40} color="#4A9B8E" />
-                    <Text style={styles.countdownLabel}>Time Remaining</Text>
-                    <Text style={styles.countdownTime}>{formatRemainingTime(remainingTime)}</Text>
-                  </View>
-                ) : isTimeLimitLocked ? (
-                  <View style={styles.countdownContainer}>
-                    <Ionicons name="lock-closed" size={40} color="#FF6B6B" />
-                    <Text style={styles.countdownLabelLocked}>Media is Locked</Text>
-                    <Text style={styles.countdownSubtext}>Time limit has expired</Text>
-                  </View>
-                ) : null}
-                
-                {/* Info Text */}
-                <Text style={styles.manageLimitInfoText}>
-                  Choose an option below:
-                </Text>
-                
-                {/* Buttons Side by Side */}
-                <View style={styles.manageLimitButtonsHorizontal}>
-                  <TouchableOpacity
-                    style={styles.setNewLimitButton}
-                    onPress={() => {
-                      setShowCancelTimeLimitModal(false);
-                      setShowTimeLimitModal(true);
-                    }}
-                  >
-                    <Text style={styles.setNewLimitButtonText}>Set New{'\n'}Time Limit</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.clearLimitButton}
-                    onPress={confirmClearTimeLimit}
-                  >
-                    <Text style={styles.clearLimitButtonText}>Cancel{'\n'}Time Limit</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </ImageBackground>
         </View>
       </Modal>
 
@@ -2060,52 +1730,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginTop: scale.scaleSpacing(12),
     marginBottom: scale.scaleSpacing(20),
   },
-  
-  // Time Limit Modal Styles
-  timeLimitInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: scale.scaleSpacing(20),
-    gap: scale.scaleSpacing(20),
-  },
-  timeLimitInputWrapper: {
-    alignItems: 'center',
-  },
-  timeLimitInputLabel: {
-    fontSize: scale.scaleFont(14),
-    color: '#333',
-    fontWeight: '600',
-    marginBottom: scale.scaleSpacing(8),
-  },
-  timeLimitInput: {
-    width: scale.scaleWidth(80),
-    height: scale.scaleHeight(60),
-    borderWidth: 2,
-    borderColor: '#333',
-    borderRadius: scale.scaleBorderRadius(20),
-    backgroundColor: '#fff',
-    fontSize: scale.scaleFont(24),
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#333',
-  },
-  timeLimitSeparator: {
-    fontSize: scale.scaleFont(36),
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: scale.scaleSpacing(20),
-  },
-  timeLimitInfoText: {
-    fontSize: scale.scaleFont(14),
-    color: '#333',
-    textAlign: 'center',
-    lineHeight: scale.scaleHeight(20),
-    marginTop: scale.scaleSpacing(12),
-    marginBottom: scale.scaleSpacing(20),
-    paddingHorizontal: scale.scaleSpacing(10),
-  },
-  
   savePasswordButton: {
     backgroundColor: '#4A9B8E',
     borderRadius: scale.scaleBorderRadius(20),
@@ -2205,107 +1829,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
     fontFamily: "Fredoka_600SemiBold",
-  },
-  
-  // Manage Time Limit Modal Styles
-  countdownContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E8F5F3',
-    borderRadius: scale.scaleBorderRadius(20),
-    paddingVertical: scale.scaleSpacing(30),
-    paddingHorizontal: scale.scaleSpacing(20),
-    marginVertical: scale.scaleSpacing(20),
-    borderWidth: 3,
-    borderColor: '#4A9B8E',
-    shadowColor: "#4A9B8E",
-    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
-    shadowOpacity: 0.2,
-    shadowRadius: scale.scaleSpacing(8),
-    elevation: 4,
-  },
-  countdownLabel: {
-    fontSize: scale.scaleFont(14),
-    color: '#666',
-    marginTop: scale.scaleSpacing(12),
-    marginBottom: scale.scaleSpacing(8),
-    fontFamily: "Fredoka_500Medium",
-  },
-  countdownTime: {
-    fontSize: scale.scaleFont(48),
-    fontWeight: '700',
-    color: '#4A9B8E',
-    fontFamily: "Fredoka_700Bold",
-  },
-  countdownLabelLocked: {
-    fontSize: scale.scaleFont(18),
-    color: '#FF6B6B',
-    marginTop: scale.scaleSpacing(12),
-    marginBottom: scale.scaleSpacing(4),
-    fontWeight: '700',
-    fontFamily: "Fredoka_700Bold",
-  },
-  countdownSubtext: {
-    fontSize: scale.scaleFont(14),
-    color: '#999',
-    fontFamily: "Fredoka_400Regular",
-  },
-  manageLimitIconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: scale.scaleSpacing(30),
-  },
-  manageLimitInfoText: {
-    fontSize: scale.scaleFont(16),
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: scale.scaleSpacing(20),
-    fontWeight: '500',
-  },
-  manageLimitButtonsHorizontal: {
-    flexDirection: "row",
-    width: "100%",
-    gap: scale.scaleSpacing(12),
-    marginTop: scale.scaleSpacing(10),
-  },
-  manageLimitButtonsVertical: {
-    width: "100%",
-    gap: scale.scaleSpacing(12),
-    marginTop: scale.scaleSpacing(10),
-  },
-  setNewLimitButton: {
-    flex: 1,
-    backgroundColor: "#4A9B8E",
-    paddingVertical: scale.scaleSpacing(16),
-    borderRadius: scale.scaleBorderRadius(20),
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: scale.scaleHeight(70),
-  },
-  setNewLimitButtonText: {
-    fontSize: scale.scaleFont(15),
-    fontWeight: "700",
-    color: "#FFFFFF",
-    fontFamily: "Fredoka_700Bold",
-    textAlign: "center",
-    lineHeight: scale.scaleHeight(20),
-  },
-  clearLimitButton: {
-    flex: 1,
-    backgroundColor: "#FF9800",
-    paddingVertical: scale.scaleSpacing(16),
-    borderRadius: scale.scaleBorderRadius(20),
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: scale.scaleHeight(70),
-  },
-  clearLimitButtonText: {
-    fontSize: scale.scaleFont(15),
-    fontWeight: "700",
-    color: "#FFFFFF",
-    fontFamily: "Fredoka_700Bold",
-    textAlign: "center",
-    lineHeight: scale.scaleHeight(20),
   },
   
   // Password Error Modal Styles
