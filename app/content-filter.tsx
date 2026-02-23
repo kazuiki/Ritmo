@@ -493,11 +493,11 @@ const createStyles = ({
     justifyContent: "space-between",
   },
   backButtonText: {
-    fontFamily: "Fredoka_400Regular",
+    fontWeight: "400",
     fontSize: scaleFont(18),
-    color: "#244D4A",
+    color: "#333",
     textDecorationLine: "underline",
-    textDecorationColor: "#244D4A",
+    textDecorationColor: "#333",
   },
   historyIconButton: {
     padding: scaleSpacing(6),
@@ -519,9 +519,9 @@ const createStyles = ({
       deviceCategory === "tablet" ? scaleWidth(520) : undefined,
   },
   sectionLabel: {
-    fontFamily: "Fredoka_400Regular",
-    fontSize: scaleFont(20),
-    color: "#203A3A",
+    fontWeight: "600",
+    fontSize: scaleFont(18),
+    color: "#333",
     marginTop: scaleSpacing(6),
     marginBottom: scaleSpacing(8),
   },
@@ -544,9 +544,9 @@ const createStyles = ({
   },
   textInput: {
     flex: 1,
-    fontFamily: "Fredoka_400Regular",
-    fontSize: scaleFont(17),
-    color: "#203A3A",
+    fontWeight: "400",
+    fontSize: scaleFont(18),
+    color: "#333",
     paddingVertical: scaleSpacing(6),
   },
   inlineAddButton: {
@@ -561,8 +561,8 @@ const createStyles = ({
     opacity: 0.55,
   },
   inlineAddButtonText: {
-    fontFamily: "Fredoka_600SemiBold",
-    fontSize: scaleFont(15),
+    fontWeight: "600",
+    fontSize: scaleFont(17),
     color: "#FFFFFF",
   },
   blockedList: {
@@ -672,9 +672,9 @@ const createStyles = ({
     marginBottom: scaleSpacing(8),
   },
   wordText: {
-    fontFamily: "Fredoka_400Regular",
+    fontWeight: "400",
     fontSize: scaleFont(18),
-    color: "#203A3A",
+    color: "#333",
   },
   trashButton: {
     padding: scaleSpacing(6),
@@ -699,8 +699,8 @@ const createStyles = ({
     borderColor: "#245F60",
   },
   resetButtonText: {
-    fontFamily: "Fredoka_600SemiBold",
-    fontSize: scaleFont(16),
+    fontWeight: "600",
+    fontSize: scaleFont(18),
     color: "#FFFFFF",
   },
   resetModalOverlay: {
@@ -739,19 +739,18 @@ const createStyles = ({
     resizeMode: "contain",
   },
   resetModalTitle: {
-    fontSize: scaleFont(24),
+    fontSize: scaleFont(18),
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: "#333",
     marginBottom: scaleSpacing(8),
-    fontFamily: "Fredoka_700Bold",
   },
   resetModalMessage: {
-    fontSize: scaleFont(14),
-    color: "#4A4A4A",
+    fontSize: scaleFont(16),
+    color: "#333",
     textAlign: "center",
     lineHeight: scaleSpacing(20),
     marginBottom: scaleSpacing(20),
-    fontFamily: "Fredoka_400Regular",
+    fontWeight: "400",
     paddingHorizontal: scaleSpacing(8),
     flexWrap: "wrap",
   },
@@ -769,10 +768,9 @@ const createStyles = ({
     justifyContent: "center",
   },
   resetCancelButtonText: {
-    fontSize: scaleFont(16),
+    fontSize: scaleFont(18),
     fontWeight: "600",
     color: "#FFFFFF",
-    fontFamily: "Fredoka_600SemiBold",
   },
   resetConfirmButton: {
     flex: 1,
@@ -783,9 +781,8 @@ const createStyles = ({
     justifyContent: "center",
   },
   resetConfirmButtonText: {
-    fontSize: scaleFont(16),
+    fontSize: scaleFont(18),
     fontWeight: "600",
     color: "#FFFFFF",
-    fontFamily: "Fredoka_600SemiBold",
   },
 });

@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { MotiView } from "moti";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
@@ -116,10 +116,38 @@ export default function Home() {
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
 
-  // Autoplay step audio and gate Next until clip finishes
+  // Autoplay step audio and gate Next for 1 minute, then auto-advance after 10 seconds
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
   const currentAudioModule = playbook?.steps?.[currentStepIndex]?.audio;
-  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible);
+  
+  const handleAutoAdvance = useCallback(() => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+      setIsPlaying(false);
+      setAudioControlIndex(0);
+    } else {
+      // Step 4 - Auto finish
+      if (isReplayMode) {
+        setPlaybookModalVisible(false);
+        setTaskModalVisible(false);
+        setSuccessModalVisible(true);
+        setShowRainingStars(true);
+        setCurrentStep(1);
+        setIsPlaying(false);
+        setAudioControlIndex(0);
+      } else {
+        setPlaybookModalVisible(false);
+        setTaskModalVisible(false);
+        setSuccessModalVisible(true);
+        setShowRainingStars(true);
+        setCurrentStep(1);
+        setIsPlaying(false);
+        setAudioControlIndex(0);
+      }
+    }
+  }, [currentStep, isReplayMode]);
+  
+  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
 
   // Ensure Android audio mode when playbook opens
   useEffect(() => {
@@ -1525,11 +1553,11 @@ export default function Home() {
             style={styles.backgroundImage}
             resizeMode="stretch"
           />
-          {/* Back Button - Only show on Step 1 */}
+          {/* Back Button - Show on all steps */}
           <View style={[styles.playbookHeader, { paddingTop: insets.top + scaleSpacing(16) }]}>
-            {currentStep === 1 && (
-              <TouchableOpacity onPress={() => {
-                // Just slide playbook out, task modal is still there
+            <TouchableOpacity onPress={() => {
+              if (currentStep === 1) {
+                // Step 1: Close playbook and return to task modal
                 Animated.timing(playbookSlideX, {
                   toValue: 400,
                   duration: 300,
@@ -1540,10 +1568,15 @@ export default function Home() {
                   setIsPlaying(false);
                   setAudioControlIndex(0);
                 });
-              }}>
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
-            )}
+              } else {
+                // Steps 2-4: Go back one step
+                setCurrentStep(currentStep - 1);
+                setIsPlaying(false);
+                setAudioControlIndex(0);
+              }
+            }}>
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Routine Title with Stars */}
@@ -1589,25 +1622,10 @@ export default function Home() {
             </Text>
           </ScrollView>
 
-          {/* Footer with Back and Next Buttons */}
+          {/* Footer with Next Button */}
           <View style={[styles.playbookFooter, { paddingBottom: insets.bottom }]}>
-            {currentStep > 1 && (
-              <TouchableOpacity 
-                style={styles.backButtonBottom}
-                onPress={() => {
-                  if (currentStep > 1) {
-                    setCurrentStep(currentStep - 1);
-                    setIsPlaying(false);
-                    setAudioControlIndex(0);
-                  }
-                }}
-              >
-                <Text style={styles.backButtonText}>BACK</Text>
-              </TouchableOpacity>
-            )}
-            {currentStep > 1 && <View style={styles.buttonSpacer} />}
             <TouchableOpacity 
-              style={[styles.nextButton, isNextDisabled && { opacity: 0.5 }]}
+              style={[styles.nextButtonFull, isNextDisabled && { opacity: 0.5 }]}
               onPress={() => {
                 // Triple guard: check the ref + debounce to prevent spam clicks
                 if (isNextDisabledRef?.current) {
