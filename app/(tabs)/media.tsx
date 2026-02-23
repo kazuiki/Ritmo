@@ -4,18 +4,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
@@ -72,7 +72,6 @@ export default function Media() {
   const [isMediaLocked, setIsMediaLocked] = useState(false);
   const [remainingTime, setRemainingTime] = useState(0);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
-  const [showCallMommyModal, setShowCallMommyModal] = useState(false);
   const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const CACHE_KEY = 'mediaCache:main';
@@ -83,7 +82,7 @@ export default function Media() {
     'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
   ];
 
-  const loadCustomBlockedWords = async () => {
+  const loadCustomBlockedWords = React.useCallback(async () => {
     try {
       const words = await getBlockedWords();
       setCustomBlockedWords(words);
@@ -91,26 +90,33 @@ export default function Media() {
       console.warn('Failed to load custom blocked words:', err);
       setCustomBlockedWords([]);
     }
-  };
+  }, []);
 
-  // Check if media is locked
-  const checkMediaTimeLimit = async () => {
+  // Check if media is locked - wrapped in useCallback for stable reference
+  const checkMediaTimeLimit = React.useCallback(async () => {
     try {
+      // Only enforce lock if parental lock is enabled
+      if (!parentalLockEnabled) {
+        setIsMediaLocked(false);
+        const remaining = await MediaTimeLimitService.getRemainingTime();
+        setRemainingTime(remaining);
+        return;
+      }
+
       const locked = await MediaTimeLimitService.isMediaLocked();
       setIsMediaLocked(locked);
 
       if (!locked) {
         const remaining = await MediaTimeLimitService.getRemainingTime();
         setRemainingTime(remaining);
-        setShowCallMommyModal(false); // Reset modal state when not locked
       }
     } catch (err) {
       console.error('Error checking media time limit:', err);
     }
-  };
+  }, [parentalLockEnabled]);
 
-  // Start timer to track time limit
-  const startTimeLimitTimer = () => {
+  // Start timer to track time limit - wrapped in useCallback for stable reference
+  const startTimeLimitTimer = React.useCallback(() => {
     // Clear any existing timer
     if (timerInterval.current) {
       clearInterval(timerInterval.current);
@@ -119,35 +125,45 @@ export default function Media() {
     // Check immediately
     checkMediaTimeLimit();
 
+    // Only enforce time limit if parental lock is enabled
+    if (!parentalLockEnabled) {
+      console.log('⏸️ Timer not enforced - parental lock disabled');
+      return;
+    }
+
     // Check every second and decrement time (only runs when on media page)
     timerInterval.current = setInterval(async () => {
-      const locked = await MediaTimeLimitService.isMediaLocked();
-      setIsMediaLocked(locked);
+      try {
+        const locked = await MediaTimeLimitService.isMediaLocked();
+        setIsMediaLocked(locked);
 
-      if (locked) {
-        await MediaTimeLimitService.lockMedia();
-        if (timerInterval.current) {
-          clearInterval(timerInterval.current);
-          timerInterval.current = null;
-        }
-      } else {
-        // Decrement time by 1 second (this pauses when user leaves the page)
-        await MediaTimeLimitService.decrementTime();
+        if (locked) {
+          await MediaTimeLimitService.lockMedia();
+          if (timerInterval.current) {
+            clearInterval(timerInterval.current);
+            timerInterval.current = null;
+          }
+        } else {
+          // Decrement time by 1 second (this pauses when user leaves the page)
+          await MediaTimeLimitService.decrementTime();
 
-        // Get updated remaining time
-        const remaining = await MediaTimeLimitService.getRemainingTime();
-        setRemainingTime(remaining);
+          // Get updated remaining time
+          const remaining = await MediaTimeLimitService.getRemainingTime();
+          setRemainingTime(remaining);
 
-        // Show warning when less than 5 minutes remaining
-        if (remaining > 0 && remaining <= 300 && !showTimeWarning) {
-          setShowTimeWarning(true);
+          // Show warning when less than 5 minutes remaining
+          if (remaining > 0 && remaining <= 300 && !showTimeWarning) {
+            setShowTimeWarning(true);
+          }
+          if (remaining > 300 && showTimeWarning) {
+            setShowTimeWarning(false);
+          }
         }
-        if (remaining > 300 && showTimeWarning) {
-          setShowTimeWarning(false);
-        }
+      } catch (err) {
+        console.error('Error in timer interval:', err);
       }
     }, 1000);
-  };
+  }, [checkMediaTimeLimit, showTimeWarning, parentalLockEnabled]);
 
   // Format remaining time for display
   const formatRemainingTime = (seconds: number): string => {
@@ -167,8 +183,7 @@ export default function Media() {
     React.useCallback(() => {
       ParentalLockAuthService.onNavigateToPublicTab();
       checkMediaTimeLimit();
-      setShowCallMommyModal(false); // Reset to show Time's Up modal first
-    }, [])
+    }, [checkMediaTimeLimit])
   );
 
   useFocusEffect(
@@ -185,7 +200,7 @@ export default function Media() {
           timerInterval.current = null;
         }
       };
-    }, [])
+    }, [loadCustomBlockedWords, startTimeLimitTimer])
   );
 
   // Load videos on mount
@@ -563,8 +578,8 @@ export default function Media() {
           )}
         </View>
 
-        {/* Timer beside search bar */}
-        {remainingTime > 0 && !isMediaLocked && (
+        {/* Timer beside search bar - Only shows when parental lock is enabled */}
+        {remainingTime > 0 && !isMediaLocked && parentalLockEnabled && (
           <View style={showTimeWarning ? styles.timerWarningBadge : styles.timerBadge}>
             <Ionicons
               name="time-outline"
@@ -749,38 +764,8 @@ export default function Media() {
         </View>
       </Modal>
 
-      {/* Time's Up Modal (First) */}
-      {isMediaLocked && !showCallMommyModal && (
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={true}
-          statusBarTranslucent={true}
-        >
-          <View style={styles.lockedOverlay}>
-            <View style={styles.lockedContainer}>
-              <View style={styles.lockedIconCircle}>
-                <Ionicons name="time-outline" size={64} color="#FF9800" />
-              </View>
-
-              <Text style={styles.lockedTitle}>Time's Up!</Text>
-              <Text style={styles.lockedMessage}>
-                You've used up your time for watching videos.
-              </Text>
-
-              <TouchableOpacity
-                style={styles.timeUpOkButton}
-                onPress={() => setShowCallMommyModal(true)}
-              >
-                <Text style={styles.timeUpOkButtonText}>OK</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Call Mommy for Help Modal (Second) */}
-      {isMediaLocked && showCallMommyModal && (
+      {/* Call Mommy for Help Modal (Only shows when parental lock IS enabled) */}
+      {isMediaLocked && parentalLockEnabled && (
         <Modal
           animationType="fade"
           transparent={true}
@@ -797,10 +782,7 @@ export default function Media() {
 
               <TouchableOpacity
                 style={styles.lockedBackButton}
-                onPress={() => {
-                  setShowCallMommyModal(false);
-                  router.push('/(tabs)/home');
-                }}
+                onPress={() => router.push('/(tabs)/home')}
               >
                 <Text style={styles.lockedBackButtonText}>Go to Home</Text>
               </TouchableOpacity>
