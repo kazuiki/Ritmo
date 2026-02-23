@@ -72,6 +72,9 @@ export default function Media() {
   const [isMediaLocked, setIsMediaLocked] = useState(false);
   const [remainingTime, setRemainingTime] = useState(0);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
+  const [showCallMommyModal, setShowCallMommyModal] = useState(false);
+  const [isMediaPageFocused, setIsMediaPageFocused] = useState(false);
+  const [hasTimeLimitSet, setHasTimeLimitSet] = useState(false);
   const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const CACHE_KEY = 'mediaCache:main';
@@ -95,43 +98,72 @@ export default function Media() {
   // Check if media is locked - wrapped in useCallback for stable reference
   const checkMediaTimeLimit = React.useCallback(async () => {
     try {
-      // Only enforce lock if parental lock is enabled
-      if (!parentalLockEnabled) {
+      // Parent mode or no parental lock - no restrictions
+      if (mode === 'parent' || !parentalLockEnabled) {
         setIsMediaLocked(false);
+        setShowCallMommyModal(false);
+        setHasTimeLimitSet(false);
         const remaining = await MediaTimeLimitService.getRemainingTime();
         setRemainingTime(remaining);
         return;
       }
 
+      // Child mode with parental lock enabled - check if time limit is set
+      const timeLimit = await MediaTimeLimitService.getTimeLimit();
+      
+      if (!timeLimit) {
+        // No time limit set yet, but parental lock is on → lock media and show Call Mommy directly
+        setIsMediaLocked(true);
+        setRemainingTime(0);
+        setHasTimeLimitSet(false); // No time limit
+        setShowCallMommyModal(true); // Go directly to Call Mommy
+        return;
+      }
+
+      // Time limit is set
+      setHasTimeLimitSet(true);
+      
+      // Check if expired
       const locked = await MediaTimeLimitService.isMediaLocked();
       setIsMediaLocked(locked);
 
       if (!locked) {
         const remaining = await MediaTimeLimitService.getRemainingTime();
         setRemainingTime(remaining);
+        setShowCallMommyModal(false); // Reset modal flow when not locked
+      } else {
+        // Locked because time expired - show Time's Up first, then Call Mommy
+        setShowCallMommyModal(false); // Start with Time's Up modal
       }
     } catch (err) {
       console.error('Error checking media time limit:', err);
     }
-  }, [parentalLockEnabled]);
+  }, [mode, parentalLockEnabled]);
 
   // Start timer to track time limit - wrapped in useCallback for stable reference
-  const startTimeLimitTimer = React.useCallback(() => {
+  const startTimeLimitTimer = React.useCallback(async () => {
     // Clear any existing timer
     if (timerInterval.current) {
       clearInterval(timerInterval.current);
     }
 
     // Check immediately
-    checkMediaTimeLimit();
+    await checkMediaTimeLimit();
 
-    // Only enforce time limit if parental lock is enabled
-    if (!parentalLockEnabled) {
-      console.log('⏸️ Timer not enforced - parental lock disabled');
+    // Only enforce time limit if in child mode and parental lock is enabled
+    if (mode === 'parent' || !parentalLockEnabled) {
+      console.log('⏸️ Timer not enforced - parent mode or parental lock disabled');
       return;
     }
 
-    // Check every second and decrement time (only runs when on media page)
+    // Check if time limit is set
+    const timeLimit = await MediaTimeLimitService.getTimeLimit();
+    if (!timeLimit) {
+      console.log('⏸️ Timer not running - no time limit set (media locked by parental lock only)');
+      return;
+    }
+
+    // Check every second and decrement time (only runs when on media page in child mode)
     timerInterval.current = setInterval(async () => {
       try {
         const locked = await MediaTimeLimitService.isMediaLocked();
@@ -139,6 +171,7 @@ export default function Media() {
 
         if (locked) {
           await MediaTimeLimitService.lockMedia();
+          setShowCallMommyModal(false); // Reset to show Time's Up first
           if (timerInterval.current) {
             clearInterval(timerInterval.current);
             timerInterval.current = null;
@@ -163,7 +196,7 @@ export default function Media() {
         console.error('Error in timer interval:', err);
       }
     }, 1000);
-  }, [checkMediaTimeLimit, showTimeWarning, parentalLockEnabled]);
+  }, [checkMediaTimeLimit, showTimeWarning, mode, parentalLockEnabled]);
 
   // Format remaining time for display
   const formatRemainingTime = (seconds: number): string => {
@@ -181,8 +214,13 @@ export default function Media() {
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
     React.useCallback(() => {
+      setIsMediaPageFocused(true); // Mark page as focused
       ParentalLockAuthService.onNavigateToPublicTab();
-      checkMediaTimeLimit();
+      checkMediaTimeLimit(); // This handles modal state based on lock status
+      
+      return () => {
+        setIsMediaPageFocused(false); // Mark page as unfocused
+      };
     }, [checkMediaTimeLimit])
   );
 
@@ -202,6 +240,11 @@ export default function Media() {
       };
     }, [loadCustomBlockedWords, startTimeLimitTimer])
   );
+
+  // Re-check media lock status when mode changes
+  useEffect(() => {
+    checkMediaTimeLimit();
+  }, [mode, checkMediaTimeLimit]);
 
   // Load videos on mount
   useEffect(() => {
@@ -578,8 +621,8 @@ export default function Media() {
           )}
         </View>
 
-        {/* Timer beside search bar - Only shows when parental lock is enabled */}
-        {remainingTime > 0 && !isMediaLocked && parentalLockEnabled && (
+        {/* Timer beside search bar - Only shows in child mode when parental lock is enabled */}
+        {remainingTime > 0 && !isMediaLocked && mode === 'child' && parentalLockEnabled && (
           <View style={showTimeWarning ? styles.timerWarningBadge : styles.timerBadge}>
             <Ionicons
               name="time-outline"
@@ -764,8 +807,38 @@ export default function Media() {
         </View>
       </Modal>
 
-      {/* Call Mommy for Help Modal (Only shows when parental lock IS enabled) */}
-      {isMediaLocked && parentalLockEnabled && (
+      {/* Time's Up Modal (First modal - only when time limit expired, not when no time limit set) */}
+      {isMediaLocked && parentalLockEnabled && mode === 'child' && isMediaPageFocused && hasTimeLimitSet && !showCallMommyModal && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={true}
+          statusBarTranslucent={true}
+        >
+          <View style={styles.lockedOverlay}>
+            <View style={styles.lockedContainer}>
+              <View style={styles.lockedIconCircle}>
+                <Ionicons name="time-outline" size={64} color="#FF9800" />
+              </View>
+
+              <Text style={styles.lockedTitle}>Time's Up!</Text>
+              <Text style={styles.lockedMessage}>
+                You've used up your time for watching videos.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.timeUpOkButton}
+                onPress={() => setShowCallMommyModal(true)}
+              >
+                <Text style={styles.timeUpOkButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Call Mommy for Help Modal - shows when: 1) No time limit set, OR 2) After clicking OK on Time's Up */}
+      {isMediaLocked && parentalLockEnabled && mode === 'child' && isMediaPageFocused && (!hasTimeLimitSet || showCallMommyModal) && (
         <Modal
           animationType="fade"
           transparent={true}
@@ -782,7 +855,10 @@ export default function Media() {
 
               <TouchableOpacity
                 style={styles.lockedBackButton}
-                onPress={() => router.push('/(tabs)/home')}
+                onPress={() => {
+                  setShowCallMommyModal(false);
+                  router.push('/(tabs)/home');
+                }}
               >
                 <Text style={styles.lockedBackButtonText}>Go to Home</Text>
               </TouchableOpacity>
