@@ -4,24 +4,25 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Vibration,
-  View
+    ActivityIndicator,
+    Animated,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Vibration,
+    View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
 
 import { useMode } from "../../src/contexts/ModeContext";
 import { addMediaSearchHistory } from "../../src/mediaSearchHistoryService";
+import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
@@ -66,6 +67,13 @@ export default function Media() {
   const [pinError, setPinError] = useState('');
   const pinShake = useRef(new Animated.Value(0)).current;
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+
+  // Media Time Limit
+  const [isMediaLocked, setIsMediaLocked] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(0);
+  const [showTimeWarning, setShowTimeWarning] = useState(false);
+  const [showCallMommyModal, setShowCallMommyModal] = useState(false);
+  const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const CACHE_KEY = 'mediaCache:main';
   
@@ -85,16 +93,98 @@ export default function Media() {
     }
   };
 
+  // Check if media is locked
+  const checkMediaTimeLimit = async () => {
+    try {
+      const locked = await MediaTimeLimitService.isMediaLocked();
+      setIsMediaLocked(locked);
+
+      if (!locked) {
+        const remaining = await MediaTimeLimitService.getRemainingTime();
+        setRemainingTime(remaining);
+        setShowCallMommyModal(false); // Reset modal state when not locked
+      }
+    } catch (err) {
+      console.error('Error checking media time limit:', err);
+    }
+  };
+
+  // Start timer to track time limit
+  const startTimeLimitTimer = () => {
+    // Clear any existing timer
+    if (timerInterval.current) {
+      clearInterval(timerInterval.current);
+    }
+
+    // Check immediately
+    checkMediaTimeLimit();
+
+    // Check every second and decrement time (only runs when on media page)
+    timerInterval.current = setInterval(async () => {
+      const locked = await MediaTimeLimitService.isMediaLocked();
+      setIsMediaLocked(locked);
+
+      if (locked) {
+        await MediaTimeLimitService.lockMedia();
+        if (timerInterval.current) {
+          clearInterval(timerInterval.current);
+          timerInterval.current = null;
+        }
+      } else {
+        // Decrement time by 1 second (this pauses when user leaves the page)
+        await MediaTimeLimitService.decrementTime();
+
+        // Get updated remaining time
+        const remaining = await MediaTimeLimitService.getRemainingTime();
+        setRemainingTime(remaining);
+
+        // Show warning when less than 5 minutes remaining
+        if (remaining > 0 && remaining <= 300 && !showTimeWarning) {
+          setShowTimeWarning(true);
+        }
+        if (remaining > 300 && showTimeWarning) {
+          setShowTimeWarning(false);
+        }
+      }
+    }, 1000);
+  };
+
+  // Format remaining time for display
+  const formatRemainingTime = (seconds: number): string => {
+    if (seconds <= 0) return "0:00";
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Clear all parental lock authentication when navigating to MEDIA
   useFocusEffect(
     React.useCallback(() => {
       ParentalLockAuthService.onNavigateToPublicTab();
+      checkMediaTimeLimit();
+      setShowCallMommyModal(false); // Reset to show Time's Up modal first
     }, [])
   );
 
   useFocusEffect(
     React.useCallback(() => {
       loadCustomBlockedWords();
+
+      // Start timer when page is focused
+      startTimeLimitTimer();
+
+      return () => {
+        // Clear timer when page loses focus
+        if (timerInterval.current) {
+          clearInterval(timerInterval.current);
+          timerInterval.current = null;
+        }
+      };
     }, [])
   );
 
@@ -444,30 +534,46 @@ export default function Media() {
         )}
       </View>
 
-      {/* 🔍 Search Bar */}
-      <View style={[styles.searchBarContainer, hasBadWords && styles.searchBarContainerError]}>
-        <Ionicons name="search" size={20} color={hasBadWords ? "#FF6B6B" : "#999"} style={styles.searchIcon} />
-        <TextInput
-          style={[styles.searchInput, hasBadWords && styles.searchInputError]}
-          placeholder="Search kids videos..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={handleSearchChange}
-          returnKeyType="search"
-          onSubmitEditing={handleSearchSubmit}
-        />
-        {(searchQuery.length > 0 || searchLoading) && (
-          <TouchableOpacity onPress={() => {
-            setSearchQuery('');
-            setHasBadWords(false);
-            loadCachedVideos();
-          }}>
-            {searchLoading ? (
-              <ActivityIndicator size="small" color="#999" />
-            ) : (
-              <Ionicons name="close-circle" size={20} color="#999" />
-            )}
-          </TouchableOpacity>
+      {/* 🔍 Search Bar with Timer */}
+      <View style={styles.searchBarRow}>
+        <View style={[styles.searchBarContainer, hasBadWords && styles.searchBarContainerError]}>
+          <Ionicons name="search" size={20} color={hasBadWords ? "#FF6B6B" : "#999"} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, hasBadWords && styles.searchInputError]}
+            placeholder="Search kids videos..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            returnKeyType="search"
+            onSubmitEditing={handleSearchSubmit}
+          />
+          {(searchQuery.length > 0 || searchLoading) && (
+            <TouchableOpacity onPress={() => {
+              setSearchQuery('');
+              setHasBadWords(false);
+              loadCachedVideos();
+            }}>
+              {searchLoading ? (
+                <ActivityIndicator size="small" color="#999" />
+              ) : (
+                <Ionicons name="close-circle" size={20} color="#999" />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Timer beside search bar */}
+        {remainingTime > 0 && !isMediaLocked && (
+          <View style={showTimeWarning ? styles.timerWarningBadge : styles.timerBadge}>
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={showTimeWarning ? "#FF9800" : "#4A9B8E"}
+            />
+            <Text style={showTimeWarning ? styles.timerWarningText : styles.timerText}>
+              {formatRemainingTime(remainingTime)}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -633,6 +739,66 @@ export default function Media() {
             </View>
         </View>
       </Modal>
+
+      {/* Time's Up Modal (First) */}
+      {isMediaLocked && !showCallMommyModal && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={true}
+          statusBarTranslucent={true}
+        >
+          <View style={styles.lockedOverlay}>
+            <View style={styles.lockedContainer}>
+              <View style={styles.lockedIconCircle}>
+                <Ionicons name="time-outline" size={64} color="#FF9800" />
+              </View>
+
+              <Text style={styles.lockedTitle}>Time's Up!</Text>
+              <Text style={styles.lockedMessage}>
+                You've used up your time for watching videos.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.timeUpOkButton}
+                onPress={() => setShowCallMommyModal(true)}
+              >
+                <Text style={styles.timeUpOkButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Call Mommy for Help Modal (Second) */}
+      {isMediaLocked && showCallMommyModal && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={true}
+          statusBarTranslucent={true}
+        >
+          <View style={styles.lockedOverlay}>
+            <View style={styles.callMommyContainer}>
+              <View style={styles.callMommyIconCircle}>
+                <Ionicons name="call" size={64} color="#4A9B8E" />
+              </View>
+
+              <Text style={styles.callMommyTitle}>Call Mommy for Help!</Text>
+
+              <TouchableOpacity
+                style={styles.lockedBackButton}
+                onPress={() => {
+                  setShowCallMommyModal(false);
+                  router.push('/(tabs)/home');
+                }}
+              >
+                <Text style={styles.lockedBackButtonText}>Go to Home</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -711,12 +877,18 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flexGrow: 1,
   },
   // 🔍 Search Bar Styles
+  searchBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: scale.scaleSpacing(16),
+    marginVertical: scale.scaleSpacing(2),
+    gap: scale.scaleSpacing(8),
+  },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    marginHorizontal: scale.scaleSpacing(16),
-    marginVertical: scale.scaleSpacing(2),
+    flex: 1,
     paddingHorizontal: scale.scaleSpacing(12),
     borderRadius: scale.scaleBorderRadius(25),
     borderWidth: 1,
@@ -1018,6 +1190,181 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontWeight: "600",
     color: "#666",
     fontFamily: "Fredoka_600SemiBold",
+  },
+
+  // Time Limit Styles
+  timerBadge: {
+    backgroundColor: '#E8F5F3',
+    borderRadius: scale.scaleBorderRadius(20),
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(4),
+    height: scale.scaleHeight(48),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+    shadowOpacity: 0.1,
+    shadowRadius: scale.scaleSpacing(3),
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#4A9B8E',
+  },
+  timerText: {
+    fontSize: scale.scaleFont(13),
+    color: '#4A9B8E',
+    fontWeight: '600',
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  timerWarningBadge: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: scale.scaleBorderRadius(20),
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: scale.scaleSpacing(12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(4),
+    height: scale.scaleHeight(48),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+    shadowOpacity: 0.2,
+    shadowRadius: scale.scaleSpacing(4),
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#FF9800',
+  },
+  timerWarningText: {
+    fontSize: scale.scaleFont(13),
+    color: '#856404',
+    fontWeight: '600',
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  lockedOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: scale.scaleSpacing(20),
+  },
+  lockedContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: scale.scaleBorderRadius(25),
+    padding: scale.scaleSpacing(35),
+    alignItems: 'center',
+    width: '90%',
+    maxWidth: scale.scaleWidth(500),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(8) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 12,
+    borderWidth: 3,
+    borderColor: '#FF9800',
+  },
+  lockedIconCircle: {
+    width: scale.scaleWidth(100),
+    height: scale.scaleHeight(100),
+    borderRadius: scale.scaleBorderRadius(50),
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: scale.scaleSpacing(24),
+  },
+  lockedTitle: {
+    fontSize: scale.scaleFont(32),
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: scale.scaleSpacing(16),
+    textAlign: 'center',
+    fontFamily: "Fredoka_700Bold",
+  },
+  lockedMessage: {
+    fontSize: scale.scaleFont(18),
+    color: '#4A4A4A',
+    textAlign: 'center',
+    lineHeight: scale.scaleHeight(26),
+    marginBottom: scale.scaleSpacing(28),
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: scale.scaleSpacing(10),
+  },
+  timeUpOkButton: {
+    backgroundColor: '#FF9800',
+    paddingVertical: scale.scaleSpacing(14),
+    paddingHorizontal: scale.scaleSpacing(60),
+    borderRadius: scale.scaleBorderRadius(25),
+    shadowColor: "#FF9800",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(8),
+    elevation: 6,
+  },
+  timeUpOkButtonText: {
+    fontSize: scale.scaleFont(18),
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: "Fredoka_700Bold",
+  },
+
+  // Call Mommy Modal Styles
+  callMommyContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: scale.scaleBorderRadius(25),
+    padding: scale.scaleSpacing(35),
+    alignItems: 'center',
+    width: '90%',
+    maxWidth: scale.scaleWidth(500),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(8) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 12,
+    borderWidth: 3,
+    borderColor: '#4A9B8E',
+  },
+  callMommyIconCircle: {
+    width: scale.scaleWidth(110),
+    height: scale.scaleHeight(110),
+    borderRadius: scale.scaleBorderRadius(55),
+    backgroundColor: '#E8F5F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: scale.scaleSpacing(24),
+    borderWidth: 3,
+    borderColor: '#4A9B8E',
+  },
+  callMommyTitle: {
+    fontSize: scale.scaleFont(28),
+    fontWeight: '700',
+    color: '#4A9B8E',
+    marginBottom: scale.scaleSpacing(16),
+    textAlign: 'center',
+    fontFamily: "Fredoka_700Bold",
+  },
+  callMommyMessage: {
+    fontSize: scale.scaleFont(16),
+    color: '#4A4A4A',
+    textAlign: 'center',
+    lineHeight: scale.scaleHeight(24),
+    marginBottom: scale.scaleSpacing(28),
+    fontFamily: "Fredoka_400Regular",
+    paddingHorizontal: scale.scaleSpacing(10),
+  },
+  lockedBackButton: {
+    backgroundColor: '#4A9B8E',
+    paddingVertical: scale.scaleSpacing(14),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(25),
+    shadowColor: "#4A9B8E",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.3,
+    shadowRadius: scale.scaleSpacing(8),
+    elevation: 6,
+  },
+  lockedBackButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: "Fredoka_700Bold",
   },
 }));
 
