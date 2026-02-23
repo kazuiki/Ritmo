@@ -416,7 +416,8 @@ export default function Media() {
     clearNetworkCache();
     
     // If user is searching, re-run the search instead of loading default
-    if (searchQuery.trim()) {
+    // But only if the search query doesn't contain bad words
+    if (searchQuery.trim() && !containsBadWords(searchQuery)) {
       await performDynamicSearch(searchQuery);
     } else {
       await loadVideos();
@@ -576,6 +577,14 @@ export default function Media() {
           </View>
         )}
       </View>
+
+      {/* Bad Words Alert Message */}
+      {hasBadWords && searchQuery.trim() !== '' && (
+        <View style={styles.badWordsAlertContent}>
+          <Ionicons name="alert-circle" size={16} color="#FF6B6B" style={styles.alertIcon} />
+          <Text style={styles.badWordsAlertText}>This word is not allowed. Please try a different search.</Text>
+        </View>
+      )}
 
       {/* 📺 Video List */}
       <ScrollView 
@@ -916,6 +925,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   searchInputError: {
     color: '#FF6B6B',
+  },
+  // Bad Words Alert Styles
+  badWordsAlertContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: scale.scaleSpacing(16),
+    marginTop: scale.scaleSpacing(8),
+  },
+  alertIcon: {
+    marginRight: scale.scaleSpacing(8),
+  },
+  badWordsAlertText: {
+    fontSize: scale.scaleFont(13),
+    color: '#FF6B6B',
+    fontWeight: '700',
+    fontFamily: 'Fredoka_700Bold',
+    flex: 1,
   },
   categoryButton: {
     backgroundColor: '#E8E8E8',
