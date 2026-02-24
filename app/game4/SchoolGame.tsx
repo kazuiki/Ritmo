@@ -77,14 +77,8 @@ export default function SchoolGame() {
     );
   }
 
-  // Android: Auto-launch game
-  return (
-    <View style={styles.container}>
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading Game...</Text>
-      </View>
-    </View>
-  );
+  // Android: Auto-launch game (no loading screen)
+  return <View style={styles.container} />;
 }
 
 const styles = StyleSheet.create({
@@ -108,22 +102,6 @@ const styles = StyleSheet.create({
     color: '#244D4A', 
     textDecorationLine: 'underline', 
     fontWeight: '700' 
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 18,
-    color: '#244D4A',
-    fontWeight: '600',
   },
   messageContainer: {
     flex: 1,

@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://6g6gb6f8813r"]
 
 [ext_resource type="PackedScene" uid="uid://clwy1wneyp06g" path="res://scene/cabinet.tscn" id="2_v0l8b"]
-[ext_resource type="PackedScene" uid="uid://gndl0xasa2m3" path="res://scene/bag.tscn" id="3_8b2jd"]
 [ext_resource type="PackedScene" uid="uid://b8fqfhtl7tchv" path="res://scene/boi.tscn" id="4_brvut"]
 [ext_resource type="AudioStream" uid="uid://cl3nettjo66yb" path="res://assets/Sound/SchoolBG.mp3" id="5_0ha60"]
 [ext_resource type="Texture2D" uid="uid://csk3fwihg686j" path="res://assets/BG/Go to school (1).png" id="5_4j5ol"]
@@ -15,14 +14,6 @@ offset_left = -28.0
 offset_top = 292.0
 offset_right = 12.0
 offset_bottom = 332.0
-metadata/_edit_use_anchors_ = true
-
-[node name="Bag" parent="." unique_id=1421612123 instance=ExtResource("3_8b2jd")]
-z_index = -1
-offset_left = 493.0
-offset_top = -27.0
-offset_right = 493.0
-offset_bottom = -27.0
 metadata/_edit_use_anchors_ = true
 
 [node name="Boi" parent="." unique_id=342332294 instance=ExtResource("4_brvut")]

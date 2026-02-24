@@ -42,8 +42,13 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun goBack() {
         activity?.runOnUiThread {
-            activity?.setResult(Activity.RESULT_CANCELED)
-            activity?.finish()
+            val currentActivity = activity
+            if (currentActivity is RitmoGodotActivity) {
+                currentActivity.exitGame(Activity.RESULT_CANCELED)
+            } else {
+                currentActivity?.setResult(Activity.RESULT_CANCELED)
+                currentActivity?.finish()
+            }
         }
     }
 
@@ -55,8 +60,13 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun gameCompleted() {
         activity?.runOnUiThread {
-            activity?.setResult(Activity.RESULT_OK)
-            activity?.finish()
+            val currentActivity = activity
+            if (currentActivity is RitmoGodotActivity) {
+                currentActivity.exitGame(Activity.RESULT_OK)
+            } else {
+                currentActivity?.setResult(Activity.RESULT_OK)
+                currentActivity?.finish()
+            }
         }
     }
 }

@@ -5,7 +5,10 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode|density"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
-            android:launchMode="singleTop"
+            android:launchMode="standard"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:process=":godot"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
