@@ -2,6 +2,9 @@ package expo.modules.godotview
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import androidx.fragment.app.FragmentActivity
 import org.godotengine.godot.Godot
 import org.godotengine.godot.GodotFragment
@@ -23,23 +26,52 @@ import org.godotengine.godot.plugin.GodotPlugin
 class RitmoGodotActivity : FragmentActivity(), GodotHost {
 
     private var godotFragment: GodotFragment? = null
+    private var isCleaningUp: Boolean = false
+    private var shouldTerminateProcess: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Read child name from Intent extras (passed by React Native)
-        val childName = intent.getStringExtra("child_name") ?: "Kid"
-        RitmoPlugin.childName = childName
-
         // Default result is CANCELED (user pressed back / exited early)
         setResult(Activity.RESULT_CANCELED)
 
-        if (savedInstanceState == null) {
-            godotFragment = GodotFragment()
-            supportFragmentManager.beginTransaction()
-                .replace(android.R.id.content, godotFragment!!)
-                .commitNow()
+        updateChildName(intent)
+        createFreshGodotFragment()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        updateChildName(intent)
+        createFreshGodotFragment()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (isFinishing || isDestroyed) {
+            releaseGodotFragment()
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isFinishing || isDestroyed) {
+            releaseGodotFragment()
+        }
+    }
+
+    override fun onDestroy() {
+        releaseGodotFragment()
+        RitmoPlugin.childName = "Kid"
+        super.onDestroy()
+        if (shouldTerminateProcess) {
+            terminateGodotProcess()
+        }
+    }
+
+    override fun finish() {
+        releaseGodotFragment()
+        super.finish()
     }
 
     // ---- GodotHost interface ----
@@ -57,4 +89,51 @@ class RitmoGodotActivity : FragmentActivity(), GodotHost {
     override fun getActivity(): Activity = this
 
     override fun getGodot(): Godot? = godotFragment?.godot
+
+    private fun updateChildName(intent: android.content.Intent?) {
+        val childName = intent?.getStringExtra("child_name") ?: "Kid"
+        RitmoPlugin.childName = childName
+    }
+
+    private fun createFreshGodotFragment() {
+        if (isCleaningUp || isFinishing || isDestroyed) return
+        releaseGodotFragment()
+        godotFragment = GodotFragment()
+        supportFragmentManager.beginTransaction()
+            .replace(android.R.id.content, godotFragment!!)
+            .commitNowAllowingStateLoss()
+    }
+
+    fun exitGame(resultCode: Int) {
+        if (isFinishing || isDestroyed) return
+        shouldTerminateProcess = true
+        setResult(resultCode)
+        releaseGodotFragment()
+        finishAndRemoveTask()
+        finish()
+        overridePendingTransition(0, 0)
+    }
+
+    private fun terminateGodotProcess() {
+        Handler(Looper.getMainLooper()).postDelayed({
+            Process.killProcess(Process.myPid())
+        }, 60)
+    }
+
+    private fun releaseGodotFragment() {
+        if (isCleaningUp) return
+        isCleaningUp = true
+        try {
+            val fragment = godotFragment
+            if (fragment != null && fragment.isAdded) {
+                supportFragmentManager.beginTransaction()
+                    .remove(fragment)
+                    .commitNowAllowingStateLoss()
+            }
+            supportFragmentManager.executePendingTransactions()
+            godotFragment = null
+        } finally {
+            isCleaningUp = false
+        }
+    }
 }
