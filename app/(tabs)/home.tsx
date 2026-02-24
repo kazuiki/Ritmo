@@ -87,6 +87,7 @@ export default function Home() {
   // Playbook modal slide animations
   const playbookSlideX = useRef(new Animated.Value(400)).current;
 
+  const [showDropdown, setShowDropdown] = useState(false);
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
   const [successSound, setSuccessSound] = useState<Audio.Sound | null>(null);
@@ -147,6 +148,8 @@ export default function Home() {
     }
   }, [currentStep, isReplayMode]);
   
+  
+
   const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
 
   // Ensure Android audio mode when playbook opens
@@ -274,6 +277,8 @@ export default function Home() {
       console.error("Failed to fetch child name:", error);
     }
   };
+
+  const [failedAttempts, setFailedAttempts] = useState(0);
 
   useEffect(() => {
     fetchChildName();
@@ -959,33 +964,51 @@ export default function Home() {
   };
 
   const unlockAccess = async () => {
-    if (pin.every(digit => digit !== '')) {
-      const inputPin = pin.join('');
-      const isValid = await ParentalLockService.verifyPin(inputPin);
+  if (pin.every(digit => digit !== '')) {
+    const inputPin = pin.join('');
+    const isValid = await ParentalLockService.verifyPin(inputPin);
+    
+    if (isValid) {
+      // Success Logic
+      setFailedAttempts(0); // Reset attempts on success
+      setShowParentalLockModal(false);
+      setPin(['', '', '', '']);
+      setPinError('');
       
-      if (isValid) {
+      ParentalLockAuthService.setAuthenticated(true, 'progress');
+      ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
+      ParentalLockAuthService.setAuthenticated(true, 'settings');
+      
+      enterParentMode();
+      router.push('/(tabs)/addRoutines');
+    } else {
+      // Wrong PIN Logic
+      const newAttemptCount = failedAttempts + 1;
+      setFailedAttempts(newAttemptCount);
+
+      if (newAttemptCount >= 3) {
+        // Redirect to Home after 3 failures
+        setFailedAttempts(0); // Reset for next time
         setShowParentalLockModal(false);
         setPin(['', '', '', '']);
         setPinError('');
-        // Authenticate all parent tabs to trigger mode switch
-        ParentalLockAuthService.setAuthenticated(true, 'progress');
-        ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
-        ParentalLockAuthService.setAuthenticated(true, 'settings');
-        enterParentMode();
-        // Navigate to addRoutines page
-        router.push('/(tabs)/addRoutines');
+        
+        // Use your home route path here
+        router.push('/(tabs)/home'); 
       } else {
-        setPinError('Incorrect PIN. Please try again.');
+        // Standard Error Logic
+        setPinError(`Incorrect PIN. ${3 - newAttemptCount} attempts remaining.`);
         Vibration.vibrate(150);
         triggerPinShake();
         setPin(['', '', '', '']);
         pinRefs[0].current?.focus();
       }
-    } else {
-      setPinError('Please enter all 4 digits.');
-      triggerPinShake();
     }
-  };
+  } else {
+    setPinError('Please enter all 4 digits.');
+    triggerPinShake();
+  }
+};
 
   const cancelAccess = () => {
     setShowParentalLockModal(false);
@@ -1078,24 +1101,45 @@ export default function Home() {
         
         <View style={styles.headerActions}>
           {parentalLockEnabled && (
-            <TouchableOpacity
-              style={styles.modeButton}
-              onPress={() => {
-                if (mode === 'child') {
-                  setShowParentalLockModal(true);
-                } else {
-                  backToChildMode();
-                }
-              }}
-            >
-              <View style={styles.modeButtonContent}>
-                <Image source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
-                <Text style={styles.modeButtonText}>
-                  {mode === 'child' ? 'Parent Mode' : 'Back to Child Mode'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={styles.modeButton}
+                onPress={() => setShowDropdown(!showDropdown)}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Image 
+                    source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
+                    style={styles.modeButtonIcon}
+                  />
+                  <Text style={styles.modeButtonText}>
+                    {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+          
+                    {showDropdown && (
+                      <View style={styles.dropdownMenu}>
+                        <TouchableOpacity 
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setShowDropdown(false);
+                            if (mode === 'child') {
+                              setShowParentalLockModal(true);
+                            } else {
+                              backToChildMode();
+                            }
+                          }}
+                        >
+                          <Text style={styles.dropdownItemText}>
+                            {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
+                          </Text>
+                        </TouchableOpacity>
+                        
+                        {/* You can add more options here easily */}
+                      </View>
+                    )}
+                  </View>
+                )}
         </View>
       </View>
 
@@ -1915,13 +1959,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     resizeMode: "contain",
     marginLeft: scale.scaleSpacing(-22),
   },
+  dropdownContainer: {
+    alignSelf: 'flex-end',
+    position: 'relative', // Keeps the absolute menu relative to this container
+    zIndex: 1000, // Ensures it stays on top of other elements
+  },
   modeButton: {
     backgroundColor: 'transparent',
     paddingHorizontal: scale.scaleSpacing(20),
     paddingVertical: scale.scaleSpacing(12),
     borderRadius: 20,
     marginTop: scale.scaleSpacing(10),
-    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',
@@ -1941,6 +1989,30 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     height: scale.scaleHeight(20),
     resizeMode: 'contain',
     tintColor: '#2F7C72',
+  },
+  // --- New Dropdown Styles ---
+  dropdownMenu: {
+    position: 'absolute',
+    top: '100%', // Sits right below the button
+    right: scale.scaleSpacing(20),
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
+    borderRadius: 12,
+    padding: scale.scaleSpacing(8),
+    minWidth: 150,
+    // Shadow for depth
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  dropdownItem: {
+    padding: scale.scaleSpacing(10),
+  },
+  dropdownItemText: {
+    color: '#2F7C72',
+    fontSize: scale.scaleFont(14),
+    fontFamily: 'Fredoka_600SemiBold',
   },
   progressCard: {
     backgroundColor: "#fff",

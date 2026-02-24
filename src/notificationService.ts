@@ -9,7 +9,7 @@ LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false, // Disabled: custom alarm handler plays sound instead
+    shouldPlaySound: true, // Disabled: custom alarm handler plays sound instead
     shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
