@@ -109,6 +109,8 @@ export default function Home() {
   const successModalFadeAnim = useRef(new Animated.Value(0)).current;
   // Loading state to prevent content flash during minigame return check
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  // Track which timer marks have triggered voiceover replay to prevent duplicates
+  const voReplayTriggeredRef = useRef<Set<number>>(new Set());
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
   const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
@@ -148,7 +150,7 @@ export default function Home() {
     }
   }, [currentStep, isReplayMode]);
   
-  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
+  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs, replayAudio } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
 
   // Ensure Android audio mode when playbook opens
   useEffect(() => {
@@ -161,6 +163,7 @@ export default function Home() {
   useEffect(() => {
     if (playbookModalVisible && playbook?.timer?.visible) {
       setTimerSeconds(playbook.timer.duration);
+      voReplayTriggeredRef.current.clear(); // Reset triggers for new step
       
       const interval = setInterval(() => {
         setTimerSeconds((prev) => {
@@ -172,9 +175,26 @@ export default function Home() {
         });
       }, 1000);
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        voReplayTriggeredRef.current.clear();
+      };
     }
   }, [playbookModalVisible, currentStep, playbook?.timer]);
+
+  // Replay voiceover at 40s and 20s timer marks
+  useEffect(() => {
+    if (playbookModalVisible && replayAudio) {
+      if (timerSeconds === 40 || timerSeconds === 20) {
+        // Check if we've already triggered at this timer mark
+        if (!voReplayTriggeredRef.current.has(timerSeconds)) {
+          console.log('🔊 Replaying voiceover at', timerSeconds, 'seconds');
+          voReplayTriggeredRef.current.add(timerSeconds);
+          replayAudio();
+        }
+      }
+    }
+  }, [timerSeconds, playbookModalVisible]);
 
   const loadRoutines = async (options = {}) => {
     const { useCache = true } = options as any;
