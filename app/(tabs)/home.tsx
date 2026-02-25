@@ -53,6 +53,7 @@ export default function Home() {
   const [playbookModalVisible, setPlaybookModalVisible] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [activeRoutineId, setActiveRoutineId] = useState<number | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(60);
   const [currentStep, setCurrentStep] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioControlIndex, setAudioControlIndex] = useState(0);
@@ -155,6 +156,25 @@ export default function Home() {
       ensureMaxVolume();
     }
   }, [playbookModalVisible]);
+
+  // Timer countdown for playbook
+  useEffect(() => {
+    if (playbookModalVisible && playbook?.timer?.visible) {
+      setTimerSeconds(playbook.timer.duration);
+      
+      const interval = setInterval(() => {
+        setTimerSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [playbookModalVisible, currentStep, playbook?.timer]);
 
   const loadRoutines = async (options = {}) => {
     const { useCache = true } = options as any;
@@ -1577,6 +1597,15 @@ export default function Home() {
             }}>
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
+            
+            {/* Timer Display - Top Right */}
+            {playbook?.timer?.visible && (
+              <View style={styles.timerContainer}>
+                <Text style={styles.timerText}>
+                  {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Routine Title with Stars */}
@@ -2477,6 +2506,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     paddingHorizontal: scale.scaleSpacing(16),
     paddingBottom: scale.scaleSpacing(8),
     minHeight: scale.scaleHeight(48),
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  timerContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(12),
+    paddingHorizontal: scale.scaleSpacing(12),
+    paddingVertical: scale.scaleSpacing(6),
+    borderWidth: 2,
+    borderColor: "#2F7C72",
+  },
+  timerText: {
+    fontSize: scale.scaleFont(18),
+    fontWeight: "700",
+    color: "#244D4A",
+    fontFamily: "Fredoka_700Bold",
   },
   routineTitleCard: {
     backgroundColor: "#FFFFFF",
