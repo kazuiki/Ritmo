@@ -29,6 +29,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
+import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
@@ -137,14 +138,28 @@ export default function Settings() {
   // Parental Lock Tip
   const [showParentalLockTip, setShowParentalLockTip] = useState(false);
   
+  // Media Time Limit
+  const [showTimeLimitModal, setShowTimeLimitModal] = useState(false);
+  const [timeLimitHours, setTimeLimitHours] = useState('');
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState('');
+  const [timeLimitSuccessVisible, setTimeLimitSuccessVisible] = useState(false);
+  const [timeLimitClearSuccessVisible, setTimeLimitClearSuccessVisible] = useState(false);
+  const [showCancelTimeLimitModal, setShowCancelTimeLimitModal] = useState(false);
+  const [hasActiveTimeLimit, setHasActiveTimeLimit] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(0);
+  const [isTimeLimitLocked, setIsTimeLimitLocked] = useState(false);
+  const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     fetchUserData();
     checkParentalLockStatus();
+    checkActiveTimeLimit();
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
       checkParentalLockStatus();
+      checkActiveTimeLimit();
     }, [])
   );
 
@@ -289,6 +304,134 @@ export default function Settings() {
 
   const handleContentFilter = () => {
     router.push("/content-filter");
+  };
+
+  const checkActiveTimeLimit = async () => {
+    try {
+      const timeLimit = await MediaTimeLimitService.getTimeLimit();
+      setHasActiveTimeLimit(timeLimit !== null);
+      if (timeLimit) {
+        const locked = await MediaTimeLimitService.isMediaLocked();
+        setIsTimeLimitLocked(locked);
+        if (!locked) {
+          const remaining = await MediaTimeLimitService.getRemainingTime();
+          setRemainingTime(remaining);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking time limit:", error);
+      setHasActiveTimeLimit(false);
+    }
+  };
+
+  const formatRemainingTime = (seconds: number): string => {
+    if (seconds <= 0) return "0:00";
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const startTimeLimitCountdown = () => {
+    if (timeLimitTimerRef.current) {
+      clearInterval(timeLimitTimerRef.current);
+    }
+
+    timeLimitTimerRef.current = setInterval(async () => {
+      const locked = await MediaTimeLimitService.isMediaLocked();
+      setIsTimeLimitLocked(locked);
+
+      if (!locked) {
+        const remaining = await MediaTimeLimitService.getRemainingTime();
+        setRemainingTime(remaining);
+      } else {
+        setRemainingTime(0);
+        if (timeLimitTimerRef.current) {
+          clearInterval(timeLimitTimerRef.current);
+          timeLimitTimerRef.current = null;
+        }
+      }
+    }, 1000);
+  };
+
+  useEffect(() => {
+    if (showCancelTimeLimitModal && hasActiveTimeLimit) {
+      startTimeLimitCountdown();
+    }
+
+    return () => {
+      if (timeLimitTimerRef.current) {
+        clearInterval(timeLimitTimerRef.current);
+        timeLimitTimerRef.current = null;
+      }
+    };
+  }, [showCancelTimeLimitModal, hasActiveTimeLimit]);
+
+  const handleSetTimeLimit = () => {
+    setShowTimeLimitModal(true);
+  };
+
+  const handleSaveTimeLimit = async () => {
+    const hours = parseInt(timeLimitHours) || 0;
+    const minutes = parseInt(timeLimitMinutes) || 0;
+
+    if (hours === 0 && minutes === 0) {
+      setErrorType("error");
+      setErrorMessage("Please set at least 1 minute");
+      setErrorModalVisible(true);
+      return;
+    }
+
+    if (hours < 0 || minutes < 0 || minutes >= 60) {
+      setErrorType("error");
+      setErrorMessage("Please enter valid time values");
+      setErrorModalVisible(true);
+      return;
+    }
+
+    try {
+      await MediaTimeLimitService.setTimeLimit(hours, minutes);
+      setShowTimeLimitModal(false);
+      setTimeLimitSuccessVisible(true);
+      setTimeLimitHours('');
+      setTimeLimitMinutes('');
+    } catch (error) {
+      setErrorType("error");
+      setErrorMessage("Failed to set time limit. Please try again.");
+      setErrorModalVisible(true);
+    }
+  };
+
+  const handleCancelTimeLimit = () => {
+    setShowTimeLimitModal(false);
+    setTimeLimitHours('');
+    setTimeLimitMinutes('');
+  };
+
+  const handleClearTimeLimit = () => {
+    setShowCancelTimeLimitModal(true);
+  };
+
+  const confirmClearTimeLimit = async () => {
+    try {
+      await MediaTimeLimitService.clearTimeLimit();
+      setHasActiveTimeLimit(false);
+      setRemainingTime(0);
+      setIsTimeLimitLocked(false);
+      if (timeLimitTimerRef.current) {
+        clearInterval(timeLimitTimerRef.current);
+        timeLimitTimerRef.current = null;
+      }
+      setTimeLimitClearSuccessVisible(true);
+    } catch (error) {
+      setErrorType("error");
+      setErrorMessage("Failed to clear time limit. Please try again.");
+      setErrorModalVisible(true);
+    }
   };
 
   const handleInstruction = () => {
@@ -577,6 +720,17 @@ export default function Settings() {
           onPress={handleContentFilter}
         >
           <Text style={styles.menuButtonText}>Content Filter</Text>
+          <Ionicons name="chevron-forward" size={24} color="#333" />
+        </TouchableOpacity>
+
+        {/* Set Time Limit */}
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={hasActiveTimeLimit ? handleClearTimeLimit : handleSetTimeLimit}
+        >
+          <Text style={styles.menuButtonText}>
+            {hasActiveTimeLimit ? 'Manage Media Time Limit' : 'Set Time Limit for Media'}
+          </Text>
           <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
 
@@ -1314,6 +1468,219 @@ export default function Settings() {
           </View>
         </View>
       </Modal>
+
+      {/* Set Time Limit Modal */}
+      <Modal
+        visible={showTimeLimitModal}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <ImageBackground
+            source={require("../../assets/background.png")}
+            style={styles.modalBackground}
+            resizeMode="stretch"
+          >
+            <View style={styles.changePasswordContainer}>
+              <View style={styles.changePasswordContent}>
+                {/* Back Button */}
+                <TouchableOpacity
+                  style={[styles.backButton, { marginTop: scaleSpacing(10) + insets.top }]}
+                  onPress={handleCancelTimeLimit}
+                >
+                  <Text style={styles.backButtonText}>Back</Text>
+                </TouchableOpacity>
+
+                {/* Title */}
+                <Text style={styles.changePasswordLabel}>Set Media Time Limit</Text>
+
+                {/* Hours Input */}
+                <View style={styles.timeLimitInputRow}>
+                  <View style={styles.timeLimitInputWrapper}>
+                    <Text style={styles.timeLimitInputLabel}>Hours</Text>
+                    <TextInput
+                      style={styles.timeLimitInput}
+                      value={timeLimitHours}
+                      onChangeText={setTimeLimitHours}
+                      placeholder="0"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                    />
+                  </View>
+
+                  <Text style={styles.timeLimitSeparator}>:</Text>
+
+                  {/* Minutes Input */}
+                  <View style={styles.timeLimitInputWrapper}>
+                    <Text style={styles.timeLimitInputLabel}>Minutes</Text>
+                    <TextInput
+                      style={styles.timeLimitInput}
+                      value={timeLimitMinutes}
+                      onChangeText={setTimeLimitMinutes}
+                      placeholder="0"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                    />
+                  </View>
+                </View>
+
+                {/* Info Text */}
+                <Text style={styles.timeLimitInfoText}>
+                  Set how long your child can use the Media page. Once the time expires, the Media page will be locked until you set a new time limit.
+                </Text>
+
+                {/* Save Button */}
+                <TouchableOpacity
+                  style={styles.savePasswordButton}
+                  onPress={handleSaveTimeLimit}
+                >
+                  <Text style={styles.savePasswordButtonText}>SET TIME LIMIT</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ImageBackground>
+        </View>
+      </Modal>
+
+      {/* Time Limit Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={timeLimitSuccessVisible}
+        onRequestClose={() => setTimeLimitSuccessVisible(false)}
+      >
+        <View style={styles.successPasswordModalOverlay}>
+          <View style={styles.successPasswordModalContainer}>
+            <View style={styles.successPasswordIconCircle}>
+              <Image
+                source={require("../../assets/images/Checkmark.png")}
+                style={styles.successPasswordIcon}
+              />
+            </View>
+
+            <Text style={styles.successPasswordModalTitle}>Success!</Text>
+            <Text style={styles.successPasswordModalMessage}>
+              Media time limit has been set!
+            </Text>
+
+            <TouchableOpacity
+              style={styles.successPasswordOkButton}
+              onPress={() => {
+                setTimeLimitSuccessVisible(false);
+                setHasActiveTimeLimit(true);
+                checkActiveTimeLimit();
+                setShowCancelTimeLimitModal(true);
+              }}
+            >
+              <Text style={styles.successPasswordOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Clear Time Limit Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={timeLimitClearSuccessVisible}
+        onRequestClose={() => setTimeLimitClearSuccessVisible(false)}
+      >
+        <View style={styles.successPasswordModalOverlay}>
+          <View style={styles.successPasswordModalContainer}>
+            <View style={styles.successPasswordIconCircle}>
+              <Image
+                source={require("../../assets/images/Checkmark.png")}
+                style={styles.successPasswordIcon}
+              />
+            </View>
+
+            <Text style={styles.successPasswordModalTitle}>Success!</Text>
+            <Text style={styles.successPasswordModalMessage}>
+              Media time limit has been cleared!
+            </Text>
+
+            <TouchableOpacity
+              style={styles.successPasswordOkButton}
+              onPress={() => {
+                setTimeLimitClearSuccessVisible(false);
+                setShowCancelTimeLimitModal(false);
+              }}
+            >
+              <Text style={styles.successPasswordOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Manage Time Limit Options Modal */}
+      <Modal
+        visible={showCancelTimeLimitModal}
+        animationType="slide"
+        transparent={false}
+      >
+        <ImageBackground
+          source={require("../../assets/background.png")}
+          style={styles.fullScreenModalBackground}
+          resizeMode="stretch"
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <View style={styles.fullScreenModalContainer}>
+              {/* Back Button */}
+              <TouchableOpacity
+                style={[styles.backButton, { marginTop: scaleSpacing(10) }]}
+                onPress={() => setShowCancelTimeLimitModal(false)}
+              >
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+
+              {/* Title */}
+              <Text style={styles.fullScreenModalTitle}>Manage Media Time Limit</Text>
+
+              {/* Countdown Display */}
+              {!isTimeLimitLocked && remainingTime > 0 ? (
+                <View style={styles.countdownContainerActive}>
+                  <Ionicons name="time-outline" size={40} color="#4A9B8E" />
+                  <Text style={styles.countdownLabel}>Time Remaining</Text>
+                  <Text style={styles.countdownTime}>{formatRemainingTime(remainingTime)}</Text>
+                </View>
+              ) : isTimeLimitLocked ? (
+                <View style={styles.countdownContainerLocked}>
+                  <Ionicons name="lock-closed" size={40} color="#FF6B6B" />
+                  <Text style={styles.countdownLabelLocked}>Media is Locked</Text>
+                  <Text style={styles.countdownSubtext}>Time limit has expired</Text>
+                </View>
+              ) : null}
+
+              {/* Info Text */}
+              <Text style={styles.timeLimitChooseText}>
+                Choose an option below:
+              </Text>
+
+              {/* Action Buttons */}
+              <View style={styles.timeLimitButtonsRow}>
+                <TouchableOpacity
+                  style={styles.setNewTimeLimitButton}
+                  onPress={() => {
+                    setShowCancelTimeLimitModal(false);
+                    setTimeout(() => {
+                      setShowTimeLimitModal(true);
+                    }, 300);
+                  }}
+                >
+                  <Text style={styles.setNewTimeLimitButtonText}>Set New{"\n"}Time Limit</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cancelTimeLimitButton}
+                  onPress={confirmClearTimeLimit}
+                >
+                  <Text style={styles.cancelTimeLimitButtonText}>Cancel{"\n"}Time Limit</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
+        </ImageBackground>
+      </Modal>
     </View>
   );
 }
@@ -1520,6 +1887,26 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   // Modal styles
   modalSafeArea: {
     flex: 1,
+  },
+  fullScreenModalBackground: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
+  fullScreenModalContainer: {
+    flex: 1,
+    paddingHorizontal: scale.scaleSpacing(20),
+    paddingTop: scale.scaleSpacing(10),
+    justifyContent: "flex-start",
+  },
+  fullScreenModalTitle: {
+    fontSize: scale.scaleFont(24),
+    color: '#2A3B4D',
+    fontWeight: '700',
+    marginBottom: scale.scaleSpacing(30),
+    marginTop: scale.scaleSpacing(20),
+    textAlign: 'center',
+    fontFamily: "Fredoka_700Bold",
   },
   modalOverlay: {
     flex: 1,
@@ -2334,5 +2721,171 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontWeight: "700",
     color: "#FFFFFF",
     lineHeight: 22,
+  },
+
+  // Time Limit Styles
+  timeLimitInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: scale.scaleSpacing(20),
+    gap: scale.scaleSpacing(20),
+  },
+  timeLimitInputWrapper: {
+    alignItems: "center",
+  },
+  timeLimitInputLabel: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    color: "#2A3B4D",
+    marginBottom: scale.scaleSpacing(8),
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  timeLimitInput: {
+    width: scale.scaleWidth(80),
+    height: scale.scaleHeight(60),
+    borderWidth: 2,
+    borderColor: "#00A980",
+    borderRadius: 12,
+    fontSize: scale.scaleFont(24),
+    fontWeight: "700",
+    color: "#2A3B4D",
+    textAlign: "center",
+    backgroundColor: "#FFFFFF",
+    fontFamily: "Fredoka_700Bold",
+  },
+  timeLimitSeparator: {
+    fontSize: scale.scaleFont(32),
+    fontWeight: "700",
+    color: "#2A3B4D",
+    marginTop: scale.scaleSpacing(20),
+    fontFamily: "Fredoka_700Bold",
+  },
+  timeLimitInfoText: {
+    fontSize: scale.scaleFont(14),
+    color: "#666",
+    textAlign: "center",
+    marginVertical: scale.scaleSpacing(20),
+    paddingHorizontal: scale.scaleSpacing(30),
+    lineHeight: scale.scaleHeight(20),
+    fontFamily: "Fredoka_500Medium",
+  },
+  countdownContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: scale.scaleSpacing(40),
+    padding: scale.scaleSpacing(30),
+    backgroundColor: "rgba(74, 155, 142, 0.1)",
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "rgba(74, 155, 142, 0.3)",
+  },
+  countdownContainerActive: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: scale.scaleSpacing(40),
+    padding: scale.scaleSpacing(30),
+    backgroundColor: "#E8F5F3",
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#4A9B8E",
+  },
+  countdownContainerLocked: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: scale.scaleSpacing(40),
+    padding: scale.scaleSpacing(30),
+    backgroundColor: "#FFE8E8",
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#FF6B6B",
+  },
+  countdownLabel: {
+    fontSize: scale.scaleFont(18),
+    fontWeight: "600",
+    color: "#4A9B8E",
+    marginTop: scale.scaleSpacing(12),
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  countdownLabelLocked: {
+    fontSize: scale.scaleFont(18),
+    fontWeight: "600",
+    color: "#FF6B6B",
+    marginTop: scale.scaleSpacing(12),
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  countdownTime: {
+    fontSize: scale.scaleFont(36),
+    fontWeight: "700",
+    color: "#2A3B4D",
+    marginTop: scale.scaleSpacing(8),
+    fontFamily: "Fredoka_700Bold",
+  },
+  countdownSubtext: {
+    fontSize: scale.scaleFont(14),
+    color: "#666",
+    marginTop: scale.scaleSpacing(4),
+    fontFamily: "Fredoka_500Medium",
+  },
+  timeLimitChooseText: {
+    fontSize: scale.scaleFont(18),
+    color: "#2A3B4D",
+    textAlign: "center",
+    marginTop: scale.scaleSpacing(40),
+    marginBottom: scale.scaleSpacing(30),
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  timeLimitButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: scale.scaleSpacing(15),
+    paddingHorizontal: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(30),
+  },
+  setNewTimeLimitButton: {
+    backgroundColor: "#4A9B8E",
+    paddingVertical: scale.scaleSpacing(24),
+    paddingHorizontal: scale.scaleSpacing(20),
+    borderRadius: 20,
+    flex: 1,
+    minHeight: scale.scaleHeight(100),
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  setNewTimeLimitButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontFamily: "Fredoka_700Bold",
+    lineHeight: scale.scaleHeight(22),
+  },
+  cancelTimeLimitButton: {
+    backgroundColor: "#FFA726",
+    paddingVertical: scale.scaleSpacing(24),
+    paddingHorizontal: scale.scaleSpacing(20),
+    borderRadius: 20,
+    flex: 1,
+    minHeight: scale.scaleHeight(100),
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  cancelTimeLimitButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontFamily: "Fredoka_700Bold",
+    lineHeight: scale.scaleHeight(22),
   },
 })); 
