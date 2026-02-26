@@ -126,22 +126,9 @@ android {
             def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
             useLegacyPackaging enableLegacyPackaging.toBoolean()
         }
-        pickFirst 'lib/arm64-v8a/libworklets.so'
-        pickFirst 'lib/armeabi-v7a/libworklets.so'
-        pickFirst 'lib/x86/libworklets.so'
-        pickFirst 'lib/x86_64/libworklets.so'
     }
     androidResources {
-        // Do not ignore any assets so .godot is packaged.
-        ignoreAssetsPattern ''
-    }
-
-    // Prevent compression of Godot asset files so they can be read
-    // with random-access (AAsset) by the Godot engine sparse pack loader
-    aaptOptions {
-        noCompress 'sparsepck', 'pck', 'bin', 'cfg', 'ctex', 'mp3str',
-                   'gdc', 'tscn', 'import', 'tres', 'remap', 'res',
-                   'scn', 'gdshader', 'binary', 'translation'
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
 }
 
