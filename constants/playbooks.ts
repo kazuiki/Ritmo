@@ -52,6 +52,11 @@ const VOICEOVERS: Record<string, any> = {
   'schoolStep2.mp3': require('../assets/voiceover/schoolStep2.mp3'),
   'schoolStep3.mp3': require('../assets/voiceover/schoolStep3.mp3'),
   'schoolStep4.mp3': require('../assets/voiceover/schoolStep4.mp3'),
+  // Sweep the Floor
+  'sweepStep1.mp3': require('../assets/voiceover/sweepStep1.mp3'),
+  'sweepStep2.mp3': require('../assets/voiceover/sweepStep2.mp3'),
+  'sweepStep3.mp3': require('../assets/voiceover/sweepStep3.mp3'),
+  'sweepStep4.mp3': require('../assets/voiceover/sweepStep4.mp3'),
 };
 
 // Helper to return audio module if mapped; otherwise undefined

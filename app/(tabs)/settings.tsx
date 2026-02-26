@@ -617,7 +617,7 @@ export default function Settings() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.contentView,
-          { paddingBottom: tabBarHeight + 20 }
+          { paddingBottom: mode === 'parent' ? tabBarHeight : tabBarHeight + 20 }
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -1744,8 +1744,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   inputContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(16),
-    padding: scale.scaleSpacing(16),
-    marginBottom: scale.scaleSpacing(12),
+    padding: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(8),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: scale.scaleHeight(2) },
     shadowOpacity: 0.1,
@@ -1753,7 +1753,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     elevation: 3,
     borderWidth: 2,
     borderColor: "#CFF6EB",
-    minHeight: scale.scaleHeight(60),
+    minHeight: scale.scaleHeight(54),
+    justifyContent: "center",
   },
   label: {
     fontSize: scale.scaleFont(15),
@@ -1770,7 +1771,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
-    paddingVertical: scale.scaleSpacing(4),
+    paddingVertical: scale.scaleSpacing(1),
   },
   valueContainer: {
     flex: 1,
@@ -1843,8 +1844,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   menuButton: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(16),
-    padding: scale.scaleSpacing(16),
-    marginBottom: scale.scaleSpacing(12),
+    padding: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(8),
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1855,7 +1856,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     elevation: 3,
     borderWidth: 2,
     borderColor: "#CFF6EB",
-    minHeight: scale.scaleHeight(60),
+    minHeight: scale.scaleHeight(54),
   },
   menuButtonText: {
     fontSize: scale.scaleFont(16),
@@ -1865,8 +1866,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   logoutButton: {
     backgroundColor: "#FF6B6B",
     borderRadius: scale.scaleBorderRadius(16),
-    padding: scale.scaleSpacing(16),
-    marginTop: scale.scaleSpacing(8),
+    padding: scale.scaleSpacing(12),
+    marginTop: scale.scaleSpacing(6),
     marginBottom: 0,
     alignItems: "center",
     justifyContent: "center",
@@ -1877,7 +1878,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     elevation: 4,
     borderWidth: 2,
     borderColor: "#FF0000",
-    minHeight: scale.scaleHeight(60),
+    minHeight: scale.scaleHeight(54),
   },
   logoutButtonText: {
     fontSize: scale.scaleFont(16),
