@@ -589,16 +589,46 @@ export default function addRoutines() {
     };
 
     const togglePreview = async (ringtoneName: string) => {
-        // If this ringtone is already playing, pause it
+        // Select the ringtone immediately
+        setSelectedRingtone(ringtoneName);
+        
+        // If this ringtone is already playing, stop it and close modal
         if (previewingRingtone === ringtoneName) {
+            setPreviewingRingtone(null); // Update UI immediately
             await NotificationService.stopRingtone().catch(console.error);
-            setPreviewingRingtone(null);
+            closeRingtoneModal();
             return;
         }
-        // Otherwise start this ringtone (stop previous first)
-        await NotificationService.stopRingtone().catch(()=>{});
-        await NotificationService.playRingtone(ringtoneName).catch(console.error);
+        
+        // Update UI immediately for instant feedback
         setPreviewingRingtone(ringtoneName);
+        
+        // Properly await stop before play to prevent overlap
+        try {
+            await NotificationService.stopRingtone();
+            await NotificationService.playRingtone(ringtoneName);
+        } catch (error) {
+            console.error('Error playing ringtone:', error);
+        }
+    };
+
+    const getRingtoneName = (ringtoneId: string): string => {
+        const names: { [key: string]: string } = {
+            'alarm1': 'Morning Bell',
+            'alarm2': 'Gentle Wake',
+            'alarm3': 'Classic Chime',
+            'alarm4': 'Peaceful Dawn',
+            'alarm5': 'Sunrise',
+            'alarm6': 'Happy Day',
+            'alarm7': 'Bright Morning',
+            'alarm8': 'Cheerful',
+            'alarm13': 'Soft Bell',
+            'alarm14': 'Nature Call',
+            'alarm15': 'Sweet Dreams',
+            'alarm16': 'Ocean Waves',
+            'alarm17': 'Wind Chimes'
+        };
+        return names[ringtoneId] || ringtoneId;
     };
 
     return (
@@ -914,7 +944,7 @@ export default function addRoutines() {
                                         onPress={openRingtoneModal}
                                     >
                                         <Text style={styles.ringtoneText}>
-                                            Ringtone: {selectedRingtone ? (selectedRingtone === 'alarm1' ? 'Morning Bell' : selectedRingtone === 'alarm2' ? 'Gentle Wake' : selectedRingtone === 'alarm3' ? 'Classic Chime' : selectedRingtone) : ''}
+                                            Ringtone: {selectedRingtone ? getRingtoneName(selectedRingtone) : ''}
                                         </Text>
                                         <Text style={styles.chevron}>›</Text>
                                     </TouchableOpacity>
@@ -1040,76 +1070,212 @@ export default function addRoutines() {
 
                         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
                             {/* Morning Bell */}
-                            <View
+                            <TouchableOpacity
                                 style={[
                                     styles.ringtoneItem,
                                     selectedRingtone === 'alarm1' && styles.selectedRingtoneItem
                                 ]}
+                                onPress={() => togglePreview('alarm1')}
                             >
-                                <TouchableOpacity
-                                    style={styles.previewIconButton}
-                                    onPress={(e) => { e.stopPropagation(); togglePreview('alarm1'); }}
-                                >
-                                    <Image
-                                        source={previewingRingtone === 'alarm1' ? require('../../assets/images/Pause.png') : require('../../assets/images/Play.png')}
-                                        style={styles.previewIcon}
-                                    />
-                                </TouchableOpacity>
                                 <View style={styles.ringtoneInfo}>
                                     <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
-                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm1')}>
-                                        {selectedRingtone === 'alarm1' && <View style={styles.radioInner} />}
-                                    </TouchableOpacity>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm1' && <View style={styles.radioInner} />}
+                                    </View>
                                 </View>
-                            </View>
+                            </TouchableOpacity>
 
                             {/* Gentle Wake */}
-                            <View
+                            <TouchableOpacity
                                 style={[
                                     styles.ringtoneItem,
                                     selectedRingtone === 'alarm2' && styles.selectedRingtoneItem
                                 ]}
+                                onPress={() => togglePreview('alarm2')}
                             >
-                                <TouchableOpacity
-                                    style={styles.previewIconButton}
-                                    onPress={(e) => { e.stopPropagation(); togglePreview('alarm2'); }}
-                                >
-                                    <Image
-                                        source={previewingRingtone === 'alarm2' ? require('../../assets/images/Pause.png') : require('../../assets/images/Play.png')}
-                                        style={styles.previewIcon}
-                                    />
-                                </TouchableOpacity>
                                 <View style={styles.ringtoneInfo}>
                                     <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
-                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm2')}>
-                                        {selectedRingtone === 'alarm2' && <View style={styles.radioInner} />}
-                                    </TouchableOpacity>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm2' && <View style={styles.radioInner} />}
+                                    </View>
                                 </View>
-                            </View>
+                            </TouchableOpacity>
 
                             {/* Classic Chime */}
-                            <View
+                            <TouchableOpacity
                                 style={[
                                     styles.ringtoneItem,
                                     selectedRingtone === 'alarm3' && styles.selectedRingtoneItem
                                 ]}
+                                onPress={() => togglePreview('alarm3')}
                             >
-                                <TouchableOpacity
-                                    style={styles.previewIconButton}
-                                    onPress={(e) => { e.stopPropagation(); togglePreview('alarm3'); }}
-                                >
-                                    <Image
-                                        source={previewingRingtone === 'alarm3' ? require('../../assets/images/Pause.png') : require('../../assets/images/Play.png')}
-                                        style={styles.previewIcon}
-                                    />
-                                </TouchableOpacity>
                                 <View style={styles.ringtoneInfo}>
                                     <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
-                                    <TouchableOpacity style={styles.radioButton} onPress={() => selectRingtone('alarm3')}>
-                                        {selectedRingtone === 'alarm3' && <View style={styles.radioInner} />}
-                                    </TouchableOpacity>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm3' && <View style={styles.radioInner} />}
+                                    </View>
                                 </View>
-                            </View>
+                            </TouchableOpacity>
+
+                            {/* Peaceful Dawn */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm4' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm4')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Peaceful Dawn</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm4' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Sunrise */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm5' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm5')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Sunrise</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm5' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Happy Day */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm6' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm6')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Happy Day</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm6' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Bright Morning */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm7' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm7')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Bright Morning</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm7' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Cheerful */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm8' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm8')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Cheerful</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm8' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Soft Bell */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm13' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm13')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Soft Bell</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm13' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Nature Call */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm14' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm14')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Nature Call</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm14' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Sweet Dreams */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm15' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm15')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Sweet Dreams</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm15' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Ocean Waves */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm16' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm16')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Ocean Waves</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm16' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Wind Chimes */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.ringtoneItem,
+                                    selectedRingtone === 'alarm17' && styles.selectedRingtoneItem
+                                ]}
+                                onPress={() => togglePreview('alarm17')}
+                            >
+                                <View style={styles.ringtoneInfo}>
+                                    <Text style={styles.ringtoneItemTitle}>Wind Chimes</Text>
+                                    <View style={styles.radioButton}>
+                                        {previewingRingtone === 'alarm17' && <View style={styles.radioInner} />}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
                         </ScrollView>
                     </View>
                 </View>
