@@ -32,10 +32,14 @@ class NotificationService {
   private previewTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  
   async initialize() {
   try {
     // 1. Android Channel Setup (Must be first for system to recognize the channel)
+    let finalStatus: string;
     if (Platform.OS === 'android') {
+      const { status } = await Notifications.getPermissionsAsync();
+      finalStatus = status;
       await Notifications.setNotificationChannelAsync('alarm-channel', {
         name: 'Routine Alarms',
         importance: Notifications.AndroidImportance.MAX,
@@ -46,11 +50,12 @@ class NotificationService {
         bypassDnd: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
+      
     }
+    
 
     // 2. Permission Handling
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
     
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
