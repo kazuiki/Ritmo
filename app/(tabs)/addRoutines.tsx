@@ -612,6 +612,10 @@ export default function addRoutines() {
         }
     };
 
+    const handleAddCustomRingtone = () => {
+        Alert.alert('Add Custom Ringtone', 'Custom ringtone feature - implement document picker here');
+    };
+
     const getRingtoneName = (ringtoneId: string): string => {
         const names: { [key: string]: string } = {
             'alarm1': 'Morning Bell',
@@ -1069,6 +1073,14 @@ export default function addRoutines() {
                         <Text style={styles.presetTitleCentered}>Select Ringtone</Text>
 
                         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+                            {/* Add New Ringtone Button */}
+                            <TouchableOpacity
+                                style={styles.addRingtoneButton}
+                                onPress={handleAddCustomRingtone}
+                            >
+                                <Text style={styles.addRingtoneButtonText}>+ Add New Ringtone</Text>
+                            </TouchableOpacity>
+
                             {/* Morning Bell */}
                             <TouchableOpacity
                                 style={[
@@ -1882,6 +1894,27 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontSize: scale.scaleFont(16),
         fontWeight: "600",
         color: "#fff",
+    },
+    addRingtoneButton: {
+        backgroundColor: "#5DD4B4",
+        borderRadius: scale.scaleBorderRadius(14),
+        paddingVertical: scale.scaleSpacing(14),
+        paddingHorizontal: scale.scaleSpacing(16),
+        marginBottom: scale.scaleSpacing(16),
+        borderWidth: 2,
+        borderColor: "#5DD4B4",
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+        shadowRadius: scale.scaleSpacing(4),
+        elevation: 3,
+    },
+    addRingtoneButtonText: {
+        fontSize: scale.scaleFont(16),
+        fontWeight: "700",
+        color: "#FFFFFF",
     },
     presetScreen: {
         flex: 1,
