@@ -1,9 +1,9 @@
 import {
-  Fredoka_400Regular,
-  Fredoka_500Medium,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+    useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -12,20 +12,20 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -772,6 +772,7 @@ export default function Settings() {
         visible={showChangePasswordModal}
         animationType="slide"
         transparent={true}
+        onRequestClose={() => setShowChangePasswordModal(false)}
       >
         <View style={styles.modalOverlay}>
           <ImageBackground
@@ -1474,6 +1475,7 @@ export default function Settings() {
         visible={showTimeLimitModal}
         animationType="slide"
         transparent={true}
+        onRequestClose={handleCancelTimeLimit}
       >
         <View style={styles.modalOverlay}>
           <ImageBackground
