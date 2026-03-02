@@ -48,6 +48,14 @@ class NotificationService {
       });
     }
 
+    await Notifications.setNotificationCategoryAsync('alarm-actions', [
+    {
+      identifier: 'stop-alarm',
+      buttonTitle: 'Stop',
+      options: { isDestructive: true },
+    },
+  ]);
+
     // 2. Permission Handling
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -73,6 +81,9 @@ class NotificationService {
     // This listener handles sound ONLY when the app is OPEN (Foreground)
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
       const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
+      const routineName = notification.request.content.data?.routineName as string || '';
+      // show a heads-up notification with stop action even when the app is foreground
+      await this.showHeadsUpForAlarm(routineName, ringtone);
       // When app is open, we can still use your custom JS logic for 12-second stop
       await this.playAlarmSound(ringtone);
     });
@@ -86,6 +97,14 @@ class NotificationService {
       playThroughEarpieceAndroid: false,
     });
 
+    Notifications.addNotificationResponseReceivedListener(response => {
+      const actionId = response.actionIdentifier;
+
+      if (actionId === 'stop-alarm') {
+        this.stopAlarmSound(); // Stops the music you started in the other listener
+      }
+    });
+
     console.log('✅ Notification service initialized');
     return true;
 
@@ -96,7 +115,36 @@ class NotificationService {
     console.error('Error initializing notifications:', error);
     return false;
   }
-}  
+}
+
+  // display an immediate heads-up notification with stop button (foreground case)
+  private async showHeadsUpForAlarm(routineName: string, ringtone: string) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '⏰ Routine Time!',
+          body: routineName ? `Time for: ${routineName}` : undefined,
+          data: {
+            routineName,
+            ringtone,
+          },
+          categoryIdentifier: 'alarm-actions',
+          color: '#1A73E8',
+          sound: `${ringtone}.mp3`,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 1,
+          repeats: false,
+          channelId: 'alarm-channel',
+        },
+      });
+      console.log('🔔 Heads-up alarm notification shown');
+    } catch (error) {
+      console.error('Error presenting heads-up notification:', error);
+    }
+  }  
 
   // Clean up expired notifications
   private async cleanupExpiredNotifications() {
@@ -189,14 +237,25 @@ class NotificationService {
                 routineName: routine.routineName,
                 ringtone: routine.ringtone || 'alarm1',
               },
+
+
+              // iOS category for action button; still include for completeness
+              categoryIdentifier: 'alarm-actions',
+
+              // Android-specific options ensure heads-up banner and button
+              color: '#1A73E8',
+
               sound: `${routine.ringtone || 'alarm1'}.mp3`,
+
               priority: Notifications.AndroidNotificationPriority.MAX,
+              sound: 'alarm1.mp3',
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
               seconds: secondsUntilTrigger,
               repeats: false,
 
+              // channelId in trigger is still respected by expo but android block is preferred
               channelId: 'alarm-channel',
             },
           });
