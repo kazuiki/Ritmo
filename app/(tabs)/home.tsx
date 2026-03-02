@@ -153,9 +153,6 @@ export default function Home() {
   
 
   
-
-  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
-
   const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs, replayAudio } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
 
 
