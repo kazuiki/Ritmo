@@ -235,14 +235,18 @@ class NotificationService {
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
-                ringtone: 'alarm1',
+                ringtone: routine.ringtone || 'alarm1',
               },
+
 
               // iOS category for action button; still include for completeness
               categoryIdentifier: 'alarm-actions',
 
               // Android-specific options ensure heads-up banner and button
               color: '#1A73E8',
+
+              sound: `${routine.ringtone || 'alarm1'}.mp3`,
+
               priority: Notifications.AndroidNotificationPriority.MAX,
               sound: 'alarm1.mp3',
             },
@@ -343,12 +347,28 @@ class NotificationService {
 
       // Stop ALL sounds (preview + alarm) before playing alarm
       await this.stopAllSounds();
+      
+      // Ensure alarm sound is fully cleared
+      this.alarmSound = null;
+      
+      // Small delay to ensure previous sound is fully unloaded
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
         'alarm1': require('../assets/ringtone/alarm1.mp3'),
         'alarm2': require('../assets/ringtone/alarm2.mp3'),
         'alarm3': require('../assets/ringtone/alarm3.mp3'),
+        'alarm4': require('../assets/ringtone/alarm4.mp3'),
+        'alarm5': require('../assets/ringtone/alarm5.mp3'),
+        'alarm6': require('../assets/ringtone/alarm6.mp3'),
+        'alarm7': require('../assets/ringtone/alarm7.mp3'),
+        'alarm8': require('../assets/ringtone/alarm8.mp3'),
+        'alarm13': require('../assets/ringtone/alarm13.mp3'),
+        'alarm14': require('../assets/ringtone/alarm14.mp3'),
+        'alarm15': require('../assets/ringtone/alarm15.mp3'),
+        'alarm16': require('../assets/ringtone/alarm16.mp3'),
+        'alarm17': require('../assets/ringtone/alarm17.mp3'),
       };
 
       const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
@@ -381,20 +401,44 @@ class NotificationService {
   // Play ringtone (for preview in modal - 5 seconds only)
   async playRingtone(ringtonePath: string = 'alarm1') {
     try {
-      // Stop any currently playing sound first
-      await this.stopAllSounds();
-
-      // Clear any existing preview timeout
+      // Clear any existing preview timeout first
       if (this.previewTimeout) {
         clearTimeout(this.previewTimeout);
         this.previewTimeout = null;
       }
+
+      // Stop any currently playing sound and ensure it's fully stopped
+      if (this.sound) {
+        try {
+          const status = await this.sound.getStatusAsync();
+          if (status.isLoaded) {
+            await this.sound.stopAsync();
+            await this.sound.unloadAsync();
+          }
+        } catch (err) {
+          // Ignore errors
+        }
+        this.sound = null;
+      }
+
+      // Minimal delay to ensure clean audio state
+      await new Promise(resolve => setTimeout(resolve, 10));
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
         'alarm1': require('../assets/ringtone/alarm1.mp3'),
         'alarm2': require('../assets/ringtone/alarm2.mp3'),
         'alarm3': require('../assets/ringtone/alarm3.mp3'),
+        'alarm4': require('../assets/ringtone/alarm4.mp3'),
+        'alarm5': require('../assets/ringtone/alarm5.mp3'),
+        'alarm6': require('../assets/ringtone/alarm6.mp3'),
+        'alarm7': require('../assets/ringtone/alarm7.mp3'),
+        'alarm8': require('../assets/ringtone/alarm8.mp3'),
+        'alarm13': require('../assets/ringtone/alarm13.mp3'),
+        'alarm14': require('../assets/ringtone/alarm14.mp3'),
+        'alarm15': require('../assets/ringtone/alarm15.mp3'),
+        'alarm16': require('../assets/ringtone/alarm16.mp3'),
+        'alarm17': require('../assets/ringtone/alarm17.mp3'),
       };
 
       const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
@@ -432,21 +476,23 @@ class NotificationService {
       }
 
       if (this.alarmSound) {
-        const status = await this.alarmSound.getStatusAsync();
-        if (status.isLoaded) {
-          await this.alarmSound.stopAsync();
-          await this.alarmSound.unloadAsync();
+        try {
+          const status = await this.alarmSound.getStatusAsync();
+          if (status.isLoaded) {
+            await this.alarmSound.stopAsync();
+            await this.alarmSound.unloadAsync();
+          }
+        } catch (err) {
+          // Ignore errors during stop/unload
         }
         this.alarmSound = null;
         this.isPlayingAlarm = false;
         console.log('Alarm sound stopped');
       }
     } catch (error) {
-      // Silently handle error - sound might already be stopped
-      if (this.alarmSound) {
-        this.alarmSound = null;
-        this.isPlayingAlarm = false;
-      }
+      // Force cleanup even on error
+      this.alarmSound = null;
+      this.isPlayingAlarm = false;
     }
   }
 
@@ -460,19 +506,21 @@ class NotificationService {
       }
 
       if (this.sound) {
-        const status = await this.sound.getStatusAsync();
-        if (status.isLoaded) {
-          await this.sound.stopAsync();
-          await this.sound.unloadAsync();
+        try {
+          const status = await this.sound.getStatusAsync();
+          if (status.isLoaded) {
+            await this.sound.stopAsync();
+            await this.sound.unloadAsync();
+          }
+        } catch (err) {
+          // Ignore errors during stop/unload
         }
         this.sound = null;
         console.log('Ringtone preview stopped');
       }
     } catch (error) {
-      // Silently handle error - sound might already be stopped
-      if (this.sound) {
-        this.sound = null;
-      }
+      // Force cleanup even on error
+      this.sound = null;
     }
   }
 

@@ -176,6 +176,53 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
     isNextDisabledRef.current = false;
   }
 
+  // Function to manually replay audio (for timer-based repeats)
+  const replayAudio = async () => {
+    if (!enabled || !audioModule) return;
+    
+    try {
+      // ALWAYS stop and unload current playback completely first
+      if (soundRef.current) {
+        try {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+        } catch (err) {
+          console.log('Error stopping previous audio:', err);
+        }
+        soundRef.current = null;
+      }
+      
+      // Small delay to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Create fresh sound instance
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        audioModule,
+        { 
+          shouldPlay: true,
+          volume: 1.0,
+          isLooping: false,
+          isMuted: false,
+        }
+      );
+
+      soundRef.current = sound;
+      setIsPlaying(true);
+      await sound.playAsync();
+    } catch (err) {
+      console.log('Audio replay error:', err);
+      setIsPlaying(false);
+    }
+  };
+
   return { 
     isPlaying, 
     durationMs, 
@@ -185,6 +232,7 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
     isNextDisabledRef,
     lastClickTimeRef,
     minClickGapMs,
+    replayAudio,
   };
 }
 
