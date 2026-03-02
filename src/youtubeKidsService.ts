@@ -59,6 +59,7 @@ interface YouTubeChannelResponse {
 class YouTubeKidsService {
   private static readonly API_KEY = 'AIzaSyB9QXtNdg8XbBoy5N2SegPszoz8Zf4KbPc'; 
   private static readonly BASE_URL = 'https://www.googleapis.com/youtube/v3';
+  private static readonly MAX_PAGES_PER_REQUEST = 1;
   
   // Cache for videos to avoid repeated API calls
   private static videoCache: YouTubeVideo[] = [];
@@ -67,81 +68,125 @@ class YouTubeKidsService {
 
   // Kid-friendly channels and search terms
   private static readonly KIDS_CHANNELS = [
-    'UCBXVGODxUHmsEsGgUFQgqQw', // Ms Rachel
-    'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
     'UCGwA4GJE-_XoKnrdyqfi6fQ', // Super Simple Songs
-    'UCPlwHry6Ew6-8zTtXnBuNwg', // Blippi
     'UCKAqou7V9FWgPBC3vafy_ew', // Little Baby Bum
     'UCbFWrz_2m_sDJ3hSHKWJUMw', // Dave and Ava
+    'UCGfBwrCoi9ZJjKiUK8MmJNw', // Pinkfong Baby Shark
+  ];
+
+  private static readonly EXCLUDED_CHANNEL_IDS = [
+    'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
+  ];
+
+  private static readonly EXCLUDED_CHANNEL_KEYWORDS = [
+    'cocomelon',
+  ];
+
+  private static readonly CARTOON_REQUIRED_KEYWORDS = [
+    'cartoon',
+    'animated',
+    'animation',
+    'nursery rhyme',
+    'kids song',
+    'abc song',
+    'alphabet song',
+    'animal song',
+    'kids music',
+    'baby shark',
+    'pinkfong',
+    'little angel',
+    'dave and ava',
+    'super simple songs',
+    'little baby bum',
+    'cocomongi',
+    'peppa pig',
+    'paw patrol',
+    'masha and the bear',
+    'daniel tiger',
+    'cartoons for kids',
+  ];
+
+  private static readonly HUMAN_CONTENT_KEYWORDS = [
+    'ms rachel',
+    'blippi',
+    'live action',
+    'real life',
+    'family vlog',
+    'vlog',
+    'reaction',
+    'podcast',
+    'interview',
+    'teacher',
+    'classroom',
+    'mommy',
+    'daddy',
+    'parents',
+    'for parents',
+    'talking to camera',
+    'human',
+    'people',
   ];
 
   private static readonly KIDS_SEARCH_TERMS = [
-    'kids songs',
-    'nursery rhymes',
-    'children learning',
-    'baby songs',
-    'educational videos for kids',
-    'toddler learning',
-    'kids cartoons',
-    'alphabet songs',
-    'counting songs',
-    'kids music'
+    'cartoon daily routine for kids',
+    'animated morning routine for kids',
+    'cartoon healthy habits for kids',
+    'kids routine songs animation',
+    'preschool cartoon daily routine',
+    'toddler cartoon learning songs',
+    'animated self care for kids',
+    'cartoon brush teeth wash hands song',
+    'cartoon getting ready for school kids',
+    'animated social emotional learning for kids'
   ];
 
   static async searchKidsVideos(query: string = '', maxResults: number = 20, maxVideosPerCategory: number = 150): Promise<YouTubeVideo[]> {
     try {
       // If no query provided, use random kids search term
       const searchQuery = query || this.getRandomKidsSearchTerm();
-      
-      const allVideos: YouTubeVideo[] = [];
-      let nextPageToken: string | undefined;
-      let pageCount = 0;
+      const clampedResults = Math.min(Math.max(maxResults, 1), 25);
+      const searchUrl = `${this.BASE_URL}/search?` +
+        `part=snippet&` +
+        `q=${encodeURIComponent(searchQuery)}&` +
+        `type=video&` +
+        `videoCategoryId=1&` +
+        `safeSearch=strict&` +
+        `maxResults=${clampedResults}&` +
+        `order=relevance&` +
+        `relevanceLanguage=en&` +
+        `regionCode=PH&` +
+        `key=${this.API_KEY}`;
 
-      // Fetch videos with balanced limit
-      while (allVideos.length < maxVideosPerCategory) {
-        const searchUrl = `${this.BASE_URL}/search?` +
-          `part=snippet&` +
-          `q=${encodeURIComponent(searchQuery)}&` +
-          `type=video&` +
-          `videoCategoryId=1&` +
-          `safeSearch=strict&` +
-          `maxResults=${Math.min(Math.max(maxResults, 1), 50)}&` +
-          `order=relevance&` +
-          `relevanceLanguage=en&` +
-          `regionCode=PH&` +
-          `${nextPageToken ? `pageToken=${nextPageToken}&` : ''}` +
-          `key=${this.API_KEY}`;
+      console.log(`[${searchQuery}] Single-page search (max ${clampedResults})...`);
 
-        console.log(`[${searchQuery}] Searching page ${pageCount + 1}...`);
+      const response = await fetch(searchUrl);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`YouTube API error: ${response.status} - ${response.statusText}`);
+        console.error('Error response:', errorText);
+        throw new Error(`YouTube API error: ${response.status}`);
+      }
 
-        const response = await fetch(searchUrl);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`YouTube API error: ${response.status} - ${response.statusText}`);
-          console.error('Error response:', errorText);
-          if (pageCount === 0) throw new Error(`YouTube API error: ${response.status}`);
-          break;
-        }
+      const data: YouTubeSearchResponse = await response.json();
+      console.log(`[${searchQuery}] Page 1:`, data.items?.length || 0, 'items');
 
-        const data: YouTubeSearchResponse = await response.json();
-        console.log(`[${searchQuery}] Page ${pageCount + 1}:`, data.items?.length || 0, 'items');
-        
-        if (!data.items || data.items.length === 0) {
-          console.log(`[${searchQuery}] No more videos found`);
-          break;
-        }
+      if (!data.items || data.items.length === 0) {
+        console.log(`[${searchQuery}] No videos found on first page`);
+        return this.getFallbackVideos();
+      }
 
-        // Get video IDs for additional details
-        const videoIds = data.items.map(item => item.id.videoId).join(',');
-        
-        // Fetch video statistics and duration
-        const videoDetails = await this.getVideoDetails(videoIds);
+      const videoIds = data.items.map(item => item.id.videoId).join(',');
+      const videoDetails = await this.getVideoDetails(videoIds);
 
-        // Transform data to match your existing video structure
-        const videos: YouTubeVideo[] = data.items.map((item, index) => {
+      const videos: YouTubeVideo[] = data.items
+        .filter(item => !this.isExcludedVideo(
+          item.snippet.channelId,
+          item.snippet.channelTitle,
+          item.snippet.title,
+          item.snippet.description
+        ))
+        .map(item => {
           const videoDetail = videoDetails[item.id.videoId];
-          
           return {
             id: item.id.videoId,
             title: item.snippet.title,
@@ -157,27 +202,9 @@ class YouTubeKidsService {
           };
         });
 
-        allVideos.push(...videos);
-        console.log(`[${searchQuery}] Page ${pageCount + 1}: Found ${videos.length} videos, Total: ${allVideos.length}`);
-
-        // Check if we've reached our limit
-        if (allVideos.length >= maxVideosPerCategory) {
-          console.log(`[${searchQuery}] Reached limit of ${maxVideosPerCategory} videos`);
-          break;
-        }
-
-        // Check if there's a next page
-        nextPageToken = data.nextPageToken;
-        if (!nextPageToken) {
-          console.log(`[${searchQuery}] No more pages available`);
-          break;
-        }
-
-        pageCount++;
-      }
-
-      console.log(`[${searchQuery}] Total videos: ${allVideos.length}`);
-      return allVideos.slice(0, maxVideosPerCategory).length > 0 ? allVideos.slice(0, maxVideosPerCategory) : this.getFallbackVideos();
+      const limitedVideos = videos.slice(0, maxVideosPerCategory);
+      console.log(`[${searchQuery}] Single-page final videos: ${limitedVideos.length}`);
+      return limitedVideos.length > 0 ? limitedVideos : this.getFallbackVideos();
     } catch (error) {
       console.error('Error fetching YouTube Kids videos:', error);
       return this.getFallbackVideos(); // Return fallback videos on error
@@ -186,47 +213,49 @@ class YouTubeKidsService {
 
   static async getVideosByChannel(channelId: string, maxResults: number = 10, maxVideosPerCategory: number = 150): Promise<YouTubeVideo[]> {
     try {
-      const allVideos: YouTubeVideo[] = [];
-      let nextPageToken: string | undefined;
-      let pageCount = 0;
+      if (this.isExcludedChannel(channelId)) {
+        console.log(`[Channel ${channelId}] Skipped because channel is excluded`);
+        return [];
+      }
 
-      // Fetch videos from channel with balanced limit
-      while (allVideos.length < maxVideosPerCategory) {
-        const searchUrl = `${this.BASE_URL}/search?` +
-          `part=snippet&` +
-          `channelId=${channelId}&` +
-          `type=video&` +
-          `safeSearch=strict&` +
-          `maxResults=${Math.min(Math.max(maxResults, 1), 50)}&` +
-          `order=date&` +
-          `${nextPageToken ? `pageToken=${nextPageToken}&` : ''}` +
-          `key=${this.API_KEY}`;
+      const clampedResults = Math.min(Math.max(maxResults, 1), 25);
+      const searchUrl = `${this.BASE_URL}/search?` +
+        `part=snippet&` +
+        `channelId=${channelId}&` +
+        `type=video&` +
+        `safeSearch=strict&` +
+        `maxResults=${clampedResults}&` +
+        `order=date&` +
+        `key=${this.API_KEY}`;
 
-        console.log(`[Channel ${channelId}] Fetching page ${pageCount + 1}...`);
+      console.log(`[Channel ${channelId}] Single-page fetch (max ${clampedResults})...`);
 
-        const response = await fetch(searchUrl);
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[Channel ${channelId}] YouTube API error: ${response.status} - ${errorText}`);
-          if (pageCount === 0) {
-            console.error(`[Channel ${channelId}] Failed on first page, channel might be restricted`);
-            return [];
-          }
-          break;
-        }
+      const response = await fetch(searchUrl);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Channel ${channelId}] YouTube API error: ${response.status} - ${errorText}`);
+        return [];
+      }
 
-        const data: YouTubeSearchResponse = await response.json();
-        console.log(`[Channel ${channelId}] Page ${pageCount + 1} response:`, data.items?.length || 0, 'items');
-        
-        if (!data.items || data.items.length === 0) {
-          console.log(`[Channel ${channelId}] No more videos`);
-          break;
-        }
+      const data: YouTubeSearchResponse = await response.json();
+      console.log(`[Channel ${channelId}] Page 1 response:`, data.items?.length || 0, 'items');
 
-        const videoIds = data.items.map(item => item.id.videoId).join(',');
-        const videoDetails = await this.getVideoDetails(videoIds);
+      if (!data.items || data.items.length === 0) {
+        console.log(`[Channel ${channelId}] No videos on first page`);
+        return [];
+      }
 
-        const videos: YouTubeVideo[] = data.items.map(item => ({
+      const videoIds = data.items.map(item => item.id.videoId).join(',');
+      const videoDetails = await this.getVideoDetails(videoIds);
+
+      const videos: YouTubeVideo[] = data.items
+        .filter(item => !this.isExcludedVideo(
+          item.snippet.channelId,
+          item.snippet.channelTitle,
+          item.snippet.title,
+          item.snippet.description
+        ))
+        .map(item => ({
           id: item.id.videoId,
           title: item.snippet.title,
           channel: item.snippet.channelTitle,
@@ -240,27 +269,9 @@ class YouTubeKidsService {
           duration: this.formatDuration(videoDetails[item.id.videoId]?.duration || 'PT0S')
         }));
 
-        allVideos.push(...videos);
-        console.log(`[Channel ${channelId}] Page ${pageCount + 1}: ${videos.length} videos, Total: ${allVideos.length}`);
-
-        // Check if we've reached our limit
-        if (allVideos.length >= maxVideosPerCategory) {
-          console.log(`[Channel ${channelId}] Reached limit of ${maxVideosPerCategory} videos`);
-          break;
-        }
-
-        // Check if there's a next page
-        nextPageToken = data.nextPageToken;
-        if (!nextPageToken) {
-          console.log(`[Channel ${channelId}] No more pages available`);
-          break;
-        }
-
-        pageCount++;
-      }
-
-      console.log(`[Channel ${channelId}] Total videos: ${allVideos.length}`);
-      return allVideos.slice(0, maxVideosPerCategory);
+      const limitedVideos = videos.slice(0, maxVideosPerCategory);
+      console.log(`[Channel ${channelId}] Single-page final videos: ${limitedVideos.length}`);
+      return limitedVideos;
     } catch (error) {
       console.error(`[Channel ${channelId}] Error fetching channel videos:`, error);
       return [];
@@ -321,6 +332,57 @@ class YouTubeKidsService {
     return this.KIDS_SEARCH_TERMS[randomIndex];
   }
 
+  private static isExcludedChannel(channelId: string, channelTitle: string = ''): boolean {
+    if (this.EXCLUDED_CHANNEL_IDS.includes(channelId)) {
+      return true;
+    }
+
+    const normalizedTitle = channelTitle.toLowerCase();
+    return this.EXCLUDED_CHANNEL_KEYWORDS.some(keyword => normalizedTitle.includes(keyword));
+  }
+
+  private static isExcludedVideo(
+    channelId: string,
+    channelTitle: string = '',
+    videoTitle: string = '',
+    videoDescription: string = ''
+  ): boolean {
+    if (this.isExcludedChannel(channelId, channelTitle)) {
+      return true;
+    }
+
+    const normalizedVideoTitle = videoTitle.toLowerCase();
+    const normalizedVideoDescription = videoDescription.toLowerCase();
+
+    const isExplicitlyExcluded = this.EXCLUDED_CHANNEL_KEYWORDS.some(keyword =>
+      normalizedVideoTitle.includes(keyword) || normalizedVideoDescription.includes(keyword)
+    );
+
+    if (isExplicitlyExcluded) {
+      return true;
+    }
+
+    return !this.isCartoonLikeContent(channelTitle, videoTitle, videoDescription);
+  }
+
+  private static isCartoonLikeContent(channelTitle: string, videoTitle: string, videoDescription: string): boolean {
+    const normalizedCombined = `${channelTitle} ${videoTitle} ${videoDescription}`.toLowerCase();
+
+    const hasCartoonSignal = this.CARTOON_REQUIRED_KEYWORDS.some(keyword =>
+      normalizedCombined.includes(keyword)
+    );
+
+    if (!hasCartoonSignal) {
+      return false;
+    }
+
+    const hasHumanSignal = this.HUMAN_CONTENT_KEYWORDS.some(keyword =>
+      normalizedCombined.includes(keyword)
+    );
+
+    return !hasHumanSignal;
+  }
+
   private static formatViewCount(viewCount: string): string {
     const count = parseInt(viewCount);
     if (count >= 1000000) {
@@ -364,29 +426,29 @@ class YouTubeKidsService {
     return [
       {
         id: '1',
-        title: "Baby Learning With Ms Rachel - First Words, Songs",
-        channel: "Ms Rachel - Toddler Learning",
-        channelId: "UCBXVGODxUHmsEsGgUFQgqQw",
-        views: "3.2M views",
-        publishedAt: "2 weeks ago",
-        youtubeId: "hTqtGJwsJVE",
-        thumbnail: "https://i.ytimg.com/vi/hTqtGJwsJVE/hqdefault.jpg",
+        title: "Baby Shark Dance | Pinkfong Kids Songs",
+        channel: "Pinkfong Baby Shark",
+        channelId: "UCGfBwrCoi9ZJjKiUK8MmJNw",
+        views: "6.1M views",
+        publishedAt: "3 weeks ago",
+        youtubeId: "XqZsoesa55w",
+        thumbnail: "https://i.ytimg.com/vi/XqZsoesa55w/hqdefault.jpg",
         channelIcon: "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-        description: "Educational content for babies and toddlers",
-        duration: "30:15"
+        description: "Animated kids song with cartoon characters",
+        duration: "2:17"
       },
       {
         id: '2',
-        title: "Baby's First Words with Ms Rachel - Videos for Babies",
-        channel: "Ms Rachel - Toddler Learning",
-        channelId: "UCBXVGODxUHmsEsGgUFQgqQw",
-        views: "2.1M views",
+        title: "Brush Your Teeth Song | Cartoon Kids Song",
+        channel: "Super Simple Songs",
+        channelId: "UCGwA4GJE-_XoKnrdyqfi6fQ",
+        views: "2.4M views",
         publishedAt: "1 month ago",
-        youtubeId: "zwL2o4jZxbc",
-        thumbnail: "https://i.ytimg.com/vi/zwL2o4jZxbc/hqdefault.jpg",
+        youtubeId: "wvL6Jp3Q4fM",
+        thumbnail: "https://i.ytimg.com/vi/wvL6Jp3Q4fM/hqdefault.jpg",
         channelIcon: "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-        description: "First words learning for babies",
-        duration: "25:42"
+        description: "Animated daily routine song for children",
+        duration: "2:53"
       },
       {
         id: '3',
@@ -403,16 +465,16 @@ class YouTubeKidsService {
       },
       {
         id: '4',
-        title: "Wheels on the Bus | Kids Songs | Nursery Rhymes",
-        channel: "Cocomelon",
-        channelId: "UCbCmjCuTUZos6Inko4u57UQ",
-        views: "5.2M views",
-        publishedAt: "1 week ago",
-        youtubeId: "e_04ZrNroTo",
-        thumbnail: "https://i.ytimg.com/vi/e_04ZrNroTo/hqdefault.jpg",
+        title: "Morning Routine for Kids | Healthy Habits Song",
+        channel: "Super Simple Songs",
+        channelId: "UCGwA4GJE-_XoKnrdyqfi6fQ",
+        views: "1.5M views",
+        publishedAt: "2 weeks ago",
+        youtubeId: "mVhh0oATqBI",
+        thumbnail: "https://i.ytimg.com/vi/mVhh0oATqBI/hqdefault.jpg",
         channelIcon: "https://yt3.ggpht.com/ytc/AKedOLSKx4VgYmQqQjl7QGIoZKKedOLSKx4VgYmQqQjl7QGIoZKK=s88-c-k-c0x00ffffff-no-rj",
-        description: "Classic nursery rhyme for kids",
-        duration: "4:12"
+        description: "Daily routine and healthy habits video for kids",
+        duration: "3:58"
       }
     ];
   }
