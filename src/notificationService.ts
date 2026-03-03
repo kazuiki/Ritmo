@@ -96,7 +96,7 @@ class NotificationService {
     console.error('Error initializing notifications:', error);
     return false;
   }
-}  
+}  x
 
   // Clean up expired notifications
   private async cleanupExpiredNotifications() {

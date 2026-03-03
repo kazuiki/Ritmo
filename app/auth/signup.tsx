@@ -94,7 +94,7 @@ export default function SignUp() {
   useEffect(() => {
     const initInputs = async () => {
       try {
-        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm', '@signupVerificationCode']);
+        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm', '@signupVerificationCode', '@termsAccepted']);
       } catch {}
       setEmail('');
       setPassword('');
@@ -102,6 +102,7 @@ export default function SignUp() {
       setVerificationCode('');
       setIsEmailVerified(false);
       setSentVerificationCode('');
+      setAgreed(false); // Also uncheck the terms checkbox on fresh start
     };
     initInputs();
   }, []);
@@ -131,17 +132,23 @@ export default function SignUp() {
     })
   );
 
-  // When screen gains focus (after initial mount), read stored acceptance
+  // Removed auto-restoration of terms acceptance checkbox
+  // Users should manually check the checkbox each time they sign up
+  
+  // Restore checkbox state when returning from Terms/Privacy pages
   useFocusEffect(
     (() => {
       let mounted = true;
-      const checkAccepted = async () => {
+      const checkTermsAcceptance = async () => {
         try {
           const val = await AsyncStorage.getItem("@termsAccepted");
-          if (mounted) setAgreed(Boolean(val === "true"));
+          // Only check the box if user accepted terms (coming back from terms page)
+          if (mounted && val === "true") {
+            setAgreed(true);
+          }
         } catch {}
       };
-      checkAccepted();
+      checkTermsAcceptance();
       return () => {
         mounted = false;
       };
@@ -402,8 +409,11 @@ export default function SignUp() {
       // On success, the user is signed in (and created if not existing)
       console.log('✅ OTP verified. Session established:', Boolean(data?.session));
       
-      // Set the password for the user
-      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      // Set the password and mark terms as accepted (since user checked the agreement during signup)
+      const { error: passwordError } = await supabase.auth.updateUser({ 
+        password,
+        data: { has_accepted_terms: true }
+      });
       
       if (passwordError) {
         if (
