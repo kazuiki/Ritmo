@@ -225,6 +225,7 @@ export default function RootLayout() {
           try {
             const { data: userData, error: userError } = await supabase.auth.getUser();
             const childName = (userData?.user?.user_metadata as any)?.child_name;
+            const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
 
             if (userError) {
               isNavigatingRef.current = false;
@@ -232,7 +233,13 @@ export default function RootLayout() {
             }
 
             if (!childName) {
-              router.push('/policy');
+              // If user hasn't accepted terms yet, show policy page
+              // Otherwise, go directly to instruction
+              if (hasAcceptedTerms) {
+                router.push('/instruction');
+              } else {
+                router.push('/policy');
+              }
               setTimeout(() => {
                 isNavigatingRef.current = false;
               }, 600000);

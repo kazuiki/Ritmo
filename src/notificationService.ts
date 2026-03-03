@@ -144,7 +144,7 @@ class NotificationService {
     } catch (error) {
       console.error('Error presenting heads-up notification:', error);
     }
-  }  
+  }
 
   // Clean up expired notifications
   private async cleanupExpiredNotifications() {
@@ -248,7 +248,6 @@ class NotificationService {
               sound: `${routine.ringtone || 'alarm1'}.mp3`,
 
               priority: Notifications.AndroidNotificationPriority.MAX,
-              sound: 'alarm1.mp3',
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
