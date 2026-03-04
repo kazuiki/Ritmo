@@ -216,6 +216,13 @@ export default function RootLayout() {
         hasRedirectedRef.current = true;
         isNavigatingRef.current = true;
 
+        // Skip redirect if on password reset flow screens
+        if (currentPath === 'auth/forgot-password' || currentPath === 'auth/update-password') {
+          isNavigatingRef.current = false;
+          hasRedirectedRef.current = false;
+          return;
+        }
+
         if (
           currentPath.startsWith('auth') ||
           pathname === '/' ||

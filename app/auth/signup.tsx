@@ -102,7 +102,6 @@ export default function SignUp() {
       setVerificationCode('');
       setIsEmailVerified(false);
       setSentVerificationCode('');
-      setAgreed(false); // Also uncheck the terms checkbox on fresh start
     };
     initInputs();
   }, []);
@@ -670,11 +669,6 @@ export default function SignUp() {
                 <TouchableOpacity
                   onPress={async () => {
                     if (!agreed) {
-                      // Require fields filled before proceeding to Terms
-                      if (!email || !password || !confirmPassword) {
-                        setCompleteDetailsModalVisible(true);
-                        return;
-                      }
                       // Persist current inputs so they are restored after returning
                       await AsyncStorage.multiSet([
                         ['@signupEmail', email],
@@ -1085,6 +1079,12 @@ export default function SignUp() {
       >
         <View style={styles.errorModalOverlay}>
           <View style={styles.verificationModalContainer}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setVerificationModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
             <View style={styles.verificationIconCircle}>
               <Image
                 source={require("../../assets/images/Mail.png")}
@@ -1564,5 +1564,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(12),
     fontFamily: "Fredoka_400Regular",
     flex: 1,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: scale.scaleSpacing(12),
+    right: scale.scaleSpacing(12),
+    zIndex: 1,
+    padding: scale.scaleSpacing(4),
   },
 }));
