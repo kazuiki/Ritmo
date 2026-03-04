@@ -26,18 +26,6 @@ import NetworkFailureModal from "../components/NetworkFailureModal";
 export default function ForgotPassword() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    minLength: false,
-    hasNumber: false,
-    hasUppercase: false,
-    hasLowercase: false,
-    hasSpecial: false,
-    noSpaces: false,
-  });
   const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
@@ -45,23 +33,10 @@ export default function ForgotPassword() {
   const [verificationModalVisible, setVerificationModalVisible] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [emptyFieldsModalVisible, setEmptyFieldsModalVisible] = useState(false);
-  const [passwordLengthModalVisible, setPasswordLengthModalVisible] = useState(false);
   const [invalidEmailModalVisible, setInvalidEmailModalVisible] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const reduceMotionRef = useRef(false);
-
-  const unmetRequirements = [
-    { key: 'minLength', label: 'Must be at least 8 characters' },
-    { key: 'hasNumber', label: 'Must contain at least 1 number' },
-    { key: 'hasUppercase', label: 'Must contain at least 1 uppercase' },
-    { key: 'hasLowercase', label: 'Must contain at least 1 lowercase' },
-    { key: 'hasSpecial', label: 'Must contain at least 1 special character' },
-    { key: 'noSpaces', label: 'Must not contain spaces' },
-  ].filter((item) => !passwordRequirements[item.key as keyof typeof passwordRequirements]);
-  const showRequirements = password.length > 0 && unmetRequirements.length > 0;
-  const showConfirmMismatch =
-    confirmPassword.length > 0 && password.length > 0 && password !== confirmPassword;
 
   // Local network failure detection for authentication
   const [localNetworkFailure, setLocalNetworkFailure] = useState(false);
@@ -77,7 +52,6 @@ export default function ForgotPassword() {
       setVerificationModalVisible(false);
       setSuccessModalVisible(false);
       setEmptyFieldsModalVisible(false);
-      setPasswordLengthModalVisible(false);
       setErrorModalVisible(false);
     };
   }, []);
@@ -177,44 +151,8 @@ export default function ForgotPassword() {
     return email.toLowerCase().endsWith('@gmail.com');
   };
 
-  // === Password Validation with Details ===
-  const validatePasswordDetails = (password: string) => {
-    const requirements = {
-      minLength: password.length >= 8,
-      hasNumber: /[0-9]/.test(password),
-      hasUppercase: /[A-Z]/.test(password),
-      hasLowercase: /[a-z]/.test(password),
-      hasSpecial: /[!@#$%^&*()_+]/.test(password),
-      noSpaces: !/\s/.test(password),
-    };
-    return requirements;
-  };
-
-  // === Password Validation ===
-  const validatePassword = (password: string): { isValid: boolean; message?: string } => {
-    if (password.length < 8) {
-      return { isValid: false, message: 'Password must be at least 8 characters long' };
-    }
-    if (!/[A-Z]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 uppercase letter' };
-    }
-    if (!/[a-z]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 lowercase letter' };
-    }
-    if (!/[0-9]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 number' };
-    }
-    if (!/[!@#$%^&*()_+]/.test(password)) {
-      return { isValid: false, message: 'Password must contain at least 1 special character (!@#$%^&*()_+)' };
-    }
-    if (/\s/.test(password)) {
-      return { isValid: false, message: 'Password must not contain spaces' };
-    }
-    return { isValid: true };
-  };
-
   const handleConfirm = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!email) {
       setEmptyFieldsModalVisible(true);
       return;
     }
@@ -222,16 +160,6 @@ export default function ForgotPassword() {
     // Validate email format
     if (!validateEmail(email)) {
       setInvalidEmailModalVisible(true);
-      return;
-    }
-
-    // Validate password strength
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      return;
-    }
-
-    if (password !== confirmPassword) {
       return;
     }
 
@@ -285,6 +213,11 @@ export default function ForgotPassword() {
     }
   };
 
+  const handleNext = () => {
+    setSuccessModalVisible(false);
+    router.replace(`/auth/update-password?email=${encodeURIComponent(email)}&otp=${verificationCode}`);
+  };
+
   const handleVerifyCode = async () => {
     if (!verificationCode) {
       setErrorMessage("Please enter the verification code");
@@ -295,8 +228,8 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      // Verify OTP
-      const { data, error } = await supabase.auth.verifyOtp({
+      // Verify OTP for security - must validate code before allowing redirect
+      const { error } = await supabase.auth.verifyOtp({
         type: 'email',
         email,
         token: verificationCode,
@@ -310,21 +243,8 @@ export default function ForgotPassword() {
         return;
       }
 
-      // Update password
-      const { error: passwordError } = await supabase.auth.updateUser({ password });
-      
-      if (passwordError) {
-        setLoading(false);
-        setErrorMessage(passwordError.message);
-        setErrorModalVisible(true);
-        return;
-      }
-
-      // Sign out the user immediately to prevent auto-redirect to greetings
-      await supabase.auth.signOut();
+      // OTP is valid - show success modal
       setLoading(false);
-
-      // Success - close verification modal and show success modal
       setVerificationModalVisible(false);
       setSuccessModalVisible(true);
     } catch (error) {
@@ -393,9 +313,9 @@ export default function ForgotPassword() {
               transition={{ delay: 300, duration: 600 }}
               style={styles.titleContainer}
             >
-              <Text style={styles.title}>Reset Password</Text>
+              <Text style={styles.title}>Forgot Password</Text>
               <Text style={styles.subtitle}>
-                Enter your email and create a new password
+                Enter your email to receive a verification code
               </Text>
             </MotiView>
 
@@ -416,105 +336,6 @@ export default function ForgotPassword() {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-
-              <Text style={styles.label}>New Password:</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.inputFlex}
-                  placeholder="Enter new password"
-                  placeholderTextColor="#888"
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setPasswordRequirements(validatePasswordDetails(text));
-                  }}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#276a63"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <MotiView
-                animate={{
-                  opacity: showRequirements ? 1 : 0,
-                  translateY: showRequirements ? 0 : -8,
-                  maxHeight: showRequirements ? 200 : 0,
-                  marginTop: showRequirements ? 8 : 0,
-                }}
-                transition={{ type: "timing", duration: 240 }}
-                style={styles.requirementsContainer}
-              >
-                {unmetRequirements.map((item) => (
-                  <View key={item.key} style={styles.requirementRow}>
-                    <Ionicons
-                      name="close-circle"
-                      size={18}
-                      color="#FF6B7A"
-                      style={styles.requirementIcon}
-                    />
-                    <Text style={[styles.requirementText, { color: "#FF6B7A" }]}>
-                      {item.label}
-                    </Text>
-                  </View>
-                ))}
-              </MotiView>
-
-              <Text style={styles.label}>Confirm Password:</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.inputFlex}
-                  placeholder="Re-enter new password"                  
-                  placeholderTextColor="#888"                  
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showConfirmPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#276a63"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <MotiView
-                animate={{
-                  opacity: showConfirmMismatch ? 1 : 0,
-                  translateY: showConfirmMismatch ? 0 : -8,
-                  maxHeight: showConfirmMismatch ? 60 : 0,
-                  marginTop: showConfirmMismatch ? 8 : 0,
-                }}
-                transition={{ type: "timing", duration: 240 }}
-                style={styles.requirementsContainer}
-              >
-                {showConfirmMismatch && (
-                  <View style={styles.requirementRow}>
-                    <Ionicons
-                      name="close-circle"
-                      size={18}
-                      color="#FF6B7A"
-                      style={styles.requirementIcon}
-                    />
-                    <Text style={[styles.requirementText, { color: "#FF6B7A" }]}>
-                      Passwords do not match
-                    </Text>
-                  </View>
-                )}
-              </MotiView>
             </MotiView>
 
             {/* Confirm Button */}
@@ -561,6 +382,12 @@ export default function ForgotPassword() {
       >
         <View style={styles.errorModalOverlay}>
           <View style={styles.verificationModalContainer}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setVerificationModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
             <View style={styles.verificationIconCircle}>
               <Image
                 source={require("../../assets/images/Mail.png")}
@@ -601,30 +428,30 @@ export default function ForgotPassword() {
         animationType="fade"
         transparent={true}
         visible={successModalVisible}
-        onRequestClose={() => {
-          setSuccessModalVisible(false);
-          router.replace('/auth/login');
-        }}
+        onRequestClose={() => setSuccessModalVisible(false)}
       >
-        <View style={styles.emailModalOverlay}>
-          <View style={styles.emailModalContainer}>
-            <View style={styles.emailIconCircle}>
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.verificationModalContainer}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setSuccessModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <View style={styles.verificationIconCircle}>
               <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
             </View>
             
-            <Text style={styles.emailModalTitle}>Password Reset Successful!</Text>
-            <Text style={styles.emailModalMessage}>
-              Your password has been successfully reset. You can now log in with your new password.
+            <Text style={styles.errorModalTitle}>Verification Successful!</Text>
+            <Text style={styles.errorModalMessage}>
+              Your code has been verified. Click next to create your new password.
             </Text>
             
             <TouchableOpacity
-              style={styles.emailOkButton}
-              onPress={() => {
-                setSuccessModalVisible(false);
-                router.replace('/auth/login');
-              }}
+              style={[styles.verifyButton, { marginTop: 20 }]}
+              onPress={handleNext}
             >
-              <Text style={styles.emailOkButtonText}>GO TO LOGIN</Text>
+              <Text style={styles.verifyButtonText}>NEXT</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -691,36 +518,6 @@ export default function ForgotPassword() {
       </Modal>
 
 
-
-      {/* Password Length Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={passwordLengthModalVisible}
-        onRequestClose={() => setPasswordLengthModalVisible(false)}
-      >
-        <View style={styles.errorModalOverlay}>
-          <View style={styles.errorModalContainer}>
-            <View style={styles.errorIconCircle}>
-              <Image
-                source={require("../../assets/images/Error.png")}
-                style={styles.errorIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.errorModalTitle}>Password Too Short</Text>
-            <Text style={styles.errorModalMessage}>
-              Password should be at least 6 characters
-            </Text>
-            <TouchableOpacity
-              style={styles.errorOkButton}
-              onPress={() => setPasswordLengthModalVisible(false)}
-            >
-              <Text style={styles.errorOkButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* Error Modal */}
       <Modal
@@ -911,16 +708,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontFamily: "Fredoka_400Regular",
     paddingHorizontal: 8,
-    flexWrap: "wrap",
+    flexWrap: "wrap" as "wrap",
   },
   emailOkButton: {
     backgroundColor: "#4CAF50",
     paddingVertical: 12,
-    paddingHorizontal: 50,
+    paddingHorizontal: 32,
     borderRadius: 50,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 140,
   },
   emailOkButtonText: {
     fontSize: 16,
@@ -995,6 +791,7 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
     marginBottom: 8,
     fontFamily: "Fredoka_700Bold",
+    textAlign: "center",
   },
   errorModalMessage: {
     fontSize: 14,
@@ -1003,7 +800,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 16,
     paddingHorizontal: 8,
-    flexWrap: "wrap",
+    flexWrap: "wrap" as "wrap",
     fontFamily: "Fredoka_400Regular",
   },
   errorOkButton: {
@@ -1051,5 +848,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Fredoka_400Regular",
     flex: 1,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 1,
+    padding: 4,
   },
 });
