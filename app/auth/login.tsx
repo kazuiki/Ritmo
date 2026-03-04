@@ -333,12 +333,10 @@ export default function Login() {
 
         const loggedInUser = userData.user;
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
+        const hasAcceptedTerms = (loggedInUser?.user_metadata as any)?.has_accepted_terms;
 
-        if (!childName) {
-          router.push("/policy");
-        } else {
-
-        }
+        // Let _layout.tsx handle routing after auth state changes
+        console.log('✅ Existing session found, letting _layout.tsx handle routing');
         setLoading(false);
         return;
       }
@@ -426,11 +424,10 @@ export default function Login() {
                 
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
-                if (!childName) {
-                  router.replace("/policy");
-                } else {
-                  //navigateToGreetingsWithNetworkCheck(router);
-                }
+                const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
+                
+                // Let _layout.tsx handle routing after auth state changes
+                console.log('✅ Session established via OAuth, letting _layout.tsx handle routing');
                 setLoading(false);
                 return;
               }

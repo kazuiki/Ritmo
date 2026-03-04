@@ -7,6 +7,7 @@ import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ResponsiveBackButton } from '../src/components/ResponsiveBackButton';
 import { ResponsiveSafeArea } from '../src/components/ResponsiveSafeArea';
+import { supabase } from '../src/supabaseClient';
 import { useResponsiveDimensions } from '../src/utils/responsive';
 
 export default function TermsAndConditions() {
@@ -24,9 +25,24 @@ export default function TermsAndConditions() {
   const handleAcceptTerms = async () => {
     try {
       await AsyncStorage.setItem('@termsAccepted', 'true');
+      
+      // Update user metadata to mark terms as accepted
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase.auth.updateUser({
+          data: { has_accepted_terms: true }
+        });
+        
+        if (error) {
+          console.error('Error updating user metadata:', error);
+        } else {
+          console.log('✅ User metadata updated: has_accepted_terms = true');
+        }
+      }
+      
       setAcceptModalVisible(true);
     } catch (e) {
-      // Silent fail or show error modal if needed
+      console.error('Error in handleAcceptTerms:', e);
     }
   };
 
@@ -235,10 +251,32 @@ export default function TermsAndConditions() {
             </Text>
             <TouchableOpacity
               style={styles.alertOkButton}
-              onPress={() => {
+              onPress={async () => {
                 setAcceptModalVisible(false);
                 
-      router.push("/instruction");
+                // Small delay to ensure metadata update is propagated
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // Check if user is authenticated (first-time login) or signing up
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (session) {
+                  // User is logged in (first-time Google login) - go to instruction
+                  console.log("→ Authenticated user accepted terms, routing to /instruction");
+                  router.replace("/instruction");
+                } else {
+                  // User is signing up - go back to signup page
+                  console.log("→ Signup flow, going back to signup page");
+                  if (router.canGoBack()) {
+                    // Go back twice: Terms -> Privacy Policy -> Signup
+                    router.back();
+                    setTimeout(() => {
+                      if (router.canGoBack()) {
+                        router.back();
+                      }
+                    }, 100);
+                  }
+                }
               }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>

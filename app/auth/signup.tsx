@@ -102,7 +102,6 @@ export default function SignUp() {
       setVerificationCode('');
       setIsEmailVerified(false);
       setSentVerificationCode('');
-      setAgreed(false);
     };
     initInputs();
   }, []);
@@ -132,17 +131,23 @@ export default function SignUp() {
     })
   );
 
-  // When screen gains focus (after initial mount), read stored acceptance
+  // Removed auto-restoration of terms acceptance checkbox
+  // Users should manually check the checkbox each time they sign up
+  
+  // Restore checkbox state when returning from Terms/Privacy pages
   useFocusEffect(
     (() => {
       let mounted = true;
-      const checkAccepted = async () => {
+      const checkTermsAcceptance = async () => {
         try {
           const val = await AsyncStorage.getItem("@termsAccepted");
-          if (mounted) setAgreed(Boolean(val === "true"));
+          // Only check the box if user accepted terms (coming back from terms page)
+          if (mounted && val === "true") {
+            setAgreed(true);
+          }
         } catch {}
       };
-      checkAccepted();
+      checkTermsAcceptance();
       return () => {
         mounted = false;
       };
@@ -340,7 +345,62 @@ export default function SignUp() {
     
     console.log('✅ Network connection available, proceeding to send verification code');
 
+    // before creating a new account, make a quick call with
+    // shouldCreateUser:false.  If this call succeeds it means the
+    // address already exists in Supabase and the SDK has sent an OTP
+    // for *sign‑in* rather than creation.  We treat that as a duplicate
+    // account and abort the sign‑up flow so that the user sees a clear
+    // error instead of being able to overwrite/reset the existing
+    // password.
     setSendingCode(true);
+
+    // existence check – wrap in try/catch because the call itself can
+    // throw when the network is down.
+    let existenceError: any = null;
+    try {
+      const response = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: undefined,
+        },
+      });
+      existenceError = response.error;
+    } catch (err: any) {
+      // network or unexpected failure; behave like a generic send error
+      console.log('❌ Network/error during existence check:', err?.message);
+      setSendingCode(false);
+      setLocalNetworkFailure(true);
+      return;
+    }
+
+    if (!existenceError) {
+      // no error = user exists and OTP has already been dispatched.
+      // we inform the user and stop.
+      console.log('⚠️ Email already registered, blocking sign‑up');
+      setSendingCode(false);
+      setEmailErrorMessage(
+        'An account already exists with this email. Please log in instead.'
+      );
+      setEmailErrorModalVisible(true);
+      return;
+    }
+
+    // If we got an error but it's a network issue, bail out early instead
+    // of attempting another request.  The error string tends to include
+    // "Network" or the name will be TypeError when offline.
+    if (
+      existenceError.message?.includes('Network request failed') ||
+      existenceError.message?.toLowerCase().includes('network') ||
+      existenceError.name === 'TypeError'
+    ) {
+      setSendingCode(false);
+      setLocalNetworkFailure(true);
+      return;
+    }
+
+    // Otherwise the error is expected when the user does not exist,
+    // so we fall through and perform the normal creation call below.
 
     try {
       // Use Supabase default mailer to send OTP to the provided email (valid for 15 minutes)
@@ -403,8 +463,11 @@ export default function SignUp() {
       // On success, the user is signed in (and created if not existing)
       console.log('✅ OTP verified. Session established:', Boolean(data?.session));
       
-      // Set the password for the user
-      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      // Set the password and mark terms as accepted (since user checked the agreement during signup)
+      const { error: passwordError } = await supabase.auth.updateUser({ 
+        password,
+        data: { has_accepted_terms: true }
+      });
       
       if (passwordError) {
         if (

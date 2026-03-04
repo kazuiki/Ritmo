@@ -48,6 +48,14 @@ class NotificationService {
       });
     }
 
+    await Notifications.setNotificationCategoryAsync('alarm-actions', [
+    {
+      identifier: 'stop-alarm',
+      buttonTitle: 'Stop',
+      options: { isDestructive: true },
+    },
+  ]);
+
     // 2. Permission Handling
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -73,6 +81,9 @@ class NotificationService {
     // This listener handles sound ONLY when the app is OPEN (Foreground)
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
       const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
+      const routineName = notification.request.content.data?.routineName as string || '';
+      // show a heads-up notification with stop action even when the app is foreground
+      await this.showHeadsUpForAlarm(routineName, ringtone);
       // When app is open, we can still use your custom JS logic for 12-second stop
       await this.playAlarmSound(ringtone);
     });
@@ -86,6 +97,14 @@ class NotificationService {
       playThroughEarpieceAndroid: false,
     });
 
+    Notifications.addNotificationResponseReceivedListener(response => {
+      const actionId = response.actionIdentifier;
+
+      if (actionId === 'stop-alarm') {
+        this.stopAlarmSound(); // Stops the music you started in the other listener
+      }
+    });
+
     console.log('✅ Notification service initialized');
     return true;
 
@@ -96,7 +115,36 @@ class NotificationService {
     console.error('Error initializing notifications:', error);
     return false;
   }
-}  
+}
+
+  // display an immediate heads-up notification with stop button (foreground case)
+  private async showHeadsUpForAlarm(routineName: string, ringtone: string) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '⏰ Routine Time!',
+          body: routineName ? `Time for: ${routineName}` : undefined,
+          data: {
+            routineName,
+            ringtone,
+          },
+          categoryIdentifier: 'alarm-actions',
+          color: '#1A73E8',
+          sound: `${ringtone}.mp3`,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 1,
+          repeats: false,
+          channelId: 'alarm-channel',
+        },
+      });
+      console.log('🔔 Heads-up alarm notification shown');
+    } catch (error) {
+      console.error('Error presenting heads-up notification:', error);
+    }
+  }
 
   // Clean up expired notifications
   private async cleanupExpiredNotifications() {
@@ -187,9 +235,18 @@ class NotificationService {
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
-                ringtone: 'alarm1',
+                ringtone: routine.ringtone || 'alarm1',
               },
-              sound: 'alarm1.mp3',
+
+
+              // iOS category for action button; still include for completeness
+              categoryIdentifier: 'alarm-actions',
+
+              // Android-specific options ensure heads-up banner and button
+              color: '#1A73E8',
+
+              sound: `${routine.ringtone || 'alarm1'}.mp3`,
+
               priority: Notifications.AndroidNotificationPriority.MAX,
             },
             trigger: {
@@ -197,6 +254,7 @@ class NotificationService {
               seconds: secondsUntilTrigger,
               repeats: false,
 
+              // channelId in trigger is still respected by expo but android block is preferred
               channelId: 'alarm-channel',
             },
           });
@@ -288,12 +346,28 @@ class NotificationService {
 
       // Stop ALL sounds (preview + alarm) before playing alarm
       await this.stopAllSounds();
+      
+      // Ensure alarm sound is fully cleared
+      this.alarmSound = null;
+      
+      // Small delay to ensure previous sound is fully unloaded
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
         'alarm1': require('../assets/ringtone/alarm1.mp3'),
         'alarm2': require('../assets/ringtone/alarm2.mp3'),
         'alarm3': require('../assets/ringtone/alarm3.mp3'),
+        'alarm4': require('../assets/ringtone/alarm4.mp3'),
+        'alarm5': require('../assets/ringtone/alarm5.mp3'),
+        'alarm6': require('../assets/ringtone/alarm6.mp3'),
+        'alarm7': require('../assets/ringtone/alarm7.mp3'),
+        'alarm8': require('../assets/ringtone/alarm8.mp3'),
+        'alarm13': require('../assets/ringtone/alarm13.mp3'),
+        'alarm14': require('../assets/ringtone/alarm14.mp3'),
+        'alarm15': require('../assets/ringtone/alarm15.mp3'),
+        'alarm16': require('../assets/ringtone/alarm16.mp3'),
+        'alarm17': require('../assets/ringtone/alarm17.mp3'),
       };
 
       const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
@@ -326,20 +400,44 @@ class NotificationService {
   // Play ringtone (for preview in modal - 5 seconds only)
   async playRingtone(ringtonePath: string = 'alarm1') {
     try {
-      // Stop any currently playing sound first
-      await this.stopAllSounds();
-
-      // Clear any existing preview timeout
+      // Clear any existing preview timeout first
       if (this.previewTimeout) {
         clearTimeout(this.previewTimeout);
         this.previewTimeout = null;
       }
+
+      // Stop any currently playing sound and ensure it's fully stopped
+      if (this.sound) {
+        try {
+          const status = await this.sound.getStatusAsync();
+          if (status.isLoaded) {
+            await this.sound.stopAsync();
+            await this.sound.unloadAsync();
+          }
+        } catch (err) {
+          // Ignore errors
+        }
+        this.sound = null;
+      }
+
+      // Minimal delay to ensure clean audio state
+      await new Promise(resolve => setTimeout(resolve, 10));
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
         'alarm1': require('../assets/ringtone/alarm1.mp3'),
         'alarm2': require('../assets/ringtone/alarm2.mp3'),
         'alarm3': require('../assets/ringtone/alarm3.mp3'),
+        'alarm4': require('../assets/ringtone/alarm4.mp3'),
+        'alarm5': require('../assets/ringtone/alarm5.mp3'),
+        'alarm6': require('../assets/ringtone/alarm6.mp3'),
+        'alarm7': require('../assets/ringtone/alarm7.mp3'),
+        'alarm8': require('../assets/ringtone/alarm8.mp3'),
+        'alarm13': require('../assets/ringtone/alarm13.mp3'),
+        'alarm14': require('../assets/ringtone/alarm14.mp3'),
+        'alarm15': require('../assets/ringtone/alarm15.mp3'),
+        'alarm16': require('../assets/ringtone/alarm16.mp3'),
+        'alarm17': require('../assets/ringtone/alarm17.mp3'),
       };
 
       const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
@@ -377,21 +475,23 @@ class NotificationService {
       }
 
       if (this.alarmSound) {
-        const status = await this.alarmSound.getStatusAsync();
-        if (status.isLoaded) {
-          await this.alarmSound.stopAsync();
-          await this.alarmSound.unloadAsync();
+        try {
+          const status = await this.alarmSound.getStatusAsync();
+          if (status.isLoaded) {
+            await this.alarmSound.stopAsync();
+            await this.alarmSound.unloadAsync();
+          }
+        } catch (err) {
+          // Ignore errors during stop/unload
         }
         this.alarmSound = null;
         this.isPlayingAlarm = false;
         console.log('Alarm sound stopped');
       }
     } catch (error) {
-      // Silently handle error - sound might already be stopped
-      if (this.alarmSound) {
-        this.alarmSound = null;
-        this.isPlayingAlarm = false;
-      }
+      // Force cleanup even on error
+      this.alarmSound = null;
+      this.isPlayingAlarm = false;
     }
   }
 
@@ -405,19 +505,21 @@ class NotificationService {
       }
 
       if (this.sound) {
-        const status = await this.sound.getStatusAsync();
-        if (status.isLoaded) {
-          await this.sound.stopAsync();
-          await this.sound.unloadAsync();
+        try {
+          const status = await this.sound.getStatusAsync();
+          if (status.isLoaded) {
+            await this.sound.stopAsync();
+            await this.sound.unloadAsync();
+          }
+        } catch (err) {
+          // Ignore errors during stop/unload
         }
         this.sound = null;
         console.log('Ringtone preview stopped');
       }
     } catch (error) {
-      // Silently handle error - sound might already be stopped
-      if (this.sound) {
-        this.sound = null;
-      }
+      // Force cleanup even on error
+      this.sound = null;
     }
   }
 

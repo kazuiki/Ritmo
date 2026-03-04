@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { BackHandler, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { ModeProvider } from "../src/contexts/ModeContext";
+import { ModeProvider, useMode } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { LogoutService, supabase } from "../src/supabaseClient";
@@ -15,6 +15,99 @@ import { preloadGameAssets } from "../src/utils/assetPreloader";
 import { setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
 import NetworkFailureModal from "./components/NetworkFailureModal";
+
+// BackHandler component that has access to ModeContext
+function AppBackHandler({ showExitModal, setShowExitModal }: { showExitModal: boolean; setShowExitModal: (show: boolean) => void }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { backToChildMode, mode, parentalLockEnabled } = useMode();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const backAction = () => {
+      // Check if we're currently on the home tab
+      const isOnHomeTab = pathname.includes('/home') || pathname === '/(tabs)';
+      
+      // If on home tab, show exit confirmation modal
+      if (isOnHomeTab) {
+        setShowExitModal(true);
+        return true;
+      }
+      
+      // Determine tab navigation based on mode
+      const showFloatingButton = !parentalLockEnabled; // 5-tab mode (no parental lock)
+      const isParentMode = parentalLockEnabled && mode === 'parent'; // 3-tab parent mode
+      const isChildMode = parentalLockEnabled && mode === 'child'; // 2-tab child mode
+      
+      // 5-TAB MODE (No Parental Lock): Home → Media → Add Routines → Progress → Settings
+      if (showFloatingButton) {
+        if (pathname.includes('/settings')) {
+          router.push('/(tabs)/progress');
+          return true;
+        }
+        if (pathname.includes('/progress')) {
+          router.push('/(tabs)/addRoutines');
+          return true;
+        }
+        if (pathname.includes('/addRoutines')) {
+          router.push('/(tabs)/media');
+          return true;
+        }
+        if (pathname.includes('/media')) {
+          router.push('/(tabs)/home');
+          return true;
+        }
+      }
+      
+      // 3-TAB PARENT MODE: Add Routines → Progress → Settings
+      if (isParentMode) {
+        if (pathname.includes('/settings')) {
+          router.push('/(tabs)/progress');
+          return true;
+        }
+        if (pathname.includes('/progress')) {
+          router.push('/(tabs)/addRoutines');
+          return true;
+        }
+        if (pathname.includes('/addRoutines')) {
+          backToChildMode();
+          router.push('/(tabs)/home');
+          return true;
+        }
+      }
+      
+      // 2-TAB CHILD MODE: Home → Media
+      if (isChildMode) {
+        if (pathname.includes('/media')) {
+          router.push('/(tabs)/home');
+          return true;
+        }
+      }
+      
+      // For any other screen (modals, sub-pages), navigate back in the stack
+      if (router.canGoBack()) {
+        router.back();
+        return true; // Prevent default behavior
+      }
+      
+      // Fallback: show exit modal
+      setShowExitModal(true);
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [pathname, backToChildMode, mode, parentalLockEnabled, router, setShowExitModal]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const router = useRouter();
@@ -54,18 +147,8 @@ export default function RootLayout() {
     }
 
     // NavigationBar controls removed - install expo-navigation-bar if needed
+    // BackHandler is now managed by AppBackHandler component below
 
-    const backAction = () => {
-      setShowExitModal(true);
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction
-    );
-
-    return () => backHandler.remove();
   }, []);
 
 
@@ -149,6 +232,7 @@ export default function RootLayout() {
           try {
             const { data: userData, error: userError } = await supabase.auth.getUser();
             const childName = (userData?.user?.user_metadata as any)?.child_name;
+            const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
 
             if (userError) {
               isNavigatingRef.current = false;
@@ -156,7 +240,13 @@ export default function RootLayout() {
             }
 
             if (!childName) {
-              router.push('/policy');
+              // If user hasn't accepted terms yet, show policy page
+              // Otherwise, go directly to instruction
+              if (hasAcceptedTerms) {
+                router.push('/instruction');
+              } else {
+                router.push('/policy');
+              }
               setTimeout(() => {
                 isNavigatingRef.current = false;
               }, 600000);
@@ -211,6 +301,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ModeProvider>
         <OnboardingProvider>
+          <AppBackHandler showExitModal={showExitModal} setShowExitModal={setShowExitModal} />
           <Stack
             screenOptions={{
               headerShown: false,
