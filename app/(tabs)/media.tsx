@@ -4,18 +4,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
@@ -281,7 +281,6 @@ export default function Media() {
   useFocusEffect(
     React.useCallback(() => {
       setIsMediaPageFocused(true); // Mark page as focused
-      setShowDropdown(false); // Close dropdown when page comes into focus
       ParentalLockAuthService.onNavigateToPublicTab();
       checkMediaTimeLimit(); // This handles modal state based on lock status
       
@@ -784,16 +783,21 @@ export default function Media() {
       onPress={() => setShowDropdown(!showDropdown)}
     >
       <View style={styles.modeButtonContent}>
+        <Image 
+          source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
+          style={styles.modeButtonIcon}
+        />
         <Text style={styles.modeButtonText}>
           {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
         </Text>
+        {/* Optional: Add a small chevron icon here to indicate a dropdown */}
       </View>
     </TouchableOpacity>
 
           {showDropdown && (
             <View style={styles.dropdownMenu}>
               <TouchableOpacity 
-                style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
+                style={styles.dropdownItem}
                 onPress={() => {
                   setShowDropdown(false);
                   if (mode === 'child') {
@@ -803,10 +807,6 @@ export default function Media() {
                   }
                 }}
               >
-                <Image 
-                  source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
-                  style={styles.dropdownItemIcon}
-                />
                 <Text style={styles.dropdownItemText}>
                   {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
                 </Text>
@@ -1212,11 +1212,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   dropdownMenu: {
     position: 'absolute',
     top: '100%', // Sits right below the button
-    right: scale.scaleSpacing(0),
+    right: scale.scaleSpacing(20),
     backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
     borderRadius: 12,
-    paddingVertical: scale.scaleSpacing(3),
-    paddingHorizontal: scale.scaleSpacing(4),
+    padding: scale.scaleSpacing(8),
+    minWidth: 150,
     // Shadow for depth
     elevation: 5,
     shadowColor: '#000',
@@ -1225,19 +1225,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: 4,
   },
   dropdownItem: {
-    paddingVertical: scale.scaleSpacing(3),
-    paddingHorizontal: scale.scaleSpacing(4),
-  },
-  dropdownItemWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale.scaleSpacing(4),
-  },
-  dropdownItemIcon: {
-    width: scale.scaleWidth(20),
-    height: scale.scaleHeight(20),
-    resizeMode: 'contain',
-    tintColor: '#2F7C72',
+    padding: scale.scaleSpacing(10),
   },
   dropdownItemText: {
     color: '#2F7C72',

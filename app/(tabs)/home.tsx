@@ -336,9 +336,6 @@ export default function Home() {
 
   useFocusEffect(
     React.useCallback(() => {
-      // Close dropdown when page comes into focus
-      setShowDropdown(false);
-
       // Check if this is the first login and start onboarding if needed
       checkAndStartOnboardingIfFirstLogin();
       
@@ -1151,6 +1148,10 @@ export default function Home() {
                 onPress={() => setShowDropdown(!showDropdown)}
               >
                 <View style={styles.modeButtonContent}>
+                  <Image 
+                    source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
+                    style={styles.modeButtonIcon}
+                  />
                   <Text style={styles.modeButtonText}>
                     {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
                   </Text>
@@ -1160,7 +1161,7 @@ export default function Home() {
                     {showDropdown && (
                       <View style={styles.dropdownMenu}>
                         <TouchableOpacity 
-                          style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
+                          style={styles.dropdownItem}
                           onPress={() => {
                             setShowDropdown(false);
                             if (mode === 'child') {
@@ -1170,10 +1171,6 @@ export default function Home() {
                             }
                           }}
                         >
-                          <Image 
-                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
-                            style={styles.dropdownItemIcon}
-                          />
                           <Text style={styles.dropdownItemText}>
                             {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
                           </Text>
@@ -2047,11 +2044,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   dropdownMenu: {
     position: 'absolute',
     top: '100%', // Sits right below the button
-    right: scale.scaleSpacing(10),
+    right: scale.scaleSpacing(20),
     backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
     borderRadius: 12,
-    paddingVertical: scale.scaleSpacing(3),
-    paddingHorizontal: scale.scaleSpacing(4),
+    padding: scale.scaleSpacing(8),
+    minWidth: 150,
     // Shadow for depth
     elevation: 5,
     shadowColor: '#000',
@@ -2060,19 +2057,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: 4,
   },
   dropdownItem: {
-    paddingVertical: scale.scaleSpacing(3),
-    paddingHorizontal: scale.scaleSpacing(4),
-  },
-  dropdownItemWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale.scaleSpacing(4),
-  },
-  dropdownItemIcon: {
-    width: scale.scaleWidth(20),
-    height: scale.scaleHeight(20),
-    resizeMode: 'contain',
-    tintColor: '#2F7C72',
+    padding: scale.scaleSpacing(10),
   },
   dropdownItemText: {
     color: '#2F7C72',
@@ -2529,9 +2514,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   alertModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(18),
-    padding: scale.scaleSpacing(20),
-    width: "74%",
-    maxWidth: scale.scaleWidth(330),
+    padding: scale.scaleSpacing(18),
+    width: "82%",
+    maxWidth: scale.scaleWidth(420),
     maxHeight: "70%",
     alignItems: "center",
     shadowColor: "#000",
@@ -2539,7 +2524,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 8,
-    borderWidth: 1.5,
+    borderWidth: 3,
     borderColor: "#FFB3BA",
   },
   alertIconCircle: {
