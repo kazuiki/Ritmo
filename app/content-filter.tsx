@@ -487,7 +487,7 @@ const createStyles = ({
   },
   topBar: {
     marginTop: scaleSpacing(6),
-    marginBottom: scaleSpacing(18),
+    marginBottom: scaleSpacing(14),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

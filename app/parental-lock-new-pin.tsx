@@ -2,13 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
-  ImageBackground,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ImageBackground,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
 import { supabase } from "../src/supabaseClient";
@@ -412,7 +412,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignSelf: "flex-start",
     color: "#333",
     fontSize: scale.scaleFont(16),
-    marginBottom: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(8),
     textDecorationLine: "underline",
     fontFamily: "ITIM",
   },
