@@ -1,5 +1,6 @@
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
+import { supabase } from './supabaseClient';
 
 // Suppress remote notifications warning in expo go
 import { LogBox, Platform } from 'react-native';
@@ -31,6 +32,36 @@ class NotificationService {
   private isPlayingAlarm: boolean = false;
   private previewTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private async getChildNameForNotification(): Promise<string> {
+    try {
+      const { data } = await supabase.auth.getUser();
+      const childName = (data?.user?.user_metadata as any)?.child_name;
+      if (typeof childName === 'string' && childName.trim().length > 0) {
+        return childName.trim();
+      }
+    } catch (error) {
+      console.error('Error getting child name for notification:', error);
+    }
+    return 'Kid';
+  }
+
+  private getRoutineActionText(routineName: string): string {
+    const trimmed = routineName.trim();
+    if (!trimmed) return 'do your routine';
+
+    if (trimmed.toLowerCase() === 'brush my teeth') {
+      return 'brush your teeth';
+    }
+
+    return trimmed;
+  }
+
+  private async buildRoutineNotificationBody(routineName: string): Promise<string> {
+    const childName = await this.getChildNameForNotification();
+    const actionText = this.getRoutineActionText(routineName);
+    return `Hi ${childName}, It's time to ${actionText}!`;
+  }
 
   async initialize() {
   try {
@@ -120,10 +151,14 @@ class NotificationService {
   // display an immediate heads-up notification with stop button (foreground case)
   private async showHeadsUpForAlarm(routineName: string, ringtone: string) {
     try {
+      const body = routineName
+        ? await this.buildRoutineNotificationBody(routineName)
+        : undefined;
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '⏰ Routine Time!',
-          body: routineName ? `Time for: ${routineName}` : undefined,
+          body,
           data: {
             routineName,
             ringtone,
@@ -227,11 +262,12 @@ class NotificationService {
         const isFutureOrNow = offset > 0 || triggerDate.getTime() >= now.getTime();
         if (isMatchingDay && isFutureOrNow) {
           const secondsUntilTrigger = Math.max(1, Math.floor((triggerDate.getTime() - now.getTime()) / 1000));
+          const body = await this.buildRoutineNotificationBody(routine.routineName);
 
           const notificationId = await Notifications.scheduleNotificationAsync({
             content: {
               title: '⏰ Routine Time!',
-              body: `Time for: ${routine.routineName}`,
+              body,
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
@@ -333,7 +369,7 @@ class NotificationService {
     }
   }
 
-  // Play alarm sound for actual notification (12 seconds with auto-stop)
+  // Play alarm sound for actual notification (30 seconds with auto-stop)
   async playAlarmSound(ringtonePath: string = 'alarm1') {
     try {
       // Prevent multiple simultaneous alarms
@@ -349,9 +385,6 @@ class NotificationService {
       
       // Ensure alarm sound is fully cleared
       this.alarmSound = null;
-      
-      // Small delay to ensure previous sound is fully unloaded
-      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
@@ -384,13 +417,13 @@ class NotificationService {
       
       this.alarmSound = sound;
 
-      // Force stop after exactly 12 seconds
+      // Force stop after exactly 30 seconds
       this.alarmTimeout = setTimeout(async () => {
         await this.stopAlarmSound();
         this.isPlayingAlarm = false;
-      }, 12000);
+      }, 30000);
 
-      console.log('⏰ Playing alarm sound (12 seconds, no loop)');
+      console.log('⏰ Playing alarm sound (30 seconds, no loop)');
     } catch (error) {
       console.error('Error playing alarm sound:', error);
       this.isPlayingAlarm = false;
@@ -419,9 +452,6 @@ class NotificationService {
         }
         this.sound = null;
       }
-
-      // Minimal delay to ensure clean audio state
-      await new Promise(resolve => setTimeout(resolve, 10));
 
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {

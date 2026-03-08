@@ -1,9 +1,9 @@
 import {
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
@@ -25,15 +25,15 @@ export default function NetworkFailureModal({ visible, onRetry }: NetworkFailure
       backgroundColor: "#FFFFFF",
       borderRadius: scale.scaleBorderRadius(18),
       padding: scale.scaleSpacing(20),
-      width: "85%",
-      maxWidth: scale.scaleWidth(420),
+      width: "74%",
+      maxWidth: scale.scaleWidth(330),
       alignItems: "center",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: scale.scaleHeight(4) },
       shadowOpacity: 0.25,
       shadowRadius: scale.scaleSpacing(12),
       elevation: 10,
-      borderWidth: 3,
+      borderWidth: 1.5,
       borderColor: "#FF6B7A",
     },
     iconCircle: {
