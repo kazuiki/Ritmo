@@ -3,16 +3,16 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  ImageBackground,
-  Modal,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Vibration,
-  View
+    Animated,
+    ImageBackground,
+    Modal,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Vibration,
+    View
 } from "react-native";
 import ParentalLockOnboardingTour from "../src/components/ParentalLockOnboardingTour";
 import { useMode } from "../src/contexts/ModeContext";
@@ -355,7 +355,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     paddingTop: scale.scaleSpacing(60),
   },
   backButton: {
-    marginBottom: scale.scaleSpacing(30),
+    marginBottom: scale.scaleSpacing(26),
   },
   backButtonText: {
     fontSize: scale.scaleFont(18),
