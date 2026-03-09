@@ -1,9 +1,9 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -12,20 +12,20 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -865,7 +865,7 @@ export default function Settings() {
           <View style={styles.logoutModalContainer}>
             <View style={styles.logoutIconCircle}>
               <Image
-                source={require("../../assets/images/Error.png")}
+                source={require("../../assets/images/Logout.png")}
                 style={styles.logoutIcon}
               />
             </View>
@@ -2144,16 +2144,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   logoutModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(20),
-    padding: scale.scaleSpacing(24),
-    width: "80%",
-    maxWidth: scale.scaleWidth(360),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: scale.scaleHeight(4) },
     shadowOpacity: 0.2,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#FFB3BA",
   },
   logoutIconCircle: {
@@ -2231,16 +2231,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   errorModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(20),
-    padding: scale.scaleSpacing(24),
-    width: "75%",
-    maxWidth: scale.scaleWidth(340),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: scale.scaleHeight(4) },
     shadowOpacity: 0.2,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#FFB3BA",
   },
   errorIconCircle: {
@@ -2300,16 +2300,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   successPasswordModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(20),
-    padding: scale.scaleSpacing(24),
-    width: "70%",
-    maxWidth: scale.scaleWidth(320),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: scale.scaleHeight(4) },
     shadowOpacity: 0.2,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#9FD19E",
   },
   successPasswordIconCircle: {
