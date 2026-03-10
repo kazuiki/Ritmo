@@ -24,7 +24,7 @@ class GodotHostActivity(
     }
     
     override fun getHostPlugins(godot: Godot): MutableSet<GodotPlugin> {
-        return mutableSetOf()
+        return mutableSetOf(RitmoPlugin(godot))
     }
     
     override fun getCommandLine(): List<String> {

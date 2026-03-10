@@ -1,6 +1,7 @@
 package expo.modules.godotview
 
 import android.app.Activity
+import android.content.Intent
 import org.godotengine.godot.Godot
 import org.godotengine.godot.plugin.GodotPlugin
 import org.godotengine.godot.plugin.UsedByGodot
@@ -42,13 +43,7 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun goBack() {
         activity?.runOnUiThread {
-            val currentActivity = activity
-            if (currentActivity is RitmoGodotActivity) {
-                currentActivity.exitGame(Activity.RESULT_CANCELED)
-            } else {
-                currentActivity?.setResult(Activity.RESULT_CANCELED)
-                currentActivity?.finish()
-            }
+            finishWithResult(Activity.RESULT_CANCELED)
         }
     }
 
@@ -60,13 +55,22 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun gameCompleted() {
         activity?.runOnUiThread {
-            val currentActivity = activity
-            if (currentActivity is RitmoGodotActivity) {
-                currentActivity.exitGame(Activity.RESULT_OK)
-            } else {
-                currentActivity?.setResult(Activity.RESULT_OK)
-                currentActivity?.finish()
-            }
+            finishWithResult(Activity.RESULT_OK)
         }
+    }
+
+    private fun finishWithResult(resultCode: Int) {
+        val currentActivity = activity ?: return
+        if (currentActivity is RitmoGodotActivity) {
+            currentActivity.exitGame(resultCode)
+            return
+        }
+
+        val resultIntent = Intent().apply {
+            putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
+            putExtra("ritmo_result_code", resultCode)
+        }
+        currentActivity.setResult(resultCode, resultIntent)
+        currentActivity.finish()
     }
 }
