@@ -32,6 +32,8 @@ class NotificationService {
   private isPlayingAlarm: boolean = false;
   private previewTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
+  private alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private lastTriggeredRoutineId: number | null = null;
 
   private async getChildNameForNotification(): Promise<string> {
     try {
@@ -112,12 +114,15 @@ class NotificationService {
     // This listener handles sound ONLY when the app is OPEN (Foreground)
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
       const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
-      const routineName = notification.request.content.data?.routineName as string || '';
-      // show a heads-up notification with stop action even when the app is foreground
-      await this.showHeadsUpForAlarm(routineName, ringtone);
-      // When app is open, we can still use your custom JS logic for 12-second stop
+      const routineId = notification.request.content.data?.routineId as number;
+      // Play alarm sound when notification arrives and app is open
+      // NOTE: Don't call showHeadsUpForAlarm() here as it would create duplicate notifications
+      this.lastTriggeredRoutineId = routineId;
       await this.playAlarmSound(ringtone);
     });
+
+    // Start a periodic check for alarms (every 5 seconds) to catch missed notifications
+    this.startAlarmCheckInterval();
 
     // 4. Audio Engine Configuration
     await Audio.setAudioModeAsync({
@@ -132,7 +137,13 @@ class NotificationService {
       const actionId = response.actionIdentifier;
 
       if (actionId === 'stop-alarm') {
-        this.stopAlarmSound(); // Stops the music you started in the other listener
+        this.stopAlarmSound(); // Stops the alarm sound
+        // Also dismiss the notification that triggered this
+        try {
+          Notifications.dismissNotificationAsync(response.notification.request.identifier);
+        } catch (error) {
+          console.error('Error dismissing notification:', error);
+        }
       }
     });
 
@@ -403,7 +414,8 @@ class NotificationService {
         'alarm17': require('../assets/ringtone/alarm17.mp3'),
       };
 
-      const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
+      const soundFileKey = ringtoneMap[ringtonePath] ? ringtonePath : 'alarm1';
+      const soundFile = ringtoneMap[soundFileKey];
 
       // Load the sound WITHOUT looping (we'll handle duration with timeout)
       const { sound } = await Audio.Sound.createAsync(
@@ -647,6 +659,87 @@ class NotificationService {
     if (this.notificationListener) {
       this.notificationListener.remove();
       this.notificationListener = null;
+    }
+    this.stopAlarmCheckInterval();
+  }
+
+  // Start periodic check for alarms (in case notification listener misses them)
+  private startAlarmCheckInterval() {
+    // Clear any existing interval
+    this.stopAlarmCheckInterval();
+
+    // Check every 5 seconds if it's time to trigger an alarm
+    this.alarmCheckInterval = setInterval(async () => {
+      await this.checkAndTriggerAlarms();
+    }, 5000);
+
+    console.log('🔔 Alarm check interval started (every 5 seconds)');
+  }
+
+  // Stop the alarm check interval
+  private stopAlarmCheckInterval() {
+    if (this.alarmCheckInterval) {
+      clearInterval(this.alarmCheckInterval);
+      this.alarmCheckInterval = null;
+    }
+  }
+
+  // Check if current time matches any routine and trigger alarm if needed
+  private async checkAndTriggerAlarms() {
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const stored = await AsyncStorage.getItem("@routines");
+      if (!stored) return;
+
+      const routines = JSON.parse(stored);
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+
+      for (const routine of routines) {
+        // Parse routine time
+        const timeParts = routine.time.split(' ');
+        const [hourStr, minuteStr] = timeParts[0].split(':');
+        const period = timeParts[1].toLowerCase();
+
+        let hour = parseInt(hourStr, 10);
+        const minute = parseInt(minuteStr, 10);
+
+        // Convert to 24-hour format
+        if (period === 'pm' && hour !== 12) {
+          hour += 12;
+        } else if (period === 'am' && hour === 12) {
+          hour = 0;
+        }
+
+        // Check if current time matches routine time (within 1 minute window)
+        const isTimeMatch = currentHour === hour && Math.abs(currentMinute - minute) <= 1;
+
+        // Check if today is a selected day
+        const selectedDays = Array.isArray(routine.days) ? routine.days : [0, 1, 2, 3, 4, 5, 6];
+        const isDayMatch = selectedDays.includes(now.getDay());
+
+        // Don't trigger same routine twice
+        const alreadyTriggered = this.lastTriggeredRoutineId === routine.id;
+
+        if (isTimeMatch && isDayMatch && !alreadyTriggered && !this.isPlayingAlarm) {
+          console.log(`⏰ Triggering alarm for routine: ${routine.name} at ${hour}:${minute}`);
+          this.lastTriggeredRoutineId = routine.id;
+          const ringtone = routine.ringtone;
+          if (ringtone) {
+            await this.playAlarmSound(ringtone);
+          }
+          
+          // Reset after 2 minutes to allow re-trigger if user closes and reopens app
+          setTimeout(() => {
+            if (this.lastTriggeredRoutineId === routine.id) {
+              this.lastTriggeredRoutineId = null;
+            }
+          }, 120000);
+        }
+      }
+    } catch (error) {
+      // Silently fail - this is just a safety check
     }
   }
 }
