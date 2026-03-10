@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProgressOnboarding } from "../../src/components";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
+import { readProgressCache, readRoutinesCache } from "../../src/offline/offlineData";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { saveWeeklyPerformanceReportPdf } from "../../src/utils/pdf";
@@ -277,6 +278,47 @@ export default function Progress() {
 					const { data: sessionData } = await supabase.auth.getSession();
 					const resolvedUserId = sessionData?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
 					if (!resolvedUserId) return;
+
+					// Hydrate from JSON cache first so the screen renders instantly online/offline.
+					try {
+						const [cachedRoutines, cachedProgress] = await Promise.all([
+							readRoutinesCache(resolvedUserId),
+							readProgressCache(resolvedUserId),
+						]);
+
+						const storageKey = `@routines_${resolvedUserId}`;
+						const stored = await AsyncStorage.getItem(storageKey);
+						const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
+						const storedMap = new Map(storedRoutines.map(r => [r.id, r]));
+
+						if (cachedRoutines.length > 0) {
+							const routinesWithDays: RoutineWithDays[] = cachedRoutines.map(routine => {
+								const storedRoutine = storedMap.get(routine.id);
+								return {
+									...routine,
+									days: storedRoutine?.days || [0,1,2,3,4,5,6]
+								};
+							});
+							setRoutines(routinesWithDays);
+						}
+
+						if (cachedProgress.length > 0) {
+							const from = weekInfo.weekDates[0];
+							const to = weekInfo.weekDates[6];
+							const weekly = cachedProgress
+								.filter((row) => row.day_date >= from && row.day_date <= to)
+								.sort((a, b) => a.day_date.localeCompare(b.day_date));
+							setProgressData(weekly);
+
+							const earliestMap: Record<number, string> = {};
+							for (const row of [...cachedProgress].sort((a, b) => a.day_date.localeCompare(b.day_date))) {
+								if (!earliestMap[row.routine_id]) {
+									earliestMap[row.routine_id] = row.day_date;
+								}
+							}
+							setEarliestProgressByRoutine(earliestMap);
+						}
+					} catch {}
 
 					if (sessionData?.session?.user?.id) {
 						await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionData.session.user.id);

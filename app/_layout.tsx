@@ -10,13 +10,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ModeProvider, useMode } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
-import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
 import { startOfflineInfrastructure } from "../src/offline";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
 import { isNetworkConnected, setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
-import NetworkFailureModal from "./components/NetworkFailureModal";
 
 const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 
@@ -136,8 +134,6 @@ export default function RootLayout() {
   const pathname = usePathname();
   const segments = useSegments();
 
-  const shouldEnforceNetworkModal = pathname?.startsWith('/auth') ?? false;
-  const { showNetworkFailureModal, handleRetry } = useNetworkFailure({ enabled: shouldEnforceNetworkModal });
   const [showExitModal, setShowExitModal] = useState(false);
 
   useEffect(() => {
@@ -224,7 +220,6 @@ export default function RootLayout() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
       const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
-      const isCurrentlyOnline = await isNetworkConnected();
 
       if (sessionError && isInvalidRefreshToken(sessionError)) {
         await supabase.auth.signOut();
@@ -249,7 +244,8 @@ export default function RootLayout() {
         }
 
         // Offline fallback: keep user logged in locally when they did not manually log out.
-        if (!session && !wasManualLogout && !isCurrentlyOnline && cachedUserId) {
+        if (!session && !wasManualLogout && cachedUserId) {
+          const isCurrentlyOnline = await isNetworkConnected();
           if (
             (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') &&
             !hasRedirectedRef.current
@@ -292,6 +288,11 @@ export default function RootLayout() {
           try {
             let childName = (session?.user?.user_metadata as any)?.child_name;
             let hasAcceptedTerms = (session?.user?.user_metadata as any)?.has_accepted_terms;
+            let isCurrentlyOnline = true;
+
+            if (childName === undefined || hasAcceptedTerms === undefined) {
+              isCurrentlyOnline = await isNetworkConnected();
+            }
 
             // If metadata is incomplete and online, refresh user profile from Supabase.
             if ((childName === undefined || hasAcceptedTerms === undefined) && isCurrentlyOnline) {
@@ -407,12 +408,6 @@ export default function RootLayout() {
             />
             {/* Auth and other routes inherit defaults */}
           </Stack>
-
-          {/* Global Network Failure Modal */}
-          <NetworkFailureModal 
-            visible={showNetworkFailureModal} 
-            onRetry={handleRetry} 
-          />
 
           {/* Exit Confirmation Modal */}
           <Modal

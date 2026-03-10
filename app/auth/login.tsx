@@ -24,7 +24,6 @@ import {
 } from "react-native";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
-import NetworkFailureModal from "../components/NetworkFailureModal";
 
 /* -------------------------
    Responsive helpers (Option B)
@@ -609,11 +608,6 @@ export default function Login() {
         </View>
       </Modal>
 
-      {/* Network Failure Modal */}
-      <NetworkFailureModal 
-        visible={localNetworkFailure} 
-        onRetry={handleLocalNetworkRetry} 
-      />
     </ImageBackground>
   );
 }

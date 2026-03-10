@@ -12,6 +12,29 @@ import { createPendingOperation, enqueueOperation } from "./offline/offlineQueue
 import { supabase } from "./supabaseClient";
 
 const LAST_USER_ID_KEY = "@ritmo_last_user_id";
+const NETWORK_TIMEOUT_MS = 5000;
+const CACHED_FALLBACK_TIMEOUT_MS = 1400;
+
+function getRequestTimeoutMs(hasCachedData: boolean): number {
+  return hasCachedData ? CACHED_FALLBACK_TIMEOUT_MS : NETWORK_TIMEOUT_MS;
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error("Network request timeout")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
 
 export type RoutineInsert = {
   name: string;
@@ -272,6 +295,7 @@ export async function getUserProgressForRange(params: {
   const userId = await getCurrentUserId();
   const from = toDateOnly(params.from);
   const to = toDateOnly(params.to);
+  const cached = await readProgressCache(userId);
 
   if (isOnline()) {
     try {
@@ -285,7 +309,10 @@ export async function getUserProgressForRange(params: {
 
       if (params.routineId) q = q.eq("routine_id", params.routineId);
 
-      const { data, error } = await q;
+      const { data, error } = await withTimeout(
+        q,
+        getRequestTimeoutMs(cached.length > 0)
+      );
       if (error) throw error;
       const serverRows = (data ?? []) as RoutineProgress[];
       await writeProgressCache(userId, serverRows);
@@ -294,7 +321,7 @@ export async function getUserProgressForRange(params: {
         return serverRows;
       }
 
-      const cachedRange = (await readProgressCache(userId))
+      const cachedRange = cached
         .filter((row) => row.day_date >= from && row.day_date <= to)
         .filter((row) => (params.routineId ? row.routine_id === params.routineId : true))
         .sort((a, b) => a.day_date.localeCompare(b.day_date));
@@ -309,7 +336,6 @@ export async function getUserProgressForRange(params: {
     }
   }
 
-  const cached = await readProgressCache(userId);
   return cached
     .filter((row) => row.day_date >= from && row.day_date <= to)
     .filter((row) => (params.routineId ? row.routine_id === params.routineId : true))
@@ -319,15 +345,17 @@ export async function getUserProgressForRange(params: {
 export async function getRoutinesForCurrentUser(params?: { includeInactive?: boolean }): Promise<Routine[]> {
   const includeInactive = params?.includeInactive ?? false;
   const userId = await getCurrentUserId();
+  const cached = await readRoutinesCache(userId);
 
   if (isOnline()) {
     try {
-      const cached = await readRoutinesCache(userId);
-
-      const { data: links, error: linkErr } = await supabase
-        .from("user_routine_progress")
-        .select("routine_id")
-        .eq("user_id", userId);
+      const { data: links, error: linkErr } = await withTimeout(
+        supabase
+          .from("user_routine_progress")
+          .select("routine_id")
+          .eq("user_id", userId),
+        getRequestTimeoutMs(cached.length > 0)
+      );
       if (linkErr) throw linkErr;
 
       const ids = Array.from(new Set((links ?? []).map((r: any) => r.routine_id))).filter(
@@ -349,7 +377,10 @@ export async function getRoutinesForCurrentUser(params?: { includeInactive?: boo
         .order("id", { ascending: true });
       if (!includeInactive) q = q.eq("is_active", true);
 
-      const { data, error } = await q;
+      const { data, error } = await withTimeout(
+        q,
+        getRequestTimeoutMs(cached.length > 0)
+      );
       if (error) throw error;
       const serverRows = (data ?? []) as Routine[];
       await writeRoutinesCache(userId, serverRows);
@@ -368,7 +399,6 @@ export async function getRoutinesForCurrentUser(params?: { includeInactive?: boo
     }
   }
 
-  const cached = await readRoutinesCache(userId);
   return includeInactive ? cached : cached.filter((item) => item.is_active);
 }
 

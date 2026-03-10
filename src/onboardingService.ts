@@ -22,6 +22,29 @@ export interface OnboardingPreferences {
 }
 
 const CACHE_KEY_PREFIX = "@ritmo_onboarding_cache_";
+const NETWORK_TIMEOUT_MS = 4500;
+const CACHED_FALLBACK_TIMEOUT_MS = 1200;
+
+function getRequestTimeoutMs(hasCachedData: boolean): number {
+  return hasCachedData ? CACHED_FALLBACK_TIMEOUT_MS : NETWORK_TIMEOUT_MS;
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error("Network request timeout")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
 
 function buildDefaultPreferences(userId: string): OnboardingPreferences {
   return {
@@ -75,11 +98,14 @@ export async function getOnboardingPreferences(userId: string): Promise<Onboardi
 
   if (isOnline()) {
     try {
-      const { data, error } = await supabase
-        .from("user_onboarding_preferences")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from("user_onboarding_preferences")
+          .select("*")
+          .eq("user_id", userId)
+          .single(),
+        getRequestTimeoutMs(Boolean(cached))
+      );
 
       if (error) {
         if (error.code === "PGRST116") {
@@ -123,12 +149,15 @@ export async function updateOnboardingStatus(
 
     if (isOnline()) {
       try {
-        const { data, error } = await supabase
-          .from("user_onboarding_preferences")
-          .update({ [field]: completed, updated_at: updatedAt })
-          .eq("user_id", userId)
-          .select("*")
-          .single();
+        const { data, error } = await withTimeout(
+          supabase
+            .from("user_onboarding_preferences")
+            .update({ [field]: completed, updated_at: updatedAt })
+            .eq("user_id", userId)
+            .select("*")
+            .single(),
+          NETWORK_TIMEOUT_MS
+        );
 
         if (error) throw error;
         await writeAllCaches(userId, data as OnboardingPreferences);
@@ -180,12 +209,15 @@ export async function resetAllOnboardingPreferences(userId: string): Promise<boo
 
     if (isOnline()) {
       try {
-        const { data, error } = await supabase
-          .from("user_onboarding_preferences")
-          .update(resetPayload)
-          .eq("user_id", userId)
-          .select("*")
-          .single();
+        const { data, error } = await withTimeout(
+          supabase
+            .from("user_onboarding_preferences")
+            .update(resetPayload)
+            .eq("user_id", userId)
+            .select("*")
+            .single(),
+          NETWORK_TIMEOUT_MS
+        );
 
         if (error) throw error;
         await writeAllCaches(userId, data as OnboardingPreferences);
