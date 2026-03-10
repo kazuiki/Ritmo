@@ -2,6 +2,7 @@ package expo.modules.godotview
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.fragment.app.FragmentActivity
@@ -40,7 +41,7 @@ class ExpoGodotView(context: Context, appContext: AppContext) : ExpoView(context
         // Create GodotFragment with command line arguments in Bundle
         godotFragment = GodotFragment()
         val args = Bundle()
-        args.putStringArray("command_line_params", arrayOf("--rendering-driver", "opengl3"))
+        args.putStringArray("command_line_params", buildCommandLineParams())
         godotFragment!!.arguments = args
         
         activity.runOnUiThread {
@@ -57,6 +58,32 @@ class ExpoGodotView(context: Context, appContext: AppContext) : ExpoView(context
       e.printStackTrace()
       android.util.Log.e("ExpoGodotView", "Failed to initialize Godot: ${e.message}", e)
     }
+  }
+
+  private fun buildCommandLineParams(): Array<String> {
+    val params = mutableListOf("--path", "/android_asset")
+    resolveMainPackPath()?.let {
+      params.add("--main-pack")
+      params.add(it)
+    }
+    if (!params.contains("--main-pack")) {
+      Log.w("ExpoGodotView", "No main pack detected in assets; Godot may fail to start")
+    }
+    Log.i("ExpoGodotView", "Godot args: $params")
+    return params.toTypedArray()
+  }
+
+  private fun resolveMainPackPath(): String? {
+    val candidates = listOf("Ritmo.pck", "main.pck", "data.pck", "assets.sparsepck")
+    for (candidate in candidates) {
+      try {
+        context.assets.open(candidate).close()
+        return "/android_asset/$candidate"
+      } catch (_: Exception) {
+        // Continue to next candidate.
+      }
+    }
+    return null
   }
 
   private fun dispatchEvent(eventName: String, params: Map<String, Any>) {

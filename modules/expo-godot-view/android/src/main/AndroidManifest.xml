@@ -1,17 +1,37 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <meta-data
+            android:name="org.godotengine.rendering.method"
+            android:value="mobile" />
+        <meta-data
+            android:name="org.godotengine.editor.version"
+            android:value="4.6.stable" />
+        <meta-data
+            android:name="org.godotengine.library.version"
+            android:value="4.6.0.stable" />
+
         <activity
             android:name=".RitmoGodotActivity"
             android:exported="true"
+            android:process=":godot"
+            android:excludeFromRecents="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode|density"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:launchMode="standard"
-            android:noHistory="true"
-            android:excludeFromRecents="true"
-            android:process=":godot"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            android:noHistory="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".RitmoGodotActivityLauncher"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

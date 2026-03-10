@@ -334,6 +334,21 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  const ensureRoutineCompleted = useCallback(async (id: number) => {
+    try {
+      await setRoutineCompleted({
+        routineId: id,
+        completed: true,
+        dayDate: new Date(),
+      });
+    } catch (error) {
+      console.error('Failed to persist completed routine:', error);
+    }
+
+    setRoutines(prev => prev.map(r => (r.id === id ? { ...r, completed: true } : r)));
+    setCompletedOrder(prev => (prev.includes(id) ? prev : [...prev, id]));
+  }, []);
+
   useFocusEffect(
     React.useCallback(() => {
       // Close dropdown when page comes into focus
@@ -346,18 +361,31 @@ export default function Home() {
       setIsCheckingCompletion(true);
       
       // Immediately check if we returned from a finished minigame so we can show Success first
-      AsyncStorage.getItem('@minigameCompleted').then(completed => {
+      AsyncStorage.multiGet(['@minigameCompleted', '@minigameRoutineId']).then(async (entries) => {
+        const completed = entries[0]?.[1];
+        const routineIdRaw = entries[1]?.[1];
+        const routineIdFromStorage = routineIdRaw ? Number(routineIdRaw) : null;
+        const resolvedRoutineId = activeRoutineId ?? (routineIdFromStorage && !Number.isNaN(routineIdFromStorage) ? routineIdFromStorage : null);
+
         if (completed === 'true') {
           minigameStartedRef.current = false;
 
-          // Close any modal stacks and surface the Success modal right away
+          if (resolvedRoutineId) {
+            setActiveRoutineId(resolvedRoutineId);
+          }
+
+          // Surface the success modal immediately; persist completion in background.
           setTaskModalVisible(false);
           setPlaybookModalVisible(false);
           setSuccessModalVisible(true);
           setShowRainingStars(true);
 
-          // Clear the flag for next time
-          AsyncStorage.removeItem('@minigameCompleted');
+          if (resolvedRoutineId) {
+            ensureRoutineCompleted(resolvedRoutineId);
+          }
+
+          // Clear return flags for next time
+          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
 
           // Detect replay mode if we still know the active routine
           if (activeRoutineId) {
@@ -372,6 +400,7 @@ export default function Home() {
         } else {
           // User clicked back early - just reset the flag
           minigameStartedRef.current = false;
+          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
         }
         
         // Clear loading state after check completes
@@ -387,7 +416,7 @@ export default function Home() {
 
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
-    }, [activeRoutineId, parentalLockEnabled])
+    }, [activeRoutineId, parentalLockEnabled, ensureRoutineCompleted])
   );
 
   const toggleComplete = async (id: number) => {
@@ -1435,7 +1464,7 @@ export default function Home() {
 
                   <TouchableOpacity
                     style={styles.taskItem}
-                    onPress={() => {
+                    onPress={async () => {
                       if (!activePreset) return;
 
                       const path = miniGames[activePreset.id];
@@ -1448,7 +1477,11 @@ export default function Home() {
                       }
 
                       minigameStartedRef.current = true;
-                      router.push(path as any);
+                      if (activeRoutineId) {
+                        await AsyncStorage.setItem('@minigameRoutineId', String(activeRoutineId));
+                      }
+                      const targetPath = activeRoutineId ? `${path}?routineId=${activeRoutineId}` : path;
+                      router.push(targetPath as any);
                     }}
                   >
                     <Image 
@@ -1842,12 +1875,12 @@ export default function Home() {
             {/* Next Button */}
             <TouchableOpacity
               style={styles.successNextButton}
-              onPress={() => {
+              onPress={async () => {
                 if (activeRoutineId && !isReplayMode) {
-                  toggleComplete(activeRoutineId);
+                  await ensureRoutineCompleted(activeRoutineId);
                 }
                 setSuccessModalVisible(false);
-                setShowRainingStars(true);
+                setShowRainingStars(false);
                 setActiveRoutineId(null);
                 setIsReplayMode(false);
               }}
