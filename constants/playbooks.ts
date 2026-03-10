@@ -7,6 +7,11 @@ export interface PlaybookStep {
 export interface Playbook {
   title: string;
   steps: PlaybookStep[]; // 4 steps
+  timer?: {
+    duration: number; // in seconds
+    visible: boolean;
+    position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  };
 }
 
 // Static map of available voiceover files. Metro requires static require paths.
@@ -47,6 +52,11 @@ const VOICEOVERS: Record<string, any> = {
   'schoolStep2.mp3': require('../assets/voiceover/schoolStep2.mp3'),
   'schoolStep3.mp3': require('../assets/voiceover/schoolStep3.mp3'),
   'schoolStep4.mp3': require('../assets/voiceover/schoolStep4.mp3'),
+  // Sweep the Floor
+  'sweepStep1.mp3': require('../assets/voiceover/sweepStep1.mp3'),
+  'sweepStep2.mp3': require('../assets/voiceover/sweepStep2.mp3'),
+  'sweepStep3.mp3': require('../assets/voiceover/sweepStep3.mp3'),
+  'sweepStep4.mp3': require('../assets/voiceover/sweepStep4.mp3'),
 };
 
 // Helper to return audio module if mapped; otherwise undefined
@@ -56,6 +66,11 @@ const getAudioIfExists = (filename: string) => VOICEOVERS[filename];
 export const PLAYBOOKS: Record<number, Playbook> = {
   1: {
     title: 'Brush My Teeth',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Get your toothbrush and toothpaste', 
@@ -81,6 +96,11 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   },
   2: {
     title: "Let's Eat",
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Food has been prepared', 
@@ -106,6 +126,11 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   },
   3: {
     title: 'Bath Time',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Prepare for bath', 
@@ -131,6 +156,11 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   },
   4: {
     title: 'Dress Up Time',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Put on clean underwear and undershirt', 
@@ -156,6 +186,11 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   },
   5: {
     title: 'Go to School',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Get dressed and freshen up', 
@@ -181,6 +216,11 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   },
   6: {
     title: 'Bedtime Prep',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Prepare to change into pajamas', 
@@ -206,6 +246,11 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   },
   7: {
     title: 'Go to Sleep',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
     steps: [
       { 
         label: 'Get comfy in bed with a fun book', 
