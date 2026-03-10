@@ -14,7 +14,7 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
+import { getPresetById, Preset, PRESETS, resolveRoutinePreset } from "../../constants/presets";
 import AddRoutineModalOnboarding from "../../src/components/AddRoutineModalOnboarding";
 import AddRoutineOnboardingTour from "../../src/components/AddRoutineOnboardingTour";
 import RoutinePresetOnboarding from "../../src/components/RoutinePresetOnboarding";
@@ -35,6 +35,23 @@ interface Routine {
     ringtone?: string;
     days?: number[]; // 0=Sun..6=Sat
 }
+
+const isExpectedOfflineError = (error: unknown): boolean => {
+    const message = String((error as any)?.message ?? error ?? '').toLowerCase();
+    const name = String((error as any)?.name ?? '').toLowerCase();
+    return (
+        message.includes('network request failed') ||
+        message.includes('fetch failed') ||
+        name === 'typeerror' ||
+        name === 'authretryablefetcherror'
+    );
+};
+
+const logIfUnexpected = (label: string, error: unknown) => {
+    if (!isExpectedOfflineError(error)) {
+        console.error(label, (error as any)?.message || error);
+    }
+};
 
 const ITEM_HEIGHT = 48;
 
@@ -117,6 +134,21 @@ export default function addRoutines() {
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
     const [duplicateRoutineModalVisible, setDuplicateRoutineModalVisible] = useState(false);
+
+    const getStorageKeyForCurrentUser = async (): Promise<string | null> => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const sessionUserId = sessionData?.session?.user?.id;
+        if (sessionUserId) {
+            return `@routines_${sessionUserId}`;
+        }
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            return user ? `@routines_${user.id}` : null;
+        } catch {
+            return null;
+        }
+    };
 
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
@@ -335,14 +367,11 @@ export default function addRoutines() {
 
     const loadRoutinesFromDb = async () => {
         try {
-            // Get current user to use user-specific storage key
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
+            const storageKey = await getStorageKeyForCurrentUser();
+            if (!storageKey) {
                 setRoutines([]);
                 return;
             }
-
-            const storageKey = `@routines_${user.id}`;
 
             // Load from AsyncStorage first (has days/ringtone)
             const stored = await AsyncStorage.getItem(storageKey);
@@ -358,11 +387,13 @@ export default function addRoutines() {
             const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [r.id, r]));
             const merged: Routine[] = dbRoutines.map(dbR => {
                 const existing = storedMap.get(dbR.id) as Routine | undefined;
+                const derivedPresetId = existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
                 return {
                     id: dbR.id,
                     name: dbR.name,
                     time: dbR.time,
-                    imageUrl: dbR.imageUrl,
+                    imageUrl: existing?.imageUrl ?? null,
+                    presetId: derivedPresetId,
                     ringtone: existing?.ringtone || 'alarm1',
                     days: existing?.days || [0,1,2,3,4,5,6],
                 };
@@ -373,7 +404,7 @@ export default function addRoutines() {
         } catch (error: any) {
             // Silently handle authentication errors - user may not be logged in yet
             if (error?.message !== 'Not authenticated') {
-                console.error("Failed to load routines from Supabase:", error);
+                logIfUnexpected("Failed to load routines from Supabase:", error);
             }
         }
     };
@@ -455,7 +486,7 @@ export default function addRoutines() {
         setRoutineName(routine.name);
         setSelectedRingtone(routine.ringtone);
         // Get presetId from imageUrl stored in database, or fallback to presetId field
-        const preset = getPresetByImageUrl(routine.imageUrl);
+        const preset = resolveRoutinePreset(routine);
         setSelectedPresetId(preset?.id ?? routine.presetId ?? null);
         setSelectedDays(routine.days ?? ALL_DAYS);
         
@@ -515,6 +546,7 @@ export default function addRoutines() {
             } else {
                 // Get imageUrl from selected preset
                 const imageUrlToSave = selectedPreset?.imageUrl || null;
+                const presetIdToSave = selectedPreset?.id ?? null;
                 
                 createRoutineForCurrentUser({
                     name: routineName,
@@ -522,11 +554,11 @@ export default function addRoutines() {
                     is_active: true,
                     time: routineTime,
                     imageUrl: imageUrlToSave,
+                    presetId: presetIdToSave,
                 })
                 .then(async (created) => {
                     // Add to local storage with days/ringtone
-                    const { data: { user } } = await supabase.auth.getUser();
-                    const storageKey = user ? `@routines_${user.id}` : '@routines';
+                    const storageKey = (await getStorageKeyForCurrentUser()) ?? '@routines';
                     const stored = await AsyncStorage.getItem(storageKey);
                     const existing: Routine[] = stored ? JSON.parse(stored) : [];
                     const newRoutine: Routine = {
@@ -534,6 +566,7 @@ export default function addRoutines() {
                         name: routineName,
                         time: routineTime,
                         imageUrl: imageUrlToSave,
+                        presetId: presetIdToSave,
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     };
@@ -551,7 +584,7 @@ export default function addRoutines() {
                     closeModal();
                     setAddSuccessVisible(true);
                 })
-                .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
+                .catch(err => logIfUnexpected('Supabase createRoutine error:', err));
             }
         } else if (!editingRoutineId) {
             // Only close modal for Add (no editing), Edit has its own close in confirmation
@@ -576,8 +609,7 @@ export default function addRoutines() {
                 await deleteRoutine(editingRoutineId);
                 
                 // Remove from local storage
-                const { data: { user } } = await supabase.auth.getUser();
-                const storageKey = user ? `@routines_${user.id}` : '@routines';
+                const storageKey = (await getStorageKeyForCurrentUser()) ?? '@routines';
                 const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
                 const filtered = existing.filter(r => r.id !== editingRoutineId);
@@ -590,7 +622,7 @@ export default function addRoutines() {
                 // Show success modal
                 setDeleteSuccessVisible(true);
             } catch (err: any) {
-                console.error('Error deleting routine:', err?.message || err);
+                logIfUnexpected('Error deleting routine:', err);
                 Alert.alert('Error', 'Failed to delete routine. Please try again.');
             }
         }
@@ -640,16 +672,17 @@ export default function addRoutines() {
             const selectedPreset = getPresetById(selectedPresetId);
             const current = routines.find(r => r.id === editingRoutineId);
             const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
+            const presetIdToSave = selectedPreset?.id ?? current?.presetId ?? null;
 
             updateRoutine(editingRoutineId, {
                 name: routineName,
                 time: routineTime,
                 imageUrl: imageUrlToSave,
+                presetId: presetIdToSave,
             })
             .then(async () => {
                 // Update in local storage with days/ringtone
-                const { data: { user } } = await supabase.auth.getUser();
-                const storageKey = user ? `@routines_${user.id}` : '@routines';
+                const storageKey = (await getStorageKeyForCurrentUser()) ?? '@routines';
                 const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
                 const idx = existing.findIndex(r => r.id === editingRoutineId);
@@ -659,6 +692,7 @@ export default function addRoutines() {
                         name: routineName,
                         time: routineTime,
                         imageUrl: imageUrlToSave,
+                        presetId: presetIdToSave,
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     };
@@ -666,7 +700,7 @@ export default function addRoutines() {
                 }
                 return loadRoutinesFromDb();
             })
-            .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
+            .catch(err => logIfUnexpected('Supabase updateRoutine error:', err));
 
             NotificationService.scheduleRoutineNotification({
                 routineId: editingRoutineId,
@@ -793,7 +827,7 @@ export default function addRoutines() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
             {routines.map((routine) => {
                 // Get preset from database imageUrl or fallback to presetId
-                const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+                const preset = resolveRoutinePreset(routine);
                 return (
                     <TouchableOpacity 
                         key={routine.id} 

@@ -21,7 +21,6 @@ import {
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
-import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function UpdatePassword() {
   const router = useRouter();
@@ -564,11 +563,6 @@ export default function UpdatePassword() {
         </View>
       </Modal>
 
-      {/* Network Failure Modal */}
-      <NetworkFailureModal 
-        visible={localNetworkFailure} 
-        onRetry={handleLocalNetworkRetry} 
-      />
     </ImageBackground>
   );
 }

@@ -1,6 +1,7 @@
 
 import { requireOptionalNativeModule } from 'expo-modules-core';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -9,12 +10,31 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ModeProvider, useMode } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
-import { useNetworkFailure } from "../src/hooks/useNetworkFailure";
+import { startOfflineInfrastructure } from "../src/offline";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
-import { setupNetworkListener } from "../src/utils/networkUtils";
+import { isNetworkConnected, setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
-import NetworkFailureModal from "./components/NetworkFailureModal";
+
+const LAST_USER_ID_KEY = "@ritmo_last_user_id";
+
+const shouldSuppressOfflineErrorLog = (args: unknown[]): boolean => {
+  const text = args
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      const maybeMessage = (item as any)?.message;
+      if (typeof maybeMessage === 'string') return maybeMessage;
+      return '';
+    })
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    text.includes('network request failed') ||
+    text.includes('fetch failed') ||
+    text.includes('authretryablefetcherror')
+  );
+};
 
 // BackHandler component that has access to ModeContext
 function AppBackHandler({ showExitModal, setShowExitModal }: { showExitModal: boolean; setShowExitModal: (show: boolean) => void }) {
@@ -114,8 +134,22 @@ export default function RootLayout() {
   const pathname = usePathname();
   const segments = useSegments();
 
-  const { showNetworkFailureModal, handleRetry } = useNetworkFailure();
   const [showExitModal, setShowExitModal] = useState(false);
+
+  useEffect(() => {
+    const originalConsoleError = console.error;
+
+    console.error = (...args: unknown[]) => {
+      if (shouldSuppressOfflineErrorLog(args)) {
+        return;
+      }
+      originalConsoleError(...args as Parameters<typeof console.error>);
+    };
+
+    return () => {
+      console.error = originalConsoleError;
+    };
+  }, []);
 
   // Prevent multiple sequential replaces causing white flash
   const hasRedirectedRef = useRef(false);
@@ -159,6 +193,7 @@ export default function RootLayout() {
     let authListener: any;
     let notificationListener: any;
     let networkListener: any;
+    let offlineInfrastructureStop: (() => void) | undefined;
 
     const isInvalidRefreshToken = (error: unknown) => {
       const message = (error as any)?.message as string | undefined;
@@ -179,14 +214,17 @@ export default function RootLayout() {
 
     // Setup network state listener
     networkListener = setupNetworkListener();
+    offlineInfrastructureStop = startOfflineInfrastructure();
 
     const handleSession = async () => {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
+      const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
 
       if (sessionError && isInvalidRefreshToken(sessionError)) {
         await supabase.auth.signOut();
         await LogoutService.clearManualLogout();
+        await AsyncStorage.removeItem(LAST_USER_ID_KEY);
 
         if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
           hasRedirectedRef.current = true;
@@ -202,6 +240,20 @@ export default function RootLayout() {
         if (wasManualLogout) {
           await LogoutService.clearManualLogout();
           await supabase.auth.signOut();
+          await AsyncStorage.removeItem(LAST_USER_ID_KEY);
+        }
+
+        // Offline fallback: keep user logged in locally when they did not manually log out.
+        if (!session && !wasManualLogout && cachedUserId) {
+          const isCurrentlyOnline = await isNetworkConnected();
+          if (
+            (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') &&
+            !hasRedirectedRef.current
+          ) {
+            hasRedirectedRef.current = true;
+            router.replace('/(tabs)/home');
+          }
+          return;
         }
 
         if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
@@ -209,6 +261,10 @@ export default function RootLayout() {
           router.replace('/auth/login');
         }
         return;
+      }
+
+      if (session?.user?.id) {
+        await AsyncStorage.setItem(LAST_USER_ID_KEY, session.user.id);
       }
 
       // Logged in
@@ -230,13 +286,21 @@ export default function RootLayout() {
           currentPath === ''
         ) {
           try {
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            const childName = (userData?.user?.user_metadata as any)?.child_name;
-            const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
+            let childName = (session?.user?.user_metadata as any)?.child_name;
+            let hasAcceptedTerms = (session?.user?.user_metadata as any)?.has_accepted_terms;
+            let isCurrentlyOnline = true;
 
-            if (userError) {
-              isNavigatingRef.current = false;
-              return;
+            if (childName === undefined || hasAcceptedTerms === undefined) {
+              isCurrentlyOnline = await isNetworkConnected();
+            }
+
+            // If metadata is incomplete and online, refresh user profile from Supabase.
+            if ((childName === undefined || hasAcceptedTerms === undefined) && isCurrentlyOnline) {
+              const { data: userData, error: userError } = await supabase.auth.getUser();
+              if (!userError) {
+                childName = (userData?.user?.user_metadata as any)?.child_name;
+                hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
+              }
             }
 
             if (!childName) {
@@ -275,16 +339,20 @@ export default function RootLayout() {
     });
 
     // Auth state listener
-    authListener = supabase.auth.onAuthStateChange((event) => {
+    authListener = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
         hasRedirectedRef.current = false;
         isNavigatingRef.current = false;
         LogoutService.clearManualLogout();
+        if (session?.user?.id) {
+          AsyncStorage.setItem(LAST_USER_ID_KEY, session.user.id).catch(() => {});
+        }
       }
 
       if (event === 'SIGNED_OUT') {
         hasRedirectedRef.current = false;
         isNavigatingRef.current = false;
+        AsyncStorage.removeItem(LAST_USER_ID_KEY).catch(() => {});
       }
 
       handleSession();
@@ -294,6 +362,7 @@ export default function RootLayout() {
       authListener?.data?.subscription?.unsubscribe?.();
       notificationListener?.remove?.();
       networkListener?.();
+      offlineInfrastructureStop?.();
     };
   }, [pathname, segments]);
 
@@ -339,12 +408,6 @@ export default function RootLayout() {
             />
             {/* Auth and other routes inherit defaults */}
           </Stack>
-
-          {/* Global Network Failure Modal */}
-          <NetworkFailureModal 
-            visible={showNetworkFailureModal} 
-            onRetry={handleRetry} 
-          />
 
           {/* Exit Confirmation Modal */}
           <Modal

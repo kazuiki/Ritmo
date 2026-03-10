@@ -11,7 +11,7 @@ import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
-import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
+import { resolveRoutinePreset } from "../../constants/presets";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
@@ -31,6 +31,19 @@ interface Routine {
   completed?: boolean;
   days?: number[];
 }
+
+const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+
+const isExpectedOfflineError = (error: unknown): boolean => {
+  const message = String((error as any)?.message ?? error ?? '').toLowerCase();
+  const name = String((error as any)?.name ?? '').toLowerCase();
+  return (
+    message.includes('network request failed') ||
+    message.includes('fetch failed') ||
+    name === 'typeerror' ||
+    name === 'authretryablefetcherror'
+  );
+};
 
 export default function Home() {
   // Load child-friendly fonts
@@ -114,7 +127,7 @@ export default function Home() {
   const voReplayTriggeredRef = useRef<Set<number>>(new Set());
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
-  const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
+  const activePreset = useMemo(() => resolveRoutinePreset(activeRoutine), [activeRoutine]);
   const playbook = useMemo(() => {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
@@ -203,18 +216,23 @@ export default function Home() {
   const loadRoutines = async (options = {}) => {
     const { useCache = true } = options as any;
     try {
-      // If user is not authenticated, skip DB calls silently
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Resolve user id without requiring network so offline mode can still load routines.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const resolvedUserId = sessionData?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
+      if (!resolvedUserId) {
         setRoutines([]);
         setCompletedOrder([]);
         return;
       }
 
+      if (sessionData?.session?.user?.id) {
+        await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionData.session.user.id);
+      }
+
       // Show cached data immediately (if available)
       if (useCache) {
         try {
-          const cached = await loadCachedRoutines(user.id);
+          const cached = await loadCachedRoutines(resolvedUserId);
           if (cached.routines) setRoutines(cached.routines as any);
           if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
         } catch {}
@@ -229,7 +247,7 @@ export default function Home() {
       }
       
       // Load days from AsyncStorage (user-specific)
-      const storageKey = `@routines_${user.id}`;
+      const storageKey = `@routines_${resolvedUserId}`;
       const storedRoutines = await AsyncStorage.getItem(storageKey);
       const daysMap = new Map();
       if (storedRoutines) {
@@ -294,14 +312,14 @@ export default function Home() {
 
       // Persist fresh data to cache for instant future loads
       try {
-        await saveCachedRoutines(user.id, {
+        await saveCachedRoutines(resolvedUserId, {
           routines: routinesWithProgress as any,
           completedOrder: completedToday,
         });
       } catch {}
     } catch (error) {
       // Suppress noisy unauthenticated errors; log other issues
-      if ((error as any)?.message !== 'Not authenticated') {
+      if ((error as any)?.message !== 'Not authenticated' && !isExpectedOfflineError(error)) {
         console.error("Failed to load routines for user:", error);
       }
       setRoutines([]);
@@ -310,7 +328,8 @@ export default function Home() {
 
   const fetchChildName = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
       if (user?.user_metadata?.child_name) {
         setChildName(user.user_metadata.child_name);
       }
@@ -1085,7 +1104,7 @@ export default function Home() {
     const routine = routines.find(r => r.id === routineId);
     if (!routine) return;
 
-    const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+    const preset = resolveRoutinePreset(routine);
     const hasPlaybook = preset ? !!getPlaybookForPreset(preset.id) : false;
     const hasMiniGame = preset ? !!miniGames[preset.id] : false;
 
@@ -1234,7 +1253,7 @@ export default function Home() {
             </View>
             <View style={styles.completedRow}>
               {displayed.map(routine => {
-                const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+                const preset = resolveRoutinePreset(routine);
                 return (
                   <TouchableOpacity
                     key={routine.id}
@@ -1274,7 +1293,7 @@ export default function Home() {
           const routineTimeInMinutes = parseTime(routine.time);
           const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
           const isEnabled = isTimeReached; // Enable any task that has reached its scheduled time
-          const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+          const preset = resolveRoutinePreset(routine);
           
           // Initialize animation value if not exists
           if (!routineAnimations[routine.id]) {
@@ -1586,7 +1605,7 @@ export default function Home() {
           <Text style={styles.completedModalTitle}>Completed Task</Text>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
             {completedRoutinesReversed.map((routine) => {
-              const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+              const preset = resolveRoutinePreset(routine);
               return (
                 <TouchableOpacity
                   key={routine.id}

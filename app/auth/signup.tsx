@@ -24,7 +24,6 @@ import {
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
-import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function SignUp() {
   const router = useRouter();
@@ -1146,12 +1145,6 @@ export default function SignUp() {
           </View>
         </View>
       </Modal>
-
-      {/* Network Failure Modal */}
-      <NetworkFailureModal 
-        visible={localNetworkFailure} 
-        onRetry={handleLocalNetworkRetry} 
-      />
 
     </ImageBackground>
   );

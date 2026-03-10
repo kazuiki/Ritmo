@@ -1,9 +1,9 @@
 import {
-  Fredoka_400Regular,
-  Fredoka_500Medium,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+    useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -12,20 +12,20 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -33,6 +33,7 @@ import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
+import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 const { width, height } = Dimensions.get("window");
@@ -149,6 +150,8 @@ export default function Settings() {
   const [remainingTime, setRemainingTime] = useState(0);
   const [isTimeLimitLocked, setIsTimeLimitLocked] = useState(false);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [onlineOnlyModalVisible, setOnlineOnlyModalVisible] = useState(false);
+  const [onlineOnlyFeatureName, setOnlineOnlyFeatureName] = useState("");
 
   useEffect(() => {
     fetchUserData();
@@ -226,11 +229,16 @@ export default function Settings() {
     }
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
+    const canContinue = await ensureOnlineForFeature("Change Password");
+    if (!canContinue) return;
     setShowChangePasswordModal(true);
   };
 
   const handleSavePassword = async () => {
+    const canContinue = await ensureOnlineForFeature("Change Password");
+    if (!canContinue) return;
+
     if (!newPassword || !confirmPassword) {
       setErrorType("pencil");
       setErrorMessage("Please fill in both password fields");
@@ -302,7 +310,23 @@ export default function Settings() {
     router.push("/parental-lock");
   };
 
-  const handleContentFilter = () => {
+  const showOnlineOnlyModal = (featureName: string) => {
+    setOnlineOnlyFeatureName(featureName);
+    setOnlineOnlyModalVisible(true);
+  };
+
+  const ensureOnlineForFeature = async (featureName: string): Promise<boolean> => {
+    const isOnline = await isNetworkConnected();
+    if (!isOnline) {
+      showOnlineOnlyModal(featureName);
+      return false;
+    }
+    return true;
+  };
+
+  const handleContentFilter = async () => {
+    const canContinue = await ensureOnlineForFeature("Content Filter");
+    if (!canContinue) return;
     router.push("/content-filter");
   };
 
@@ -371,7 +395,9 @@ export default function Settings() {
     };
   }, [showCancelTimeLimitModal, hasActiveTimeLimit]);
 
-  const handleSetTimeLimit = () => {
+  const handleSetTimeLimit = async () => {
+    const canContinue = await ensureOnlineForFeature("Manage Media Time Limit");
+    if (!canContinue) return;
     setShowTimeLimitModal(true);
   };
 
@@ -412,7 +438,9 @@ export default function Settings() {
     setTimeLimitMinutes('');
   };
 
-  const handleClearTimeLimit = () => {
+  const handleClearTimeLimit = async () => {
+    const canContinue = await ensureOnlineForFeature("Manage Media Time Limit");
+    if (!canContinue) return;
     setShowCancelTimeLimitModal(true);
   };
 
@@ -890,6 +918,37 @@ export default function Settings() {
                 <Text style={styles.logoutConfirmButtonText}>Logout</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Online Required Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={onlineOnlyModalVisible}
+        onRequestClose={() => setOnlineOnlyModalVisible(false)}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <View style={styles.logoutModalContainer}>
+            <View style={styles.logoutIconCircle}>
+              <Image
+                source={require("../../assets/images/Error.png")}
+                style={styles.logoutIcon}
+              />
+            </View>
+
+            <Text style={styles.logoutModalTitle}>Internet Required</Text>
+            <Text style={styles.logoutModalMessage}>
+              Please connect to the internet to use {onlineOnlyFeatureName || "this feature"}. This feature is available online only.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.logoutConfirmButton}
+              onPress={() => setOnlineOnlyModalVisible(false)}
+            >
+              <Text style={styles.logoutConfirmButtonText}>OK</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

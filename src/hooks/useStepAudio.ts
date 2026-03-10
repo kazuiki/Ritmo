@@ -1,5 +1,35 @@
+import { Asset } from 'expo-asset';
 import { Audio } from 'expo-av';
 import { useEffect, useRef, useState } from 'react';
+
+async function createSoundWithOfflineFallback(source: any) {
+  try {
+    return await Audio.Sound.createAsync(source, {
+      shouldPlay: true,
+      volume: 1.0,
+      isLooping: false,
+      isMuted: false,
+    });
+  } catch (firstError) {
+    const asset = Asset.fromModule(source);
+    await asset.downloadAsync();
+    const localUri = asset.localUri || asset.uri;
+
+    if (!localUri) {
+      throw firstError;
+    }
+
+    return Audio.Sound.createAsync(
+      { uri: localUri },
+      {
+        shouldPlay: true,
+        volume: 1.0,
+        isLooping: false,
+        isMuted: false,
+      }
+    );
+  }
+}
 
 // Gate on 1 minute GIF playback, play voice-over ONCE, then auto-advance after 10 more seconds if not clicked
 // Voice-over plays normally (no repeating, no layering)
@@ -91,15 +121,7 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
           if (cancelled) return;
 
           // Create sound (no looping, play once)
-          const { sound } = await Audio.Sound.createAsync(
-            audioModule,
-            { 
-              shouldPlay: true,
-              volume: 1.0,
-              isLooping: false,
-              isMuted: false,
-            }
-          );
+          const { sound } = await createSoundWithOfflineFallback(audioModule);
 
           if (cancelled) {
             await sound.unloadAsync();
@@ -126,7 +148,7 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
 
         } catch (err) {
           console.log('Audio playback error (not critical, 1-minute gate still applied):', err);
-          audioPlayedRef.current = true; // Mark as attempted so we don't retry
+          audioPlayedRef.current = false;
           setIsPlaying(false);
         }
       }
@@ -204,15 +226,7 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
         playThroughEarpieceAndroid: false,
       });
 
-      const { sound } = await Audio.Sound.createAsync(
-        audioModule,
-        { 
-          shouldPlay: true,
-          volume: 1.0,
-          isLooping: false,
-          isMuted: false,
-        }
-      );
+      const { sound } = await createSoundWithOfflineFallback(audioModule);
 
       soundRef.current = sound;
       setIsPlaying(true);
@@ -257,7 +271,13 @@ export async function preloadPlaybookAudio(steps: Array<{audio?: any}>) {
     .filter(step => step.audio)
     .map(async (step) => {
       try {
-        const { sound } = await Audio.Sound.createAsync(step.audio, { volume: 1.0 });
+        const asset = Asset.fromModule(step.audio);
+        await asset.downloadAsync();
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: asset.localUri || asset.uri },
+          { volume: 1.0 }
+        );
         await sound.unloadAsync(); // Just preload, don't keep loaded
       } catch (err) {
         // Ignore preload errors
