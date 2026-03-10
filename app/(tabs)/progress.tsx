@@ -26,6 +26,7 @@ import { saveWeeklyPerformanceReportPdf } from "../../src/utils/pdf";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 const RITMO_HEADER = require("../../assets/ritmo-header.png");
+const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 
 interface RoutineWithDays extends Routine {
 	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -273,10 +274,15 @@ export default function Progress() {
 			// Reload data when tab is focused to ensure fresh data
 			const refreshData = async () => {
 				try {
-					const { data: { user } } = await supabase.auth.getUser();
-					if (!user) return;
-					const meta = (user.user_metadata ?? {}) as any;
-					setChildName(meta?.child_name ?? "Kid");
+					const { data: sessionData } = await supabase.auth.getSession();
+					const resolvedUserId = sessionData?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
+					if (!resolvedUserId) return;
+
+					if (sessionData?.session?.user?.id) {
+						await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionData.session.user.id);
+						const meta = (sessionData.session.user.user_metadata ?? {}) as any;
+						setChildName(meta?.child_name ?? "Kid");
+					}
 
 				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
 					getRoutinesForCurrentUser(),
@@ -288,7 +294,7 @@ export default function Progress() {
 				]);
 				
 				// Load days info from AsyncStorage (user-specific)
-				const storageKey = `@routines_${user.id}`;
+				const storageKey = `@routines_${resolvedUserId}`;
 				const stored = await AsyncStorage.getItem(storageKey);
 				const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
 				const storedMap = new Map(storedRoutines.map(r => [r.id, r]));					// Merge days info with routines data
@@ -346,19 +352,25 @@ export default function Progress() {
 
 		const loadData = async () => {
 			try {
-				const { data: { user } } = await supabase.auth.getUser();
-				if (!user) {
+				const { data: sessionData } = await supabase.auth.getSession();
+				const sessionUser = sessionData?.session?.user;
+				const resolvedUserId = sessionUser?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
+				if (!resolvedUserId) {
 					console.log('User not authenticated, skipping data load');
 					return;
 				}
-				const meta = (user.user_metadata ?? {}) as any;
-				setChildName(meta?.child_name ?? "Kid");
+
+				if (sessionUser?.id) {
+					await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionUser.id);
+					const meta = (sessionUser.user_metadata ?? {}) as any;
+					setChildName(meta?.child_name ?? "Kid");
+				}
 
 			// Fetch routines from Supabase
 			const routinesData = await getRoutinesForCurrentUser();
 			
 			// Load days info from AsyncStorage (user-specific)
-			const storageKey = `@routines_${user.id}`;
+			const storageKey = `@routines_${resolvedUserId}`;
 			const stored = await AsyncStorage.getItem(storageKey);
 			const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
 			const storedMap = new Map(storedRoutines.map(r => [r.id, r]));				// Merge days info with routines data
@@ -384,7 +396,8 @@ export default function Progress() {
 				setEarliestProgressByRoutine(firstDatesMap || {});
 
 				// Subscribe to real-time changes in user_routine_progress table
-				progressSubscription = supabase
+				if (sessionUser?.id) {
+					progressSubscription = supabase
 					.channel('progress_changes')
 					.on(
 						'postgres_changes',
@@ -392,7 +405,7 @@ export default function Progress() {
 							event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
 							schema: 'public',
 							table: 'user_routine_progress',
-							filter: `user_id=eq.${user.id}`
+							filter: `user_id=eq.${sessionUser.id}`
 						},
 						async (payload) => {
 							console.log('Progress change detected:', payload);
@@ -424,9 +437,11 @@ export default function Progress() {
 						}
 					)
 					.subscribe();
+				}
 
 				// Subscribe to real-time changes in routines table
-				routinesSubscription = supabase
+				if (sessionUser?.id) {
+					routinesSubscription = supabase
 					.channel('routines_changes')
 					.on(
 						'postgres_changes',
@@ -442,7 +457,7 @@ export default function Progress() {
 							const updatedRoutines = await getRoutinesForCurrentUser();
 							
 							// Load days info from AsyncStorage (user-specific)
-							const storageKey = `@routines_${user.id}`;
+							const storageKey = `@routines_${sessionUser.id}`;
 							const stored = await AsyncStorage.getItem(storageKey);
 							const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
 							const storedMap = new Map(storedRoutines.map(r => [r.id, r]));								// Merge days info with routines data
@@ -461,6 +476,7 @@ export default function Progress() {
 						}
 					)
 					.subscribe();
+				}
 
 			} catch (error) {
 				console.error('Failed to load progress data:', error);
