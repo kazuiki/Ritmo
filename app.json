@@ -52,7 +52,17 @@
           "sounds": [
             "./assets/ringtone/alarm1.mp3",
             "./assets/ringtone/alarm2.mp3",
-            "./assets/ringtone/alarm3.mp3"
+            "./assets/ringtone/alarm3.mp3",
+            "./assets/ringtone/alarm4.mp3",
+            "./assets/ringtone/alarm5.mp3",
+            "./assets/ringtone/alarm6.mp3",
+            "./assets/ringtone/alarm7.mp3",
+            "./assets/ringtone/alarm8.mp3",
+            "./assets/ringtone/alarm13.mp3",
+            "./assets/ringtone/alarm14.mp3",
+            "./assets/ringtone/alarm15.mp3",
+            "./assets/ringtone/alarm16.mp3",
+            "./assets/ringtone/alarm17.mp3"
           ]
         }
       ]

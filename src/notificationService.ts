@@ -25,6 +25,26 @@ export interface RoutineNotification {
   days?: number[]; // 0=Sun ... 6=Sat
 }
 
+// Central ringtone registry (IDs must match files in assets and app.json)
+const RINGTONES: { [key: string]: string } = {
+  alarm1: 'alarm1.mp3',
+  alarm2: 'alarm2.mp3',
+  alarm3: 'alarm3.mp3',
+  alarm4: 'alarm4.mp3',
+  alarm5: 'alarm5.mp3',
+  alarm6: 'alarm6.mp3',
+  alarm7: 'alarm7.mp3',
+  alarm8: 'alarm8.mp3',
+  alarm13: 'alarm13.mp3',
+  alarm14: 'alarm14.mp3',
+  alarm15: 'alarm15.mp3',
+  alarm16: 'alarm16.mp3',
+  alarm17: 'alarm17.mp3',
+};
+
+const DEFAULT_RINGTONE_ID = 'alarm1';
+const DEFAULT_CHANNEL_ID = `alarm-channel-${DEFAULT_RINGTONE_ID}`;
+
 class NotificationService {
   private sound: Audio.Sound | null = null;
   private alarmSound: Audio.Sound | null = null;
@@ -65,20 +85,36 @@ class NotificationService {
     return `Hi ${childName}, It's time to ${actionText}!`;
   }
 
+  private normalizeRingtoneId(raw?: string | null): string {
+    if (!raw) return DEFAULT_RINGTONE_ID;
+    const cleaned = raw.trim().toLowerCase().replace('.mp3', '');
+    return RINGTONES[cleaned] ? cleaned : DEFAULT_RINGTONE_ID;
+  }
+
+  private getChannelIdForRingtone(raw?: string | null): string {
+    const id = this.normalizeRingtoneId(raw);
+    return `alarm-channel-${id}`;
+  }
+
   async initialize() {
   try {
     // 1. Android Channel Setup (Must be first for system to recognize the channel)
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('alarm-channel', {
-        name: 'Routine Alarms',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        // CRITICAL: lowercase only, must match the file in your assets and app.json
-        sound: 'alarm1.mp3', 
-        bypassDnd: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      });
+      // Create one notification channel per ringtone so Android uses the correct sound
+      await Promise.all(
+        Object.entries(RINGTONES).map(async ([id, filename]) => {
+          const channelId = `alarm-channel-${id}`;
+          await Notifications.setNotificationChannelAsync(channelId, {
+            name: `Routine Alarm (${id})`,
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+            sound: filename,
+            bypassDnd: true,
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          });
+        })
+      );
     }
 
     await Notifications.setNotificationCategoryAsync('alarm-actions', [
@@ -113,7 +149,8 @@ class NotificationService {
 
     // This listener handles sound ONLY when the app is OPEN (Foreground)
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
-      const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
+      const ringtoneRaw = notification.request.content.data?.ringtone as string | undefined;
+      const ringtone = this.normalizeRingtoneId(ringtoneRaw);
       const routineId = notification.request.content.data?.routineId as number;
       // Play alarm sound when notification arrives and app is open
       // NOTE: Don't call showHeadsUpForAlarm() here as it would create duplicate notifications
@@ -166,24 +203,27 @@ class NotificationService {
         ? await this.buildRoutineNotificationBody(routineName)
         : undefined;
 
+      const ringtoneId = this.normalizeRingtoneId(ringtone);
+      const channelId = this.getChannelIdForRingtone(ringtoneId);
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '⏰ Routine Time!',
           body,
           data: {
             routineName,
-            ringtone,
+            ringtone: ringtoneId,
           },
           categoryIdentifier: 'alarm-actions',
           color: '#1A73E8',
-          sound: `${ringtone}.mp3`,
+          sound: `${ringtoneId}.mp3`,
           priority: Notifications.AndroidNotificationPriority.MAX,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 1,
           repeats: false,
-          channelId: 'alarm-channel',
+          channelId,
         },
       });
       console.log('🔔 Heads-up alarm notification shown');
@@ -274,6 +314,8 @@ class NotificationService {
         if (isMatchingDay && isFutureOrNow) {
           const secondsUntilTrigger = Math.max(1, Math.floor((triggerDate.getTime() - now.getTime()) / 1000));
           const body = await this.buildRoutineNotificationBody(routine.routineName);
+          const ringtoneId = this.normalizeRingtoneId(routine.ringtone);
+          const channelId = this.getChannelIdForRingtone(ringtoneId);
 
           const notificationId = await Notifications.scheduleNotificationAsync({
             content: {
@@ -282,7 +324,7 @@ class NotificationService {
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
-                ringtone: routine.ringtone || 'alarm1',
+                ringtone: ringtoneId,
               },
 
 
@@ -292,7 +334,7 @@ class NotificationService {
               // Android-specific options ensure heads-up banner and button
               color: '#1A73E8',
 
-              sound: `${routine.ringtone || 'alarm1'}.mp3`,
+              sound: `${ringtoneId}.mp3`,
 
               priority: Notifications.AndroidNotificationPriority.MAX,
             },
@@ -302,7 +344,7 @@ class NotificationService {
               repeats: false,
 
               // channelId in trigger is still respected by expo but android block is preferred
-              channelId: 'alarm-channel',
+              channelId,
             },
           });
 
@@ -381,7 +423,7 @@ class NotificationService {
   }
 
   // Play alarm sound for actual notification (30 seconds with auto-stop)
-  async playAlarmSound(ringtonePath: string = 'alarm1') {
+  async playAlarmSound(ringtonePath: string = DEFAULT_RINGTONE_ID) {
     try {
       // Prevent multiple simultaneous alarms
       if (this.isPlayingAlarm) {
@@ -397,24 +439,27 @@ class NotificationService {
       // Ensure alarm sound is fully cleared
       this.alarmSound = null;
 
+      const ringtoneId = this.normalizeRingtoneId(ringtonePath);
+
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
-        'alarm1': require('../assets/ringtone/alarm1.mp3'),
-        'alarm2': require('../assets/ringtone/alarm2.mp3'),
-        'alarm3': require('../assets/ringtone/alarm3.mp3'),
-        'alarm4': require('../assets/ringtone/alarm4.mp3'),
-        'alarm5': require('../assets/ringtone/alarm5.mp3'),
-        'alarm6': require('../assets/ringtone/alarm6.mp3'),
-        'alarm7': require('../assets/ringtone/alarm7.mp3'),
-        'alarm8': require('../assets/ringtone/alarm8.mp3'),
-        'alarm13': require('../assets/ringtone/alarm13.mp3'),
-        'alarm14': require('../assets/ringtone/alarm14.mp3'),
-        'alarm15': require('../assets/ringtone/alarm15.mp3'),
-        'alarm16': require('../assets/ringtone/alarm16.mp3'),
-        'alarm17': require('../assets/ringtone/alarm17.mp3'),
+        alarm1: require('../assets/ringtone/alarm1.mp3'),
+        alarm2: require('../assets/ringtone/alarm2.mp3'),
+        alarm3: require('../assets/ringtone/alarm3.mp3'),
+        alarm4: require('../assets/ringtone/alarm4.mp3'),
+        alarm5: require('../assets/ringtone/alarm5.mp3'),
+        alarm6: require('../assets/ringtone/alarm6.mp3'),
+        alarm7: require('../assets/ringtone/alarm7.mp3'),
+        alarm8: require('../assets/ringtone/alarm8.mp3'),
+        alarm13: require('../assets/ringtone/alarm13.mp3'),
+        alarm14: require('../assets/ringtone/alarm14.mp3'),
+        alarm15: require('../assets/ringtone/alarm15.mp3'),
+        alarm16: require('../assets/ringtone/alarm16.mp3'),
+        alarm17: require('../assets/ringtone/alarm17.mp3'),
       };
 
-      const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
+      const soundFileKey = ringtoneMap[ringtoneId] ? ringtoneId : DEFAULT_RINGTONE_ID;
+      const soundFile = ringtoneMap[soundFileKey];
 
       // Load the sound WITHOUT looping (we'll handle duration with timeout)
       const { sound } = await Audio.Sound.createAsync(
@@ -442,7 +487,7 @@ class NotificationService {
   }
 
   // Play ringtone (for preview in modal - 5 seconds only)
-  async playRingtone(ringtonePath: string = 'alarm1') {
+  async playRingtone(ringtonePath: string = DEFAULT_RINGTONE_ID) {
     try {
       // Clear any existing preview timeout first
       if (this.previewTimeout) {
@@ -464,24 +509,26 @@ class NotificationService {
         this.sound = null;
       }
 
+      const ringtoneId = this.normalizeRingtoneId(ringtonePath);
+
       // Map ringtone names to actual files
       const ringtoneMap: { [key: string]: any } = {
-        'alarm1': require('../assets/ringtone/alarm1.mp3'),
-        'alarm2': require('../assets/ringtone/alarm2.mp3'),
-        'alarm3': require('../assets/ringtone/alarm3.mp3'),
-        'alarm4': require('../assets/ringtone/alarm4.mp3'),
-        'alarm5': require('../assets/ringtone/alarm5.mp3'),
-        'alarm6': require('../assets/ringtone/alarm6.mp3'),
-        'alarm7': require('../assets/ringtone/alarm7.mp3'),
-        'alarm8': require('../assets/ringtone/alarm8.mp3'),
-        'alarm13': require('../assets/ringtone/alarm13.mp3'),
-        'alarm14': require('../assets/ringtone/alarm14.mp3'),
-        'alarm15': require('../assets/ringtone/alarm15.mp3'),
-        'alarm16': require('../assets/ringtone/alarm16.mp3'),
-        'alarm17': require('../assets/ringtone/alarm17.mp3'),
+        alarm1: require('../assets/ringtone/alarm1.mp3'),
+        alarm2: require('../assets/ringtone/alarm2.mp3'),
+        alarm3: require('../assets/ringtone/alarm3.mp3'),
+        alarm4: require('../assets/ringtone/alarm4.mp3'),
+        alarm5: require('../assets/ringtone/alarm5.mp3'),
+        alarm6: require('../assets/ringtone/alarm6.mp3'),
+        alarm7: require('../assets/ringtone/alarm7.mp3'),
+        alarm8: require('../assets/ringtone/alarm8.mp3'),
+        alarm13: require('../assets/ringtone/alarm13.mp3'),
+        alarm14: require('../assets/ringtone/alarm14.mp3'),
+        alarm15: require('../assets/ringtone/alarm15.mp3'),
+        alarm16: require('../assets/ringtone/alarm16.mp3'),
+        alarm17: require('../assets/ringtone/alarm17.mp3'),
       };
 
-      const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
+      const soundFile = ringtoneMap[ringtoneId] || ringtoneMap[DEFAULT_RINGTONE_ID];
 
       // Load and play the sound immediately WITHOUT LOOPING
       const { sound } = await Audio.Sound.createAsync(
@@ -724,7 +771,7 @@ class NotificationService {
         if (isTimeMatch && isDayMatch && !alreadyTriggered && !this.isPlayingAlarm) {
           console.log(`⏰ Triggering alarm for routine: ${routine.name} at ${hour}:${minute}`);
           this.lastTriggeredRoutineId = routine.id;
-          const ringtone = routine.ringtone || 'alarm1';
+          const ringtone = this.normalizeRingtoneId(routine.ringtone);
           await this.playAlarmSound(ringtone);
           
           // Reset after 2 minutes to allow re-trigger if user closes and reopens app
