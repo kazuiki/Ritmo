@@ -113,8 +113,9 @@ class NotificationService {
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
       const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
       const routineName = notification.request.content.data?.routineName as string || '';
-      // Play alarm sound when notification arrives and app is open
-      // NOTE: Don't call showHeadsUpForAlarm() here as it would create duplicate notifications
+      // show a heads-up notification with stop action even when the app is foreground
+      await this.showHeadsUpForAlarm(routineName, ringtone);
+      // When app is open, we can still use your custom JS logic for 12-second stop
       await this.playAlarmSound(ringtone);
     });
 
@@ -131,13 +132,7 @@ class NotificationService {
       const actionId = response.actionIdentifier;
 
       if (actionId === 'stop-alarm') {
-        this.stopAlarmSound(); // Stops the alarm sound
-        // Also dismiss the notification that triggered this
-        try {
-          Notifications.dismissNotificationAsync(response.notification.request.identifier);
-        } catch (error) {
-          console.error('Error dismissing notification:', error);
-        }
+        this.stopAlarmSound(); // Stops the music you started in the other listener
       }
     });
 
