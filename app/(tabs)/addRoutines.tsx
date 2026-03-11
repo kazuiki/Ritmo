@@ -36,6 +36,8 @@ interface Routine {
     days?: number[]; // 0=Sun..6=Sat
 }
 
+const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+
 const isExpectedOfflineError = (error: unknown): boolean => {
     const message = String((error as any)?.message ?? error ?? '').toLowerCase();
     const name = String((error as any)?.name ?? '').toLowerCase();
@@ -139,12 +141,22 @@ export default function addRoutines() {
         const { data: sessionData } = await supabase.auth.getSession();
         const sessionUserId = sessionData?.session?.user?.id;
         if (sessionUserId) {
+            await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionUserId);
             return `@routines_${sessionUserId}`;
+        }
+
+        const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
+        if (cachedUserId) {
+            return `@routines_${cachedUserId}`;
         }
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            return user ? `@routines_${user.id}` : null;
+            if (user?.id) {
+                await AsyncStorage.setItem(LAST_USER_ID_KEY, user.id);
+                return `@routines_${user.id}`;
+            }
+            return null;
         } catch {
             return null;
         }
@@ -324,6 +336,8 @@ export default function addRoutines() {
         return [...sourceDays].sort((a, b) => a - b).join(',');
     };
 
+    const normalizeRoutineId = (id: number | string) => String(id);
+
     const isRoutineDuplicate = (params: {
         name: string;
         time: string;
@@ -339,7 +353,7 @@ export default function addRoutines() {
         const targetImageUrl = (params.imageUrl || '').trim();
 
         return routines.some((routine) => {
-            if (params.excludeId && routine.id === params.excludeId) {
+            if (params.excludeId && normalizeRoutineId(routine.id) === normalizeRoutineId(params.excludeId)) {
                 return false;
             }
 
@@ -384,9 +398,9 @@ export default function addRoutines() {
             const dbRoutines = await getRoutinesForCurrentUser();
             
             // Merge database routines with AsyncStorage data (for days/ringtone)
-            const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [r.id, r]));
+            const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [normalizeRoutineId(r.id), r]));
             const merged: Routine[] = dbRoutines.map(dbR => {
-                const existing = storedMap.get(dbR.id) as Routine | undefined;
+                const existing = storedMap.get(normalizeRoutineId(dbR.id)) as Routine | undefined;
                 const derivedPresetId = existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
                 return {
                     id: dbR.id,
@@ -394,8 +408,8 @@ export default function addRoutines() {
                     time: dbR.time,
                     imageUrl: existing?.imageUrl ?? null,
                     presetId: derivedPresetId,
-                    ringtone: existing?.ringtone || 'alarm1',
-                    days: existing?.days || [0,1,2,3,4,5,6],
+                    ringtone: existing?.ringtone ?? 'alarm1',
+                    days: existing?.days ?? [0,1,2,3,4,5,6],
                 };
             });
             
@@ -558,7 +572,10 @@ export default function addRoutines() {
                 })
                 .then(async (created) => {
                     // Add to local storage with days/ringtone
-                    const storageKey = (await getStorageKeyForCurrentUser()) ?? '@routines';
+                    const storageKey = await getStorageKeyForCurrentUser();
+                    if (!storageKey) {
+                        throw new Error('Not authenticated');
+                    }
                     const stored = await AsyncStorage.getItem(storageKey);
                     const existing: Routine[] = stored ? JSON.parse(stored) : [];
                     const newRoutine: Routine = {
@@ -609,10 +626,13 @@ export default function addRoutines() {
                 await deleteRoutine(editingRoutineId);
                 
                 // Remove from local storage
-                const storageKey = (await getStorageKeyForCurrentUser()) ?? '@routines';
+                const storageKey = await getStorageKeyForCurrentUser();
+                if (!storageKey) {
+                    throw new Error('Not authenticated');
+                }
                 const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                const filtered = existing.filter(r => r.id !== editingRoutineId);
+                const filtered = existing.filter(r => normalizeRoutineId(r.id) !== normalizeRoutineId(editingRoutineId));
                 await AsyncStorage.setItem(storageKey, JSON.stringify(filtered));
                 
                 // Update UI immediately
@@ -682,10 +702,13 @@ export default function addRoutines() {
             })
             .then(async () => {
                 // Update in local storage with days/ringtone
-                const storageKey = (await getStorageKeyForCurrentUser()) ?? '@routines';
+                const storageKey = await getStorageKeyForCurrentUser();
+                if (!storageKey) {
+                    throw new Error('Not authenticated');
+                }
                 const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                const idx = existing.findIndex(r => r.id === editingRoutineId);
+                const idx = existing.findIndex(r => normalizeRoutineId(r.id) === normalizeRoutineId(editingRoutineId));
                 if (idx >= 0) {
                     existing[idx] = {
                         ...existing[idx],

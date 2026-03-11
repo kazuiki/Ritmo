@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import { supabase } from './supabaseClient';
@@ -25,6 +26,8 @@ export interface RoutineNotification {
   days?: number[]; // 0=Sun ... 6=Sat
 }
 
+const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+
 class NotificationService {
   private sound: Audio.Sound | null = null;
   private alarmSound: Audio.Sound | null = null;
@@ -34,6 +37,70 @@ class NotificationService {
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastTriggeredRoutineId: number | null = null;
+
+  private getAndroidChannelIdForRingtone(ringtone?: string): string {
+    const safeRingtone = (ringtone || 'alarm1').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    return `alarm-channel-${safeRingtone || 'alarm1'}`;
+  }
+
+  private async ensureAndroidChannelForRingtone(ringtone?: string): Promise<string> {
+    const resolvedRingtone = ringtone || 'alarm1';
+    const channelId = this.getAndroidChannelIdForRingtone(resolvedRingtone);
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(channelId, {
+        name: `Routine Alarms (${resolvedRingtone})`,
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        sound: `${resolvedRingtone}.mp3`,
+        bypassDnd: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    }
+
+    return channelId;
+  }
+
+  private async getRoutinesStorageKey(): Promise<string | null> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUserId = sessionData?.session?.user?.id;
+    if (sessionUserId) {
+      await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionUserId);
+      return `@routines_${sessionUserId}`;
+    }
+
+    const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
+    if (cachedUserId) {
+      return `@routines_${cachedUserId}`;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        await AsyncStorage.setItem(LAST_USER_ID_KEY, user.id);
+        return `@routines_${user.id}`;
+      }
+    } catch {
+      // Ignore auth resolution errors; caller will handle null key.
+    }
+
+    return null;
+  }
+
+  private async readStoredRoutines(): Promise<any[]> {
+    const storageKey = await this.getRoutinesStorageKey();
+    if (storageKey) {
+      const perUserStored = await AsyncStorage.getItem(storageKey);
+      if (perUserStored) {
+        return JSON.parse(perUserStored);
+      }
+    }
+
+    // Backward-compat fallback for older installs that still used a global key.
+    const legacyStored = await AsyncStorage.getItem('@routines');
+    return legacyStored ? JSON.parse(legacyStored) : [];
+  }
 
   private async getChildNameForNotification(): Promise<string> {
     try {
@@ -69,16 +136,8 @@ class NotificationService {
   try {
     // 1. Android Channel Setup (Must be first for system to recognize the channel)
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('alarm-channel', {
-        name: 'Routine Alarms',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        // CRITICAL: lowercase only, must match the file in your assets and app.json
-        sound: 'alarm1.mp3', 
-        bypassDnd: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      });
+      // Create a default channel; ringtone-specific channels are created during scheduling.
+      await this.ensureAndroidChannelForRingtone('alarm1');
     }
 
     await Notifications.setNotificationCategoryAsync('alarm-actions', [
@@ -162,6 +221,7 @@ class NotificationService {
   // display an immediate heads-up notification with stop button (foreground case)
   private async showHeadsUpForAlarm(routineName: string, ringtone: string) {
     try {
+      const channelId = await this.ensureAndroidChannelForRingtone(ringtone);
       const body = routineName
         ? await this.buildRoutineNotificationBody(routineName)
         : undefined;
@@ -183,7 +243,7 @@ class NotificationService {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 1,
           repeats: false,
-          channelId: 'alarm-channel',
+          channelId,
         },
       });
       console.log('🔔 Heads-up alarm notification shown');
@@ -231,6 +291,9 @@ class NotificationService {
   // Schedule daily notification for a routine
   async scheduleRoutineNotification(routine: RoutineNotification): Promise<string | null> {
     try {
+      const ringtone = routine.ringtone || 'alarm1';
+      const channelId = await this.ensureAndroidChannelForRingtone(ringtone);
+
       // Parse time (format: "08:00 am" or "08:00 pm")
       const timeParts = routine.time.split(' ');
       const [hourStr, minuteStr] = timeParts[0].split(':');
@@ -282,7 +345,7 @@ class NotificationService {
               data: {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
-                ringtone: routine.ringtone || 'alarm1',
+                ringtone,
               },
 
 
@@ -292,7 +355,7 @@ class NotificationService {
               // Android-specific options ensure heads-up banner and button
               color: '#1A73E8',
 
-              sound: `${routine.ringtone || 'alarm1'}.mp3`,
+              sound: `${ringtone}.mp3`,
 
               priority: Notifications.AndroidNotificationPriority.MAX,
             },
@@ -302,7 +365,7 @@ class NotificationService {
               repeats: false,
 
               // channelId in trigger is still respected by expo but android block is preferred
-              channelId: 'alarm-channel',
+              channelId,
             },
           });
 
@@ -324,11 +387,8 @@ class NotificationService {
   // Refresh/extend notifications if running low (call this when app opens)
   async refreshAllRoutineNotifications() {
     try {
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-      const stored = await AsyncStorage.getItem("@routines");
-      if (!stored) return;
-
-      const routines = JSON.parse(stored);
+      const routines = await this.readStoredRoutines();
+      if (routines.length === 0) return;
       console.log(`🔄 Checking ${routines.length} routines for notification refresh...`);
 
       for (const routine of routines) {
@@ -687,11 +747,8 @@ class NotificationService {
   // Check if current time matches any routine and trigger alarm if needed
   private async checkAndTriggerAlarms() {
     try {
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-      const stored = await AsyncStorage.getItem("@routines");
-      if (!stored) return;
-
-      const routines = JSON.parse(stored);
+      const routines = await this.readStoredRoutines();
+      if (routines.length === 0) return;
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
