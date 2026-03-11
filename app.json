@@ -9,6 +9,9 @@
     "platforms": [
       "android"
     ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "android": {

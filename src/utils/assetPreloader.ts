@@ -1,5 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'expo-asset';
-import { Image } from 'react-native';
+import { Image, Platform } from 'react-native';
 
 // Global flag to prevent duplicate preloading
 let isPreloading = false;
@@ -8,6 +9,95 @@ let preloadPromise: Promise<void> | null = null;
 
 // Cache for preloaded assets
 const assetCache = new Set<number>();
+const ASSET_PROGRESS_STORAGE_KEY = '@ritmo_asset_preload_progress_v1';
+
+export type AssetPreloadProgress = {
+  total: number;
+  completed: number;
+  failed: number;
+  inProgress: boolean;
+  isPreloaded: boolean;
+  percent: number;
+};
+
+let preloadProgress: AssetPreloadProgress = {
+  total: 0,
+  completed: 0,
+  failed: 0,
+  inProgress: false,
+  isPreloaded: false,
+  percent: 0,
+};
+
+let hasHydratedPersistedProgress = false;
+
+const progressListeners = new Set<(progress: AssetPreloadProgress) => void>();
+
+const IMAGE_URI_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+
+const shouldImagePrefetch = (uri: string): boolean => {
+  const normalized = uri.toLowerCase();
+  return IMAGE_URI_EXTENSIONS.some((ext) => normalized.includes(ext));
+};
+
+function emitProgress() {
+  const snapshot = { ...preloadProgress };
+  progressListeners.forEach((cb) => cb(snapshot));
+}
+
+async function persistProgressSnapshot() {
+  try {
+    await AsyncStorage.setItem(ASSET_PROGRESS_STORAGE_KEY, JSON.stringify(preloadProgress));
+  } catch {
+    // Best-effort telemetry persistence.
+  }
+}
+
+function updateProgress(next: Partial<AssetPreloadProgress>) {
+  preloadProgress = {
+    ...preloadProgress,
+    ...next,
+  };
+  emitProgress();
+  void persistProgressSnapshot();
+}
+
+export const initializeAssetPreloadProgress = async () => {
+  if (hasHydratedPersistedProgress) return;
+
+  try {
+    const raw = await AsyncStorage.getItem(ASSET_PROGRESS_STORAGE_KEY);
+    if (!raw) {
+      hasHydratedPersistedProgress = true;
+      return;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AssetPreloadProgress>;
+    preloadProgress = {
+      ...preloadProgress,
+      ...parsed,
+      inProgress: false,
+    };
+    hasHydratedPersistedProgress = true;
+    emitProgress();
+  } catch {
+    hasHydratedPersistedProgress = true;
+  }
+};
+
+export const getAssetPreloadProgress = (): AssetPreloadProgress => ({
+  ...preloadProgress,
+});
+
+export const subscribeAssetPreloadProgress = (
+  cb: (progress: AssetPreloadProgress) => void
+): (() => void) => {
+  progressListeners.add(cb);
+  cb(getAssetPreloadProgress());
+  return () => {
+    progressListeners.delete(cb);
+  };
+};
 
 /**
  * Comprehensive asset preloader for all game images and GIFs
@@ -15,9 +105,21 @@ const assetCache = new Set<number>();
  * Runs only ONCE per app session for maximum performance
  */
 export const preloadGameAssets = async () => {
+  if (!hasHydratedPersistedProgress) {
+    await initializeAssetPreloadProgress();
+  }
+
   // Return immediately if already preloaded
   if (isPreloaded) {
     console.log('✅ Assets already preloaded - using cache');
+    updateProgress({
+      total: assetCache.size,
+      completed: assetCache.size,
+      failed: 0,
+      inProgress: false,
+      isPreloaded: true,
+      percent: 100,
+    });
     return;
   }
   
@@ -29,6 +131,7 @@ export const preloadGameAssets = async () => {
   
   // Start new preload
   isPreloading = true;
+  updateProgress({ inProgress: true, isPreloaded: false });
   
   preloadPromise = (async () => {
     try {
@@ -62,7 +165,7 @@ export const preloadGameAssets = async () => {
       require('../../app/game1/BrushGame/Tartar10.png'),
       require('../../app/game1/BrushGame/Tartar11.png'),
       require('../../app/game1/BrushGame/Tartar12.png'),
-      
+
       // Eating Game assets
       require('../../app/game2/EatGame/EatBG.png'),
       require('../../app/game2/EatGame/Eat1.png'),
@@ -76,9 +179,8 @@ export const preloadGameAssets = async () => {
       require('../../app/game2/EatGame/Vegi.png'),
       require('../../app/game2/EatGame/Water.png'),
       require('../../app/game2/EatGame/Water1.png'),
-      
+
       // Bath Game assets
-      // require('../../app/game3/BathGame/BathBG.png'), // No BathBG.png, only BathBG.mp3
       require('../../app/game3/BathGame/Bath1.png'),
       require('../../app/game3/BathGame/Bath2_anim.gif'),
       require('../../app/game3/BathGame/Bath2.png'),
@@ -86,11 +188,9 @@ export const preloadGameAssets = async () => {
       require('../../app/game3/BathGame/Bath4.png'),
       require('../../app/game3/BathGame/Bath5_anim.gif'),
       require('../../app/game3/BathGame/Bath5.png'),
-      // require('../../app/game3/BathGame/Bubbles.png'), // File doesn't exist
-      // require('../../app/game3/BathGame/Shampoo.png'), // File doesn't exist
       require('../../app/game3/BathGame/Soap.png'),
       require('../../app/game3/BathGame/Towel.png'),
-      
+
       // School Game assets
       require('../../app/game4/SchoolGame/SchoolBG.png'),
       require('../../app/game4/SchoolGame/School1.png'),
@@ -101,44 +201,41 @@ export const preloadGameAssets = async () => {
       require('../../app/game4/SchoolGame/School6.gif'),
       require('../../app/game4/SchoolGame/School7.gif'),
       require('../../app/game4/SchoolGame/Bag.png'),
-      // require('../../app/game4/SchoolGame/Book.png'), // File doesn't exist
-      // require('../../app/game4/SchoolGame/Pencil.png'), // File doesn't exist
-      // require('../../app/game4/SchoolGame/Uniform.png'), // File doesn't exist
-      
-      // Common GIFs used in history/progress
-      require('../../assets/gifs/brushStep1.gif'),
-      require('../../assets/gifs/brushStep2.gif'),
-      require('../../assets/gifs/brushStep3.gif'),
-      require('../../assets/gifs/brushStep4.gif'),
-      require('../../assets/gifs/eatStep1.gif'),
-      require('../../assets/gifs/eatStep2.gif'),
-      require('../../assets/gifs/eatStep3.gif'),
-      require('../../assets/gifs/eatStep4.gif'),
-      require('../../assets/gifs/bathStep1.gif'),
-      require('../../assets/gifs/bathStep2.gif'),
-      require('../../assets/gifs/bathStep3.gif'),
-      require('../../assets/gifs/bathStep4.gif'),
-      require('../../assets/gifs/schoolStep1.gif'),
-      require('../../assets/gifs/schoolStep2.gif'),
-      require('../../assets/gifs/schoolStep3.gif'),
-      require('../../assets/gifs/schoolStep4.gif'),
-      require('../../assets/gifs/media-unscreen.gif'),
-      require('../../assets/gifs/media-1--unscreen.gif'),
-      require('../../assets/gifs/fallingstars.gif'),
     ];
     
     // Filter out already cached assets
-    const assetsToLoad = gameAssets.filter(asset => {
+    const assetsToLoad = gameAssets.filter((asset) => {
       const assetId = typeof asset === 'number' ? asset : asset.default;
       return !assetCache.has(assetId);
     });
     
     if (assetsToLoad.length === 0) {
       console.log('✅ All assets already cached');
+      isPreloaded = true;
+      isPreloading = false;
+      updateProgress({
+        total: assetCache.size,
+        completed: assetCache.size,
+        failed: 0,
+        inProgress: false,
+        isPreloaded: true,
+        percent: 100,
+      });
       return;
     }
     
     console.log(`📦 Preloading ${assetsToLoad.length} new assets...`);
+    let completedCount = 0;
+    let failedCount = 0;
+    let verifiedCount = 0;
+    updateProgress({
+      total: assetsToLoad.length,
+      completed: 0,
+      failed: 0,
+      inProgress: true,
+      isPreloaded: false,
+      percent: 0,
+    });
     
     // Use expo-asset for aggressive caching
     await Asset.loadAsync(assetsToLoad);
@@ -148,17 +245,39 @@ export const preloadGameAssets = async () => {
       try {
         const assetInfo = Asset.fromModule(asset);
         await assetInfo.downloadAsync();
+
+        // Strict verification: on native, localUri must exist to count as ready offline.
+        const isVerifiedLocal = Platform.OS === 'web'
+          ? Boolean(assetInfo.localUri || assetInfo.uri)
+          : Boolean(assetInfo.localUri);
+        if (!isVerifiedLocal) {
+          throw new Error('Asset verification failed: local file not available');
+        }
         
-        // Prefetch using React Native Image for instant loading
-        if (assetInfo.localUri || assetInfo.uri) {
-          await Image.prefetch(assetInfo.localUri || assetInfo.uri);
+        // Prefetch only image URIs for instant rendering; skip audio/video URIs.
+        const resolvedUri = assetInfo.localUri || assetInfo.uri;
+        if (resolvedUri && shouldImagePrefetch(resolvedUri)) {
+          await Image.prefetch(resolvedUri);
         }
         
         // Mark as cached
         const assetId = typeof asset === 'number' ? asset : asset.default;
         assetCache.add(assetId);
+        verifiedCount += 1;
       } catch (error) {
+        failedCount += 1;
         console.log('⚠️ Failed to prefetch asset:', error);
+      } finally {
+        completedCount += 1;
+        const percent = Math.min(100, Math.round((verifiedCount / assetsToLoad.length) * 100));
+        updateProgress({
+          total: assetsToLoad.length,
+          completed: verifiedCount,
+          failed: failedCount,
+          inProgress: true,
+          isPreloaded: false,
+          percent,
+        });
       }
     });
     
@@ -167,13 +286,22 @@ export const preloadGameAssets = async () => {
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
     
-    isPreloaded = true;
+    isPreloaded = failedCount === 0 && verifiedCount === assetsToLoad.length;
     isPreloading = false;
+    updateProgress({
+      total: assetsToLoad.length,
+      completed: verifiedCount,
+      failed: failedCount,
+      inProgress: false,
+      isPreloaded,
+      percent: Math.min(100, Math.round((verifiedCount / assetsToLoad.length) * 100)),
+    });
     
     console.log(`✅ ALL assets preloaded in ${duration}s - cached permanently!`);
   } catch (error) {
     console.log('❌ Asset preload error:', error);
     isPreloading = false;
+    updateProgress({ inProgress: false, isPreloaded: false });
     // Don't throw - allow app to continue even if preload fails
   }
   })();
@@ -204,8 +332,9 @@ export const preloadSingleAsset = async (asset: any) => {
     const assetInfo = Asset.fromModule(asset);
     await assetInfo.downloadAsync();
     
-    if (assetInfo.localUri || assetInfo.uri) {
-      await Image.prefetch(assetInfo.localUri || assetInfo.uri);
+    const resolvedUri = assetInfo.localUri || assetInfo.uri;
+    if (resolvedUri && shouldImagePrefetch(resolvedUri)) {
+      await Image.prefetch(resolvedUri);
     }
     
     assetCache.add(assetId);
@@ -219,5 +348,15 @@ export const preloadSingleAsset = async (asset: any) => {
  */
 export const clearAssetCache = () => {
   assetCache.clear();
+  isPreloaded = false;
+  hasHydratedPersistedProgress = true;
+  updateProgress({
+    total: 0,
+    completed: 0,
+    failed: 0,
+    inProgress: false,
+    isPreloaded: false,
+    percent: 0,
+  });
   console.log('🗑️ Asset cache cleared');
 };

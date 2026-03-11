@@ -11,12 +11,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ModeProvider, useMode } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { startOfflineInfrastructure } from "../src/offline";
+import { clearUserScopedCache } from "../src/offline/cacheLifecycle";
 import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
 import { isNetworkConnected, setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
 
 const LAST_USER_ID_KEY = "@ritmo_last_user_id";
+const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
+const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
 
 const shouldSuppressOfflineErrorLog = (args: unknown[]): boolean => {
   const text = args
@@ -224,6 +227,9 @@ export default function RootLayout() {
       if (sessionError && isInvalidRefreshToken(sessionError)) {
         await supabase.auth.signOut();
         await LogoutService.clearManualLogout();
+        if (cachedUserId) {
+          await clearUserScopedCache(cachedUserId, { clearShared: false });
+        }
         await AsyncStorage.removeItem(LAST_USER_ID_KEY);
 
         if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
@@ -240,6 +246,9 @@ export default function RootLayout() {
         if (wasManualLogout) {
           await LogoutService.clearManualLogout();
           await supabase.auth.signOut();
+          if (cachedUserId) {
+            await clearUserScopedCache(cachedUserId, { clearShared: false });
+          }
           await AsyncStorage.removeItem(LAST_USER_ID_KEY);
         }
 
@@ -265,6 +274,28 @@ export default function RootLayout() {
 
       if (session?.user?.id) {
         await AsyncStorage.setItem(LAST_USER_ID_KEY, session.user.id);
+
+        const pendingChildNameRaw = await AsyncStorage.getItem(PENDING_CHILD_NAME_KEY);
+        if (pendingChildNameRaw) {
+          try {
+            const pending = JSON.parse(pendingChildNameRaw) as { value?: string };
+            const value = pending?.value?.trim?.();
+            if (value) {
+              const isCurrentlyOnline = await isNetworkConnected();
+              if (isCurrentlyOnline) {
+                const { error: updateError } = await supabase.auth.updateUser({
+                  data: { child_name: value },
+                });
+                if (!updateError) {
+                  await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, value);
+                  await AsyncStorage.removeItem(PENDING_CHILD_NAME_KEY);
+                }
+              }
+            }
+          } catch {
+            // Ignore malformed pending data.
+          }
+        }
       }
 
       // Logged in
