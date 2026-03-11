@@ -338,6 +338,12 @@ export default function addRoutines() {
 
     const normalizeRoutineId = (id: number | string) => String(id);
 
+    const getRoutineIdentityKey = (routine: { name?: string; time?: string }) => {
+        const normalizedName = (routine.name || '').trim().toLowerCase();
+        const normalizedTime = (routine.time || '').trim().toLowerCase();
+        return `${normalizedName}__${normalizedTime}`;
+    };
+
     const isRoutineDuplicate = (params: {
         name: string;
         time: string;
@@ -398,9 +404,14 @@ export default function addRoutines() {
             const dbRoutines = await getRoutinesForCurrentUser();
             
             // Merge database routines with AsyncStorage data (for days/ringtone)
-            const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [normalizeRoutineId(r.id), r]));
+            const storedRoutines: Routine[] = stored ? JSON.parse(stored) : [];
+            const storedMapById = new Map(storedRoutines.map((r) => [normalizeRoutineId(r.id), r]));
+            const storedMapByIdentity = new Map(storedRoutines.map((r) => [getRoutineIdentityKey(r), r]));
+
             const merged: Routine[] = dbRoutines.map(dbR => {
-                const existing = storedMap.get(normalizeRoutineId(dbR.id)) as Routine | undefined;
+                const existing =
+                    (storedMapById.get(normalizeRoutineId(dbR.id)) as Routine | undefined) ||
+                    (storedMapByIdentity.get(getRoutineIdentityKey(dbR)) as Routine | undefined);
                 const derivedPresetId = existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
                 return {
                     id: dbR.id,
