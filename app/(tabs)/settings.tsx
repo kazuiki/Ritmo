@@ -271,7 +271,10 @@ export default function Settings() {
     }
   };
 
-  const startEditingNickname = () => {
+  const startEditingNickname = async () => {
+    const canContinue = await ensureOnlineForFeature("Edit Child Nickname");
+    if (!canContinue) return;
+
     setTempNickname(childNickname);
     setIsEditingNickname(true);
   };
@@ -779,7 +782,7 @@ export default function Settings() {
                   >
                     {childNickname || "—"}
                   </Text>
-                  <TouchableOpacity style={styles.editButton} onPress={startEditingNickname}>
+                  <TouchableOpacity style={styles.editButton} onPress={() => { void startEditingNickname(); }}>
                     <Ionicons name="pencil" size={16} color="#666" />
                   </TouchableOpacity>
                 </>
@@ -1044,10 +1047,10 @@ export default function Settings() {
             </Text>
 
             <TouchableOpacity
-              style={styles.logoutConfirmButton}
+              style={styles.onlineOnlyOkButton}
               onPress={() => setOnlineOnlyModalVisible(false)}
             >
-              <Text style={styles.logoutConfirmButtonText}>OK</Text>
+              <Text style={styles.onlineOnlyOkButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2374,6 +2377,20 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     justifyContent: "center",
   },
   logoutConfirmButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  onlineOnlyOkButton: {
+    width: "64%",
+    backgroundColor: "#FF6B7A",
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(50),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onlineOnlyOkButtonText: {
     fontSize: scale.scaleFont(16),
     fontWeight: "600",
     color: "#FFFFFF",
