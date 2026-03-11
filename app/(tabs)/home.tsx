@@ -128,6 +128,28 @@ export default function Home() {
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
   const activePreset = useMemo(() => resolveRoutinePreset(activeRoutine), [activeRoutine]);
+  const resolveMiniGamePath = useCallback((routine?: Routine | null) => {
+    if (!routine) return null;
+
+    const preset = resolveRoutinePreset(routine);
+    if (preset && miniGames[preset.id]) {
+      return miniGames[preset.id];
+    }
+
+    if (routine.presetId && miniGames[routine.presetId]) {
+      return miniGames[routine.presetId];
+    }
+
+    const fallbackKey = `${routine.name ?? ''} ${routine.imageUrl ?? ''}`.toLowerCase();
+    if (fallbackKey.includes('school')) return '/game4/SchoolGame';
+    if (fallbackKey.includes('eat')) return '/game2/EatingGame';
+    if (fallbackKey.includes('bath') || fallbackKey.includes('wash')) return '/game3/BathGame';
+    if (fallbackKey.includes('brush') || fallbackKey.includes('teeth') || fallbackKey.includes('tooth')) return '/game1/BrushTeethGame';
+
+    return null;
+  }, []);
+  const activeMiniGamePath = useMemo(() => resolveMiniGamePath(activeRoutine), [activeRoutine, resolveMiniGamePath]);
+  const canShowTaskChoices = !!activePreset || !!activeMiniGamePath;
   const playbook = useMemo(() => {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
@@ -1135,7 +1157,7 @@ export default function Home() {
 
     const preset = resolveRoutinePreset(routine);
     const hasPlaybook = preset ? !!getPlaybookForPreset(preset.id) : false;
-    const hasMiniGame = preset ? !!miniGames[preset.id] : false;
+    const hasMiniGame = !!resolveMiniGamePath(routine);
 
     setActiveRoutineId(routineId);
     setIsReplayMode(true);
@@ -1450,7 +1472,7 @@ export default function Home() {
             )}
 
             {/* Body content */}
-            {activePreset ? (
+            {canShowTaskChoices ? (
               <ScrollView 
                 style={styles.termsScrollView}
                 contentContainerStyle={[
@@ -1460,56 +1482,57 @@ export default function Home() {
                 showsVerticalScrollIndicator={true}
               >
                 <View style={styles.taskDialogContent}>
-                  <TouchableOpacity 
-                    style={styles.taskItem}
-                    onPress={() => {
-                      // Keep task modal open, just show playbook on top
-                      playbookSlideX.setValue(400);
-                      setPlaybookModalVisible(true);
-                      Animated.timing(playbookSlideX, {
-                        toValue: 0,
-                        duration: 300,
-                        useNativeDriver: true,
-                      }).start();
-                    }}
-                  >
-                    <Image 
-                      source={require("../../assets/gifs/media-unscreen.gif")}
-                      style={styles.taskImage}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
-                  </TouchableOpacity>
+                  {activePreset && (
+                    <TouchableOpacity 
+                      style={styles.taskItem}
+                      onPress={() => {
+                        // Keep task modal open, just show playbook on top
+                        playbookSlideX.setValue(400);
+                        setPlaybookModalVisible(true);
+                        Animated.timing(playbookSlideX, {
+                          toValue: 0,
+                          duration: 300,
+                          useNativeDriver: true,
+                        }).start();
+                      }}
+                    >
+                      <Image 
+                        source={require("../../assets/gifs/media-unscreen.gif")}
+                        style={styles.taskImage}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
+                    </TouchableOpacity>
+                  )}
 
-                  <TouchableOpacity
-                    style={styles.taskItem}
-                    onPress={async () => {
-                      if (!activePreset) return;
+                  {activeMiniGamePath && (
+                    <TouchableOpacity
+                      style={styles.taskItem}
+                      onPress={async () => {
+                        const path = activeMiniGamePath;
 
-                      const path = miniGames[activePreset.id];
+                        if (!path) {
+                          setAlertMessage("No minigame is available for this task");
+                          setAlertModalVisible(true);
+                          return;
+                        }
 
-                      if (!path) {
-                        console.warn("No minigame found for preset", activePreset.id);
-                        setAlertMessage("No minigame is available for this task");
-                        setAlertModalVisible(true);
-                        return;
-                      }
-
-                      minigameStartedRef.current = true;
-                      if (activeRoutineId) {
-                        await AsyncStorage.setItem('@minigameRoutineId', String(activeRoutineId));
-                      }
-                      const targetPath = activeRoutineId ? `${path}?routineId=${activeRoutineId}` : path;
-                      router.push(targetPath as any);
-                    }}
-                  >
-                    <Image 
-                      source={require("../../assets/gifs/media-1--unscreen.gif")}
-                      style={styles.taskImage}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
-                  </TouchableOpacity>
+                        minigameStartedRef.current = true;
+                        if (activeRoutineId) {
+                          await AsyncStorage.setItem('@minigameRoutineId', String(activeRoutineId));
+                        }
+                        const targetPath = activeRoutineId ? `${path}?routineId=${activeRoutineId}` : path;
+                        router.push(targetPath as any);
+                      }}
+                    >
+                      <Image 
+                        source={require("../../assets/gifs/media-1--unscreen.gif")}
+                        style={styles.taskImage}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </ScrollView>
             ) : (
@@ -1524,14 +1547,14 @@ export default function Home() {
             )}
 
             {/* Footer - Different layouts for preset vs no-preset */}
-            {activePreset ? (
+            {canShowTaskChoices ? (
               <View style={styles.taskDialogFooter}>
                 <TouchableOpacity
                   style={styles.finishButton}
                   onPress={() => {
                     const hasPreset = !!activePreset;
                     const hasPlaybook = activePreset ? !!getPlaybookForPreset(activePreset.id) : false;
-                    const hasMiniGame = activePreset ? !!miniGames[activePreset.id] : false;
+                    const hasMiniGame = !!activeMiniGamePath;
                     const isNoPresetFlow = !hasPreset && !hasPlaybook && !hasMiniGame;
 
                     if (activeRoutineId && !isReplayMode && !isNoPresetFlow) {

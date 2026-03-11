@@ -54,6 +54,32 @@ class RitmoGodotActivity : GodotActivity() {
         return mutableSetOf(RitmoPlugin(godot))
     }
 
+    override fun getCommandLine(): MutableList<String> {
+        val mainPack = intent?.getStringExtra("ritmo_main_pack")
+        val projectPath = intent?.getStringExtra("ritmo_project_path")
+
+        if (!mainPack.isNullOrBlank()) {
+            val args = mutableListOf<String>()
+
+            when {
+                !projectPath.isNullOrBlank() -> {
+                    args.add("--path")
+                    args.add(projectPath)
+                }
+                mainPack.startsWith("/android_asset/") -> {
+                    args.add("--path")
+                    args.add("/android_asset")
+                }
+            }
+
+            args.add("--main-pack")
+            args.add(mainPack)
+            return args
+        }
+
+        return super.getCommandLine()
+    }
+
     override fun onGodotForceQuit(instance: Godot) {
         runOnUiThread {
             if (exitRequested) {
