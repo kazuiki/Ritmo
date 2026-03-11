@@ -33,6 +33,7 @@ interface Routine {
 }
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
 
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? '').toLowerCase();
@@ -350,10 +351,16 @@ export default function Home() {
 
   const fetchChildName = async () => {
     try {
+      const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
+      if (localName?.trim()) {
+        setChildName(localName.trim());
+      }
+
       const { data: sessionData } = await supabase.auth.getSession();
       const user = sessionData?.session?.user;
       if (user?.user_metadata?.child_name) {
         setChildName(user.user_metadata.child_name);
+        await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, user.user_metadata.child_name);
       }
     } catch (error) {
       console.error("Failed to fetch child name:", error);
@@ -394,6 +401,9 @@ export default function Home() {
     React.useCallback(() => {
       // Close dropdown when page comes into focus
       setShowDropdown(false);
+
+      // Keep nickname synced after edits from Settings/Onboarding flows.
+      fetchChildName();
 
       // Check if this is the first login and start onboarding if needed
       checkAndStartOnboardingIfFirstLogin();

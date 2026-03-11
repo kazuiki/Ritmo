@@ -4,18 +4,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
@@ -387,7 +387,12 @@ export default function Media() {
 
   const containsBadWords = (text: string): boolean => {
     const lowerText = text.toLowerCase().trim();
-    return combinedBadWords.some(word => lowerText.includes(word));
+    // Split by non-alphanumeric characters to get individual words
+    const words = lowerText.split(/[^a-z0-9]+/).filter(Boolean);
+    // Check for exact word matches, not substring matches
+    return combinedBadWords.some(blockedWord => 
+      words.includes(blockedWord)
+    );
   };
 
   // Dynamic search - fetch from YouTube when user types
@@ -423,21 +428,11 @@ export default function Media() {
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
 
-    // If search is empty, reset bad words flag immediately
+    // If search is empty, reset bad words flag and reload cache
     if (!text.trim()) {
       setHasBadWords(false);
       loadCachedVideos();
-      return;
     }
-
-    // Check for bad words
-    if (containsBadWords(text)) {
-      setHasBadWords(true);
-      Vibration.vibrate([100, 50, 100]); // Vibrate pattern
-      return;
-    }
-
-    setHasBadWords(false);
   };
 
   const handleSearchSubmit = async () => {

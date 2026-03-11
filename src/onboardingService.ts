@@ -93,32 +93,62 @@ async function readCachedPreferences(userId: string): Promise<OnboardingPreferen
   }
 }
 
+export async function getCachedOnboardingPreferences(userId: string): Promise<OnboardingPreferences | null> {
+  return readCachedPreferences(userId);
+}
+
+async function fetchOnboardingPreferencesFromRemote(
+  userId: string,
+  cached: OnboardingPreferences | null
+): Promise<OnboardingPreferences | null> {
+  const { data, error } = await withTimeout(
+    supabase
+      .from("user_onboarding_preferences")
+      .select("*")
+      .eq("user_id", userId)
+      .single(),
+    getRequestTimeoutMs(Boolean(cached))
+  );
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      const initialized = await initializeUserPreferences(userId);
+      await writeAllCaches(userId, initialized);
+      return initialized;
+    }
+    throw error;
+  }
+
+  const prefs = data as OnboardingPreferences;
+  await writeAllCaches(userId, prefs);
+  return prefs;
+}
+
+export async function refreshOnboardingPreferencesInBackground(userId: string): Promise<void> {
+  if (!isOnline()) return;
+
+  try {
+    const cached = await readCachedPreferences(userId);
+    await fetchOnboardingPreferencesFromRemote(userId, cached);
+  } catch {
+    // Best-effort background refresh.
+  }
+}
+
 export async function getOnboardingPreferences(userId: string): Promise<OnboardingPreferences | null> {
   const cached = await readCachedPreferences(userId);
 
+  if (cached) {
+    // Return immediately from local cache for instant UI checks.
+    if (isOnline()) {
+      void refreshOnboardingPreferencesInBackground(userId);
+    }
+    return cached;
+  }
+
   if (isOnline()) {
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from("user_onboarding_preferences")
-          .select("*")
-          .eq("user_id", userId)
-          .single(),
-        getRequestTimeoutMs(Boolean(cached))
-      );
-
-      if (error) {
-        if (error.code === "PGRST116") {
-          const initialized = await initializeUserPreferences(userId);
-          await writeAllCaches(userId, initialized);
-          return initialized;
-        }
-        throw error;
-      }
-
-      const prefs = data as OnboardingPreferences;
-      await writeAllCaches(userId, prefs);
-      return prefs;
+      return await fetchOnboardingPreferencesFromRemote(userId, cached);
     } catch {
       return cached;
     }

@@ -1,9 +1,10 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
-    clearOnboardingCache,
-    getOnboardingPreferences,
-    resetAllOnboardingPreferences,
-    updateOnboardingStatus
+  clearOnboardingCache,
+  getOnboardingPreferences,
+  resetAllOnboardingPreferences,
+  updateOnboardingStatus
 } from '../onboardingService';
 import { supabase } from '../supabaseClient';
 
@@ -54,6 +55,7 @@ const OnboardingContext = createContext<OnboardingContextType | undefined>(undef
 
 const TOTAL_ONBOARDING_STEPS = 5; // Home, Media, Progress, Settings, Add Routine
 const TOTAL_PARENTAL_LOCK_STEPS = 2; // Container, Toggle Switch
+const LAST_USER_ID_KEY = '@ritmo_last_user_id';
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
@@ -85,6 +87,17 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     checkOnboardingStatus();
   }, []);
 
+  const resolveCurrentUserId = async (): Promise<string | null> => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUserId = sessionData?.session?.user?.id;
+    if (sessionUserId) {
+      await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionUserId);
+      return sessionUserId;
+    }
+
+    return AsyncStorage.getItem(LAST_USER_ID_KEY);
+  };
+
   // Listen for auth state changes to reset first login check flag
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -108,19 +121,19 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     
     setIsChecking(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = await resolveCurrentUserId();
+      if (!userId) {
         setIsFirstTimeUser(false);
         setIsReady(true);
         setIsChecking(false);
         return;
       }
       
-      // Get onboarding preferences from database
-      const preferences = await getOnboardingPreferences(user.id);
+      // Cache-first read (JSON/local), with background refresh when online.
+      const preferences = await getOnboardingPreferences(userId);
       
       console.log('🎯 Onboarding Check:', { 
-        userId: user.id.substring(0, 8), 
+        userId: userId.substring(0, 8), 
         hasCompleted: preferences?.main_tour_completed,
         isFirstTime: !preferences?.main_tour_completed 
       });
@@ -158,14 +171,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setHasCheckedFirstLogin(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = await resolveCurrentUserId();
+      if (!userId) {
         console.log('❌ No user found for first login check');
         return;
       }
       
-      // Get onboarding preferences from database
-      const preferences = await getOnboardingPreferences(user.id);
+      // Cache-first read for immediate onboarding decision.
+      const preferences = await getOnboardingPreferences(userId);
       console.log('📋 Database preferences:', preferences);
       
       if (!preferences || !preferences.main_tour_completed) {
@@ -194,10 +207,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setShowOnboarding(false);
     setCurrentOnboardingStep(0);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'main_tour_completed', true);
-        console.log('⏭️ Onboarding skipped for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'main_tour_completed', true);
+        console.log('⏭️ Onboarding skipped for user:', userId);
       }
       setIsFirstTimeUser(false);
     } catch (error) {
@@ -210,12 +223,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setShowOnboarding(false);
     setCurrentOnboardingStep(0);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const userId = await resolveCurrentUserId();
+      if (userId) {
         console.log('💾 Saving onboarding completion to database');
-        const success = await updateOnboardingStatus(user.id, 'main_tour_completed', true);
+        const success = await updateOnboardingStatus(userId, 'main_tour_completed', true);
         if (success) {
-          console.log('✅ Onboarding completed for user:', user.id);
+          console.log('✅ Onboarding completed for user:', userId);
         } else {
           console.log('⚠️ Failed to save onboarding completion');
         }
@@ -230,10 +243,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
   const resetOnboarding = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'main_tour_completed', false);
-        console.log('🔄 Onboarding reset for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'main_tour_completed', false);
+        console.log('🔄 Onboarding reset for user:', userId);
       }
       setIsFirstTimeUser(true);
       setShowOnboarding(false);
@@ -246,11 +259,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   // Parental Lock Onboarding Functions
   const startParentalLockOnboarding = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = await resolveCurrentUserId();
+      if (!userId) return;
       
       // Check if user has already completed this onboarding
-      const preferences = await getOnboardingPreferences(user.id);
+      const preferences = await getOnboardingPreferences(userId);
       
       if (!preferences || !preferences.parental_lock_completed) {
         console.log('🔒 Starting Parental Lock onboarding...');
@@ -276,10 +289,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setShowParentalLockOnboarding(false);
     setCurrentParentalLockStep(0);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'parental_lock_completed', true);
-        console.log('✅ Parental Lock onboarding completed for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'parental_lock_completed', true);
+        console.log('✅ Parental Lock onboarding completed for user:', userId);
       }
     } catch (error) {
       console.error('Error saving parental lock onboarding completion:', error);
@@ -290,14 +303,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const startAddRoutineOnboarding = async () => {
     console.log('🔍 startAddRoutineOnboarding called');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = await resolveCurrentUserId();
+      if (!userId) {
         console.log('❌ No user found for Add Routine onboarding');
         return;
       }
       
       // Check if user has already completed this onboarding
-      const preferences = await getOnboardingPreferences(user.id);
+      const preferences = await getOnboardingPreferences(userId);
       
       if (!preferences || !preferences.add_routine_completed) {
         console.log('➕ Starting Add Routine onboarding...');
@@ -313,10 +326,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const completeAddRoutineOnboarding = async () => {
     setShowAddRoutineOnboarding(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'add_routine_completed', true);
-        console.log('✅ Add Routine onboarding completed for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'add_routine_completed', true);
+        console.log('✅ Add Routine onboarding completed for user:', userId);
       }
     } catch (error) {
       console.error('Error saving add routine onboarding completion:', error);
@@ -326,10 +339,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const skipAddRoutineOnboarding = async () => {
     setShowAddRoutineOnboarding(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'add_routine_completed', true);
-        console.log('⏭️ Add Routine onboarding skipped for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'add_routine_completed', true);
+        console.log('⏭️ Add Routine onboarding skipped for user:', userId);
       }
     } catch (error) {
       console.error('Error saving add routine onboarding skip:', error);
@@ -339,14 +352,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const startProgressOnboarding = async () => {
     console.log('🔍 startProgressOnboarding called');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = await resolveCurrentUserId();
+      if (!userId) {
         console.log('❌ No user found for Progress onboarding');
         return;
       }
       
       // Check if user has already completed this onboarding
-      const preferences = await getOnboardingPreferences(user.id);
+      const preferences = await getOnboardingPreferences(userId);
       console.log('🔑 Progress preferences:', preferences);
       
       if (!preferences || !preferences.progress_completed) {
@@ -364,11 +377,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     console.log('🎯 completeProgressOnboarding called');
     setShowProgressOnboarding(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const userId = await resolveCurrentUserId();
+      if (userId) {
         console.log('💾 Saving Progress completion to database');
-        await updateOnboardingStatus(user.id, 'progress_completed', true);
-        console.log('✅ Progress onboarding completed for user:', user.id);
+        await updateOnboardingStatus(userId, 'progress_completed', true);
+        console.log('✅ Progress onboarding completed for user:', userId);
       }
     } catch (error) {
       console.error('Error saving progress onboarding completion:', error);
@@ -379,10 +392,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     console.log('⏭️ skipProgressOnboarding called');
     setShowProgressOnboarding(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'progress_completed', true);
-        console.log('⏭️ Progress onboarding skipped for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'progress_completed', true);
+        console.log('⏭️ Progress onboarding skipped for user:', userId);
       }
     } catch (error) {
       console.error('Error saving progress onboarding skip:', error);
@@ -392,10 +405,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const resetProgressOnboarding = async () => {
     console.log('🔄 resetProgressOnboarding called');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'progress_completed', false);
-        console.log('🔄 Progress onboarding reset for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'progress_completed', false);
+        console.log('🔄 Progress onboarding reset for user:', userId);
       }
       setShowProgressOnboarding(false);
     } catch (error) {
@@ -406,11 +419,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const resetAllOnboarding = async () => {
     console.log('🔄 resetAllOnboarding called');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = await resolveCurrentUserId();
+      if (!userId) return;
 
       // Reset all onboarding preferences in database
-      await resetAllOnboardingPreferences(user.id);
+      await resetAllOnboardingPreferences(userId);
 
       setShowOnboarding(false);
       setCurrentOnboardingStep(0);
@@ -424,7 +437,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       setIsFirstTimeUser(true);
       setHasCheckedFirstLogin(false);
 
-      console.log('✅ All onboarding states reset for user:', user.id);
+      console.log('✅ All onboarding states reset for user:', userId);
     } catch (error) {
       console.error('Error resetting all onboarding state:', error);
       throw error;
@@ -434,14 +447,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const startAddRoutineModalOnboarding = async () => {
     console.log('🔍 startAddRoutineModalOnboarding called');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = await resolveCurrentUserId();
+      if (!userId) {
         console.log('❌ No user found for Add Routine Modal onboarding');
         return;
       }
       
       // Check if user has already completed this onboarding
-      const preferences = await getOnboardingPreferences(user.id);
+      const preferences = await getOnboardingPreferences(userId);
       console.log('🔑 Add Routine Modal preferences:', preferences);
       
       if (!preferences || !preferences.add_routine_modal_completed) {
@@ -469,11 +482,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setShowAddRoutineModalOnboarding(false);
     setCurrentAddRoutineModalStep(0);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const userId = await resolveCurrentUserId();
+      if (userId) {
         console.log('💾 Saving Add Routine Modal completion to database');
-        await updateOnboardingStatus(user.id, 'add_routine_modal_completed', true);
-        console.log('✅ Add Routine Modal onboarding completed for user:', user.id);
+        await updateOnboardingStatus(userId, 'add_routine_modal_completed', true);
+        console.log('✅ Add Routine Modal onboarding completed for user:', userId);
       }
     } catch (error) {
       console.error('Error saving add routine modal onboarding completion:', error);
@@ -485,10 +498,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setShowAddRoutineModalOnboarding(false);
     setCurrentAddRoutineModalStep(0);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'add_routine_modal_completed', true);
-        console.log('⏭️ Add Routine Modal onboarding skipped for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'add_routine_modal_completed', true);
+        console.log('⏭️ Add Routine Modal onboarding skipped for user:', userId);
       }
     } catch (error) {
       console.error('Error saving add routine modal onboarding skip:', error);
@@ -499,13 +512,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const startRoutinePresetOnboarding = async () => {
     console.log('🔍 startRoutinePresetOnboarding called');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = await resolveCurrentUserId();
+      if (!userId) {
         console.log('❌ No user found for Routine Preset onboarding');
         return;
       }
 
-      const preferences = await getOnboardingPreferences(user.id);
+      const preferences = await getOnboardingPreferences(userId);
 
       if (!preferences || !preferences.routine_preset_completed) {
         console.log('📘 Starting Routine Preset onboarding...');
@@ -521,10 +534,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const completeRoutinePresetOnboarding = async () => {
     setShowRoutinePresetOnboarding(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'routine_preset_completed', true);
-        console.log('✅ Routine Preset onboarding completed for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'routine_preset_completed', true);
+        console.log('✅ Routine Preset onboarding completed for user:', userId);
       }
     } catch (error) {
       console.error('Error saving routine preset onboarding completion:', error);
@@ -534,10 +547,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const skipRoutinePresetOnboarding = async () => {
     setShowRoutinePresetOnboarding(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await updateOnboardingStatus(user.id, 'routine_preset_completed', true);
-        console.log('⏭️ Routine Preset onboarding skipped for user:', user.id);
+      const userId = await resolveCurrentUserId();
+      if (userId) {
+        await updateOnboardingStatus(userId, 'routine_preset_completed', true);
+        console.log('⏭️ Routine Preset onboarding skipped for user:', userId);
       }
     } catch (error) {
       console.error('Error saving routine preset onboarding skip:', error);
