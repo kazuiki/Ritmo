@@ -1,31 +1,32 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -37,6 +38,21 @@ import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 const { width, height } = Dimensions.get("window");
+const LAST_USER_ID_KEY = "@ritmo_last_user_id";
+const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
+const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
+const SETTINGS_PROFILE_CACHE_PREFIX = "@ritmo_settings_profile_";
+
+const isExpectedOfflineError = (error: unknown): boolean => {
+  const message = String((error as any)?.message ?? error ?? "").toLowerCase();
+  const name = String((error as any)?.name ?? "").toLowerCase();
+  return (
+    message.includes("network request failed") ||
+    message.includes("fetch failed") ||
+    name === "typeerror" ||
+    name === "authretryablefetcherror"
+  );
+};
 
 const INSTRUCTION_PAGES = [
   {
@@ -153,6 +169,23 @@ export default function Settings() {
   const [onlineOnlyModalVisible, setOnlineOnlyModalVisible] = useState(false);
   const [onlineOnlyFeatureName, setOnlineOnlyFeatureName] = useState("");
 
+  const readCachedProfile = async (userId: string): Promise<{ email?: string; childNickname?: string } | null> => {
+    try {
+      const raw = await AsyncStorage.getItem(`${SETTINGS_PROFILE_CACHE_PREFIX}${userId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCachedProfile = async (userId: string, profile: { email?: string; childNickname?: string }) => {
+    try {
+      await AsyncStorage.setItem(`${SETTINGS_PROFILE_CACHE_PREFIX}${userId}`, JSON.stringify(profile));
+    } catch {
+      // best-effort cache write
+    }
+  };
+
   useEffect(() => {
     fetchUserData();
     checkParentalLockStatus();
@@ -161,6 +194,7 @@ export default function Settings() {
 
   useFocusEffect(
     React.useCallback(() => {
+      fetchUserData();
       checkParentalLockStatus();
       checkActiveTimeLimit();
     }, [])
@@ -182,14 +216,43 @@ export default function Settings() {
 
   const fetchUserData = async () => {
     try {
+      const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
+      if (cachedUserId) {
+        const cachedProfile = await readCachedProfile(cachedUserId);
+        if (cachedProfile) {
+          setEmail(cachedProfile.email || "");
+          setChildNickname(cachedProfile.childNickname || "");
+          setPassword("********");
+          setLoading(false);
+        }
+
+        const localChildName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
+        if (localChildName?.trim()) {
+          setChildNickname(localChildName.trim());
+          setLoading(false);
+        }
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        setEmail(user.email || "");
         const meta = (user.user_metadata ?? {}) as any;
-        setChildNickname(meta?.child_name ?? "");
+        const resolvedNickname = (meta?.child_name ?? "").trim();
+        const resolvedEmail = user.email || "";
+
+        setEmail(resolvedEmail);
+        setChildNickname(resolvedNickname);
         setPassword("********");
+
+        await AsyncStorage.setItem(LAST_USER_ID_KEY, user.id);
+        if (resolvedNickname) {
+          await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, resolvedNickname);
+        }
+        await writeCachedProfile(user.id, {
+          email: resolvedEmail,
+          childNickname: resolvedNickname,
+        });
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -214,16 +277,53 @@ export default function Settings() {
   };
 
   const saveNickname = async () => {
+    const trimmedNickname = tempNickname.trim();
+    if (!trimmedNickname) {
+      Alert.alert("Error", "Child nickname cannot be empty.");
+      return;
+    }
+
+    const previousNickname = childNickname;
+
     try {
+      // Optimistic local update for instant cross-page refresh.
+      setChildNickname(trimmedNickname);
+      setTempNickname(trimmedNickname);
+      setIsEditingNickname(false);
+      await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, trimmedNickname);
+
+      const sessionData = await supabase.auth.getSession();
+      const resolvedUserId = sessionData?.data?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
+      if (resolvedUserId) {
+        await writeCachedProfile(resolvedUserId, {
+          email,
+          childNickname: trimmedNickname,
+        });
+      }
+
       const { error } = await supabase.auth.updateUser({
-        data: { child_name: tempNickname }
+        data: { child_name: trimmedNickname }
       });
       
-      if (error) throw error;
-      
-      setChildNickname(tempNickname);
-      setIsEditingNickname(false);
+      if (error) {
+        if (isExpectedOfflineError(error)) {
+          await AsyncStorage.setItem(
+            PENDING_CHILD_NAME_KEY,
+            JSON.stringify({ value: trimmedNickname, updatedAt: new Date().toISOString() })
+          );
+          return;
+        }
+        throw error;
+      }
+
+      await AsyncStorage.removeItem(PENDING_CHILD_NAME_KEY);
     } catch (error) {
+      setChildNickname(previousNickname);
+      setTempNickname(previousNickname);
+      setIsEditingNickname(false);
+      if (previousNickname?.trim()) {
+        await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, previousNickname.trim());
+      }
       console.error("Error updating nickname:", error);
       Alert.alert("Error", "Failed to update nickname. Please try again.");
     }

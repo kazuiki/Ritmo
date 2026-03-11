@@ -26,6 +26,68 @@ export async function writePendingOperations(ops: PendingOperation[]): Promise<v
 
 export async function enqueueOperation(op: PendingOperation): Promise<void> {
   const queue = await readPendingOperations();
+
+  // Coalesce repetitive updates so retries stay idempotent and queue stays small.
+  if (op.entity === "onboarding" && op.action === "upsert") {
+    const idx = queue.findIndex((item) => item.userId === op.userId && item.entity === "onboarding" && item.action === "upsert");
+    if (idx >= 0) {
+      queue[idx] = {
+        ...queue[idx],
+        payload: {
+          ...queue[idx].payload,
+          ...op.payload,
+        },
+        clientUpdatedAt: op.clientUpdatedAt,
+        status: "pending",
+      };
+      await writePendingOperations(queue);
+      return;
+    }
+  }
+
+  if (op.entity === "routine" && op.action === "update" && op.recordId) {
+    const idx = queue.findIndex(
+      (item) => item.userId === op.userId && item.entity === "routine" && item.action === "update" && item.recordId === op.recordId
+    );
+    if (idx >= 0) {
+      queue[idx] = {
+        ...queue[idx],
+        payload: {
+          ...queue[idx].payload,
+          ...op.payload,
+        },
+        clientUpdatedAt: op.clientUpdatedAt,
+        status: "pending",
+      };
+      await writePendingOperations(queue);
+      return;
+    }
+  }
+
+  if (op.entity === "routine_progress" && op.action === "upsert" && op.recordId && op.payload?.day_date) {
+    const idx = queue.findIndex(
+      (item) =>
+        item.userId === op.userId &&
+        item.entity === "routine_progress" &&
+        item.action === "upsert" &&
+        item.recordId === op.recordId &&
+        item.payload?.day_date === op.payload?.day_date
+    );
+    if (idx >= 0) {
+      queue[idx] = {
+        ...queue[idx],
+        payload: {
+          ...queue[idx].payload,
+          ...op.payload,
+        },
+        clientUpdatedAt: op.clientUpdatedAt,
+        status: "pending",
+      };
+      await writePendingOperations(queue);
+      return;
+    }
+  }
+
   queue.push(op);
   await writePendingOperations(queue);
 }
@@ -72,4 +134,9 @@ export async function replaceRecordIdInQueue(userId: string, oldId: string, newI
     return op;
   });
   await writePendingOperations(next);
+}
+
+export async function removeUserOperations(userId: string): Promise<void> {
+  const queue = await readPendingOperations();
+  await writePendingOperations(queue.filter((op) => op.userId !== userId));
 }

@@ -1,4 +1,5 @@
 import { Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from "@expo-google-fonts/fredoka";
+import { Asset } from "expo-asset";
 import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -79,6 +80,7 @@ export default function InstructionPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [currentVideoSource, setCurrentVideoSource] = useState<any>(null);
+  const [videoSources, setVideoSources] = useState<any[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const videoRef = useRef<Video>(null);
   const dotAnimations = useRef(PAGES.map(() => new Animated.Value(10))).current;
@@ -90,6 +92,37 @@ export default function InstructionPage() {
   useEffect(() => {
     // Initialize first dot as active
     dotAnimations[0].setValue(30);
+  }, []);
+
+  useEffect(() => {
+    const preloadVideos = async () => {
+      const modules = [
+        require("../assets/Tutorials/1.mp4"),
+        require("../assets/Tutorials/2.mp4"),
+        require("../assets/Tutorials/3.mp4"),
+        require("../assets/Tutorials/4.mp4"),
+        require("../assets/Tutorials/5.mp4"),
+      ];
+
+      const resolved = await Promise.all(
+        modules.map(async (moduleId) => {
+          try {
+            const asset = Asset.fromModule(moduleId);
+            await asset.downloadAsync();
+            if (asset.localUri) {
+              return { uri: asset.localUri };
+            }
+          } catch {
+            // Fall back to bundled module source.
+          }
+          return moduleId;
+        })
+      );
+
+      setVideoSources(resolved);
+    };
+
+    preloadVideos();
   }, []);
 
   const handleNext = () => {
@@ -133,14 +166,14 @@ export default function InstructionPage() {
   };
 
   const handleVideoButton = (videoNumber: number) => {
-    const videoSources = [
+    const fallbackSources = [
       require("../assets/Tutorials/1.mp4"),
       require("../assets/Tutorials/2.mp4"),
       require("../assets/Tutorials/3.mp4"),
       require("../assets/Tutorials/4.mp4"),
       require("../assets/Tutorials/5.mp4"),
     ];
-    setCurrentVideoSource(videoSources[videoNumber - 1]);
+    setCurrentVideoSource(videoSources[videoNumber - 1] ?? fallbackSources[videoNumber - 1]);
     setVideoModalVisible(true);
   };
 
