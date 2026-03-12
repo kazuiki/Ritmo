@@ -38,7 +38,8 @@ class NotificationService {
   private alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastTriggeredRoutineId: number | null = null;
   private audioModeConfigured: boolean = false;
-  private notificationPermissionGranted: boolean = false;
+  // Track which channels we've already delete+recreated this session to force sound pickup
+  private recreatedChannels = new Set<string>();
 
   private async ensureAudioModeConfigured() {
     if (this.audioModeConfigured) return;
@@ -54,20 +55,6 @@ class NotificationService {
     this.audioModeConfigured = true;
   }
 
-  private async ensureNotificationPermissionGranted(): Promise<boolean> {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    const granted = finalStatus === 'granted';
-    this.notificationPermissionGranted = granted;
-    return granted;
-  }
-
   private getAndroidChannelIdForRingtone(ringtone?: string): string {
     const safeRingtone = (ringtone || 'alarm1').toLowerCase().replace(/[^a-z0-9_-]/g, '');
     return `alarm-channel-${safeRingtone || 'alarm1'}`;
@@ -78,6 +65,17 @@ class NotificationService {
     const channelId = this.getAndroidChannelIdForRingtone(resolvedRingtone);
 
     if (Platform.OS === 'android') {
+      // Android caches channel sound settings — delete first so the res/raw file is picked up fresh.
+      // Only do this once per session per channel to avoid thrashing.
+      if (!this.recreatedChannels.has(channelId)) {
+        try {
+          await Notifications.deleteNotificationChannelAsync(channelId);
+        } catch {
+          // Ignore if channel didn't exist yet.
+        }
+        this.recreatedChannels.add(channelId);
+      }
+
       await Notifications.setNotificationChannelAsync(channelId, {
         name: `Routine Alarms (${resolvedRingtone})`,
         importance: Notifications.AndroidImportance.MAX,
@@ -182,9 +180,17 @@ class NotificationService {
   ]);
 
     // 2. Permission Handling
-    const hasNotificationPermission = await this.ensureNotificationPermissionGranted();
-    if (!hasNotificationPermission) {
-      console.log('⚠️ Notification permission not granted. In-app alarms will still run, but system notifications while app is closed will be disabled.');
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    
+    if (finalStatus !== 'granted') {
+      console.log('❌ Notification permissions not granted');
+      return false;
     }
 
     // 3. Cleanup & Listeners
@@ -307,12 +313,6 @@ class NotificationService {
   // Schedule daily notification for a routine
   async scheduleRoutineNotification(routine: RoutineNotification): Promise<string | null> {
     try {
-      const hasNotificationPermission = await this.ensureNotificationPermissionGranted();
-      if (!hasNotificationPermission) {
-        console.log(`❌ Cannot schedule routine ${routine.routineId} because notification permission is not granted.`);
-        return null;
-      }
-
       const ringtone = routine.ringtone || 'alarm1';
       const channelId = await this.ensureAndroidChannelForRingtone(ringtone);
 
