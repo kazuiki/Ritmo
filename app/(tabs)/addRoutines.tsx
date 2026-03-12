@@ -91,6 +91,7 @@ export default function addRoutines() {
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+    const isSubmittingRef = useRef(false); // guard against double-tap on Add/Save
 
     // Refs for TextInput components
     const hourInputRef = useRef<TextInput>(null);
@@ -542,6 +543,7 @@ export default function addRoutines() {
     };
 
     const handleDone = () => {
+        if (isSubmittingRef.current) return;
         if (routineName.trim()) {
             if (selectedDays.length === 0) {
                 setSelectDaysModalVisible(true);
@@ -573,6 +575,7 @@ export default function addRoutines() {
                 const imageUrlToSave = selectedPreset?.imageUrl || null;
                 const presetIdToSave = selectedPreset?.id ?? null;
                 
+                isSubmittingRef.current = true;
                 createRoutineForCurrentUser({
                     name: routineName,
                     description: null,
@@ -612,7 +615,8 @@ export default function addRoutines() {
                     closeModal();
                     setAddSuccessVisible(true);
                 })
-                .catch(err => logIfUnexpected('Supabase createRoutine error:', err));
+                .catch(err => logIfUnexpected('Supabase createRoutine error:', err))
+                .finally(() => { isSubmittingRef.current = false; });
             }
         } else if (!editingRoutineId) {
             // Only close modal for Add (no editing), Edit has its own close in confirmation
@@ -1063,7 +1067,11 @@ export default function addRoutines() {
                             )}
 
                             {/* Action buttons (outside the card) */}
-                            <TouchableOpacity style={[styles.presetButton, { marginTop: editingRoutineId ? 8 : 16, marginBottom: 8 }]} onPress={handleDone}>
+                            <TouchableOpacity
+                                style={[styles.presetButton, { marginTop: editingRoutineId ? 8 : 16, marginBottom: 8, opacity: isSubmittingRef.current ? 0.6 : 1 }]}
+                                onPress={handleDone}
+                                disabled={isSubmittingRef.current}
+                            >
                                 <Text style={styles.presetButtonText}>{editingRoutineId ? 'Save' : 'Add Routine'}</Text>
                             </TouchableOpacity>
                         </View>
