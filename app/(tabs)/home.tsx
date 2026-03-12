@@ -11,7 +11,7 @@ import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
-import { getPresetById, getPresetByImageUrl } from "../../constants/presets";
+import { resolveRoutinePreset } from "../../constants/presets";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
@@ -31,6 +31,20 @@ interface Routine {
   completed?: boolean;
   days?: number[];
 }
+
+const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
+
+const isExpectedOfflineError = (error: unknown): boolean => {
+  const message = String((error as any)?.message ?? error ?? '').toLowerCase();
+  const name = String((error as any)?.name ?? '').toLowerCase();
+  return (
+    message.includes('network request failed') ||
+    message.includes('fetch failed') ||
+    name === 'typeerror' ||
+    name === 'authretryablefetcherror'
+  );
+};
 
 export default function Home() {
   // Load child-friendly fonts
@@ -65,6 +79,8 @@ export default function Home() {
   const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
+  const routinesRef = useRef<Routine[]>([]);
+  const completedOrderRef = useRef<number[]>([]);
   const [completedModalVisible, setCompletedModalVisible] = useState(false);
   // Replay mode: allows re-playing a completed routine without affecting progress
   const [isReplayMode, setIsReplayMode] = useState(false);
@@ -114,11 +130,41 @@ export default function Home() {
   const voReplayTriggeredRef = useRef<Set<number>>(new Set());
   // Derive the active routine and its playbook
   const activeRoutine = useMemo(() => routines.find(r => r.id === activeRoutineId) || null, [routines, activeRoutineId]);
-  const activePreset = useMemo(() => getPresetByImageUrl(activeRoutine?.imageUrl) || getPresetById(activeRoutine?.presetId), [activeRoutine?.imageUrl, activeRoutine?.presetId]);
+  const activePreset = useMemo(() => resolveRoutinePreset(activeRoutine), [activeRoutine]);
+  const resolveMiniGamePath = useCallback((routine?: Routine | null) => {
+    if (!routine) return null;
+
+    const preset = resolveRoutinePreset(routine);
+    if (preset && miniGames[preset.id]) {
+      return miniGames[preset.id];
+    }
+
+    if (routine.presetId && miniGames[routine.presetId]) {
+      return miniGames[routine.presetId];
+    }
+
+    const fallbackKey = `${routine.name ?? ''} ${routine.imageUrl ?? ''}`.toLowerCase();
+    if (fallbackKey.includes('school')) return '/game4/SchoolGame';
+    if (fallbackKey.includes('eat')) return '/game2/EatingGame';
+    if (fallbackKey.includes('bath') || fallbackKey.includes('wash')) return '/game3/BathGame';
+    if (fallbackKey.includes('brush') || fallbackKey.includes('teeth') || fallbackKey.includes('tooth')) return '/game1/BrushTeethGame';
+
+    return null;
+  }, []);
+  const activeMiniGamePath = useMemo(() => resolveMiniGamePath(activeRoutine), [activeRoutine, resolveMiniGamePath]);
+  const canShowTaskChoices = !!activePreset || !!activeMiniGamePath;
   const playbook = useMemo(() => {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
+
+  useEffect(() => {
+    routinesRef.current = routines;
+  }, [routines]);
+
+  useEffect(() => {
+    completedOrderRef.current = completedOrder;
+  }, [completedOrder]);
 
   // Autoplay step audio and gate Next for 1 minute, then auto-advance after 10 seconds
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
@@ -153,9 +199,6 @@ export default function Home() {
   
 
   
-
-  const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
-
   const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs, replayAudio } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
 
 
@@ -206,18 +249,23 @@ export default function Home() {
   const loadRoutines = async (options = {}) => {
     const { useCache = true } = options as any;
     try {
-      // If user is not authenticated, skip DB calls silently
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Resolve user id without requiring network so offline mode can still load routines.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const resolvedUserId = sessionData?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
+      if (!resolvedUserId) {
         setRoutines([]);
         setCompletedOrder([]);
         return;
       }
 
+      if (sessionData?.session?.user?.id) {
+        await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionData.session.user.id);
+      }
+
       // Show cached data immediately (if available)
       if (useCache) {
         try {
-          const cached = await loadCachedRoutines(user.id);
+          const cached = await loadCachedRoutines(resolvedUserId);
           if (cached.routines) setRoutines(cached.routines as any);
           if (cached.completedOrder) setCompletedOrder(cached.completedOrder);
         } catch {}
@@ -232,7 +280,7 @@ export default function Home() {
       }
       
       // Load days from AsyncStorage (user-specific)
-      const storageKey = `@routines_${user.id}`;
+      const storageKey = `@routines_${resolvedUserId}`;
       const storedRoutines = await AsyncStorage.getItem(storageKey);
       const daysMap = new Map();
       if (storedRoutines) {
@@ -297,14 +345,14 @@ export default function Home() {
 
       // Persist fresh data to cache for instant future loads
       try {
-        await saveCachedRoutines(user.id, {
+        await saveCachedRoutines(resolvedUserId, {
           routines: routinesWithProgress as any,
           completedOrder: completedToday,
         });
       } catch {}
     } catch (error) {
       // Suppress noisy unauthenticated errors; log other issues
-      if ((error as any)?.message !== 'Not authenticated') {
+      if ((error as any)?.message !== 'Not authenticated' && !isExpectedOfflineError(error)) {
         console.error("Failed to load routines for user:", error);
       }
       setRoutines([]);
@@ -313,9 +361,16 @@ export default function Home() {
 
   const fetchChildName = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
+      if (localName?.trim()) {
+        setChildName(localName.trim());
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
       if (user?.user_metadata?.child_name) {
         setChildName(user.user_metadata.child_name);
+        await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, user.user_metadata.child_name);
       }
     } catch (error) {
       console.error("Failed to fetch child name:", error);
@@ -337,8 +392,109 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  const ensureRoutineCompleted = useCallback(async (id: number) => {
+    try {
+      await setRoutineCompleted({
+        routineId: id,
+        completed: true,
+        dayDate: new Date(),
+      });
+    } catch (error) {
+      console.error('Failed to persist completed routine:', error);
+    }
+
+    const updatedRoutines = routinesRef.current.map(r => (r.id === id ? { ...r, completed: true } : r));
+    const newOrder = completedOrderRef.current.includes(id)
+      ? completedOrderRef.current
+      : [...completedOrderRef.current, id];
+
+    setRoutines(updatedRoutines);
+    setCompletedOrder(newOrder);
+
+    const allCompleted = updatedRoutines.length > 0 && updatedRoutines.every(r => r.completed);
+
+    if (allCompleted) {
+      // Wait for Success modal to fully close (~500ms) before showing All Done
+      setTimeout(() => {
+        setShowAllDone(true);
+
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 600,
+              useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+              toValue: 1,
+              friction: 4,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(bounceAnim, {
+              toValue: 10,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.spring(bounceAnim, {
+              toValue: 0,
+              friction: 3,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
+
+        setTimeout(async () => {
+          try {
+            Animated.parallel([
+              Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+              Animated.timing(scaleAnim, {
+                toValue: 0.8,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+            ]).start(async () => {
+              setShowAllDone(false);
+              fadeAnim.setValue(0);
+              scaleAnim.setValue(0.5);
+              bounceAnim.setValue(0);
+
+              const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
+              const archivedStored = await AsyncStorage.getItem("@routines_archived");
+              const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
+              const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
+
+              await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
+              await loadRoutines({ useCache: false });
+            });
+          } catch (error) {
+            console.error("Failed to archive and refresh:", error);
+            try {
+              await loadRoutines({ useCache: false });
+            } catch (refreshError) {
+              console.error("Failed to refresh routines:", refreshError);
+            }
+          }
+        }, 3000);
+      }, 500);  // Wait for modal fade animation (~300-400ms) + buffer
+    }
+  }, [bounceAnim, fadeAnim, scaleAnim]);
+
   useFocusEffect(
     React.useCallback(() => {
+      // Close dropdown when page comes into focus
+      setShowDropdown(false);
+
+      // Keep nickname synced after edits from Settings/Onboarding flows.
+      fetchChildName();
+
       // Check if this is the first login and start onboarding if needed
       checkAndStartOnboardingIfFirstLogin();
       
@@ -346,32 +502,51 @@ export default function Home() {
       setIsCheckingCompletion(true);
       
       // Immediately check if we returned from a finished minigame so we can show Success first
-      AsyncStorage.getItem('@minigameCompleted').then(completed => {
+      AsyncStorage.multiGet(['@minigameCompleted', '@minigameRoutineId']).then(async (entries) => {
+        const completed = entries[0]?.[1];
+        const routineIdRaw = entries[1]?.[1];
+        const routineIdFromStorage = routineIdRaw ? Number(routineIdRaw) : null;
+        const resolvedRoutineId = activeRoutineId ?? (routineIdFromStorage && !Number.isNaN(routineIdFromStorage) ? routineIdFromStorage : null);
+
         if (completed === 'true') {
           minigameStartedRef.current = false;
+          setIsReplayMode(false);
 
-          // Close any modal stacks and surface the Success modal right away
+          if (resolvedRoutineId) {
+            setActiveRoutineId(resolvedRoutineId);
+          }
+
+          // Surface the success modal immediately.
           setTaskModalVisible(false);
           setPlaybookModalVisible(false);
           setSuccessModalVisible(true);
           setShowRainingStars(true);
 
-          // Clear the flag for next time
-          AsyncStorage.removeItem('@minigameCompleted');
-
-          // Detect replay mode if we still know the active routine
-          if (activeRoutineId) {
-            setRoutines(prevRoutines => {
-              const routine = prevRoutines.find(r => r.id === activeRoutineId);
-              if (routine?.completed) {
-                setIsReplayMode(true);
-              }
-              return prevRoutines;
+          if (resolvedRoutineId) {
+            // Persist completion silently so we do not trigger All Done while Success is still visible.
+            setRoutineCompleted({
+              routineId: resolvedRoutineId,
+              completed: true,
+              dayDate: new Date(),
+            }).catch((error) => {
+              console.error('Failed to persist completed routine:', error);
             });
+
+            setRoutines(prev => prev.map(r => (r.id === resolvedRoutineId ? { ...r, completed: true } : r)));
+            setCompletedOrder(prev => (prev.includes(resolvedRoutineId) ? prev : [...prev, resolvedRoutineId]));
           }
+
+          // Clear return flags for next time
+          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
+
+          // This flow came from finishing a minigame, so keep replay mode off.
         } else {
           // User clicked back early - just reset the flag
           minigameStartedRef.current = false;
+          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
+
+          // No success flow is active, so we can refresh routines immediately.
+          loadRoutines({ useCache: false });
         }
         
         // Clear loading state after check completes
@@ -380,14 +555,16 @@ export default function Home() {
         console.error('Error checking minigame completion:', error);
         minigameStartedRef.current = false;
         setIsCheckingCompletion(false);
+
+        // Recovery path: keep routine list in sync even if completion flag lookup failed.
+        loadRoutines({ useCache: false });
       });
 
-      // Reload routines after handling completion so UI already shows Success if needed
-      loadRoutines({ useCache: false });
+      // Initial focus refresh is handled after minigame flag check to avoid racing Success modal state.
 
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
-    }, [activeRoutineId, parentalLockEnabled])
+    }, [activeRoutineId, parentalLockEnabled, ensureRoutineCompleted])
   );
 
   const toggleComplete = async (id: number) => {
@@ -1085,9 +1262,9 @@ export default function Home() {
     const routine = routines.find(r => r.id === routineId);
     if (!routine) return;
 
-    const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+    const preset = resolveRoutinePreset(routine);
     const hasPlaybook = preset ? !!getPlaybookForPreset(preset.id) : false;
-    const hasMiniGame = preset ? !!miniGames[preset.id] : false;
+    const hasMiniGame = !!resolveMiniGamePath(routine);
 
     setActiveRoutineId(routineId);
     setIsReplayMode(true);
@@ -1151,10 +1328,6 @@ export default function Home() {
                 onPress={() => setShowDropdown(!showDropdown)}
               >
                 <View style={styles.modeButtonContent}>
-                  <Image 
-                    source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
-                    style={styles.modeButtonIcon}
-                  />
                   <Text style={styles.modeButtonText}>
                     {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
                   </Text>
@@ -1164,7 +1337,7 @@ export default function Home() {
                     {showDropdown && (
                       <View style={styles.dropdownMenu}>
                         <TouchableOpacity 
-                          style={styles.dropdownItem}
+                          style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
                           onPress={() => {
                             setShowDropdown(false);
                             if (mode === 'child') {
@@ -1174,6 +1347,10 @@ export default function Home() {
                             }
                           }}
                         >
+                          <Image 
+                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
+                            style={styles.dropdownItemIcon}
+                          />
                           <Text style={styles.dropdownItemText}>
                             {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
                           </Text>
@@ -1234,7 +1411,7 @@ export default function Home() {
             </View>
             <View style={styles.completedRow}>
               {displayed.map(routine => {
-                const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+                const preset = resolveRoutinePreset(routine);
                 return (
                   <TouchableOpacity
                     key={routine.id}
@@ -1274,7 +1451,7 @@ export default function Home() {
           const routineTimeInMinutes = parseTime(routine.time);
           const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
           const isEnabled = isTimeReached; // Enable any task that has reached its scheduled time
-          const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+          const preset = resolveRoutinePreset(routine);
           
           // Initialize animation value if not exists
           if (!routineAnimations[routine.id]) {
@@ -1402,7 +1579,7 @@ export default function Home() {
             )}
 
             {/* Body content */}
-            {activePreset ? (
+            {canShowTaskChoices ? (
               <ScrollView 
                 style={styles.termsScrollView}
                 contentContainerStyle={[
@@ -1412,52 +1589,57 @@ export default function Home() {
                 showsVerticalScrollIndicator={true}
               >
                 <View style={styles.taskDialogContent}>
-                  <TouchableOpacity 
-                    style={styles.taskItem}
-                    onPress={() => {
-                      // Keep task modal open, just show playbook on top
-                      playbookSlideX.setValue(400);
-                      setPlaybookModalVisible(true);
-                      Animated.timing(playbookSlideX, {
-                        toValue: 0,
-                        duration: 300,
-                        useNativeDriver: true,
-                      }).start();
-                    }}
-                  >
-                    <Image 
-                      source={require("../../assets/gifs/media-unscreen.gif")}
-                      style={styles.taskImage}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
-                  </TouchableOpacity>
+                  {activePreset && (
+                    <TouchableOpacity 
+                      style={styles.taskItem}
+                      onPress={() => {
+                        // Keep task modal open, just show playbook on top
+                        playbookSlideX.setValue(400);
+                        setPlaybookModalVisible(true);
+                        Animated.timing(playbookSlideX, {
+                          toValue: 0,
+                          duration: 300,
+                          useNativeDriver: true,
+                        }).start();
+                      }}
+                    >
+                      <Image 
+                        source={require("../../assets/gifs/media-unscreen.gif")}
+                        style={styles.taskImage}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.taskBlockLabel}>Play Book{"\n"}Guide</Text>
+                    </TouchableOpacity>
+                  )}
 
-                  <TouchableOpacity
-                    style={styles.taskItem}
-                    onPress={() => {
-                      if (!activePreset) return;
+                  {activeMiniGamePath && (
+                    <TouchableOpacity
+                      style={styles.taskItem}
+                      onPress={async () => {
+                        const path = activeMiniGamePath;
 
-                      const path = miniGames[activePreset.id];
+                        if (!path) {
+                          setAlertMessage("No minigame is available for this task");
+                          setAlertModalVisible(true);
+                          return;
+                        }
 
-                      if (!path) {
-                        console.warn("No minigame found for preset", activePreset.id);
-                        setAlertMessage("No minigame is available for this task");
-                        setAlertModalVisible(true);
-                        return;
-                      }
-
-                      minigameStartedRef.current = true;
-                      router.push(path as any);
-                    }}
-                  >
-                    <Image 
-                      source={require("../../assets/gifs/media-1--unscreen.gif")}
-                      style={styles.taskImage}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
-                  </TouchableOpacity>
+                        minigameStartedRef.current = true;
+                        if (activeRoutineId) {
+                          await AsyncStorage.setItem('@minigameRoutineId', String(activeRoutineId));
+                        }
+                        const targetPath = activeRoutineId ? `${path}?routineId=${activeRoutineId}` : path;
+                        router.push(targetPath as any);
+                      }}
+                    >
+                      <Image 
+                        source={require("../../assets/gifs/media-1--unscreen.gif")}
+                        style={styles.taskImage}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.taskBlockLabel}>Play {"\n"}MiniGame</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </ScrollView>
             ) : (
@@ -1472,14 +1654,14 @@ export default function Home() {
             )}
 
             {/* Footer - Different layouts for preset vs no-preset */}
-            {activePreset ? (
+            {canShowTaskChoices ? (
               <View style={styles.taskDialogFooter}>
                 <TouchableOpacity
                   style={styles.finishButton}
                   onPress={() => {
                     const hasPreset = !!activePreset;
                     const hasPlaybook = activePreset ? !!getPlaybookForPreset(activePreset.id) : false;
-                    const hasMiniGame = activePreset ? !!miniGames[activePreset.id] : false;
+                    const hasMiniGame = !!activeMiniGamePath;
                     const isNoPresetFlow = !hasPreset && !hasPlaybook && !hasMiniGame;
 
                     if (activeRoutineId && !isReplayMode && !isNoPresetFlow) {
@@ -1586,7 +1768,7 @@ export default function Home() {
           <Text style={styles.completedModalTitle}>Completed Task</Text>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
             {completedRoutinesReversed.map((routine) => {
-              const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+              const preset = resolveRoutinePreset(routine);
               return (
                 <TouchableOpacity
                   key={routine.id}
@@ -1842,14 +2024,20 @@ export default function Home() {
             {/* Next Button */}
             <TouchableOpacity
               style={styles.successNextButton}
-              onPress={() => {
-                if (activeRoutineId && !isReplayMode) {
-                  toggleComplete(activeRoutineId);
-                }
+              onPress={async () => {
+                const routineIdToComplete = activeRoutineId;
+                const shouldCompleteRoutine = routineIdToComplete && !isReplayMode;
+                
+                // Close modal first
                 setSuccessModalVisible(false);
-                setShowRainingStars(true);
+                setShowRainingStars(false);
                 setActiveRoutineId(null);
                 setIsReplayMode(false);
+                
+                // Then trigger All Done celebration after modal is closed
+                if (shouldCompleteRoutine) {
+                  await ensureRoutineCompleted(routineIdToComplete);
+                }
               }}
             >
               <Text style={styles.successNextButtonText}>Next</Text>
@@ -2047,11 +2235,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   dropdownMenu: {
     position: 'absolute',
     top: '100%', // Sits right below the button
-    right: scale.scaleSpacing(20),
+    right: scale.scaleSpacing(10),
     backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
     borderRadius: 12,
-    padding: scale.scaleSpacing(8),
-    minWidth: 150,
+    paddingVertical: scale.scaleSpacing(3),
+    paddingHorizontal: scale.scaleSpacing(4),
     // Shadow for depth
     elevation: 5,
     shadowColor: '#000',
@@ -2060,7 +2248,19 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: 4,
   },
   dropdownItem: {
-    padding: scale.scaleSpacing(10),
+    paddingVertical: scale.scaleSpacing(3),
+    paddingHorizontal: scale.scaleSpacing(4),
+  },
+  dropdownItemWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(4),
+  },
+  dropdownItemIcon: {
+    width: scale.scaleWidth(20),
+    height: scale.scaleHeight(20),
+    resizeMode: 'contain',
+    tintColor: '#2F7C72',
   },
   dropdownItemText: {
     color: '#2F7C72',
@@ -2517,9 +2717,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   alertModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(18),
-    padding: scale.scaleSpacing(18),
-    width: "82%",
-    maxWidth: scale.scaleWidth(420),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     maxHeight: "70%",
     alignItems: "center",
     shadowColor: "#000",
@@ -2527,7 +2727,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: scale.scaleSpacing(12),
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#FFB3BA",
   },
   alertIconCircle: {

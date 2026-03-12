@@ -1,7 +1,23 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, ImageBackground, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { supabase } from "../../src/supabaseClient";
+
+const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
+const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
+const LAST_USER_ID_KEY = "@ritmo_last_user_id";
+
+const isExpectedOfflineError = (error: unknown): boolean => {
+  const message = String((error as any)?.message ?? error ?? "").toLowerCase();
+  const name = String((error as any)?.name ?? "").toLowerCase();
+  return (
+    message.includes("network request failed") ||
+    message.includes("fetch failed") ||
+    name === "typeerror" ||
+    name === "authretryablefetcherror"
+  );
+};
 
 export default function ChildNickname() {
   const router = useRouter();
@@ -11,28 +27,61 @@ export default function ChildNickname() {
   const [alertMessage, setAlertMessage] = useState("");
 
   const handleSaveChild = async () => {
-    if (!child) {
+    const trimmedChild = child.trim();
+    if (!trimmedChild) {
       setAlertMessage("Enter your child's nickname");
       setAlertModalVisible(true);
       return;
     }
+
     setLoading(true);
+    await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, trimmedChild);
 
-    // Update current authenticated user's metadata
-    const { error } = await supabase.auth.updateUser({
-      data: { child_name: child },
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setAlertMessage(error.message);
-      setAlertModalVisible(true);
-      return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user?.id) {
+      await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionData.session.user.id);
     }
 
-    // Navigate directly to greetings after saving nickname
-    router.replace("/greetings");
+    // Update current authenticated user's metadata
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { child_name: trimmedChild },
+      });
+
+      if (error) {
+        if (isExpectedOfflineError(error)) {
+          await AsyncStorage.setItem(
+            PENDING_CHILD_NAME_KEY,
+            JSON.stringify({ value: trimmedChild, updatedAt: new Date().toISOString() })
+          );
+          router.replace("/greetings");
+          return;
+        }
+
+        setAlertMessage(error.message);
+        setAlertModalVisible(true);
+        return;
+      }
+
+      await AsyncStorage.removeItem(PENDING_CHILD_NAME_KEY);
+
+      // Navigate directly to greetings after saving nickname
+      router.replace("/greetings");
+    } catch (error) {
+      if (isExpectedOfflineError(error)) {
+        await AsyncStorage.setItem(
+          PENDING_CHILD_NAME_KEY,
+          JSON.stringify({ value: trimmedChild, updatedAt: new Date().toISOString() })
+        );
+        router.replace("/greetings");
+        return;
+      }
+
+      setAlertMessage((error as any)?.message ?? "Failed to save nickname");
+      setAlertModalVisible(true);
+    } finally {
+      setLoading(false);
+    }
 
   };
 
@@ -203,16 +252,16 @@ const styles = StyleSheet.create({
   alertModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    padding: 18,
-    width: "82%",
-    maxWidth: 420,
+    padding: 20,
+    width: "74%",
+    maxWidth: 330,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#FFB3BA",
   },
   alertIconCircle: {

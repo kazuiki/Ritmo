@@ -6,12 +6,24 @@ interface UseNetworkFailureReturn {
   handleRetry: () => void;
 }
 
-export const useNetworkFailure = (): UseNetworkFailureReturn => {
+interface UseNetworkFailureOptions {
+  enabled?: boolean;
+}
+
+export const useNetworkFailure = (options?: UseNetworkFailureOptions): UseNetworkFailureReturn => {
+  const enabled = options?.enabled ?? true;
   const [showNetworkFailureModal, setShowNetworkFailureModal] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const retryTimeoutRef = useRef<any>(null);
 
   const checkConnectivity = async () => {
+    if (!enabled) {
+      if (showNetworkFailureModal) {
+        setShowNetworkFailureModal(false);
+      }
+      return;
+    }
+
     if (isChecking) return; // Prevent multiple simultaneous checks
     
     setIsChecking(true);
@@ -43,6 +55,11 @@ export const useNetworkFailure = (): UseNetworkFailureReturn => {
   };
 
   const handleRetry = async () => {
+    if (!enabled) {
+      setShowNetworkFailureModal(false);
+      return;
+    }
+
     console.log('🔄 User requested network retry...');
     
     // Clear any existing retry timeout
@@ -64,6 +81,15 @@ export const useNetworkFailure = (): UseNetworkFailureReturn => {
   useEffect(() => {
     let initialCheckTimeout: any;
     let checkInterval: any;
+
+    if (!enabled) {
+      setShowNetworkFailureModal(false);
+      return () => {
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+      };
+    }
 
     // Initial connectivity check after a short delay
     initialCheckTimeout = setTimeout(() => {
@@ -87,7 +113,7 @@ export const useNetworkFailure = (): UseNetworkFailureReturn => {
         clearTimeout(retryTimeoutRef.current);
       }
     };
-  }, [showNetworkFailureModal, isChecking]);
+  }, [enabled, showNetworkFailureModal, isChecking]);
 
   return {
     showNetworkFailureModal,

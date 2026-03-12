@@ -1,49 +1,64 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
-  ImageBackground,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ImageBackground,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { ParentalLockService } from "../src/parentalLockService";
+import { supabase } from "../src/supabaseClient";
+import { isNetworkConnected } from "../src/utils/networkUtils";
 import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
 
 const backgroundImage = require("../assets/background.png");
 
-const generateCaptcha = () => {
-  const operators = ["+", "-"] as const;
-  const operator = operators[Math.floor(Math.random() * operators.length)];
-  let num1 = Math.floor(Math.random() * 20) + 1;
-  let num2 = Math.floor(Math.random() * 20) + 1;
-
-  if (operator === "-") {
-    if (num2 > num1) {
-      const temp = num1;
-      num1 = num2;
-      num2 = temp;
-    }
-  }
-
-  const answer = operator === "+" ? num1 + num2 : num1 - num2;
-  return { question: `${num1} ${operator} ${num2}`, answer: answer.toString() };
-};
-
 export default function ParentalLockNewPin() {
   const router = useRouter();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
-  const [captcha, setCaptcha] = useState(generateCaptcha());
-  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  
+  // Email and OTP states
+  const [email, setEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [currentSessionEmail, setCurrentSessionEmail] = useState("");
+  
+  // Modal states
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  
+  // PIN states
   const [newPin, setNewPin] = useState(['', '', '', '']);
   const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+  
+  // Loading states
+  const [sendingCode, setSendingCode] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Get current session email on mount
+  const getSessionEmail = async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        console.error('Error getting user:', error);
+        setErrorMessage("Unable to retrieve session information.");
+        setShowErrorModal(true);
+        return;
+      }
+      setCurrentSessionEmail(user.email || "");
+    } catch (error) {
+      console.error('Error getting session email:', error);
+      setErrorMessage("An error occurred. Please try again.");
+      setShowErrorModal(true);
+    }
+  };
 
   const handlePinInput = (index: number, value: string) => {
     // Only allow single digits
@@ -66,23 +81,98 @@ export default function ParentalLockNewPin() {
     }
   };
 
-  const handleContinue = async () => {
-    if (!captchaAnswer.trim()) {
-      setErrorMessage("Please answer the captcha to continue.");
+  const handleSendOtp = async () => {
+    if (!email.trim()) {
+      setErrorMessage("Please enter your email address.");
       setShowErrorModal(true);
       return;
     }
 
-    if (captchaAnswer.trim() === captcha.answer) {
-      // Captcha is correct, show PIN modal
-      setShowPinModal(true);
-      setCaptchaAnswer("");
-    } else {
-      setErrorMessage("Your answer is incorrect. Please try again.");
+    // Validate email matches current session
+    if (email.toLowerCase() !== currentSessionEmail.toLowerCase()) {
+      setErrorMessage("The email you entered does not match your account. Please try again.");
       setShowErrorModal(true);
-      // Reset captcha
-      setCaptcha(generateCaptcha());
-      setCaptchaAnswer("");
+      return;
+    }
+
+    // Check network connectivity before sending code
+    const isConnected = await isNetworkConnected();
+    if (!isConnected) {
+      setErrorMessage("No network connection. Please check your internet and try again.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    setSendingCode(true);
+    try {
+      // Send OTP to email
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: undefined,
+        },
+      });
+      setSendingCode(false);
+
+      if (error) {
+        if (error.message.includes('Network request failed') ||
+            error.message.includes('network') ||
+            (error as any).name === 'TypeError') {
+          setErrorMessage("Network error. Please check your internet and try again.");
+          setShowErrorModal(true);
+          return;
+        }
+        
+        setErrorMessage(error.message);
+        setShowErrorModal(true);
+        return;
+      }
+
+      // Show verification modal
+      setShowVerificationModal(true);
+    } catch (error) {
+      setSendingCode(false);
+      console.log('Error during sending code:', (error as any).message);
+      setErrorMessage("An error occurred. Please try again.");
+      setShowErrorModal(true);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verificationCode) {
+      setErrorMessage("Please enter the verification code");
+      setShowErrorModal(true);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Verify OTP
+      const { error } = await supabase.auth.verifyOtp({
+        type: 'email',
+        email,
+        token: verificationCode,
+      });
+
+      if (error) {
+        setLoading(false);
+        console.log('Error verifying OTP:', error.message);
+        setErrorMessage("Incorrect verification code. Please try again");
+        setShowErrorModal(true);
+        return;
+      }
+
+      // OTP is valid - show PIN modal
+      setLoading(false);
+      setShowVerificationModal(false);
+      setShowPinModal(true);
+    } catch (error) {
+      setLoading(false);
+      console.log('Error during verification:', (error as any)?.message);
+      setErrorMessage("An error occurred. Please try again");
+      setShowErrorModal(true);
     }
   };
 
@@ -108,8 +198,13 @@ export default function ParentalLockNewPin() {
   const handleCancelPin = () => {
     setShowPinModal(false);
     setNewPin(['', '', '', '']);
-    setCaptcha(generateCaptcha());
-    setCaptchaAnswer("");
+    setEmail("");
+    setVerificationCode("");
+  };
+
+  const handleCancelVerification = () => {
+    setShowVerificationModal(false);
+    setVerificationCode("");
   };
 
   const handleBack = () => {
@@ -128,25 +223,80 @@ export default function ParentalLockNewPin() {
         <Text style={styles.title}>New Pin Setup</Text>
 
         <Text style={styles.instructionText}>
-          Please answer the question below to proceed with changing your PIN.
+          Please enter the email address associated with your account to proceed.
         </Text>
 
-        <View style={styles.captchaContainer}>
-          <Text style={styles.captchaQuestion}>{captcha.question} = ?</Text>
+        <View style={styles.emailContainer}>
           <TextInput
-            style={styles.captchaInput}
-            placeholder="Enter answer"
-            value={captchaAnswer}
-            onChangeText={setCaptchaAnswer}
-            keyboardType="numeric"
+            style={styles.emailInput}
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
             placeholderTextColor="#9CA3AF"
+            onFocus={getSessionEmail}
           />
         </View>
 
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueText}>Continue</Text>
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={handleSendOtp}
+          disabled={sendingCode}
+        >
+          <Text style={styles.continueText}>
+            {sendingCode ? "SENDING..." : "SEND OTP"}
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {/* OTP Verification Modal */}
+      <Modal
+        visible={showVerificationModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelVerification}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={handleCancelVerification}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>Enter Verification Code</Text>
+            
+            <Text style={styles.verificationMessage}>
+              A verification code has been sent to {email}
+            </Text>
+            
+            <TextInput
+              style={[styles.input, styles.verificationInput]}
+              placeholder="Enter 6-digit code"
+              placeholderTextColor="#888"
+              value={verificationCode}
+              onChangeText={setVerificationCode}
+              keyboardType="numeric"
+              maxLength={6}
+              multiline={false}
+              numberOfLines={1}
+              textAlignVertical="center"
+            />
+            
+            <TouchableOpacity
+              style={[styles.verifyButton, { marginTop: 20 }]}
+              onPress={handleVerifyCode}
+              disabled={!verificationCode || verificationCode.length !== 6 || loading}
+            >
+              <Text style={styles.verifyButtonText}>
+                {loading ? "VERIFYING..." : "VERIFY"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Error Modal */}
       <Modal
@@ -157,10 +307,10 @@ export default function ParentalLockNewPin() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.errorModalContent}>
-            <Text style={styles.errorModalTitle}>Oops!</Text>
+            <Text style={styles.errorModalTitle}>Error</Text>
             <Text style={styles.errorModalMessage}>{errorMessage}</Text>
-            <TouchableOpacity 
-              style={styles.errorModalButton} 
+            <TouchableOpacity
+              style={styles.errorModalButton}
               onPress={() => setShowErrorModal(false)}
             >
               <Text style={styles.errorModalButtonText}>OK</Text>
@@ -262,7 +412,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignSelf: "flex-start",
     color: "#333",
     fontSize: scale.scaleFont(16),
-    marginBottom: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(8),
     textDecorationLine: "underline",
     fontFamily: "ITIM",
   },
@@ -282,7 +432,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     lineHeight: scale.scaleFont(22),
     fontFamily: "ITIM",
   },
-  captchaContainer: {
+  emailContainer: {
     width: "100%",
     marginBottom: scale.scaleSpacing(30),
     padding: scale.scaleSpacing(20),
@@ -291,15 +441,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E6E6E6",
   },
-  captchaQuestion: {
-    fontSize: scale.scaleFont(18),
-    fontWeight: "600",
-    fontFamily: "ITIM",
-    color: "#333",
-    marginBottom: scale.scaleSpacing(15),
-    textAlign: "center",
-  },
-  captchaInput: {
+  emailInput: {
     height: scale.scaleHeight(50),
     borderRadius: scale.scaleBorderRadius(12),
     borderWidth: 1,
@@ -402,6 +544,21 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     textAlign: "center",
     lineHeight: scale.scaleFont(22),
   },
+  verificationMessage: {
+    fontSize: scale.scaleFont(14),
+    color: "#666",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(15),
+    fontFamily: "ITIM",
+  },
+  verificationInput: {
+    marginTop: 16,
+    textAlign: 'center',
+    paddingHorizontal: 18,
+    width: '100%',
+    minHeight: scale.scaleHeight(50),
+    maxHeight: scale.scaleHeight(50),
+  },
   pinContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -450,6 +607,29 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "ITIM",
     textAlign: "center",
   },
+  modalCloseButton: {
+    position: "absolute",
+    top: scale.scaleSpacing(15),
+    right: scale.scaleSpacing(15),
+    padding: scale.scaleSpacing(8),
+    zIndex: 10,
+  },
+  verifyButton: {
+    backgroundColor: "#2B6A63",
+    paddingVertical: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(25),
+    width: "100%",
+    alignItems: "center",
+  },
+  verifyButtonText: {
+    color: "#FFFFFF",
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    textAlign: "center",
+    fontFamily: "ITIM",
+  },
+
   // Error Modal Styles
   errorModalContent: {
     backgroundColor: "#FFFFFF",

@@ -1,4 +1,25 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
+
+const PARENTAL_LOCK_ENABLED_KEY = '@ritmo_parental_lock_enabled';
+const PARENTAL_LOCK_PIN_KEY = '@ritmo_parental_lock_pin';
+
+async function cacheEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(PARENTAL_LOCK_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+async function getCachedEnabled(): Promise<boolean> {
+  const value = await AsyncStorage.getItem(PARENTAL_LOCK_ENABLED_KEY);
+  return value === 'true';
+}
+
+async function cachePin(pin: string): Promise<void> {
+  await AsyncStorage.setItem(PARENTAL_LOCK_PIN_KEY, pin);
+}
+
+async function getCachedPin(): Promise<string | null> {
+  return AsyncStorage.getItem(PARENTAL_LOCK_PIN_KEY);
+}
 
 const isAuthParseError = (error: unknown) => {
   if (!error) return false;
@@ -32,20 +53,24 @@ export const ParentalLockService = {
         if (!isAuthParseError(error) && !isNetworkError(error)) {
           console.error('Error getting user:', error);
         }
-        return false;
+        return getCachedEnabled();
       }
       // Check if parental_lock_enabled is set to true in user metadata
-      return user.user_metadata?.parental_lock_enabled === true;
+      const enabled = user.user_metadata?.parental_lock_enabled === true;
+      await cacheEnabled(enabled);
+      return enabled;
     } catch (error) {
       if (!isNetworkError(error)) {
         console.error('Error checking parental lock status:', error);
       }
-      return false;
+      return getCachedEnabled();
     }
   },
 
   // Set parental lock status
   async setEnabled(enabled: boolean): Promise<void> {
+    await cacheEnabled(enabled);
+
     try {
       const { error } = await supabase.auth.updateUser({
         data: { parental_lock_enabled: enabled }
@@ -64,6 +89,8 @@ export const ParentalLockService = {
 
   // Save PIN to user metadata
   async savePin(pin: string): Promise<void> {
+    await cachePin(pin);
+
     try {
       const { error } = await supabase.auth.updateUser({
         data: { parental_pin: pin }
@@ -88,14 +115,18 @@ export const ParentalLockService = {
         if (!isAuthParseError(error) && !isNetworkError(error)) {
           console.error('Error getting user:', error);
         }
-        return null;
+        return getCachedPin();
       }
-      return user.user_metadata?.parental_pin || null;
+      const pin = user.user_metadata?.parental_pin || null;
+      if (pin) {
+        await cachePin(pin);
+      }
+      return pin;
     } catch (error) {
       if (!isNetworkError(error)) {
         console.error('Error getting saved PIN:', error);
       }
-      return null;
+      return getCachedPin();
     }
   },
 

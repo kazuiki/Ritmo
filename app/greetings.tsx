@@ -1,24 +1,27 @@
 // app/greeting.tsx
 import {
-  Fredoka_400Regular,
-  Fredoka_600SemiBold,
-  useFonts,
+    Fredoka_400Regular,
+    Fredoka_600SemiBold,
+    useFonts,
 } from "@expo-google-fonts/fredoka";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from 'expo-av';
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
 } from "react-native";
 import { supabase } from "../src/supabaseClient";
+
+const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 
 export default function Greeting() {
   const [name, setName] = useState<string>("Kid");
@@ -171,9 +174,19 @@ export default function Greeting() {
 
   useEffect(() => {
     (async () => {
+      const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
+      if (localName?.trim()) {
+        setName(localName.trim());
+      }
+
       const { data } = await supabase.auth.getUser();
       const meta = (data?.user?.user_metadata ?? {}) as any;
-      setName(meta?.child_name ?? "Kid");
+      const resolved = meta?.child_name ?? localName ?? "Kid";
+      setName(resolved);
+
+      if (meta?.child_name) {
+        await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, meta.child_name);
+      }
     })();
   }, []);
 

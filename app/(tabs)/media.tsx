@@ -53,7 +53,8 @@ export default function Media() {
   const [searchQuery, setSearchQuery] = useState('');
   const [hasBadWords, setHasBadWords] = useState(false);
   const [customBlockedWords, setCustomBlockedWords] = useState<string[]>([]);
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<YouTubeVideo | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -83,9 +84,72 @@ export default function Media() {
   
   // Safe channel IDs
   const SAFE_CHANNELS = [
-    'UCBXVGODxUHmsEsGgUFQgqQw', // Ms Rachel
-    'UCbCmjCuTUZos6Inko4u57UQ', // Cocomelon
+    'UCGwA4GJE-_XoKnrdyqfi6fQ', // Super Simple Songs
+    'UCKAqou7V9FWgPBC3vafy_ew', // Little Baby Bum
+    'UCbFWrz_2m_sDJ3hSHKWJUMw', // Dave and Ava
+    'UCGfBwrCoi9ZJjKiUK8MmJNw', // Pinkfong Baby Shark
   ];
+
+  const DAILY_ROUTINE_TERMS = [
+    'kids daily routine',
+    'morning routine for kids',
+    'healthy habits for kids',
+    'preschool daily routine',
+    'toddler routine learning',
+    'self care for kids',
+    'brush teeth wash hands kids',
+    'getting ready for school kids',
+  ];
+
+  const lastRoutineTermRef = useRef<string>('');
+
+  const filterExcludedVideos = (videoList: YouTubeVideo[]): YouTubeVideo[] => {
+    const cartoonRequiredKeywords = [
+      'cartoon', 'animated', 'animation', 'nursery rhyme', 'kids song', 'abc song',
+      'alphabet song', 'baby shark', 'pinkfong', 'dave and ava', 'super simple songs',
+      'little baby bum', 'kids music', 'cartoons for kids'
+    ];
+
+    const humanContentKeywords = [
+      'ms rachel', 'blippi', 'live action', 'real life', 'family vlog', 'vlog',
+      'reaction', 'podcast', 'interview', 'teacher', 'classroom', 'for parents'
+    ];
+
+    return videoList.filter(video => {
+      const normalizedChannel = (video.channel || '').toLowerCase();
+      const normalizedTitle = (video.title || '').toLowerCase();
+      const normalizedDescription = (video.description || '').toLowerCase();
+      const combined = `${normalizedChannel} ${normalizedTitle} ${normalizedDescription}`;
+
+      const hasCartoonSignal = cartoonRequiredKeywords.some(keyword => combined.includes(keyword));
+      const hasHumanSignal = humanContentKeywords.some(keyword => combined.includes(keyword));
+
+      return !(
+        normalizedChannel.includes('cocomelon') ||
+        normalizedTitle.includes('cocomelon') ||
+        normalizedDescription.includes('cocomelon') ||
+        !hasCartoonSignal ||
+        hasHumanSignal
+      );
+    });
+  };
+
+  const shuffleVideos = (videoList: YouTubeVideo[]): YouTubeVideo[] => {
+    const shuffled = [...videoList];
+    for (let index = shuffled.length - 1; index > 0; index--) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+    }
+    return shuffled;
+  };
+
+  const getNextRoutineTerm = () => {
+    const candidates = DAILY_ROUTINE_TERMS.filter(term => term !== lastRoutineTermRef.current);
+    const pool = candidates.length > 0 ? candidates : DAILY_ROUTINE_TERMS;
+    const chosenTerm = pool[Math.floor(Math.random() * pool.length)];
+    lastRoutineTermRef.current = chosenTerm;
+    return chosenTerm;
+  };
 
   const loadCustomBlockedWords = React.useCallback(async () => {
     try {
@@ -217,6 +281,7 @@ export default function Media() {
   useFocusEffect(
     React.useCallback(() => {
       setIsMediaPageFocused(true); // Mark page as focused
+      setShowDropdown(false); // Close dropdown when page comes into focus
       ParentalLockAuthService.onNavigateToPublicTab();
       checkMediaTimeLimit(); // This handles modal state based on lock status
       
@@ -322,7 +387,12 @@ export default function Media() {
 
   const containsBadWords = (text: string): boolean => {
     const lowerText = text.toLowerCase().trim();
-    return combinedBadWords.some(word => lowerText.includes(word));
+    // Split by non-alphanumeric characters to get individual words
+    const words = lowerText.split(/[^a-z0-9]+/).filter(Boolean);
+    // Check for exact word matches, not substring matches
+    return combinedBadWords.some(blockedWord => 
+      words.includes(blockedWord)
+    );
   };
 
   // Dynamic search - fetch from YouTube when user types
@@ -358,21 +428,11 @@ export default function Media() {
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
 
-    // If search is empty, reset bad words flag immediately
+    // If search is empty, reset bad words flag and reload cache
     if (!text.trim()) {
       setHasBadWords(false);
       loadCachedVideos();
-      return;
     }
-
-    // Check for bad words
-    if (containsBadWords(text)) {
-      setHasBadWords(true);
-      Vibration.vibrate([100, 50, 100]); // Vibrate pattern
-      return;
-    }
-
-    setHasBadWords(false);
   };
 
   const handleSearchSubmit = async () => {
@@ -393,6 +453,74 @@ export default function Media() {
   // Filter videos based on search query (for local filtering if needed)
   const filteredVideos = videos;
 
+  const recommendedVideos = useMemo(() => {
+    if (!selectedVideo) return [];
+    return filteredVideos
+      .filter(video => video.id !== selectedVideo.id)
+      .slice(0, 12);
+  }, [filteredVideos, selectedVideo]);
+
+  const openVideoModal = (video: YouTubeVideo) => {
+    setSelectedVideo(video);
+    setShowVideoModal(true);
+  };
+
+  const closeVideoModal = () => {
+    setShowVideoModal(false);
+  };
+
+  const shouldAllowYouTubeNavigation = (request: { url?: string }) => {
+    const url = request?.url || '';
+    if (!url) return true;
+
+    const lowerUrl = url.toLowerCase();
+
+    const blockedPatterns = [
+      'intent://',
+      'vnd.youtube',
+      'youtube://',
+      'youtube.com/watch',
+      'm.youtube.com/watch',
+      'youtu.be/',
+      'youtube.com/redirect',
+      'youtube.com/channel/',
+      'youtube.com/@',
+      'youtube.com/user/',
+      'youtube.com/c/',
+    ];
+
+    if (blockedPatterns.some(pattern => lowerUrl.includes(pattern))) {
+      return false;
+    }
+
+    const allowedStarts = [
+      'about:blank',
+      'blob:',
+      'data:',
+      'https://www.youtube.com/embed/',
+      'https://www.youtube-nocookie.com/embed/',
+      'https://www.youtube.com/s/player/',
+      'https://s.ytimg.com/',
+      'https://i.ytimg.com/',
+      'https://rr',
+      'https://r',
+      'https://redirector.googlevideo.com/',
+      'https://www.google.com/',
+      'https://googleads.g.doubleclick.net/',
+      'https://www.gstatic.com/',
+    ];
+
+    if (allowedStarts.some(prefix => lowerUrl.startsWith(prefix))) {
+      return true;
+    }
+
+    if (lowerUrl.includes('googlevideo.com') || lowerUrl.includes('ytimg.com')) {
+      return true;
+    }
+
+    return false;
+  };
+
   // Use index as key to allow duplicate video IDs across categories
   const renderVideos = filteredVideos.map((video, index) => ({
     ...video,
@@ -405,8 +533,9 @@ export default function Media() {
       if (raw) {
         const parsed = JSON.parse(raw) as { savedAt: number; videos: YouTubeVideo[] };
         if (parsed?.videos && parsed?.savedAt && Date.now() - parsed.savedAt <= CACHE_TTL_MS) {
-          setVideos(parsed.videos);
-          console.log(`[loadCached] Showed ${parsed.videos.length} cached videos`);
+          const filteredCachedVideos = filterExcludedVideos(parsed.videos);
+          setVideos(filteredCachedVideos);
+          console.log(`[loadCached] Showed ${filteredCachedVideos.length} cached videos`);
         }
       }
     } catch (err) {
@@ -419,23 +548,24 @@ export default function Media() {
   const saveCachedVideos = async (videos: YouTubeVideo[]) => {
     try {
       const savedAt = Date.now();
+      const filteredVideos = filterExcludedVideos(videos);
       await AsyncStorage.setItem(
         CACHE_KEY,
-        JSON.stringify({ savedAt, videos })
+        JSON.stringify({ savedAt, videos: filteredVideos })
       );
     } catch (err) {
       console.warn('Failed to save cached videos:', err);
     }
   };
 
-  const fetchVideosFromChannels = async (): Promise<YouTubeVideo[]> => {
+  const fetchVideosFromChannels = async (maxResults: number = 20, maxVideosPerCategory: number = 20): Promise<YouTubeVideo[]> => {
     try {
       console.log('[LOAD] Fetching from safe channels...');
       
       // Fetch from both channels in parallel
       const results = await Promise.all(
         SAFE_CHANNELS.map(channelId => 
-          YouTubeKidsService.getVideosByChannel(channelId, 20, 20).catch(() => [])
+          YouTubeKidsService.getVideosByChannel(channelId, maxResults, maxVideosPerCategory).catch(() => [])
         )
       );
 
@@ -448,26 +578,74 @@ export default function Media() {
       // Shuffle for variety on each load
       const allVideos = Array.from(videoMap.values()).sort(() => Math.random() - 0.5);
       console.log(`[LOAD] Fetched ${allVideos.length} videos from channels`);
-      return allVideos.slice(0, 20);
+      return allVideos.slice(0, maxVideosPerCategory);
     } catch (err) {
       console.error('Error fetching videos:', err);
       return [];
     }
   };
 
-  const loadVideos = async () => {
+  const loadVideos = async (
+    preferredRoutineTerm?: string,
+    options?: { quickMode?: boolean }
+  ) => {
     console.log('=== loadVideos called ===');
     try {
       setError(null);
-      const fetchedVideos = await fetchVideosFromChannels();
+      const routineTerm = preferredRoutineTerm || getNextRoutineTerm();
+      const quickMode = options?.quickMode === true;
+      const channelLimit = quickMode ? 10 : 20;
+      const searchMaxResults = quickMode ? 10 : 20;
+      const searchCategoryLimit = quickMode ? 16 : 40;
+      console.log(`[LOAD] Using daily routine term: ${routineTerm}`);
+
+      const fetchPromise = Promise.all([
+        fetchVideosFromChannels(channelLimit, channelLimit),
+        YouTubeKidsService.searchKidsVideos(routineTerm, searchMaxResults, searchCategoryLimit),
+      ]);
+
+      const fallbackFetchPromise: Promise<[YouTubeVideo[], YouTubeVideo[]]> = new Promise(resolve => {
+        setTimeout(() => resolve([[], []]), 4500);
+      });
+
+      const [channelVideos, searchedVideos] = quickMode
+        ? await Promise.race<[YouTubeVideo[], YouTubeVideo[]]>([fetchPromise, fallbackFetchPromise])
+        : await fetchPromise;
+
+      const combinedMap = new Map<string, YouTubeVideo>();
+      [...channelVideos, ...searchedVideos].forEach(video => {
+        if (!combinedMap.has(video.id)) {
+          combinedMap.set(video.id, video);
+        }
+      });
+
+      let fetchedVideos = shuffleVideos(Array.from(combinedMap.values()));
+
+      if (fetchedVideos.length === 0) {
+        console.log('[LOAD] Channel fetch returned 0 videos. Falling back to search...');
+        fetchedVideos = await YouTubeKidsService.searchKidsVideos(routineTerm, 20, 20);
+      }
+
+      if (fetchedVideos.length === 0) {
+        console.log('[LOAD] Search fallback returned 0 videos. Falling back to local defaults...');
+        fetchedVideos = YouTubeKidsService.getFallbackVideosSync();
+      }
+
       if (fetchedVideos.length > 0) {
-        setVideos(fetchedVideos);
-        saveCachedVideos(fetchedVideos);
-        console.log(`[LOAD] Showed ${fetchedVideos.length} videos`);
+        const finalVideos = shuffleVideos(fetchedVideos).slice(0, 20);
+        setVideos(finalVideos);
+        saveCachedVideos(finalVideos);
+        console.log(`[LOAD] Showed ${finalVideos.length} videos`);
+      } else {
+        if (!quickMode) {
+          setError('No videos available right now. Please try again in a moment.');
+        }
       }
     } catch (err) {
       console.error('Error loading videos:', err);
-      setError('Failed to load videos. Please check your internet connection.');
+      if (!options?.quickMode) {
+        setError('Failed to load videos. Please check your internet connection.');
+      }
     }
   };
 
@@ -480,7 +658,12 @@ export default function Media() {
     if (searchQuery.trim() && !containsBadWords(searchQuery)) {
       await performDynamicSearch(searchQuery);
     } else {
-      await loadVideos();
+      if (videos.length > 0) {
+        setVideos(shuffleVideos(videos).slice(0, 20));
+      }
+      setRefreshing(false);
+      loadVideos(getNextRoutineTerm(), { quickMode: true });
+      return;
     }
     
     setRefreshing(false);
@@ -596,21 +779,16 @@ export default function Media() {
       onPress={() => setShowDropdown(!showDropdown)}
     >
       <View style={styles.modeButtonContent}>
-        <Image 
-          source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
-          style={styles.modeButtonIcon}
-        />
         <Text style={styles.modeButtonText}>
           {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
         </Text>
-        {/* Optional: Add a small chevron icon here to indicate a dropdown */}
       </View>
     </TouchableOpacity>
 
           {showDropdown && (
             <View style={styles.dropdownMenu}>
               <TouchableOpacity 
-                style={styles.dropdownItem}
+                style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
                 onPress={() => {
                   setShowDropdown(false);
                   if (mode === 'child') {
@@ -620,6 +798,10 @@ export default function Media() {
                   }
                 }}
               >
+                <Image 
+                  source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
+                  style={styles.dropdownItemIcon}
+                />
                 <Text style={styles.dropdownItemText}>
                   {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
                 </Text>
@@ -710,35 +892,19 @@ export default function Media() {
 
         {!loading && !error && renderVideos.map((video) => (
           <View key={video.uniqueKey} style={styles.videoContainer}>
-            {playingId === video.id ? (
-              <YoutubePlayer
-                height={videoPlayerHeight}
-                width={videoPlayerWidth}
-                play={true}
-                videoId={video.youtubeId}
-                onChangeState={(event: PlayerState) => {
-                  if (event === "ended") setPlayingId(null);
-                }}
-                webViewProps={{
-                  allowsInlineMediaPlayback: true,
-                  mediaPlaybackRequiresUserAction: false,
-                }}
+            <TouchableOpacity onPress={() => openVideoModal(video)}>
+              <Image 
+                source={{ uri: video.thumbnail }} 
+                style={[
+                  styles.thumbnail,
+                  { height: videoPlayerHeight }
+                ]} 
+                resizeMode="cover"
               />
-            ) : (
-              <TouchableOpacity onPress={() => setPlayingId(video.id)}>
-                <Image 
-                  source={{ uri: video.thumbnail }} 
-                  style={[
-                    styles.thumbnail,
-                    { height: videoPlayerHeight }
-                  ]} 
-                  resizeMode="cover"
-                />
-                <View style={styles.playButton}>
-                  <Ionicons name="play-circle" size={64} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            )}
+              <View style={styles.playButton}>
+                <Ionicons name="play-circle" size={64} color="#fff" />
+              </View>
+            </TouchableOpacity>
 
             {/* 📝 Video Description */}
             <View style={styles.videoInfo}>
@@ -764,6 +930,80 @@ export default function Media() {
           <Text style={styles.noResults}>No videos match your search.</Text>
         )}
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showVideoModal && !!selectedVideo}
+        onRequestClose={closeVideoModal}
+        statusBarTranslucent={true}
+      >
+        <View style={styles.videoModalOverlay}>
+          <View style={styles.videoModalContainer}>
+            <View style={styles.videoModalHeader}>
+              <Text style={styles.videoModalTitle} numberOfLines={1}>Now Playing</Text>
+              <TouchableOpacity onPress={closeVideoModal} style={styles.videoModalCloseButton}>
+                <Ionicons name="close" size={26} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedVideo && (
+              <>
+                <YoutubePlayer
+                  height={Math.round((responsive.width - scaleSpacing(24)) * 9 / 16)}
+                  width={Math.max(0, responsive.width - scaleSpacing(24))}
+                  play={showVideoModal}
+                  videoId={selectedVideo.youtubeId}
+                  initialPlayerParams={{
+                    modestbranding: true,
+                    rel: false,
+                  }}
+                  onChangeState={(event: PlayerState) => {
+                    if (event === 'ended') {
+                      const nextVideo = recommendedVideos[0];
+                      if (nextVideo) {
+                        setSelectedVideo(nextVideo);
+                      }
+                    }
+                  }}
+                  webViewProps={{
+                    allowsInlineMediaPlayback: true,
+                    mediaPlaybackRequiresUserAction: false,
+                    setSupportMultipleWindows: false,
+                    javaScriptCanOpenWindowsAutomatically: false,
+                    onOpenWindow: () => {
+                      return;
+                    },
+                    onShouldStartLoadWithRequest: shouldAllowYouTubeNavigation,
+                  }}
+                />
+
+                <View style={styles.videoModalMeta}>
+                  <Text style={styles.videoModalVideoTitle} numberOfLines={2}>{selectedVideo.title}</Text>
+                  <Text style={styles.videoModalVideoInfo}>{selectedVideo.channel} • {selectedVideo.views}</Text>
+                </View>
+
+                <Text style={styles.recommendedHeader}>Recommended</Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.recommendedListContainer}>
+                  {recommendedVideos.map((video) => (
+                    <TouchableOpacity
+                      key={`recommended-${video.id}`}
+                      style={styles.recommendedItem}
+                      onPress={() => setSelectedVideo(video)}
+                    >
+                      <Image source={{ uri: video.thumbnail }} style={styles.recommendedThumb} resizeMode="cover" />
+                      <View style={styles.recommendedTextWrap}>
+                        <Text style={styles.recommendedTitle} numberOfLines={2}>{video.title}</Text>
+                        <Text style={styles.recommendedMeta} numberOfLines={1}>{video.channel}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Parental Lock Modal */}
       <Modal
@@ -967,11 +1207,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   dropdownMenu: {
     position: 'absolute',
     top: '100%', // Sits right below the button
-    right: scale.scaleSpacing(20),
+    right: scale.scaleSpacing(0),
     backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
     borderRadius: 12,
-    padding: scale.scaleSpacing(8),
-    minWidth: 150,
+    paddingVertical: scale.scaleSpacing(3),
+    paddingHorizontal: scale.scaleSpacing(4),
     // Shadow for depth
     elevation: 5,
     shadowColor: '#000',
@@ -980,7 +1220,19 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     shadowRadius: 4,
   },
   dropdownItem: {
-    padding: scale.scaleSpacing(10),
+    paddingVertical: scale.scaleSpacing(3),
+    paddingHorizontal: scale.scaleSpacing(4),
+  },
+  dropdownItemWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale.scaleSpacing(4),
+  },
+  dropdownItemIcon: {
+    width: scale.scaleWidth(20),
+    height: scale.scaleHeight(20),
+    resizeMode: 'contain',
+    tintColor: '#2F7C72',
   },
   dropdownItemText: {
     color: '#2F7C72',
@@ -1123,6 +1375,85 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     opacity: 0.9,
+  },
+  videoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.96)',
+    paddingTop: scale.scaleSpacing(36),
+  },
+  videoModalContainer: {
+    flex: 1,
+    paddingHorizontal: scale.scaleSpacing(12),
+  },
+  videoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: scale.scaleSpacing(12),
+  },
+  videoModalTitle: {
+    color: '#fff',
+    fontSize: scale.scaleFont(18),
+    fontFamily: 'Fredoka_600SemiBold',
+    flex: 1,
+  },
+  videoModalCloseButton: {
+    paddingHorizontal: scale.scaleSpacing(8),
+    paddingVertical: scale.scaleSpacing(4),
+  },
+  videoModalMeta: {
+    marginTop: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(10),
+  },
+  videoModalVideoTitle: {
+    color: '#fff',
+    fontSize: scale.scaleFont(16),
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  videoModalVideoInfo: {
+    color: '#D0D0D0',
+    fontSize: scale.scaleFont(13),
+    marginTop: scale.scaleSpacing(4),
+    fontFamily: 'Fredoka_400Regular',
+  },
+  recommendedHeader: {
+    color: '#fff',
+    fontSize: scale.scaleFont(15),
+    fontFamily: 'Fredoka_600SemiBold',
+    marginBottom: scale.scaleSpacing(8),
+    marginTop: scale.scaleSpacing(2),
+  },
+  recommendedListContainer: {
+    paddingBottom: scale.scaleSpacing(24),
+  },
+  recommendedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: scale.scaleSpacing(10),
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: scale.scaleBorderRadius(10),
+    overflow: 'hidden',
+  },
+  recommendedThumb: {
+    width: scale.scaleWidth(130),
+    height: scale.scaleHeight(74),
+    backgroundColor: '#444',
+  },
+  recommendedTextWrap: {
+    flex: 1,
+    paddingHorizontal: scale.scaleSpacing(10),
+    paddingVertical: scale.scaleSpacing(8),
+  },
+  recommendedTitle: {
+    color: '#fff',
+    fontSize: scale.scaleFont(13),
+    fontFamily: 'Fredoka_500Medium',
+  },
+  recommendedMeta: {
+    color: '#C8C8C8',
+    fontSize: scale.scaleFont(11),
+    marginTop: scale.scaleSpacing(4),
+    fontFamily: 'Fredoka_400Regular',
   },
   videoInfo: {
     flexDirection: "row",

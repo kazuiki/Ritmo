@@ -5,26 +5,25 @@ import * as WebBrowser from "expo-web-browser";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  PixelRatio,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    PixelRatio,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
-import NetworkFailureModal from "../components/NetworkFailureModal";
 
 /* -------------------------
    Responsive helpers (Option B)
@@ -333,12 +332,10 @@ export default function Login() {
 
         const loggedInUser = userData.user;
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
+        const hasAcceptedTerms = (loggedInUser?.user_metadata as any)?.has_accepted_terms;
 
-        if (!childName) {
-          router.push("/policy");
-        } else {
-
-        }
+        // Let _layout.tsx handle routing after auth state changes
+        console.log('✅ Existing session found, letting _layout.tsx handle routing');
         setLoading(false);
         return;
       }
@@ -426,11 +423,10 @@ export default function Login() {
                 
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
-                if (!childName) {
-                  router.replace("/policy");
-                } else {
-                  //navigateToGreetingsWithNetworkCheck(router);
-                }
+                const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
+                
+                // Let _layout.tsx handle routing after auth state changes
+                console.log('✅ Session established via OAuth, letting _layout.tsx handle routing');
                 setLoading(false);
                 return;
               }
@@ -612,11 +608,6 @@ export default function Login() {
         </View>
       </Modal>
 
-      {/* Network Failure Modal */}
-      <NetworkFailureModal 
-        visible={localNetworkFailure} 
-        onRetry={handleLocalNetworkRetry} 
-      />
     </ImageBackground>
   );
 }
@@ -744,16 +735,16 @@ function createStyles({ scale, vscale, scaleFont, width, height }: any) {
     alertModalContainer: {
       backgroundColor: "#FFFFFF",
       borderRadius: scale(18),
-      padding: scale(18),
-      width: "82%",
-      maxWidth: Math.min(scale(420), 420),
+      padding: scale(20),
+      width: "74%",
+      maxWidth: Math.min(scale(330), 330),
       alignItems: "center",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.2,
       shadowRadius: scale(12),
       elevation: 8,
-      borderWidth: scale(3),
+      borderWidth: 1.5,
       borderColor: "#FFB3BA",
     },
     alertIconCircle: {

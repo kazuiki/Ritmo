@@ -1,10 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabaseClient';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isOnline } from "./offline/networkService";
+import { clearOnboardingJsonCache, readOnboardingCache, writeOnboardingCache } from "./offline/offlineData";
+import { createPendingOperation, enqueueOperation } from "./offline/offlineQueue";
+import { supabase } from "./supabaseClient";
 
 /**
  * Onboarding Service
- * Manages onboarding completion status synced across devices via Supabase
- * Uses AsyncStorage as a local cache for performance
+ * Offline-first onboarding preferences with JSON cache + sync queue.
  */
 
 export interface OnboardingPreferences {
@@ -19,108 +21,195 @@ export interface OnboardingPreferences {
   updated_at?: string;
 }
 
-// AsyncStorage cache keys
-const CACHE_KEY_PREFIX = '@ritmo_onboarding_cache_';
+const CACHE_KEY_PREFIX = "@ritmo_onboarding_cache_";
+const NETWORK_TIMEOUT_MS = 4500;
+const CACHED_FALLBACK_TIMEOUT_MS = 1200;
 
-/**
- * Initialize onboarding preferences for a user in the database
- */
+function getRequestTimeoutMs(hasCachedData: boolean): number {
+  return hasCachedData ? CACHED_FALLBACK_TIMEOUT_MS : NETWORK_TIMEOUT_MS;
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error("Network request timeout")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+function buildDefaultPreferences(userId: string): OnboardingPreferences {
+  return {
+    user_id: userId,
+    main_tour_completed: false,
+    parental_lock_completed: false,
+    add_routine_completed: false,
+    add_routine_modal_completed: false,
+    routine_preset_completed: false,
+    progress_completed: false,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 async function initializeUserPreferences(userId: string): Promise<OnboardingPreferences> {
+  const defaults = buildDefaultPreferences(userId);
   const { data, error } = await supabase
-    .from('user_onboarding_preferences')
-    .insert({
-      user_id: userId,
-      main_tour_completed: false,
-      parental_lock_completed: false,
-      add_routine_completed: false,
-      add_routine_modal_completed: false,
-      routine_preset_completed: false,
-      progress_completed: false,
-    })
-    .select()
+    .from("user_onboarding_preferences")
+    .insert(defaults)
+    .select("*")
     .single();
 
   if (error) {
-    console.error('Error initializing user preferences:', error);
     throw error;
   }
 
-  return data;
+  return data as OnboardingPreferences;
 }
 
-/**
- * Get onboarding preferences from database, with AsyncStorage cache
- */
-export async function getOnboardingPreferences(userId: string): Promise<OnboardingPreferences | null> {
+async function writeAllCaches(userId: string, prefs: OnboardingPreferences): Promise<void> {
+  await AsyncStorage.setItem(`${CACHE_KEY_PREFIX}${userId}`, JSON.stringify(prefs));
+  await writeOnboardingCache(userId, prefs);
+}
+
+async function readCachedPreferences(userId: string): Promise<OnboardingPreferences | null> {
+  const fileCache = await readOnboardingCache(userId);
+  if (fileCache) return fileCache;
+
+  const raw = await AsyncStorage.getItem(`${CACHE_KEY_PREFIX}${userId}`);
+  if (!raw) return null;
+
   try {
-    // First, try to get from cache
-    const cacheKey = `${CACHE_KEY_PREFIX}${userId}`;
-    const cached = await AsyncStorage.getItem(cacheKey);
-    
-    // Always fetch from database to ensure sync across devices
-    const { data, error } = await supabase
-      .from('user_onboarding_preferences')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No row found - initialize new preferences
-        console.log('📝 No preferences found, initializing for user:', userId);
-        const newPrefs = await initializeUserPreferences(userId);
-        // Cache the new preferences
-        await AsyncStorage.setItem(cacheKey, JSON.stringify(newPrefs));
-        return newPrefs;
-      }
-      console.error('Error fetching onboarding preferences:', error);
-      
-      // Fallback to cache if database fails
-      if (cached) {
-        console.log('⚠️ Database error, using cached preferences');
-        return JSON.parse(cached);
-      }
-      
-      return null;
-    }
-
-    // Update cache with fresh data
-    await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
-    
-    return data;
-  } catch (error) {
-    console.error('Error in getOnboardingPreferences:', error);
+    return JSON.parse(raw) as OnboardingPreferences;
+  } catch {
     return null;
   }
 }
 
-/**
- * Update a specific onboarding completion status
- */
+export async function getCachedOnboardingPreferences(userId: string): Promise<OnboardingPreferences | null> {
+  return readCachedPreferences(userId);
+}
+
+async function fetchOnboardingPreferencesFromRemote(
+  userId: string,
+  cached: OnboardingPreferences | null
+): Promise<OnboardingPreferences | null> {
+  const { data, error } = await withTimeout(
+    supabase
+      .from("user_onboarding_preferences")
+      .select("*")
+      .eq("user_id", userId)
+      .single(),
+    getRequestTimeoutMs(Boolean(cached))
+  );
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      const initialized = await initializeUserPreferences(userId);
+      await writeAllCaches(userId, initialized);
+      return initialized;
+    }
+    throw error;
+  }
+
+  const prefs = data as OnboardingPreferences;
+  await writeAllCaches(userId, prefs);
+  return prefs;
+}
+
+export async function refreshOnboardingPreferencesInBackground(userId: string): Promise<void> {
+  if (!isOnline()) return;
+
+  try {
+    const cached = await readCachedPreferences(userId);
+    await fetchOnboardingPreferencesFromRemote(userId, cached);
+  } catch {
+    // Best-effort background refresh.
+  }
+}
+
+export async function getOnboardingPreferences(userId: string): Promise<OnboardingPreferences | null> {
+  const cached = await readCachedPreferences(userId);
+
+  if (cached) {
+    // Return immediately from local cache for instant UI checks.
+    if (isOnline()) {
+      void refreshOnboardingPreferencesInBackground(userId);
+    }
+    return cached;
+  }
+
+  if (isOnline()) {
+    try {
+      return await fetchOnboardingPreferencesFromRemote(userId, cached);
+    } catch {
+      return cached;
+    }
+  }
+
+  if (cached) return cached;
+
+  const defaults = buildDefaultPreferences(userId);
+  await writeAllCaches(userId, defaults);
+  return defaults;
+}
+
 export async function updateOnboardingStatus(
   userId: string,
-  field: keyof Omit<OnboardingPreferences, 'user_id' | 'created_at' | 'updated_at'>,
+  field: keyof Omit<OnboardingPreferences, "user_id" | "created_at" | "updated_at">,
   completed: boolean
 ): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('user_onboarding_preferences')
-      .update({ [field]: completed })
-      .eq('user_id', userId);
+    const current = (await getOnboardingPreferences(userId)) ?? buildDefaultPreferences(userId);
+    const updatedAt = new Date().toISOString();
+    const localNext: OnboardingPreferences = {
+      ...current,
+      [field]: completed,
+      updated_at: updatedAt,
+    };
 
-    if (error) {
-      console.error(`Error updating ${field}:`, error);
-      return false;
+    await writeAllCaches(userId, localNext);
+
+    if (isOnline()) {
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("user_onboarding_preferences")
+            .update({ [field]: completed, updated_at: updatedAt })
+            .eq("user_id", userId)
+            .select("*")
+            .single(),
+          NETWORK_TIMEOUT_MS
+        );
+
+        if (error) throw error;
+        await writeAllCaches(userId, data as OnboardingPreferences);
+        return true;
+      } catch {
+        // Request failed; queue for synchronization.
+      }
     }
 
-    // Update cache
-    const cacheKey = `${CACHE_KEY_PREFIX}${userId}`;
-    const current = await getOnboardingPreferences(userId);
-    if (current) {
-      await AsyncStorage.setItem(cacheKey, JSON.stringify(current));
-    }
+    await enqueueOperation(
+      createPendingOperation({
+        entity: "onboarding",
+        action: "upsert",
+        userId,
+        recordId: userId,
+        payload: {
+          [field]: completed,
+        },
+        clientUpdatedAt: updatedAt,
+      })
+    );
 
-    console.log(`✅ Updated ${field} to ${completed} for user ${userId}`);
     return true;
   } catch (error) {
     console.error(`Error in updateOnboardingStatus for ${field}:`, error);
@@ -128,57 +217,78 @@ export async function updateOnboardingStatus(
   }
 }
 
-/**
- * Reset all onboarding preferences (for testing/debugging)
- */
 export async function resetAllOnboardingPreferences(userId: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('user_onboarding_preferences')
-      .update({
-        main_tour_completed: false,
-        parental_lock_completed: false,
-        add_routine_completed: false,
-        add_routine_modal_completed: false,
-        routine_preset_completed: false,
-        progress_completed: false,
-      })
-      .eq('user_id', userId);
+    const resetPayload = {
+      main_tour_completed: false,
+      parental_lock_completed: false,
+      add_routine_completed: false,
+      add_routine_modal_completed: false,
+      routine_preset_completed: false,
+      progress_completed: false,
+    };
 
-    if (error) {
-      console.error('Error resetting onboarding preferences:', error);
-      return false;
+    const localCurrent = (await getOnboardingPreferences(userId)) ?? buildDefaultPreferences(userId);
+    const localReset: OnboardingPreferences = {
+      ...localCurrent,
+      ...resetPayload,
+      updated_at: new Date().toISOString(),
+    };
+
+    await writeAllCaches(userId, localReset);
+
+    if (isOnline()) {
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("user_onboarding_preferences")
+            .update(resetPayload)
+            .eq("user_id", userId)
+            .select("*")
+            .single(),
+          NETWORK_TIMEOUT_MS
+        );
+
+        if (error) throw error;
+        await writeAllCaches(userId, data as OnboardingPreferences);
+        return true;
+      } catch {
+        // Request failed; queue for synchronization.
+      }
     }
 
-    // Clear cache
-    const cacheKey = `${CACHE_KEY_PREFIX}${userId}`;
-    await AsyncStorage.removeItem(cacheKey);
+    await enqueueOperation(
+      createPendingOperation({
+        entity: "onboarding",
+        action: "upsert",
+        userId,
+        recordId: userId,
+        payload: resetPayload,
+        clientUpdatedAt: localReset.updated_at ?? new Date().toISOString(),
+      })
+    );
 
-    console.log('🔄 Reset all onboarding preferences for user:', userId);
     return true;
   } catch (error) {
-    console.error('Error in resetAllOnboardingPreferences:', error);
+    console.error("Error in resetAllOnboardingPreferences:", error);
     return false;
   }
 }
 
-/**
- * Clear local cache (useful when switching users)
- */
 export async function clearOnboardingCache(userId?: string): Promise<void> {
   try {
     if (userId) {
-      const cacheKey = `${CACHE_KEY_PREFIX}${userId}`;
-      await AsyncStorage.removeItem(cacheKey);
-    } else {
-      // Clear all onboarding caches
-      const keys = await AsyncStorage.getAllKeys();
-      const onboardingKeys = keys.filter(key => key.startsWith(CACHE_KEY_PREFIX));
-      if (onboardingKeys.length > 0) {
-        await AsyncStorage.multiRemove(onboardingKeys);
-      }
+      await AsyncStorage.removeItem(`${CACHE_KEY_PREFIX}${userId}`);
+      await clearOnboardingJsonCache(userId);
+      return;
+    }
+
+    const keys = await AsyncStorage.getAllKeys();
+    const onboardingKeys = keys.filter((key) => key.startsWith(CACHE_KEY_PREFIX));
+    if (onboardingKeys.length > 0) {
+      await AsyncStorage.multiRemove(onboardingKeys);
     }
   } catch (error) {
-    console.error('Error clearing onboarding cache:', error);
+    console.error("Error clearing onboarding cache:", error);
   }
 }

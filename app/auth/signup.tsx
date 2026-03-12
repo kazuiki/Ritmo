@@ -5,26 +5,25 @@ import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+    AccessibilityInfo,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
-import NetworkFailureModal from "../components/NetworkFailureModal";
 
 export default function SignUp() {
   const router = useRouter();
@@ -94,7 +93,7 @@ export default function SignUp() {
   useEffect(() => {
     const initInputs = async () => {
       try {
-        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm', '@signupVerificationCode']);
+        await AsyncStorage.multiRemove(['@signupEmail', '@signupPassword', '@signupConfirm', '@signupVerificationCode', '@termsAccepted']);
       } catch {}
       setEmail('');
       setPassword('');
@@ -131,17 +130,23 @@ export default function SignUp() {
     })
   );
 
-  // When screen gains focus (after initial mount), read stored acceptance
+  // Removed auto-restoration of terms acceptance checkbox
+  // Users should manually check the checkbox each time they sign up
+  
+  // Restore checkbox state when returning from Terms/Privacy pages
   useFocusEffect(
     (() => {
       let mounted = true;
-      const checkAccepted = async () => {
+      const checkTermsAcceptance = async () => {
         try {
           const val = await AsyncStorage.getItem("@termsAccepted");
-          if (mounted) setAgreed(Boolean(val === "true"));
+          // Only check the box if user accepted terms (coming back from terms page)
+          if (mounted && val === "true") {
+            setAgreed(true);
+          }
         } catch {}
       };
-      checkAccepted();
+      checkTermsAcceptance();
       return () => {
         mounted = false;
       };
@@ -457,8 +462,11 @@ export default function SignUp() {
       // On success, the user is signed in (and created if not existing)
       console.log('✅ OTP verified. Session established:', Boolean(data?.session));
       
-      // Set the password for the user
-      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      // Set the password and mark terms as accepted (since user checked the agreement during signup)
+      const { error: passwordError } = await supabase.auth.updateUser({ 
+        password,
+        data: { has_accepted_terms: true }
+      });
       
       if (passwordError) {
         if (
@@ -660,11 +668,6 @@ export default function SignUp() {
                 <TouchableOpacity
                   onPress={async () => {
                     if (!agreed) {
-                      // Require fields filled before proceeding to Terms
-                      if (!email || !password || !confirmPassword) {
-                        setCompleteDetailsModalVisible(true);
-                        return;
-                      }
                       // Persist current inputs so they are restored after returning
                       await AsyncStorage.multiSet([
                         ['@signupEmail', email],
@@ -1075,6 +1078,12 @@ export default function SignUp() {
       >
         <View style={styles.errorModalOverlay}>
           <View style={styles.verificationModalContainer}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setVerificationModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
             <View style={styles.verificationIconCircle}>
               <Image
                 source={require("../../assets/images/Mail.png")}
@@ -1136,12 +1145,6 @@ export default function SignUp() {
           </View>
         </View>
       </Modal>
-
-      {/* Network Failure Modal */}
-      <NetworkFailureModal 
-        visible={localNetworkFailure} 
-        onRetry={handleLocalNetworkRetry} 
-      />
 
     </ImageBackground>
   );
@@ -1276,10 +1279,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   confirmEmailModalContainer: {
     backgroundColor: "#fff",
     borderRadius: scale.scaleBorderRadius(20),
-    padding: scale.scaleSpacing(24),
+    padding: scale.scaleSpacing(20),
     alignItems: "center",
-    width: "80%",
-    borderWidth: 2,
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
+    borderWidth: 1.5,
     borderColor: "#9FD19E",
   },
   confirmEmailIconCircle: {
@@ -1333,16 +1337,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   accountModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(20),
-    padding: scale.scaleSpacing(24),
-    width: "80%",
-    maxWidth: scale.scaleWidth(360),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#9FD19E",
   },
   accountIconCircle: {
@@ -1398,16 +1402,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   errorModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(18),
-    padding: scale.scaleSpacing(18),
-    width: "82%",
-    maxWidth: scale.scaleWidth(420),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#FFB3BA",
   },
   errorIconCircle: {
@@ -1422,16 +1426,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   verificationModalContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: scale.scaleBorderRadius(18),
-    padding: scale.scaleSpacing(18),
-    width: "82%",
-    maxWidth: scale.scaleWidth(420),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#9FD19E",
   },
   verificationIconCircle: {
@@ -1554,5 +1558,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(12),
     fontFamily: "Fredoka_400Regular",
     flex: 1,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: scale.scaleSpacing(12),
+    right: scale.scaleSpacing(12),
+    zIndex: 1,
+    padding: scale.scaleSpacing(4),
   },
 }));

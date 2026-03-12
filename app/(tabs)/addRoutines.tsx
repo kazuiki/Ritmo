@@ -5,10 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
     Image,
-    Keyboard,
-    KeyboardAvoidingView,
     Modal,
-    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -17,7 +14,7 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getPresetById, getPresetByImageUrl, Preset, PRESETS } from "../../constants/presets";
+import { getPresetById, Preset, PRESETS, resolveRoutinePreset } from "../../constants/presets";
 import AddRoutineModalOnboarding from "../../src/components/AddRoutineModalOnboarding";
 import AddRoutineOnboardingTour from "../../src/components/AddRoutineOnboardingTour";
 import RoutinePresetOnboarding from "../../src/components/RoutinePresetOnboarding";
@@ -38,6 +35,25 @@ interface Routine {
     ringtone?: string;
     days?: number[]; // 0=Sun..6=Sat
 }
+
+const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+
+const isExpectedOfflineError = (error: unknown): boolean => {
+    const message = String((error as any)?.message ?? error ?? '').toLowerCase();
+    const name = String((error as any)?.name ?? '').toLowerCase();
+    return (
+        message.includes('network request failed') ||
+        message.includes('fetch failed') ||
+        name === 'typeerror' ||
+        name === 'authretryablefetcherror'
+    );
+};
+
+const logIfUnexpected = (label: string, error: unknown) => {
+    if (!isExpectedOfflineError(error)) {
+        console.error(label, (error as any)?.message || error);
+    }
+};
 
 const ITEM_HEIGHT = 48;
 
@@ -65,8 +81,8 @@ export default function addRoutines() {
     } = useOnboarding();
     const [modalVisible, setModalVisible] = useState(false);
     const [routineName, setRoutineName] = useState("");
-    const [hour, setHour] = useState("01");
-    const [minute, setMinute] = useState("00");
+    const [hour, setHour] = useState("");
+    const [minute, setMinute] = useState("");
     const [period, setPeriod] = useState("AM");
     const [routines, setRoutines] = useState<Routine[]>([]);
     const [editingRoutineId, setEditingRoutineId] = useState<number | null>(null);
@@ -75,7 +91,12 @@ export default function addRoutines() {
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+    const isSubmittingRef = useRef(false); // guard against double-tap on Add/Save
 
+    // Refs for TextInput components
+    const hourInputRef = useRef<TextInput>(null);
+    const minuteInputRef = useRef<TextInput>(null);
+    
     const bookGuideIconRef = useRef<View>(null);
     const gameIconRef = useRef<View>(null);
     const [bookGuideIconLayout, setBookGuideIconLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -101,7 +122,6 @@ export default function addRoutines() {
     
     const ALL_DAYS = [0,1,2,3,4,5,6];
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
-    const [formScrollEnabled, setFormScrollEnabled] = useState(true);
     
     // Delete confirmation and success modals
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
@@ -116,11 +136,36 @@ export default function addRoutines() {
 
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
+    const [duplicateRoutineModalVisible, setDuplicateRoutineModalVisible] = useState(false);
+
+    const getStorageKeyForCurrentUser = async (): Promise<string | null> => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const sessionUserId = sessionData?.session?.user?.id;
+        if (sessionUserId) {
+            await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionUserId);
+            return `@routines_${sessionUserId}`;
+        }
+
+        const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
+        if (cachedUserId) {
+            return `@routines_${cachedUserId}`;
+        }
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) {
+                await AsyncStorage.setItem(LAST_USER_ID_KEY, user.id);
+                return `@routines_${user.id}`;
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    };
 
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
     const periodRef = useRef<ScrollView | null>(null);
-    const formScrollRef = useRef<ScrollView | null>(null);
     
     // For infinite scroll - track if we're programmatically scrolling
     const isScrollingProgrammatically = useRef(false);
@@ -151,26 +196,11 @@ export default function addRoutines() {
             setDeleteSuccessVisible(false);
             setSaveConfirmVisible(false);
             setSelectDaysModalVisible(false);
+            setDuplicateRoutineModalVisible(false);
             setAddSuccessVisible(false);
             setEditSuccessVisible(false);
         };
     }, []);
-
-    useEffect(() => {
-        if (!modalVisible) return;
-
-        const showSub = Keyboard.addListener('keyboardDidShow', () => {
-            setFormScrollEnabled(true);
-        });
-        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-            formScrollRef.current?.scrollTo({ y: 0, animated: true });
-        });
-
-        return () => {
-            showSub.remove();
-            hideSub.remove();
-        };
-    }, [modalVisible]);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -238,6 +268,118 @@ export default function addRoutines() {
         scrollToIndex(periodRef, p === "AM" ? 0 : 1);
     };
 
+    const handleHourInputChange = (text: string) => {
+        const digitsOnly = text.replace(/\D/g, "").slice(0, 2);
+        if (!digitsOnly) {
+            setHour("");
+            return;
+        }
+
+        const numericHour = parseInt(digitsOnly, 10);
+        if (Number.isNaN(numericHour)) {
+            setHour("");
+            return;
+        }
+
+        if (numericHour > 12) {
+            setHour("12");
+            return;
+        }
+
+        setHour(digitsOnly);
+    };
+
+    const handleMinuteInputChange = (text: string) => {
+        const digitsOnly = text.replace(/\D/g, "").slice(0, 2);
+        if (!digitsOnly) {
+            setMinute("");
+            return;
+        }
+
+        const numericMinute = parseInt(digitsOnly, 10);
+        if (Number.isNaN(numericMinute)) {
+            setMinute("");
+            return;
+        }
+
+        if (numericMinute > 59) {
+            setMinute("59");
+            return;
+        }
+
+        setMinute(digitsOnly);
+    };
+
+    const normalizeHourInput = () => {
+        if (!hour) return; // Leave empty if user hasn't typed anything
+        const parsed = parseInt(hour, 10);
+        const normalized = Number.isNaN(parsed) ? 1 : Math.min(12, Math.max(1, parsed));
+        setHour(normalized.toString().padStart(2, "0"));
+    };
+
+    const normalizeMinuteInput = () => {
+        if (!minute) return; // Leave empty if user hasn't typed anything
+        const parsed = parseInt(minute, 10);
+        const normalized = Number.isNaN(parsed) ? 0 : Math.min(59, Math.max(0, parsed));
+        setMinute(normalized.toString().padStart(2, "0"));
+    };
+
+    const getRoutineTimeValue = () => {
+        const parsedHour = parseInt(hour, 10);
+        const parsedMinute = parseInt(minute, 10);
+        const normalizedHour = Number.isNaN(parsedHour) ? 1 : Math.min(12, Math.max(1, parsedHour));
+        const normalizedMinute = Number.isNaN(parsedMinute) ? 0 : Math.min(59, Math.max(0, parsedMinute));
+        return `${normalizedHour.toString().padStart(2, "0")}:${normalizedMinute.toString().padStart(2, "0")} ${period.toLowerCase()}`;
+    };
+
+    const normalizeDaysKey = (days?: number[]) => {
+        const sourceDays = Array.isArray(days) && days.length > 0 ? days : ALL_DAYS;
+        return [...sourceDays].sort((a, b) => a - b).join(',');
+    };
+
+    const normalizeRoutineId = (id: number | string) => String(id);
+
+    const getRoutineIdentityKey = (routine: { name?: string; time?: string }) => {
+        const normalizedName = (routine.name || '').trim().toLowerCase();
+        const normalizedTime = (routine.time || '').trim().toLowerCase();
+        return `${normalizedName}__${normalizedTime}`;
+    };
+
+    const isRoutineDuplicate = (params: {
+        name: string;
+        time: string;
+        ringtone: string;
+        days: number[];
+        imageUrl?: string | null;
+        excludeId?: number;
+    }) => {
+        const targetName = params.name.trim().toLowerCase();
+        const targetTime = params.time.trim().toLowerCase();
+        const targetRingtone = (params.ringtone || 'alarm1').trim().toLowerCase();
+        const targetDays = normalizeDaysKey(params.days);
+        const targetImageUrl = (params.imageUrl || '').trim();
+
+        return routines.some((routine) => {
+            if (params.excludeId && normalizeRoutineId(routine.id) === normalizeRoutineId(params.excludeId)) {
+                return false;
+            }
+
+            const routineName = routine.name.trim().toLowerCase();
+            const routineTime = routine.time.trim().toLowerCase();
+            const routineRingtone = (routine.ringtone || 'alarm1').trim().toLowerCase();
+            const routineDays = normalizeDaysKey(routine.days);
+            const routineImageUrl = (routine.imageUrl || '').trim();
+
+            return (
+                routineName === targetName &&
+                routineTime === targetTime &&
+                routineRingtone === targetRingtone &&
+                routineDays === targetDays &&
+                routineImageUrl === targetImageUrl
+            );
+        });
+    };
+
     useFocusEffect(
         React.useCallback(() => {
             loadRoutinesFromDb();
@@ -246,14 +388,11 @@ export default function addRoutines() {
 
     const loadRoutinesFromDb = async () => {
         try {
-            // Get current user to use user-specific storage key
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
+            const storageKey = await getStorageKeyForCurrentUser();
+            if (!storageKey) {
                 setRoutines([]);
                 return;
             }
-
-            const storageKey = `@routines_${user.id}`;
 
             // Load from AsyncStorage first (has days/ringtone)
             const stored = await AsyncStorage.getItem(storageKey);
@@ -266,16 +405,23 @@ export default function addRoutines() {
             const dbRoutines = await getRoutinesForCurrentUser();
             
             // Merge database routines with AsyncStorage data (for days/ringtone)
-            const storedMap = new Map((stored ? JSON.parse(stored) : []).map((r: Routine) => [r.id, r]));
+            const storedRoutines: Routine[] = stored ? JSON.parse(stored) : [];
+            const storedMapById = new Map(storedRoutines.map((r) => [normalizeRoutineId(r.id), r]));
+            const storedMapByIdentity = new Map(storedRoutines.map((r) => [getRoutineIdentityKey(r), r]));
+
             const merged: Routine[] = dbRoutines.map(dbR => {
-                const existing = storedMap.get(dbR.id) as Routine | undefined;
+                const existing =
+                    (storedMapById.get(normalizeRoutineId(dbR.id)) as Routine | undefined) ||
+                    (storedMapByIdentity.get(getRoutineIdentityKey(dbR)) as Routine | undefined);
+                const derivedPresetId = existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
                 return {
                     id: dbR.id,
                     name: dbR.name,
                     time: dbR.time,
-                    imageUrl: dbR.imageUrl,
-                    ringtone: existing?.ringtone || 'alarm1',
-                    days: existing?.days || [0,1,2,3,4,5,6],
+                    imageUrl: existing?.imageUrl ?? null,
+                    presetId: derivedPresetId,
+                    ringtone: existing?.ringtone ?? 'alarm1',
+                    days: existing?.days ?? [0,1,2,3,4,5,6],
                 };
             });
             
@@ -284,7 +430,7 @@ export default function addRoutines() {
         } catch (error: any) {
             // Silently handle authentication errors - user may not be logged in yet
             if (error?.message !== 'Not authenticated') {
-                console.error("Failed to load routines from Supabase:", error);
+                logIfUnexpected("Failed to load routines from Supabase:", error);
             }
         }
     };
@@ -292,8 +438,8 @@ export default function addRoutines() {
     const openModal = () => {
         setModalVisible(true);
         setEditingRoutineId(null);
-        setHour("01");
-        setMinute("00");
+        setHour("");
+        setMinute("");
         setPeriod("AM");
         setRoutineName("");
         setSelectedPresetId(null);
@@ -366,7 +512,7 @@ export default function addRoutines() {
         setRoutineName(routine.name);
         setSelectedRingtone(routine.ringtone);
         // Get presetId from imageUrl stored in database, or fallback to presetId field
-        const preset = getPresetByImageUrl(routine.imageUrl);
+        const preset = resolveRoutinePreset(routine);
         setSelectedPresetId(preset?.id ?? routine.presetId ?? null);
         setSelectedDays(routine.days ?? ALL_DAYS);
         
@@ -397,32 +543,53 @@ export default function addRoutines() {
     };
 
     const handleDone = () => {
+        if (isSubmittingRef.current) return;
         if (routineName.trim()) {
             if (selectedDays.length === 0) {
                 setSelectDaysModalVisible(true);
                 return;
             }
-            const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
+            const routineTime = getRoutineTimeValue();
+            const selectedPreset = getPresetById(selectedPresetId);
+            const currentRoutine = editingRoutineId ? routines.find(r => r.id === editingRoutineId) : undefined;
+            const imageUrlToSave = selectedPreset?.imageUrl ?? currentRoutine?.imageUrl ?? null;
+            const ringtoneToSave = selectedRingtone || 'alarm1';
+
+            if (isRoutineDuplicate({
+                name: routineName,
+                time: routineTime,
+                ringtone: ringtoneToSave,
+                days: selectedDays,
+                imageUrl: imageUrlToSave,
+                excludeId: editingRoutineId ?? undefined,
+            })) {
+                setDuplicateRoutineModalVisible(true);
+                return;
+            }
             
             if (editingRoutineId) {
                 // Show custom confirmation modal for editing
                 setSaveConfirmVisible(true);
             } else {
                 // Get imageUrl from selected preset
-                const selectedPreset = getPresetById(selectedPresetId);
                 const imageUrlToSave = selectedPreset?.imageUrl || null;
+                const presetIdToSave = selectedPreset?.id ?? null;
                 
+                isSubmittingRef.current = true;
                 createRoutineForCurrentUser({
                     name: routineName,
                     description: null,
                     is_active: true,
                     time: routineTime,
                     imageUrl: imageUrlToSave,
+                    presetId: presetIdToSave,
                 })
                 .then(async (created) => {
                     // Add to local storage with days/ringtone
-                    const { data: { user } } = await supabase.auth.getUser();
-                    const storageKey = user ? `@routines_${user.id}` : '@routines';
+                    const storageKey = await getStorageKeyForCurrentUser();
+                    if (!storageKey) {
+                        throw new Error('Not authenticated');
+                    }
                     const stored = await AsyncStorage.getItem(storageKey);
                     const existing: Routine[] = stored ? JSON.parse(stored) : [];
                     const newRoutine: Routine = {
@@ -430,6 +597,7 @@ export default function addRoutines() {
                         name: routineName,
                         time: routineTime,
                         imageUrl: imageUrlToSave,
+                        presetId: presetIdToSave,
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     };
@@ -447,7 +615,8 @@ export default function addRoutines() {
                     closeModal();
                     setAddSuccessVisible(true);
                 })
-                .catch(err => console.error('Supabase createRoutine error:', err?.message || err));
+                .catch(err => logIfUnexpected('Supabase createRoutine error:', err))
+                .finally(() => { isSubmittingRef.current = false; });
             }
         } else if (!editingRoutineId) {
             // Only close modal for Add (no editing), Edit has its own close in confirmation
@@ -472,11 +641,13 @@ export default function addRoutines() {
                 await deleteRoutine(editingRoutineId);
                 
                 // Remove from local storage
-                const { data: { user } } = await supabase.auth.getUser();
-                const storageKey = user ? `@routines_${user.id}` : '@routines';
+                const storageKey = await getStorageKeyForCurrentUser();
+                if (!storageKey) {
+                    throw new Error('Not authenticated');
+                }
                 const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                const filtered = existing.filter(r => r.id !== editingRoutineId);
+                const filtered = existing.filter(r => normalizeRoutineId(r.id) !== normalizeRoutineId(editingRoutineId));
                 await AsyncStorage.setItem(storageKey, JSON.stringify(filtered));
                 
                 // Update UI immediately
@@ -486,7 +657,7 @@ export default function addRoutines() {
                 // Show success modal
                 setDeleteSuccessVisible(true);
             } catch (err: any) {
-                console.error('Error deleting routine:', err?.message || err);
+                logIfUnexpected('Error deleting routine:', err);
                 Alert.alert('Error', 'Failed to delete routine. Please try again.');
             }
         }
@@ -530,31 +701,36 @@ export default function addRoutines() {
     const confirmSave = async () => {
         setSaveConfirmVisible(false);
         if (editingRoutineId) {
-            const routineTime = `${hour}:${minute} ${period.toLowerCase()}`;
+            const routineTime = getRoutineTimeValue();
             
             // Determine imageUrl to save: use newly selected preset if any; otherwise keep existing
             const selectedPreset = getPresetById(selectedPresetId);
             const current = routines.find(r => r.id === editingRoutineId);
             const imageUrlToSave = selectedPreset?.imageUrl ?? current?.imageUrl ?? null;
+            const presetIdToSave = selectedPreset?.id ?? current?.presetId ?? null;
 
             updateRoutine(editingRoutineId, {
                 name: routineName,
                 time: routineTime,
                 imageUrl: imageUrlToSave,
+                presetId: presetIdToSave,
             })
             .then(async () => {
                 // Update in local storage with days/ringtone
-                const { data: { user } } = await supabase.auth.getUser();
-                const storageKey = user ? `@routines_${user.id}` : '@routines';
+                const storageKey = await getStorageKeyForCurrentUser();
+                if (!storageKey) {
+                    throw new Error('Not authenticated');
+                }
                 const stored = await AsyncStorage.getItem(storageKey);
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
-                const idx = existing.findIndex(r => r.id === editingRoutineId);
+                const idx = existing.findIndex(r => normalizeRoutineId(r.id) === normalizeRoutineId(editingRoutineId));
                 if (idx >= 0) {
                     existing[idx] = {
                         ...existing[idx],
                         name: routineName,
                         time: routineTime,
                         imageUrl: imageUrlToSave,
+                        presetId: presetIdToSave,
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
                     };
@@ -562,7 +738,7 @@ export default function addRoutines() {
                 }
                 return loadRoutinesFromDb();
             })
-            .catch(err => console.error('Supabase updateRoutine error:', err?.message || err));
+            .catch(err => logIfUnexpected('Supabase updateRoutine error:', err));
 
             NotificationService.scheduleRoutineNotification({
                 routineId: editingRoutineId,
@@ -665,8 +841,8 @@ export default function addRoutines() {
                         }}
                     >
                             <View style={styles.modeButtonContent}>
-                            	<Image source={require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
-                            	<Text style={styles.modeButtonText}>Back to Child Mode</Text>
+                                <Image source={require("../../assets/images/Child.png")} style={styles.modeButtonIcon} />
+                                <Text style={styles.modeButtonText}>Back to Child Mode</Text>
                             </View>
                     </TouchableOpacity>
                 )}
@@ -689,7 +865,7 @@ export default function addRoutines() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
             {routines.map((routine) => {
                 // Get preset from database imageUrl or fallback to presetId
-                const preset = getPresetByImageUrl(routine.imageUrl) || getPresetById(routine.presetId);
+                const preset = resolveRoutinePreset(routine);
                 return (
                     <TouchableOpacity 
                         key={routine.id} 
@@ -721,10 +897,7 @@ export default function addRoutines() {
                 visible={modalVisible}
                 onRequestClose={closeModal}
             >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={{ flex: 1 }}
-                >
+                <View style={{ flex: 1 }}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         {/* Header (Back only) */}
@@ -735,155 +908,83 @@ export default function addRoutines() {
                             <View />
                         </View>
 
-                    <ScrollView
-                        ref={formScrollRef}
-                        contentContainerStyle={{ padding: 16 }}
-                        nestedScrollEnabled
-                        scrollEnabled={formScrollEnabled}
-                        keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode="on-drag"
-                    >
+                    <View style={{ padding: 16 }}>
                         {/* Time Picker Section */}
                         <View style={styles.timePickerCard} ref={timePickerRef} collapsable={false}>
-                            <View style={styles.pickerContainer}>
-                                {/* Hours Picker */}
-                                <View style={styles.pickerWrapper}>
-                                    <ScrollView
-                                        ref={hourRef}
-                                        showsVerticalScrollIndicator={false}
-                                        snapToInterval={itemHeight}
-                                        decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: itemHeight, alignItems: "center" }}
-                                        nestedScrollEnabled
-                                        onScrollBeginDrag={() => setFormScrollEnabled(false)}
-                                        onScrollEndDrag={() => setFormScrollEnabled(true)}
-                                        onMomentumScrollBegin={() => setFormScrollEnabled(false)}
-                                        onMomentumScrollEnd={(e) => {
-                                            if (isScrollingProgrammatically.current) return;
-                                            
-                                            const y = e.nativeEvent.contentOffset.y;
-                                            const idx = Math.round(y / itemHeight);
-                                            const actualHour = infiniteHours[idx];
-                                            setHour(actualHour.toString().padStart(2, "0"));
-                                            setFormScrollEnabled(true);
-                                            
-                                            // Check if near edges and reset to middle if needed
-                                            const totalItems = infiniteHours.length;
-                                            if (idx < 6 || idx >= totalItems - 6) {
-                                                if (hourScrollTimeout.current) clearTimeout(hourScrollTimeout.current);
-                                                hourScrollTimeout.current = setTimeout(() => {
-                                                    isScrollingProgrammatically.current = true;
-                                                    const middleIdx = 12 + (actualHour - 1); // Middle repetition
-                                                    hourRef.current?.scrollTo({ y: middleIdx * 48, animated: false });
-                                                    setTimeout(() => { isScrollingProgrammatically.current = false; }, 50);
-                                                }, 50);
+                            <Text style={styles.timePickerTitle}>ENTER TIME</Text>
+
+                            <View style={styles.manualTimeRow}>
+                                <View style={styles.manualTimeFieldGroup}>
+                                    <TextInput
+                                        ref={hourInputRef}
+                                        style={styles.manualTimeInput}
+                                        value={hour}
+                                        onChangeText={handleHourInputChange}
+                                        onBlur={normalizeHourInput}
+                                        onFocus={() => {
+                                            // Set cursor at the beginning when focused on empty input
+                                            if (hourInputRef.current && !hour) {
+                                                hourInputRef.current.setNativeProps({
+                                                    selection: { start: 0, end: 0 }
+                                                });
                                             }
                                         }}
-                                    >
-                                        {infiniteHours.map((h, idx) => (
-                                            <TouchableOpacity
-                                                key={`hour-${idx}`}
-                                                onPress={() => onPressHour(h)}
-                                            >
-                                                <Text style={[
-                                                    styles.timeInput,
-                                                    hour === h.toString().padStart(2, "0") && styles.selectedTime,
-                                                ]}>
-                                                    {h.toString().padStart(2, "0")}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
+                                        placeholder="HH"
+                                        placeholderTextColor="#9AA7A6"
+                                        keyboardType="number-pad"
+                                        maxLength={2}
+                                        textAlign="center"
+                                        textAlignVertical="center"
+                                        selectionColor="#06C08A"
+                                    />
+                                    <Text style={styles.manualTimeLabel}>Hour</Text>
                                 </View>
 
-                                {/* Minutes Picker */}
-                                <View style={styles.pickerWrapper}>
-                                    <ScrollView
-                                        ref={minuteRef}
-                                        showsVerticalScrollIndicator={false}
-                                        snapToInterval={itemHeight}
-                                        decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: itemHeight, alignItems: "center" }}
-                                        nestedScrollEnabled
-                                        onScrollBeginDrag={() => setFormScrollEnabled(false)}
-                                        onScrollEndDrag={() => setFormScrollEnabled(true)}
-                                        onMomentumScrollBegin={() => setFormScrollEnabled(false)}
-                                        onMomentumScrollEnd={(e) => {
-                                            if (isScrollingProgrammatically.current) return;
-                                            
-                                            const y = e.nativeEvent.contentOffset.y;
-                                            const idx = Math.round(y / itemHeight);
-                                            const actualMinute = infiniteMinutes[idx];
-                                            setMinute(actualMinute.toString().padStart(2, "0"));
-                                            setFormScrollEnabled(true);
-                                            
-                                            // Check if near edges and reset to middle if needed
-                                            const totalItems = infiniteMinutes.length;
-                                            if (idx < 30 || idx >= totalItems - 30) {
-                                                if (minuteScrollTimeout.current) clearTimeout(minuteScrollTimeout.current);
-                                                minuteScrollTimeout.current = setTimeout(() => {
-                                                    isScrollingProgrammatically.current = true;
-                                                    const middleIdx = 60 + actualMinute; // Middle repetition
-                                                    minuteRef.current?.scrollTo({ y: middleIdx * 48, animated: false });
-                                                    setTimeout(() => { isScrollingProgrammatically.current = false; }, 50);
-                                                }, 50);
+                                <Text style={styles.manualTimeColon}>:</Text>
+
+                                <View style={styles.manualTimeFieldGroup}>
+                                    <TextInput
+                                        ref={minuteInputRef}
+                                        style={styles.manualTimeInput}
+                                        value={minute}
+                                        onChangeText={handleMinuteInputChange}
+                                        onBlur={normalizeMinuteInput}
+                                        onFocus={() => {
+                                            // Set cursor at the beginning when focused on empty input
+                                            if (minuteInputRef.current && !minute) {
+                                                minuteInputRef.current.setNativeProps({
+                                                    selection: { start: 0, end: 0 }
+                                                });
                                             }
                                         }}
-                                    >
-                                        {infiniteMinutes.map((m, idx) => (
-                                            <TouchableOpacity
-                                                key={`minute-${idx}`}
-                                                onPress={() => onPressMinute(m)}
-                                            >
-                                                <Text style={[
-                                                    styles.timeInput,
-                                                    minute === m.toString().padStart(2, "0") && styles.selectedTime,
-                                                ]}>
-                                                    {m.toString().padStart(2, "0")}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
+                                        placeholder="MM"
+                                        placeholderTextColor="#9AA7A6"
+                                        keyboardType="number-pad"
+                                        maxLength={2}
+                                        textAlign="center"
+                                        textAlignVertical="center"
+                                        selectionColor="#06C08A"
+                                    />
+                                    <Text style={styles.manualTimeLabel}>Minute</Text>
                                 </View>
 
-                                {/* AM/PM Picker */}
-                                <View style={styles.pickerWrapper}>
-                                    <ScrollView
-                                        ref={periodRef}
-                                        showsVerticalScrollIndicator={false}
-                                        snapToInterval={itemHeight}
-                                        decelerationRate="fast"
-                                        contentContainerStyle={{ paddingVertical: itemHeight, alignItems: "center" }}
-                                        nestedScrollEnabled
-                                        onScrollBeginDrag={() => setFormScrollEnabled(false)}
-                                        onScrollEndDrag={() => setFormScrollEnabled(true)}
-                                        onMomentumScrollBegin={() => setFormScrollEnabled(false)}
-                                        onMomentumScrollEnd={(e) => {
-                                            const y = e.nativeEvent.contentOffset.y;
-                                            const idx = Math.round(y / itemHeight);
-                                            const clamped = Math.max(0, Math.min(1, idx));
-                                            const p = clamped === 0 ? "AM" : "PM";
-                                            setPeriod(p);
-                                            setFormScrollEnabled(true);
-                                        }}
-                                    >
-                                        {["AM", "PM"].map((p) => (
-                                            <TouchableOpacity key={p} onPress={() => onPressPeriod(p as "AM" | "PM") }>
-                                                <Text style={[
-                                                    styles.timeInput,
-                                                    period === p && styles.selectedTime,
-                                                ]}>{p}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
+                                <View style={styles.manualTimeFieldGroup}>
+                                    <View style={styles.periodToggleContainer}>
+                                        {["AM", "PM"].map((timePeriod) => {
+                                            const selected = period === timePeriod;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={timePeriod}
+                                                    style={[styles.periodToggleButton, selected && styles.periodToggleButtonSelected]}
+                                                    onPress={() => onPressPeriod(timePeriod as "AM" | "PM")}
+                                                >
+                                                    <Text style={[styles.periodToggleText, selected && styles.periodToggleTextSelected]}>{timePeriod}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                    <Text style={styles.manualTimeLabel}></Text>
                                 </View>
-                            </View>
-
-                            {/* Center highlight indicator */}
-                            <View style={styles.selectionIndicator}>
-                                <View style={styles.timeUnderlineTop} />
-                                <View style={styles.selectionBox} />
-                                <View style={styles.timeUnderlineBottom} />
                             </View>
                         </View>
                             {/* Form Section */}
@@ -966,13 +1067,17 @@ export default function addRoutines() {
                             )}
 
                             {/* Action buttons (outside the card) */}
-                            <TouchableOpacity style={[styles.presetButton, { marginTop: editingRoutineId ? 8 : 16, marginBottom: 8 }]} onPress={handleDone}>
+                            <TouchableOpacity
+                                style={[styles.presetButton, { marginTop: editingRoutineId ? 8 : 16, marginBottom: 8, opacity: isSubmittingRef.current ? 0.6 : 1 }]}
+                                onPress={handleDone}
+                                disabled={isSubmittingRef.current}
+                            >
                                 <Text style={styles.presetButtonText}>{editingRoutineId ? 'Save' : 'Add Routine'}</Text>
                             </TouchableOpacity>
-                        </ScrollView>
+                        </View>
                     </View>
                 </View>
-                </KeyboardAvoidingView>
+                </View>
             </Modal>
 
             {/* Full-screen Preset Modal */}
@@ -1433,6 +1538,36 @@ export default function addRoutines() {
                 </View>
             </Modal>
 
+            {/* Duplicate Routine Error Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={duplicateRoutineModalVisible}
+                onRequestClose={() => setDuplicateRoutineModalVisible(false)}
+            >
+                <View style={styles.selectDaysModalOverlay}>
+                    <View style={styles.selectDaysModalContainer}>
+                        <View style={styles.selectDaysIconCircle}>
+                            <Image
+                                source={require("../../assets/images/Duplicate.png")}
+                                style={styles.selectDaysIcon}
+                                resizeMode="contain"
+                            />
+                        </View>
+                        <Text style={styles.saveModalTitle}>Duplicate Routine</Text>
+                        <Text style={styles.saveModalMessage}>
+                            This routine already exists. Please change the time, day, preset, or ringtone.
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.selectDaysOkButton}
+                            onPress={() => setDuplicateRoutineModalVisible(false)}
+                        >
+                            <Text style={styles.selectDaysOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Add Success Modal */}
             <Modal
                 animationType="fade"
@@ -1649,69 +1784,84 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         marginBottom: scale.scaleSpacing(16),
         borderWidth: 2,
         borderColor: "#B8E6D9",
-        height: scale.scaleHeight(180),
-        position: "relative",
     },
-    pickerContainer: {
-        flexDirection: "row",
-        justifyContent: "space-around",
-        height: scale.scaleHeight(150),
-        alignItems: "center",
-    },
-    pickerWrapper: {
-        flex: 1,
-        height: scale.scaleHeight(150),
-        overflow: "hidden",
-        alignItems: "center",
-    },
-    timeRow: {
-        flexDirection: "row",
-        justifyContent: "space-around",
-        alignItems: "center",
-        paddingVertical: scale.scaleSpacing(6),
-    },
-    timeInput: {
-        fontSize: scale.scaleFont(24),
-        fontWeight: "600",
+    timePickerTitle: {
+        fontSize: scale.scaleFont(13),
+        fontWeight: "700",
         color: "#244D4A",
+        letterSpacing: 2,
+        marginBottom: scale.scaleSpacing(14),
+        textAlign: "center",
+    },
+    manualTimeRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: scale.scaleSpacing(10),
+    },
+    manualTimeFieldGroup: {
+        flex: 1,
+        alignItems: "center",
+    },
+    manualTimeInput: {
+        width: "100%",
+        minWidth: scale.scaleWidth(86),
+        height: scale.scaleHeight(92),
+        borderRadius: scale.scaleBorderRadius(12),
+        borderWidth: 2,
+        borderColor: "#B8E6D9",
+        backgroundColor: "#FFFFFF",
+        fontSize: scale.scaleFont(24),
+        fontWeight: "700",
+        color: "#111827",
         textAlign: "center",
         textAlignVertical: "center",
-        width: "100%",
-        height: scale.scaleHeight(ITEM_HEIGHT),
-        lineHeight: scale.scaleHeight(ITEM_HEIGHT),
-        paddingTop: 10,
-        paddingBottom: 0,
+        paddingVertical: scale.scaleSpacing(8),
+        paddingHorizontal: 0,
+        includeFontPadding: false,
     },
-    selectedTime: {
-        color: "#06C08A",
+    manualTimeLabel: {
+        marginTop: scale.scaleSpacing(10),
+        fontSize: scale.scaleFont(13),
+        fontWeight: "500",
+        color: "#6B7280",
+    },
+    manualTimeColon: {
+        fontSize: scale.scaleFont(48),
         fontWeight: "800",
+        color: "#111827",
+        marginHorizontal: scale.scaleSpacing(2),
+        marginBottom: scale.scaleSpacing(28),
     },
-    selectionIndicator: {
-        position: "absolute",
-        top: scale.scaleSpacing(20) + (scale.scaleHeight(150) - scale.scaleHeight(ITEM_HEIGHT)) / 2,
-        left: scale.scaleSpacing(20),
-        right: scale.scaleSpacing(20),
-        height: scale.scaleHeight(ITEM_HEIGHT),
-        justifyContent: "space-between",
-        pointerEvents: "none",
+    periodToggleContainer: {
+        width: "100%",
+        maxWidth: scale.scaleWidth(72),
+        height: scale.scaleHeight(92),
+        borderRadius: scale.scaleBorderRadius(12),
+        borderWidth: 2,
+        borderColor: "#B8E6D9",
+        overflow: "hidden",
+        backgroundColor: "#FFFFFF",
     },
-    timeUnderlineTop: {
-        height: scale.scaleHeight(2),
-        backgroundColor: "#5DD4B4",
-    },
-    timeUnderlineBottom: {
-        height: scale.scaleHeight(2),
-        backgroundColor: "#5DD4B4",
-    },
-    selectionBox: {
+    periodToggleButton: {
         flex: 1,
-        backgroundColor: "transparent",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#FFFFFF",
+        borderBottomWidth: 1,
+        borderBottomColor: "#B8E6D9",
     },
-    timeUnderline: {
-        height: scale.scaleHeight(2),
+    periodToggleButtonSelected: {
         backgroundColor: "#5DD4B4",
-        marginHorizontal: scale.scaleSpacing(30),
-        marginVertical: scale.scaleSpacing(6),
+    },
+    periodToggleText: {
+        fontSize: scale.scaleFont(18),
+        fontWeight: "600",
+        color: "#6B7280",
+    },
+    periodToggleTextSelected: {
+        color: "#FFFFFF",
+        fontWeight: "800",
     },
     formCard: {
         backgroundColor: "#fff",
@@ -2049,16 +2199,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     deleteModalContainer: {
         backgroundColor: "#FFFFFF",
         borderRadius: scale.scaleBorderRadius(20),
-        padding: scale.scaleSpacing(24),
-        width: "80%",
-        maxWidth: scale.scaleWidth(360),
+        padding: scale.scaleSpacing(20),
+        width: "74%",
+        maxWidth: scale.scaleWidth(330),
         alignItems: "center",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: scale.scaleHeight(4) },
         shadowOpacity: 0.2,
         shadowRadius: scale.scaleSpacing(12),
         elevation: 8,
-        borderWidth: 3,
+        borderWidth: 1.5,
         borderColor: "#FFB3BA",
     },
     deleteIconCircle: {
@@ -2136,16 +2286,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     successModalContainer: {
         backgroundColor: "#FFFFFF",
         borderRadius: scale.scaleBorderRadius(20),
-        padding: scale.scaleSpacing(24),
-        width: "70%",
-        maxWidth: scale.scaleWidth(320),
+        padding: scale.scaleSpacing(20),
+        width: "74%",
+        maxWidth: scale.scaleWidth(330),
         alignItems: "center",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: scale.scaleHeight(4) },
         shadowOpacity: 0.2,
         shadowRadius: scale.scaleSpacing(12),
         elevation: 8,
-        borderWidth: 3,
+        borderWidth: 1.5,
         borderColor: "#9FD19E",
     },
     successIconCircle: {
@@ -2202,16 +2352,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     saveModalContainer: {
         backgroundColor: "#FFFFFF",
         borderRadius: scale.scaleBorderRadius(20),
-        padding: scale.scaleSpacing(24),
-        width: "80%",
-        maxWidth: scale.scaleWidth(360),
+        padding: scale.scaleSpacing(20),
+        width: "74%",
+        maxWidth: scale.scaleWidth(330),
         alignItems: "center",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: scale.scaleHeight(4) },
         shadowOpacity: 0.2,
         shadowRadius: scale.scaleSpacing(12),
         elevation: 8,
-        borderWidth: 3,
+        borderWidth: 1.5,
         borderColor: "#9FD19E",
     },
     saveIconCircle: {

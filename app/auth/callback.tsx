@@ -87,14 +87,12 @@ export default function AuthCallback() {
 
       console.log("✅ User fetched successfully");
       const childName = (userData?.user?.user_metadata as any)?.child_name;
-      if (!childName) {
-        console.log("→ No child_name, routing to /instruction");
-        router.push("/instruction");
-      } else {
-        console.log("→ Child name found, routing to greetings");
-        router.push("/greetings")
-      }
-
+      const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
+      
+      // Don't route here - let _layout.tsx handle routing after auth state changes
+      // This prevents double navigation to policy/instruction pages
+      console.log("→ Session established, letting _layout.tsx handle routing");
+      
       return true;
     };
 
@@ -102,13 +100,8 @@ export default function AuthCallback() {
       try {
         const { data: existing } = await supabase.auth.getSession();
         if (existing.session) {
-          const { data: userData } = await supabase.auth.getUser();
-          const childName = (userData?.user?.user_metadata as any)?.child_name;
-          if (!childName) {
-            router.replace("/auth/child-nickname");
-          } else {
-
-          }
+          // Session already exists, let _layout.tsx handle routing
+          console.log("→ Session already exists, letting _layout.tsx handle routing");
           return;
         }
 
@@ -130,13 +123,8 @@ export default function AuthCallback() {
         setTimeout(async () => {
           const { data: retrySession } = await supabase.auth.getSession();
           if (retrySession.session) {
-            const { data: userData } = await supabase.auth.getUser();
-            const childName = (userData?.user?.user_metadata as any)?.child_name;
-            if (!childName) {
-              router.replace("/auth/child-nickname");
-            } else {
-
-            }
+            // Session established, let _layout.tsx handle routing
+            console.log("→ Session retry successful, letting _layout.tsx handle routing");
             subscription.remove?.();
             return;
           }
