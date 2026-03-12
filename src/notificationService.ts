@@ -37,6 +37,36 @@ class NotificationService {
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastTriggeredRoutineId: number | null = null;
+  private audioModeConfigured: boolean = false;
+  private notificationPermissionGranted: boolean = false;
+
+  private async ensureAudioModeConfigured() {
+    if (this.audioModeConfigured) return;
+
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      staysActiveInBackground: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+
+    this.audioModeConfigured = true;
+  }
+
+  private async ensureNotificationPermissionGranted(): Promise<boolean> {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    const granted = finalStatus === 'granted';
+    this.notificationPermissionGranted = granted;
+    return granted;
+  }
 
   private getAndroidChannelIdForRingtone(ringtone?: string): string {
     const safeRingtone = (ringtone || 'alarm1').toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -134,6 +164,9 @@ class NotificationService {
 
   async initialize() {
   try {
+    // Configure audio independently from notification permission.
+    await this.ensureAudioModeConfigured();
+
     // 1. Android Channel Setup (Must be first for system to recognize the channel)
     if (Platform.OS === 'android') {
       // Create a default channel; ringtone-specific channels are created during scheduling.
@@ -149,17 +182,9 @@ class NotificationService {
   ]);
 
     // 2. Permission Handling
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    
-    if (finalStatus !== 'granted') {
-      console.log('❌ Notification permissions not granted');
-      return false;
+    const hasNotificationPermission = await this.ensureNotificationPermissionGranted();
+    if (!hasNotificationPermission) {
+      console.log('⚠️ Notification permission not granted. In-app alarms will still run, but system notifications while app is closed will be disabled.');
     }
 
     // 3. Cleanup & Listeners
@@ -182,15 +207,6 @@ class NotificationService {
 
     // Start a periodic check for alarms (every 5 seconds) to catch missed notifications
     this.startAlarmCheckInterval();
-
-    // 4. Audio Engine Configuration
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      staysActiveInBackground: true,
-      playsInSilentModeIOS: true,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
 
     Notifications.addNotificationResponseReceivedListener(response => {
       const actionId = response.actionIdentifier;
@@ -291,6 +307,12 @@ class NotificationService {
   // Schedule daily notification for a routine
   async scheduleRoutineNotification(routine: RoutineNotification): Promise<string | null> {
     try {
+      const hasNotificationPermission = await this.ensureNotificationPermissionGranted();
+      if (!hasNotificationPermission) {
+        console.log(`❌ Cannot schedule routine ${routine.routineId} because notification permission is not granted.`);
+        return null;
+      }
+
       const ringtone = routine.ringtone || 'alarm1';
       const channelId = await this.ensureAndroidChannelForRingtone(ringtone);
 
@@ -443,6 +465,8 @@ class NotificationService {
   // Play alarm sound for actual notification (30 seconds with auto-stop)
   async playAlarmSound(ringtonePath: string = 'alarm1') {
     try {
+      await this.ensureAudioModeConfigured();
+
       // Prevent multiple simultaneous alarms
       if (this.isPlayingAlarm) {
         console.log('⚠️ Alarm already playing, skipping duplicate');
@@ -505,6 +529,8 @@ class NotificationService {
   // Play ringtone (for preview in modal - 5 seconds only)
   async playRingtone(ringtonePath: string = 'alarm1') {
     try {
+      await this.ensureAudioModeConfigured();
+
       // Clear any existing preview timeout first
       if (this.previewTimeout) {
         clearTimeout(this.previewTimeout);
