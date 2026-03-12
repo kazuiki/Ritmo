@@ -29,9 +29,9 @@ export interface RoutineNotification {
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
 
 class NotificationService {
-  private sound: Audio.Sound | null = null;
-  private alarmSound: Audio.Sound | null = null;
-  private notificationListener: Notifications.Subscription | null = null;
+  private sound: any = null;
+  private alarmSound: any = null;
+  private notificationListener: any = null;
   private isPlayingAlarm: boolean = false;
   private previewTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -202,7 +202,7 @@ class NotificationService {
     }
 
     // This listener handles sound ONLY when the app is OPEN (Foreground)
-    this.notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
+    this.notificationListener = Notifications.addNotificationReceivedListener(async (notification: any) => {
       const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
       const routineId = notification.request.content.data?.routineId as number;
       // Play alarm sound when notification arrives and app is open
@@ -214,7 +214,7 @@ class NotificationService {
     // Start a periodic check for alarms (every 5 seconds) to catch missed notifications
     this.startAlarmCheckInterval();
 
-    Notifications.addNotificationResponseReceivedListener(response => {
+    Notifications.addNotificationResponseReceivedListener((response: any) => {
       const actionId = response.actionIdentifier;
 
       if (actionId === 'stop-alarm') {
