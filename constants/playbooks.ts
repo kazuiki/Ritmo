@@ -37,7 +37,7 @@ const VOICEOVERS: Record<string, any> = {
   'clotheStep2.mp3': require('../assets/voiceover/clotheStep2.mp3'),
   'clotheStep3.mp3': require('../assets/voiceover/clotheStep3.mp3'),
   'clotheStep4.mp3': require('../assets/voiceover/clotheStep4.mp3'),
-  // Bedtime Prep (pajama)
+  // Wear Pajamas (pajama)
   'pajamaStep1.mp3': require('../assets/voiceover/pajamaStep1.mp3'),
   'pajamaStep2.mp3': require('../assets/voiceover/pajamaStep2.mp3'),
   'pajamaStep3.mp3': require('../assets/voiceover/pajamaStep3.mp3'),
@@ -57,6 +57,26 @@ const VOICEOVERS: Record<string, any> = {
   'sweepStep2.mp3': require('../assets/voiceover/sweepStep2.mp3'),
   'sweepStep3.mp3': require('../assets/voiceover/sweepStep3.mp3'),
   'sweepStep4.mp3': require('../assets/voiceover/sweepStep4.mp3'),
+  // Hair Care Time
+  'hairStep1.mp3': require('../assets/voiceover/hairStep1.mp3'),
+  'hairStep2.mp3': require('../assets/voiceover/hairStep2.mp3'),
+  'hairStep3.mp3': require('../assets/voiceover/hairStep3.mp3'),
+  'hairStep4.mp3': require('../assets/voiceover/hairStep4.mp3'),
+  // Fix the Bed
+  'bedStep1.mp3': require('../assets/voiceover/bedStep1.mp3'),
+  'bedStep2.mp3': require('../assets/voiceover/bedStep2.mp3'),
+  'bedStep3.mp3': require('../assets/voiceover/bedStep3.mp3'),
+  'bedStep4.mp3': require('../assets/voiceover/bedStep4.mp3'),
+  // Hand Blessing
+  'manoStep1.mp3': require('../assets/voiceover/manoStep1.mp3'),
+  'manoStep2.mp3': require('../assets/voiceover/manoStep2.mp3'),
+  'manoStep3.mp3': require('../assets/voiceover/manoStep3.mp3'),
+  'manoStep4.mp3': require('../assets/voiceover/manoStep4.mp3'),
+  // Play with Friends
+  'playStep1.mp3': require('../assets/voiceover/playStep1.mp3'),
+  'playStep2.mp3': require('../assets/voiceover/playStep2.mp3'),
+  'playStep3.mp3': require('../assets/voiceover/playStep3.mp3'),
+  'playStep4.mp3': require('../assets/voiceover/playStep4.mp3'),
 };
 
 // Helper to return audio module if mapped; otherwise undefined
@@ -215,7 +235,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     ],
   },
   6: {
-    title: 'Bedtime Prep',
+    title: 'Wear Pajamas',
     timer: {
       duration: 60,
       visible: true,
@@ -271,6 +291,156 @@ export const PLAYBOOKS: Record<number, Playbook> = {
         label: 'Close your eyes and drift into dreamland', 
         gif: require('../assets/gifs/sleepStep4.gif'), 
         audio: getAudioIfExists('sleepStep4.mp3')
+      },
+    ],
+  },
+  8: {
+    title: 'Fix the Bed',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
+    steps: [
+      {
+        label: 'Clear off all your toys and pillows',
+        gif: require('../assets/gifs/bedStep1.gif'),
+        audio: getAudioIfExists('bedStep1.mp3'),
+      },
+      {
+        label: 'Pull your sheets and blankets up to the top',
+        gif: require('../assets/gifs/bedStep2.gif'),
+        audio: getAudioIfExists('bedStep2.mp3'),
+      },
+      {
+        label: 'Tuck the blankets under the bottom of the bed',
+        gif: require('../assets/gifs/bedStep3.gif'),
+        audio: getAudioIfExists('bedStep3.mp3'),
+      },
+      {
+        label: 'Put your pillows and favorite toys back and smile',
+        gif: require('../assets/gifs/bedStep4.gif'),
+        audio: getAudioIfExists('bedStep4.mp3'),
+      },
+    ],
+  },
+  9: {
+    title: 'Hair Care Time',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
+    steps: [
+      {
+        label: 'Sit properly and get the comb',
+        gif: require('../assets/gifs/hairStep1.gif'),
+        audio: getAudioIfExists('hairStep1.mp3'),
+      },
+      {
+        label: 'Comb your hair from top to bottom',
+        gif: require('../assets/gifs/hairStep2.gif'),
+        audio: getAudioIfExists('hairStep2.mp3'),
+      },
+      {
+        label: 'Use your hands to smooth and fix your hair',
+        gif: require('../assets/gifs/hairStep3.gif'),
+        audio: getAudioIfExists('hairStep3.mp3'),
+      },
+      {
+        label: 'Look in the mirror and smile',
+        gif: require('../assets/gifs/hairStep4.gif'),
+        audio: getAudioIfExists('hairStep4.mp3'),
+      },
+    ],
+  },
+  10: {
+    title: 'Hand Blessing',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
+    steps: [
+      {
+        label: 'Approach the elder respectfully and gently hold their hand',
+        gif: require('../assets/gifs/manoStep1.gif'),
+        audio: getAudioIfExists('manoStep1.mp3'),
+      },
+      {
+        label: "Bring the elder's hand to your forehead",
+        gif: require('../assets/gifs/manoStep2.gif'),
+        audio: getAudioIfExists('manoStep2.mp3'),
+      },
+      {
+        label: 'Say “Mano po.”',
+        gif: require('../assets/gifs/manoStep3.gif'),
+        audio: getAudioIfExists('manoStep3.mp3'),
+      },
+      {
+        label: 'Smile after showing respect',
+        gif: require('../assets/gifs/manoStep4.gif'),
+        audio: getAudioIfExists('manoStep4.mp3'),
+      },
+    ],
+  },
+  11: {
+    title: 'Play with Friends',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
+    steps: [
+      {
+        label: 'Say hello to your friend with a smile',
+        gif: require('../assets/gifs/playStep1.gif'),
+        audio: getAudioIfExists('playStep1.mp3'),
+      },
+      {
+        label: 'Invite your friend to play by showing a toy or waving',
+        gif: require('../assets/gifs/playStep2.gif'),
+        audio: getAudioIfExists('playStep2.mp3'),
+      },
+      {
+        label: 'Play with your friend using a simple toy like a ball or blocks',
+        gif: require('../assets/gifs/playStep3.gif'),
+        audio: getAudioIfExists('playStep3.mp3'),
+      },
+      {
+        label: 'Say thank you to your friend after playing',
+        gif: require('../assets/gifs/playStep4.gif'),
+        audio: getAudioIfExists('playStep4.mp3'),
+      },
+    ],
+  },
+  12: {
+    title: 'Sweep the Floor',
+    timer: {
+      duration: 60,
+      visible: true,
+      position: 'top-right',
+    },
+    steps: [
+      {
+        label: 'Get the broom and dustpan',
+        gif: require('../assets/gifs/sweepStep1.gif'),
+        audio: getAudioIfExists('sweepStep1.mp3'),
+      },
+      {
+        label: 'Look around and find the dust, dirt, and small pieces on the floor',
+        gif: require('../assets/gifs/sweepStep2.gif'),
+        audio: getAudioIfExists('sweepStep2.mp3'),
+      },
+      {
+        label: 'Sweep the dirt using the broom and dustpan',
+        gif: require('../assets/gifs/sweepStep3.gif'),
+        audio: getAudioIfExists('sweepStep3.mp3'),
+      },
+      {
+        label: 'Then put the swept dirt in the trashcan',
+        gif: require('../assets/gifs/sweepStep4.gif'),
+        audio: getAudioIfExists('sweepStep4.mp3'),
       },
     ],
   },

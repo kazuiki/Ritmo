@@ -77,8 +77,10 @@ export default function Home() {
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
+  const [routineAnimations] = useState<Record<number, any>>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
+  const routinesRef = useRef<Routine[]>([]);
+  const completedOrderRef = useRef<number[]>([]);
   const [completedModalVisible, setCompletedModalVisible] = useState(false);
   // Replay mode: allows re-playing a completed routine without affecting progress
   const [isReplayMode, setIsReplayMode] = useState(false);
@@ -95,7 +97,7 @@ export default function Home() {
   const [pin, setPin] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState('');
   const pinShake = useRef(new Animated.Value(0)).current;
-  const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+  const pinRefs = [useRef<any>(null), useRef<any>(null), useRef<any>(null), useRef<any>(null)];
   // Task modal popup animations
   const taskOpacity = useRef(new Animated.Value(0)).current;
   const taskScale = useRef(new Animated.Value(0.9)).current;
@@ -105,18 +107,23 @@ export default function Home() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
-  const [successSound, setSuccessSound] = useState<Audio.Sound | null>(null);
-  const [allDoneSound, setAllDoneSound] = useState<Audio.Sound | null>(null);
+  const [successSound, setSuccessSound] = useState<any>(null);
+  const [allDoneSound, setAllDoneSound] = useState<any>(null);
   const successAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const goodJobSoundRef = useRef<Audio.Sound | null>(null); // Track GoodJob.mp3 separately for cleanup
+  const goodJobSoundRef = useRef<any>(null); // Track GoodJob.mp3 separately for cleanup
   // Background audio refs for specific playbook presets
-  const sleepBGSoundRef = useRef<Audio.Sound | null>(null); // Go to Sleep (7)
-  const dressBGSoundRef = useRef<Audio.Sound | null>(null); // Dress Up Time (4)
-  const bathBGSoundRef = useRef<Audio.Sound | null>(null); // Bath Time (3)
-  const brushBGSoundRef = useRef<Audio.Sound | null>(null); // Brush My Teeth (1)
-  const eatBGSoundRef = useRef<Audio.Sound | null>(null); // Let's Eat (2)
-  const pajamaBGSoundRef = useRef<Audio.Sound | null>(null); // Bedtime Prep (6)
-  const schoolBGSoundRef = useRef<Audio.Sound | null>(null); // Go to School (5)
+  const sleepBGSoundRef = useRef<any>(null); // Go to Sleep (7)
+  const dressBGSoundRef = useRef<any>(null); // Dress Up Time (4)
+  const bathBGSoundRef = useRef<any>(null); // Bath Time (3)
+  const brushBGSoundRef = useRef<any>(null); // Brush My Teeth (1)
+  const eatBGSoundRef = useRef<any>(null); // Let's Eat (2)
+  const pajamaBGSoundRef = useRef<any>(null); // Wear Pajamas (6)
+  const schoolBGSoundRef = useRef<any>(null); // Go to School (5)
+  const bedBGSoundRef = useRef<any>(null); // Fix the Bed (8)
+  const hairBGSoundRef = useRef<any>(null); // Hair Care Time (9)
+  const manoBGSoundRef = useRef<any>(null); // Hand Blessing (10)
+  const playBGSoundRef = useRef<any>(null); // Play with Friends (11)
+  const sweepBGSoundRef = useRef<any>(null); // Sweep the Floor (12)
   const bgAudioPlayedRef = useRef(false); // Track if BG audio has played in current session
   // Track minigame completion
   const minigameStartedRef = useRef(false); // Set to true when launching a minigame
@@ -155,6 +162,14 @@ export default function Home() {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
   }, [activePreset?.id]);
+
+  useEffect(() => {
+    routinesRef.current = routines;
+  }, [routines]);
+
+  useEffect(() => {
+    completedOrderRef.current = completedOrder;
+  }, [completedOrder]);
 
   // Autoplay step audio and gate Next for 1 minute, then auto-advance after 10 seconds
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
@@ -393,9 +408,89 @@ export default function Home() {
       console.error('Failed to persist completed routine:', error);
     }
 
-    setRoutines(prev => prev.map(r => (r.id === id ? { ...r, completed: true } : r)));
-    setCompletedOrder(prev => (prev.includes(id) ? prev : [...prev, id]));
-  }, []);
+    const updatedRoutines = routinesRef.current.map(r => (r.id === id ? { ...r, completed: true } : r));
+    const newOrder = completedOrderRef.current.includes(id)
+      ? completedOrderRef.current
+      : [...completedOrderRef.current, id];
+
+    setRoutines(updatedRoutines);
+    setCompletedOrder(newOrder);
+
+    const allCompleted = updatedRoutines.length > 0 && updatedRoutines.every(r => r.completed);
+
+    if (allCompleted) {
+      // Wait for Success modal to fully close (~500ms) before showing All Done
+      setTimeout(() => {
+        setShowAllDone(true);
+
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 600,
+              useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+              toValue: 1,
+              friction: 4,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(bounceAnim, {
+              toValue: 10,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.spring(bounceAnim, {
+              toValue: 0,
+              friction: 3,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
+
+        setTimeout(async () => {
+          try {
+            Animated.parallel([
+              Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+              Animated.timing(scaleAnim, {
+                toValue: 0.8,
+                duration: 600,
+                useNativeDriver: true,
+              }),
+            ]).start(async () => {
+              setShowAllDone(false);
+              fadeAnim.setValue(0);
+              scaleAnim.setValue(0.5);
+              bounceAnim.setValue(0);
+
+              const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
+              const archivedStored = await AsyncStorage.getItem("@routines_archived");
+              const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
+              const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
+
+              await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
+              await loadRoutines({ useCache: false });
+            });
+          } catch (error) {
+            console.error("Failed to archive and refresh:", error);
+            try {
+              await loadRoutines({ useCache: false });
+            } catch (refreshError) {
+              console.error("Failed to refresh routines:", refreshError);
+            }
+          }
+        }, 3000);
+      }, 500);  // Wait for modal fade animation (~300-400ms) + buffer
+    }
+  }, [bounceAnim, fadeAnim, scaleAnim]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -420,38 +515,43 @@ export default function Home() {
 
         if (completed === 'true') {
           minigameStartedRef.current = false;
+          setIsReplayMode(false);
 
           if (resolvedRoutineId) {
             setActiveRoutineId(resolvedRoutineId);
           }
 
-          // Surface the success modal immediately; persist completion in background.
+          // Surface the success modal immediately.
           setTaskModalVisible(false);
           setPlaybookModalVisible(false);
           setSuccessModalVisible(true);
           setShowRainingStars(true);
 
           if (resolvedRoutineId) {
-            ensureRoutineCompleted(resolvedRoutineId);
+            // Persist completion silently so we do not trigger All Done while Success is still visible.
+            setRoutineCompleted({
+              routineId: resolvedRoutineId,
+              completed: true,
+              dayDate: new Date(),
+            }).catch((error) => {
+              console.error('Failed to persist completed routine:', error);
+            });
+
+            setRoutines(prev => prev.map(r => (r.id === resolvedRoutineId ? { ...r, completed: true } : r)));
+            setCompletedOrder(prev => (prev.includes(resolvedRoutineId) ? prev : [...prev, resolvedRoutineId]));
           }
 
           // Clear return flags for next time
           AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
 
-          // Detect replay mode if we still know the active routine
-          if (activeRoutineId) {
-            setRoutines(prevRoutines => {
-              const routine = prevRoutines.find(r => r.id === activeRoutineId);
-              if (routine?.completed) {
-                setIsReplayMode(true);
-              }
-              return prevRoutines;
-            });
-          }
+          // This flow came from finishing a minigame, so keep replay mode off.
         } else {
           // User clicked back early - just reset the flag
           minigameStartedRef.current = false;
           AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
+
+          // No success flow is active, so we can refresh routines immediately.
+          loadRoutines({ useCache: false });
         }
         
         // Clear loading state after check completes
@@ -460,10 +560,12 @@ export default function Home() {
         console.error('Error checking minigame completion:', error);
         minigameStartedRef.current = false;
         setIsCheckingCompletion(false);
+
+        // Recovery path: keep routine list in sync even if completion flag lookup failed.
+        loadRoutines({ useCache: false });
       });
 
-      // Reload routines after handling completion so UI already shows Success if needed
-      loadRoutines({ useCache: false });
+      // Initial focus refresh is handled after minigame flag check to avoid racing Success modal state.
 
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
@@ -855,7 +957,7 @@ export default function Home() {
         );
         eatBGSoundRef.current = eatBGSound;
 
-        // Preload PajamaBG.mp3 for "Bedtime Prep" (preset 6)
+        // Preload PajamaBG.mp3 for "Wear Pajamas" (preset 6)
         const { sound: pajamaBGSound } = await Audio.Sound.createAsync(
           require("../../assets/ringtone/PajamaBG.mp3"),
           { shouldPlay: false, volume: 0.6, isLooping: true }
@@ -868,6 +970,41 @@ export default function Home() {
           { shouldPlay: false, volume: 0.6, isLooping: true }
         );
         schoolBGSoundRef.current = schoolBGSound;
+
+        // Preload BedBG.mp3 for "Fix the Bed" (preset 8)
+        const { sound: bedBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/BedBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        bedBGSoundRef.current = bedBGSound;
+
+        // Preload HairBG.mp3 for "Hair Care Time" (preset 9)
+        const { sound: hairBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/HairBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        hairBGSoundRef.current = hairBGSound;
+
+        // Preload ManoBG.mp3 for "Hand Blessing" (preset 10)
+        const { sound: manoBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/ManoBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        manoBGSoundRef.current = manoBGSound;
+
+        // Preload PlayBG.mp3 for "Play with Friends" (preset 11)
+        const { sound: playBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/PlayBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        playBGSoundRef.current = playBGSound;
+
+        // Preload SweepBG.mp3 for "Sweep the Floor" (preset 12)
+        const { sound: sweepBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/SweepBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        sweepBGSoundRef.current = sweepBGSound;
 
         console.log('Background audio preloaded successfully');
       } catch (error) {
@@ -899,6 +1036,21 @@ export default function Home() {
       }
       if (schoolBGSoundRef.current) {
         schoolBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (bedBGSoundRef.current) {
+        bedBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (hairBGSoundRef.current) {
+        hairBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (manoBGSoundRef.current) {
+        manoBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (playBGSoundRef.current) {
+        playBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (sweepBGSoundRef.current) {
+        sweepBGSoundRef.current.unloadAsync().catch(console.error);
       }
     };
   }, []);
@@ -945,7 +1097,7 @@ export default function Home() {
               console.log('Playing EatBG.mp3 background audio');
             }
           } else if (activePreset.id === 6 && pajamaBGSoundRef.current) {
-            // Bedtime Prep
+            // Wear Pajamas
             const status = await pajamaBGSoundRef.current.getStatusAsync();
             if (status.isLoaded && !status.isPlaying) {
               await pajamaBGSoundRef.current.playFromPositionAsync(0);
@@ -957,6 +1109,41 @@ export default function Home() {
             if (status.isLoaded && !status.isPlaying) {
               await schoolBGSoundRef.current.playFromPositionAsync(0);
               console.log('Playing SchoolBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 8 && bedBGSoundRef.current) {
+            // Fix the Bed
+            const status = await bedBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await bedBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing BedBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 9 && hairBGSoundRef.current) {
+            // Hair Care Time
+            const status = await hairBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await hairBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing HairBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 10 && manoBGSoundRef.current) {
+            // Hand Blessing
+            const status = await manoBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await manoBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing ManoBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 11 && playBGSoundRef.current) {
+            // Play with Friends
+            const status = await playBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await playBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing PlayBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 12 && sweepBGSoundRef.current) {
+            // Sweep the Floor
+            const status = await sweepBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await sweepBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing SweepBG.mp3 background audio');
             }
           }
         } catch (error) {
@@ -1012,6 +1199,41 @@ export default function Home() {
             if (status.isLoaded && status.isPlaying) {
               await schoolBGSoundRef.current.stopAsync();
               console.log('Stopped SchoolBG.mp3');
+            }
+          }
+          if (bedBGSoundRef.current) {
+            const status = await bedBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await bedBGSoundRef.current.stopAsync();
+              console.log('Stopped BedBG.mp3');
+            }
+          }
+          if (hairBGSoundRef.current) {
+            const status = await hairBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await hairBGSoundRef.current.stopAsync();
+              console.log('Stopped HairBG.mp3');
+            }
+          }
+          if (manoBGSoundRef.current) {
+            const status = await manoBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await manoBGSoundRef.current.stopAsync();
+              console.log('Stopped ManoBG.mp3');
+            }
+          }
+          if (playBGSoundRef.current) {
+            const status = await playBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await playBGSoundRef.current.stopAsync();
+              console.log('Stopped PlayBG.mp3');
+            }
+          }
+          if (sweepBGSoundRef.current) {
+            const status = await sweepBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await sweepBGSoundRef.current.stopAsync();
+              console.log('Stopped SweepBG.mp3');
             }
           }
         } catch (error) {
@@ -1462,7 +1684,8 @@ export default function Home() {
           setTaskModalVisible(false);
         }}
       >
-        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeAreaView edges={['top', 'bottom', 'left', 'right']}>
+          <View style={styles.modalSafeArea}>
           <View style={styles.termsModalOverlay}>
           <View style={[
             styles.termsModalContainer,
@@ -1641,6 +1864,7 @@ export default function Home() {
             )}
           </View>
         </View>
+        </View>
         </SafeAreaView>
       </Modal>
 
@@ -1770,7 +1994,7 @@ export default function Home() {
                   key={starNumber}
                   from={{ scale: 0, opacity: 0 }}
                   animate={{ scale: currentStep > starNumber ? 1.2 : 1, opacity: 1 }}
-                  transition={{ type: 'spring', delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0, damping: 8, stiffness: 100 }}
+                  transition={{ type: 'spring', delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0, damping: 8, stiffness: 100 } as any}
                 >
                   <Text style={styles.star}>
                     {currentStep > starNumber ? "⭐" : "☆"}
@@ -1913,7 +2137,7 @@ export default function Home() {
                     delay: index * 300,
                     damping: 6,
                     stiffness: 120,
-                  }}
+                  } as any}
                 >
                   <Text style={[styles.starSuccess, index === 1 && styles.starElevated]}>⭐</Text>
                 </MotiView>
@@ -1928,13 +2152,19 @@ export default function Home() {
             <TouchableOpacity
               style={styles.successNextButton}
               onPress={async () => {
-                if (activeRoutineId && !isReplayMode) {
-                  await ensureRoutineCompleted(activeRoutineId);
-                }
+                const routineIdToComplete = activeRoutineId;
+                const shouldCompleteRoutine = routineIdToComplete && !isReplayMode;
+                
+                // Close modal first
                 setSuccessModalVisible(false);
                 setShowRainingStars(false);
                 setActiveRoutineId(null);
                 setIsReplayMode(false);
+                
+                // Then trigger All Done celebration after modal is closed
+                if (shouldCompleteRoutine) {
+                  await ensureRoutineCompleted(routineIdToComplete);
+                }
               }}
             >
               <Text style={styles.successNextButtonText}>Next</Text>

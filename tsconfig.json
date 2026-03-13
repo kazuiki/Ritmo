@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2017",
     "module": "esnext",
-    "jsx": "react-jsx",
+    "jsx": "react-native",
     "moduleResolution": "bundler",
     "strict": false,
     "noImplicitAny": false,
@@ -26,8 +26,8 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "**/*.d.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }

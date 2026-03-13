@@ -201,6 +201,43 @@ export const preloadGameAssets = async () => {
       require('../../app/game4/SchoolGame/School6.gif'),
       require('../../app/game4/SchoolGame/School7.gif'),
       require('../../app/game4/SchoolGame/Bag.png'),
+
+      // New routine preset GIFs
+      require('../../assets/gifs/Fix the Bed.gif'),
+      require('../../assets/gifs/Hair Care Time.gif'),
+      require('../../assets/gifs/Hand Blessing.gif'),
+      require('../../assets/gifs/Play with Friends.gif'),
+      require('../../assets/gifs/Sweep the Floor.gif'),
+
+      // New routine guide step GIFs - Fix the Bed
+      require('../../assets/gifs/bedStep1.gif'),
+      require('../../assets/gifs/bedStep2.gif'),
+      require('../../assets/gifs/bedStep3.gif'),
+      require('../../assets/gifs/bedStep4.gif'),
+
+      // New routine guide step GIFs - Hair Care Time
+      require('../../assets/gifs/hairStep1.gif'),
+      require('../../assets/gifs/hairStep2.gif'),
+      require('../../assets/gifs/hairStep3.gif'),
+      require('../../assets/gifs/hairStep4.gif'),
+
+      // New routine guide step GIFs - Hand Blessing
+      require('../../assets/gifs/manoStep1.gif'),
+      require('../../assets/gifs/manoStep2.gif'),
+      require('../../assets/gifs/manoStep3.gif'),
+      require('../../assets/gifs/manoStep4.gif'),
+
+      // New routine guide step GIFs - Play with Friends
+      require('../../assets/gifs/playStep1.gif'),
+      require('../../assets/gifs/playStep2.gif'),
+      require('../../assets/gifs/playStep3.gif'),
+      require('../../assets/gifs/playStep4.gif'),
+
+      // New routine guide step GIFs - Sweep the Floor
+      require('../../assets/gifs/sweepStep1.gif'),
+      require('../../assets/gifs/sweepStep2.gif'),
+      require('../../assets/gifs/sweepStep3.gif'),
+      require('../../assets/gifs/sweepStep4.gif'),
     ];
     
     // Filter out already cached assets
