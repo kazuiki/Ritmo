@@ -77,7 +77,7 @@ export default function Home() {
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [routineAnimations] = useState<{ [key: number]: Animated.Value }>({});
+  const [routineAnimations] = useState<Record<number, any>>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
   const routinesRef = useRef<Routine[]>([]);
   const completedOrderRef = useRef<number[]>([]);
@@ -97,7 +97,7 @@ export default function Home() {
   const [pin, setPin] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState('');
   const pinShake = useRef(new Animated.Value(0)).current;
-  const pinRefs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
+  const pinRefs = [useRef<any>(null), useRef<any>(null), useRef<any>(null), useRef<any>(null)];
   // Task modal popup animations
   const taskOpacity = useRef(new Animated.Value(0)).current;
   const taskScale = useRef(new Animated.Value(0.9)).current;
@@ -107,18 +107,23 @@ export default function Home() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
-  const [successSound, setSuccessSound] = useState<Audio.Sound | null>(null);
-  const [allDoneSound, setAllDoneSound] = useState<Audio.Sound | null>(null);
+  const [successSound, setSuccessSound] = useState<any>(null);
+  const [allDoneSound, setAllDoneSound] = useState<any>(null);
   const successAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const goodJobSoundRef = useRef<Audio.Sound | null>(null); // Track GoodJob.mp3 separately for cleanup
+  const goodJobSoundRef = useRef<any>(null); // Track GoodJob.mp3 separately for cleanup
   // Background audio refs for specific playbook presets
-  const sleepBGSoundRef = useRef<Audio.Sound | null>(null); // Go to Sleep (7)
-  const dressBGSoundRef = useRef<Audio.Sound | null>(null); // Dress Up Time (4)
-  const bathBGSoundRef = useRef<Audio.Sound | null>(null); // Bath Time (3)
-  const brushBGSoundRef = useRef<Audio.Sound | null>(null); // Brush My Teeth (1)
-  const eatBGSoundRef = useRef<Audio.Sound | null>(null); // Let's Eat (2)
-  const pajamaBGSoundRef = useRef<Audio.Sound | null>(null); // Bedtime Prep (6)
-  const schoolBGSoundRef = useRef<Audio.Sound | null>(null); // Go to School (5)
+  const sleepBGSoundRef = useRef<any>(null); // Go to Sleep (7)
+  const dressBGSoundRef = useRef<any>(null); // Dress Up Time (4)
+  const bathBGSoundRef = useRef<any>(null); // Bath Time (3)
+  const brushBGSoundRef = useRef<any>(null); // Brush My Teeth (1)
+  const eatBGSoundRef = useRef<any>(null); // Let's Eat (2)
+  const pajamaBGSoundRef = useRef<any>(null); // Wear Pajamas (6)
+  const schoolBGSoundRef = useRef<any>(null); // Go to School (5)
+  const bedBGSoundRef = useRef<any>(null); // Fix the Bed (8)
+  const hairBGSoundRef = useRef<any>(null); // Hair Care Time (9)
+  const manoBGSoundRef = useRef<any>(null); // Hand Blessing (10)
+  const playBGSoundRef = useRef<any>(null); // Play with Friends (11)
+  const sweepBGSoundRef = useRef<any>(null); // Sweep the Floor (12)
   const bgAudioPlayedRef = useRef(false); // Track if BG audio has played in current session
   // Track minigame completion
   const minigameStartedRef = useRef(false); // Set to true when launching a minigame
@@ -952,7 +957,7 @@ export default function Home() {
         );
         eatBGSoundRef.current = eatBGSound;
 
-        // Preload PajamaBG.mp3 for "Bedtime Prep" (preset 6)
+        // Preload PajamaBG.mp3 for "Wear Pajamas" (preset 6)
         const { sound: pajamaBGSound } = await Audio.Sound.createAsync(
           require("../../assets/ringtone/PajamaBG.mp3"),
           { shouldPlay: false, volume: 0.6, isLooping: true }
@@ -965,6 +970,41 @@ export default function Home() {
           { shouldPlay: false, volume: 0.6, isLooping: true }
         );
         schoolBGSoundRef.current = schoolBGSound;
+
+        // Preload BedBG.mp3 for "Fix the Bed" (preset 8)
+        const { sound: bedBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/BedBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        bedBGSoundRef.current = bedBGSound;
+
+        // Preload HairBG.mp3 for "Hair Care Time" (preset 9)
+        const { sound: hairBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/HairBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        hairBGSoundRef.current = hairBGSound;
+
+        // Preload ManoBG.mp3 for "Hand Blessing" (preset 10)
+        const { sound: manoBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/ManoBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        manoBGSoundRef.current = manoBGSound;
+
+        // Preload PlayBG.mp3 for "Play with Friends" (preset 11)
+        const { sound: playBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/PlayBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        playBGSoundRef.current = playBGSound;
+
+        // Preload SweepBG.mp3 for "Sweep the Floor" (preset 12)
+        const { sound: sweepBGSound } = await Audio.Sound.createAsync(
+          require("../../assets/ringtone/SweepBG.mp3"),
+          { shouldPlay: false, volume: 0.6, isLooping: true }
+        );
+        sweepBGSoundRef.current = sweepBGSound;
 
         console.log('Background audio preloaded successfully');
       } catch (error) {
@@ -996,6 +1036,21 @@ export default function Home() {
       }
       if (schoolBGSoundRef.current) {
         schoolBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (bedBGSoundRef.current) {
+        bedBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (hairBGSoundRef.current) {
+        hairBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (manoBGSoundRef.current) {
+        manoBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (playBGSoundRef.current) {
+        playBGSoundRef.current.unloadAsync().catch(console.error);
+      }
+      if (sweepBGSoundRef.current) {
+        sweepBGSoundRef.current.unloadAsync().catch(console.error);
       }
     };
   }, []);
@@ -1042,7 +1097,7 @@ export default function Home() {
               console.log('Playing EatBG.mp3 background audio');
             }
           } else if (activePreset.id === 6 && pajamaBGSoundRef.current) {
-            // Bedtime Prep
+            // Wear Pajamas
             const status = await pajamaBGSoundRef.current.getStatusAsync();
             if (status.isLoaded && !status.isPlaying) {
               await pajamaBGSoundRef.current.playFromPositionAsync(0);
@@ -1054,6 +1109,41 @@ export default function Home() {
             if (status.isLoaded && !status.isPlaying) {
               await schoolBGSoundRef.current.playFromPositionAsync(0);
               console.log('Playing SchoolBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 8 && bedBGSoundRef.current) {
+            // Fix the Bed
+            const status = await bedBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await bedBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing BedBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 9 && hairBGSoundRef.current) {
+            // Hair Care Time
+            const status = await hairBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await hairBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing HairBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 10 && manoBGSoundRef.current) {
+            // Hand Blessing
+            const status = await manoBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await manoBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing ManoBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 11 && playBGSoundRef.current) {
+            // Play with Friends
+            const status = await playBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await playBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing PlayBG.mp3 background audio');
+            }
+          } else if (activePreset.id === 12 && sweepBGSoundRef.current) {
+            // Sweep the Floor
+            const status = await sweepBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && !status.isPlaying) {
+              await sweepBGSoundRef.current.playFromPositionAsync(0);
+              console.log('Playing SweepBG.mp3 background audio');
             }
           }
         } catch (error) {
@@ -1109,6 +1199,41 @@ export default function Home() {
             if (status.isLoaded && status.isPlaying) {
               await schoolBGSoundRef.current.stopAsync();
               console.log('Stopped SchoolBG.mp3');
+            }
+          }
+          if (bedBGSoundRef.current) {
+            const status = await bedBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await bedBGSoundRef.current.stopAsync();
+              console.log('Stopped BedBG.mp3');
+            }
+          }
+          if (hairBGSoundRef.current) {
+            const status = await hairBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await hairBGSoundRef.current.stopAsync();
+              console.log('Stopped HairBG.mp3');
+            }
+          }
+          if (manoBGSoundRef.current) {
+            const status = await manoBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await manoBGSoundRef.current.stopAsync();
+              console.log('Stopped ManoBG.mp3');
+            }
+          }
+          if (playBGSoundRef.current) {
+            const status = await playBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await playBGSoundRef.current.stopAsync();
+              console.log('Stopped PlayBG.mp3');
+            }
+          }
+          if (sweepBGSoundRef.current) {
+            const status = await sweepBGSoundRef.current.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+              await sweepBGSoundRef.current.stopAsync();
+              console.log('Stopped SweepBG.mp3');
             }
           }
         } catch (error) {
@@ -1559,7 +1684,8 @@ export default function Home() {
           setTaskModalVisible(false);
         }}
       >
-        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeAreaView edges={['top', 'bottom', 'left', 'right']}>
+          <View style={styles.modalSafeArea}>
           <View style={styles.termsModalOverlay}>
           <View style={[
             styles.termsModalContainer,
@@ -1738,6 +1864,7 @@ export default function Home() {
             )}
           </View>
         </View>
+        </View>
         </SafeAreaView>
       </Modal>
 
@@ -1867,7 +1994,7 @@ export default function Home() {
                   key={starNumber}
                   from={{ scale: 0, opacity: 0 }}
                   animate={{ scale: currentStep > starNumber ? 1.2 : 1, opacity: 1 }}
-                  transition={{ type: 'spring', delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0, damping: 8, stiffness: 100 }}
+                  transition={{ type: 'spring', delay: currentStep > starNumber ? (starNumber - 1) * 200 : 0, damping: 8, stiffness: 100 } as any}
                 >
                   <Text style={styles.star}>
                     {currentStep > starNumber ? "⭐" : "☆"}
@@ -2010,7 +2137,7 @@ export default function Home() {
                     delay: index * 300,
                     damping: 6,
                     stiffness: 120,
-                  }}
+                  } as any}
                 >
                   <Text style={[styles.starSuccess, index === 1 && styles.starElevated]}>⭐</Text>
                 </MotiView>
