@@ -9,7 +9,7 @@ import { miniGames } from "../../constants/minigames";
 import { Audio } from "expo-av";
 import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -174,7 +174,7 @@ export default function Home() {
   // Autoplay step audio and gate Next for 1 minute, then auto-advance after 10 seconds
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
   const currentAudioModule = playbook?.steps?.[currentStepIndex]?.audio;
-  
+ 
   const handleAutoAdvance = useCallback(() => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
@@ -201,9 +201,9 @@ export default function Home() {
       }
     }
   }, [currentStep, isReplayMode]);
-  
+ 
 
-  
+ 
   const { isNextDisabled, isPlaying: isAudioPlaying, isNextDisabledRef, lastClickTimeRef, minClickGapMs, replayAudio } = useStepAudio(currentAudioModule, playbookModalVisible, handleAutoAdvance);
 
 
@@ -219,7 +219,7 @@ export default function Home() {
     if (playbookModalVisible && playbook?.timer?.visible) {
       setTimerSeconds(playbook.timer.duration);
       voReplayTriggeredRef.current.clear(); // Reset triggers for new step
-      
+     
       const interval = setInterval(() => {
         setTimerSeconds((prev) => {
           if (prev <= 1) {
@@ -277,13 +277,13 @@ export default function Home() {
       }
 
       const routinesFromDb = await getRoutinesForCurrentUser();
-      
+     
       if (routinesFromDb.length === 0) {
         setRoutines([]);
         setCompletedOrder([]);
         return;
       }
-      
+     
       // Load days from AsyncStorage (user-specific)
       const storageKey = `@routines_${resolvedUserId}`;
       const storedRoutines = await AsyncStorage.getItem(storageKey);
@@ -296,7 +296,7 @@ export default function Home() {
           }
         });
       }
-      
+     
       // Get today's day of week (0=Sunday, 6=Saturday)
       const today = new Date();
       const todayDayOfWeek = today.getDay();
@@ -305,18 +305,18 @@ export default function Home() {
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const day = String(today.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
-      
+     
       // Fetch today's progress for all routines
       const progressData = await getUserProgressForRange({
         from: todayStr,
         to: todayStr,
       });
-      
+     
       // Create a map of routine_id -> progress for quick lookup
       const progressMap = new Map(
         progressData.map(p => [p.routine_id, p])
       );
-      
+     
       // Merge routines with their progress data and filter by today's day
       const routinesWithProgress = routinesFromDb
         .map(routine => {
@@ -332,16 +332,16 @@ export default function Home() {
           // Only show routines that should appear on today's day of week
           return routine.days.includes(todayDayOfWeek);
         });
-      
+     
       setRoutines(routinesWithProgress);
-      
+     
       // Initialize animations for each routine
       routinesWithProgress.forEach(routine => {
         if (!routineAnimations[routine.id]) {
           routineAnimations[routine.id] = new Animated.Value(1);
         }
       });
-      
+     
       // Build completed order from today's completed routines
       const completedToday = routinesWithProgress
         .filter(r => r.completed)
@@ -502,10 +502,10 @@ export default function Home() {
 
       // Check if this is the first login and start onboarding if needed
       checkAndStartOnboardingIfFirstLogin();
-      
+     
       // Set loading state immediately to hide content while checking
       setIsCheckingCompletion(true);
-      
+     
       // Immediately check if we returned from a finished minigame so we can show Success first
       AsyncStorage.multiGet(['@minigameCompleted', '@minigameRoutineId']).then(async (entries) => {
         const completed = entries[0]?.[1];
@@ -553,7 +553,7 @@ export default function Home() {
           // No success flow is active, so we can refresh routines immediately.
           loadRoutines({ useCache: false });
         }
-        
+       
         // Clear loading state after check completes
         setIsCheckingCompletion(false);
       }).catch(error => {
@@ -575,7 +575,7 @@ export default function Home() {
   const toggleComplete = async (id: number) => {
     const wasCompleted = routines.find(r => r.id === id)?.completed ?? false;
     const newCompletedStatus = !wasCompleted;
-    
+   
     // Animate the routine card sliding up and fading
     if (routineAnimations[id]) {
       Animated.parallel([
@@ -586,7 +586,7 @@ export default function Home() {
         }),
       ]).start();
     }
-    
+   
     // Wait for animation to complete before updating state
     setTimeout(async () => {
       try {
@@ -603,7 +603,7 @@ export default function Home() {
         console.error('Error details:', JSON.stringify(error, null, 2));
         // Continue with UI update even if database update fails
       }
-      
+     
       // Update local state
       const updatedRoutines = routines.map((r) =>
         r.id === id ? { ...r, completed: newCompletedStatus } : r
@@ -617,17 +617,17 @@ export default function Home() {
         newOrder = newOrder.filter(x => x !== id);
       }
       setCompletedOrder(newOrder);
-      
+     
       // Check if all routines are now completed
       const allCompleted = updatedRoutines.every((r) => r.completed);
-      
+     
       if (allCompleted) {
         // Update state first
         setRoutines(updatedRoutines);
-        
+       
         // Show the all done message with animation
         setShowAllDone(true);
-        
+       
         // Trigger smooth celebration animations
         Animated.sequence([
           Animated.parallel([
@@ -658,7 +658,7 @@ export default function Home() {
             }),
           ]),
         ]).start();
-        
+       
         // Show celebration for a few seconds, then archive and refresh
         setTimeout(async () => {
           try {
@@ -677,31 +677,31 @@ export default function Home() {
             ]).start(async () => {
               // After fade out animation completes
               setShowAllDone(false);
-              
+             
               // Reset animations for next time
               fadeAnim.setValue(0);
               scaleAnim.setValue(0.5);
               bounceAnim.setValue(0);
-              
+             
               // Archive completed routines
               console.log("Home - Archiving completed routines");
-              
+             
               const completedIds = updatedRoutines.filter(r => r.completed).map(r => r.id);
               console.log("Home - Completed routine IDs to archive:", completedIds);
-              
+             
               // Get existing archived IDs
               const archivedStored = await AsyncStorage.getItem("@routines_archived");
               const existingArchived: number[] = archivedStored ? JSON.parse(archivedStored) : [];
-              
+             
               // Add new completed IDs to archived list
               const updatedArchived = [...new Set([...existingArchived, ...completedIds])];
               console.log("Home - Updated archived IDs:", updatedArchived);
-              
+             
               // Save archived list
               await AsyncStorage.setItem("@routines_archived", JSON.stringify(updatedArchived));
-              
+             
               console.log("Home - Completed routines archived successfully");
-              
+             
               // Auto-refresh to load fresh routines from database (skip cache to avoid flicker)
               console.log("Home - Auto-refreshing routines...");
               await loadRoutines({ useCache: false });
@@ -722,7 +722,7 @@ export default function Home() {
       }
     }, 400); // Match the animation duration
   };
-  
+ 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -738,23 +738,23 @@ export default function Home() {
       if (successModalVisible) {
         try {
           console.log('🎵 Playing Stars.mp3 audio...');
-          
+         
           // Set audio mode for better playback
           await Audio.setAudioModeAsync({
             playsInSilentModeIOS: true,
             allowsRecordingIOS: false,
             staysActiveInBackground: false,
           });
-          
+         
           try {
             const { sound } = await Audio.Sound.createAsync(
               require("../../assets/ringtone/Stars.mp3"),
               { shouldPlay: true, volume: 1.0 }
             );
             setSuccessSound(sound);
-            
+           
             console.log('🎵 Stars.mp3 started playing');
-            
+           
             // Use playback status callback for zero-gap transition to GoodJob.mp3
             let goodJobScheduled = false;
             sound.setOnPlaybackStatusUpdate((status) => {
@@ -762,7 +762,7 @@ export default function Home() {
               if (status.isLoaded && status.didJustFinish && !goodJobScheduled) {
                 goodJobScheduled = true;
                 console.log('🎵 Stars.mp3 finished, playing GoodJob.mp3 immediately...');
-                
+               
                 // Play GoodJob.mp3 with zero delay
                 (async () => {
                   try {
@@ -825,18 +825,18 @@ export default function Home() {
             require("../../assets/ringtone/Completed.mp3"),
             { shouldPlay: true }
           );
-          
+         
           const { sound: congratsSound } = await Audio.Sound.createAsync(
             require("../../assets/ringtone/Congratulations.mp3"),
             { shouldPlay: true }
           );
-          
+         
           setAllDoneSound(completedSound);
-          
+         
           // Get longest audio duration for timeout
           const completedStatus = await completedSound.getStatusAsync();
           const congratsStatus = await congratsSound.getStatusAsync();
-          
+         
           let maxDuration = 0;
           if (completedStatus.isLoaded && completedStatus.durationMillis) {
             maxDuration = Math.max(maxDuration, completedStatus.durationMillis);
@@ -844,13 +844,13 @@ export default function Home() {
           if (congratsStatus.isLoaded && congratsStatus.durationMillis) {
             maxDuration = Math.max(maxDuration, congratsStatus.durationMillis);
           }
-          
+         
           if (maxDuration > 0) {
             // Clear previous timeout if exists
             if (allDoneTimeoutRef.current) {
               clearTimeout(allDoneTimeoutRef.current);
             }
-            
+           
             // Set timeout to hide after longest audio duration
             allDoneTimeoutRef.current = setTimeout(() => {
               // Smooth fade out animation
@@ -1264,11 +1264,11 @@ export default function Home() {
   const incompleteRoutines = routines.filter((r) => !r.completed).sort((a, b) => {
     return parseTime(a.time) - parseTime(b.time);
   });
-  
+ 
   // Find first routine that has reached its time (or first if none have)
   const enabledRoutineIndex = incompleteRoutines.findIndex(r => parseTime(r.time) <= currentTimeInMinutes);
-  const activeIncompleteId = enabledRoutineIndex >= 0 
-    ? incompleteRoutines[enabledRoutineIndex].id 
+  const activeIncompleteId = enabledRoutineIndex >= 0
+    ? incompleteRoutines[enabledRoutineIndex].id
     : (incompleteRoutines.length > 0 ? incompleteRoutines[0].id : null);
   const completedRoutinesOrdered = completedOrder
     .map(id => routines.find(r => r.id === id))
@@ -1282,7 +1282,7 @@ export default function Home() {
   // Parental Lock PIN handlers
   const handlePinInput = (index: number, value: string) => {
     if (value.length > 1) return;
-    
+   
     const newPin = [...pin];
     newPin[index] = value;
     setPin(newPin);
@@ -1313,18 +1313,18 @@ export default function Home() {
   if (pin.every(digit => digit !== '')) {
     const inputPin = pin.join('');
     const isValid = await ParentalLockService.verifyPin(inputPin);
-    
+   
     if (isValid) {
       // Success Logic
       setFailedAttempts(0); // Reset attempts on success
       setShowParentalLockModal(false);
       setPin(['', '', '', '']);
       setPinError('');
-      
+     
       ParentalLockAuthService.setAuthenticated(true, 'progress');
       ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
       ParentalLockAuthService.setAuthenticated(true, 'settings');
-      
+     
       enterParentMode();
       router.push('/(tabs)/addRoutines');
     } else {
@@ -1338,9 +1338,9 @@ export default function Home() {
         setShowParentalLockModal(false);
         setPin(['', '', '', '']);
         setPinError('');
-        
+       
         // Use your home route path here
-        router.push('/(tabs)/home'); 
+        router.push('/(tabs)/home');
       } else {
         // Standard Error Logic
         setPinError(`Incorrect PIN. ${3 - newAttemptCount} attempts remaining.`);
@@ -1425,16 +1425,16 @@ export default function Home() {
           zIndex: 9999,
         }} />
       )}
-      
+     
       {/* Background Image */}
       <Image
         source={require("../../assets/background.png")}
         style={styles.backgroundImage}
         resizeMode="stretch"
       />
-      
+     
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.push('/(tabs)/home')}
           disabled={mode === 'parent'}
           activeOpacity={mode === 'parent' ? 1 : 0.7}
@@ -1444,7 +1444,7 @@ export default function Home() {
             style={styles.brandLogo}
           />
         </TouchableOpacity>
-        
+       
         <View style={styles.headerActions}>
           {parentalLockEnabled && (
             <View style={styles.dropdownContainer}>
@@ -1458,10 +1458,10 @@ export default function Home() {
                   </Text>
                 </View>
               </TouchableOpacity>
-          
+         
                     {showDropdown && (
                       <View style={styles.dropdownMenu}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                           style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
                           onPress={() => {
                             setShowDropdown(false);
@@ -1472,15 +1472,15 @@ export default function Home() {
                             }
                           }}
                         >
-                          <Image 
-                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
+                          <Image
+                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")}
                             style={styles.dropdownItemIcon}
                           />
                           <Text style={styles.dropdownItemText}>
                             {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
                           </Text>
                         </TouchableOpacity>
-                        
+                       
                         {/* You can add more options here easily */}
                       </View>
                     )}
@@ -1502,7 +1502,7 @@ export default function Home() {
 
       {/* All Done Message - Show only after completing all tasks */}
       {showAllDone && (
-        <Animated.View 
+        <Animated.View
           style={[
             styles.allDoneContainer,
             {
@@ -1577,12 +1577,12 @@ export default function Home() {
           const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
           const isEnabled = isTimeReached; // Enable any task that has reached its scheduled time
           const preset = resolveRoutinePreset(routine);
-          
+         
           // Initialize animation value if not exists
           if (!routineAnimations[routine.id]) {
             routineAnimations[routine.id] = new Animated.Value(1);
           }
-          
+         
           return (
             <Animated.View
               key={routine.id}
@@ -1684,8 +1684,7 @@ export default function Home() {
           setTaskModalVisible(false);
         }}
       >
-        <SafeAreaView edges={['top', 'bottom', 'left', 'right']}>
-          <View style={styles.modalSafeArea}>
+        <View style={styles.modalSafeArea}>
           <View style={styles.termsModalOverlay}>
           <View style={[
             styles.termsModalContainer,
@@ -1706,7 +1705,7 @@ export default function Home() {
 
             {/* Body content */}
             {canShowTaskChoices ? (
-              <ScrollView 
+              <ScrollView
                 style={styles.termsScrollView}
                 contentContainerStyle={[
                   styles.termsScrollContent,
@@ -1716,7 +1715,7 @@ export default function Home() {
               >
                 <View style={styles.taskDialogContent}>
                   {activePreset && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.taskItem}
                       onPress={() => {
                         // Keep task modal open, just show playbook on top
@@ -1729,7 +1728,7 @@ export default function Home() {
                         }).start();
                       }}
                     >
-                      <Image 
+                      <Image
                         source={require("../../assets/gifs/media-unscreen.gif")}
                         style={styles.taskImage}
                         resizeMode="contain"
@@ -1758,7 +1757,7 @@ export default function Home() {
                         router.push(targetPath as any);
                       }}
                     >
-                      <Image 
+                      <Image
                         source={require("../../assets/gifs/media-1--unscreen.gif")}
                         style={styles.taskImage}
                         resizeMode="contain"
@@ -1802,7 +1801,7 @@ export default function Home() {
                       setActiveRoutineId(null);
                     }
                     setIsReplayMode(false);
-                  }} 
+                  }}
                   activeOpacity={0.9}
                 >
                   <Text style={styles.finishButtonText}>{isReplayMode ? 'Close' : 'Finish Task'}</Text>
@@ -1855,7 +1854,7 @@ export default function Home() {
                     setShowRainingStars(true);
                     setTaskModalVisible(false);
                     setIsReplayMode(false);
-                  }} 
+                  }}
                   activeOpacity={0.9}
                 >
                   <Text style={styles.finishButtonNoPresetText}>Finish Task</Text>
@@ -1865,7 +1864,6 @@ export default function Home() {
           </View>
         </View>
         </View>
-        </SafeAreaView>
       </Modal>
 
       {/* Completed Tasks - See All Modal */}
@@ -1974,7 +1972,7 @@ export default function Home() {
             }}>
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
-            
+           
             {/* Timer Display - Top Right */}
             {playbook?.timer?.visible && (
               <View style={styles.timerContainer}>
@@ -2030,14 +2028,14 @@ export default function Home() {
 
           {/* Footer with Next Button */}
           <View style={[styles.playbookFooter, { paddingBottom: insets.bottom }]}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.nextButtonFull, isNextDisabled && { opacity: 0.5 }]}
               onPress={() => {
                 // Triple guard: check the ref + debounce to prevent spam clicks
                 if (isNextDisabledRef?.current) {
                   return;
                 }
-                
+               
                 // Debounce check: ensure minimum gap between clicks
                 const now = Date.now();
                 if (lastClickTimeRef && lastClickTimeRef.current) {
@@ -2047,12 +2045,12 @@ export default function Home() {
                     return;
                   }
                 }
-                
+               
                 // Update last click time before state changes
                 if (lastClickTimeRef) {
                   lastClickTimeRef.current = now;
                 }
-                
+               
                 if (currentStep < 4) {
                   setCurrentStep(currentStep + 1);
                   setIsPlaying(false);
@@ -2154,13 +2152,13 @@ export default function Home() {
               onPress={async () => {
                 const routineIdToComplete = activeRoutineId;
                 const shouldCompleteRoutine = routineIdToComplete && !isReplayMode;
-                
+               
                 // Close modal first
                 setSuccessModalVisible(false);
                 setShowRainingStars(false);
                 setActiveRoutineId(null);
                 setIsReplayMode(false);
-                
+               
                 // Then trigger All Done celebration after modal is closed
                 if (shouldCompleteRoutine) {
                   await ensureRoutineCompleted(routineIdToComplete);
@@ -2219,7 +2217,7 @@ export default function Home() {
                 <View style={styles.lockIconContainer}>
                   <Ionicons name="lock-closed" size={48} color="#4A5568" />
                 </View>
-                
+               
                 <Text style={styles.modalTitle}>Parental Lock</Text>
                 <Text style={styles.modalSubtitle}>
                   Access restricted to parents{'\n'}or guardians only
@@ -2228,7 +2226,7 @@ export default function Home() {
                 <Text style={styles.modalContentTitle}>
                   Please enter your 4-digit PIN to continue
                 </Text>
-                
+               
                 <Animated.View style={[styles.pinContainer, pinError ? { transform: [{ translateX: pinShake }] } : null]}>
                   {pin.map((digit, index) => (
                     <TextInput
@@ -2260,7 +2258,7 @@ export default function Home() {
                   Forgot your PIN? Tap "Forgot PIN" to set a new one.
                 </Text>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.forgotPin}
                   onPress={() => {
                     router.push('/parental-lock-new-pin');
@@ -2272,7 +2270,7 @@ export default function Home() {
                 {pinError ? (
                   <Text style={styles.pinErrorText}>{pinError}</Text>
                 ) : null}
-                
+               
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity style={styles.unlockButton} onPress={unlockAccess}>
                     <Text style={styles.unlockText}>Unlock Access</Text>
@@ -2304,8 +2302,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  header: { 
-    paddingTop: scale.scaleHeight(30), 
+  header: {
+    paddingTop: scale.scaleHeight(30),
     paddingBottom: scale.scaleSpacing(16),
     paddingHorizontal: scale.scaleSpacing(16),
     flexDirection: 'row',
@@ -2315,15 +2313,15 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   headerActions: {
     alignItems: 'flex-end',
   },
-  brand: { 
-    fontSize: scale.scaleFont(22), 
-    color: "#276a63", 
-    fontWeight: "700", 
-    fontFamily: "Fredoka_700Bold" 
+  brand: {
+    fontSize: scale.scaleFont(22),
+    color: "#276a63",
+    fontWeight: "700",
+    fontFamily: "Fredoka_700Bold"
   },
-  brandLogo: { 
-    width: scale.scaleWidth(120), 
-    height: scale.scaleHeight(30), 
+  brandLogo: {
+    width: scale.scaleWidth(120),
+    height: scale.scaleHeight(30),
     resizeMode: "contain",
     marginLeft: scale.scaleSpacing(-22),
   },
@@ -2409,17 +2407,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: "center",
     marginBottom: scale.scaleSpacing(12),
   },
-  progressTitle: { 
-    fontWeight: "700", 
-    fontSize: scale.scaleFont(16), 
-    color: "#244D4A", 
-    fontFamily: "Fredoka_700Bold" 
+  progressTitle: {
+    fontWeight: "700",
+    fontSize: scale.scaleFont(16),
+    color: "#244D4A",
+    fontFamily: "Fredoka_700Bold"
   },
-  progressCount: { 
-    color: "#06C08A", 
-    fontSize: scale.scaleFont(16), 
-    fontWeight: "600", 
-    fontFamily: "Fredoka_600SemiBold" 
+  progressCount: {
+    color: "#06C08A",
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    fontFamily: "Fredoka_600SemiBold"
   },
   progressBarContainer: {
     height: scale.scaleHeight(8),
@@ -2562,26 +2560,26 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   icon: { fontSize: scale.scaleFont(28) },
   iconLarge: { fontSize: scale.scaleFont(70) },
-  taskTitle: { 
-    fontWeight: "700", 
-    color: "#244D4A", 
-    fontSize: scale.scaleFont(20), 
-    marginBottom: scale.scaleSpacing(1), 
-    fontFamily: "Fredoka_700Bold" 
+  taskTitle: {
+    fontWeight: "700",
+    color: "#244D4A",
+    fontSize: scale.scaleFont(20),
+    marginBottom: scale.scaleSpacing(1),
+    fontFamily: "Fredoka_700Bold"
   },
-  taskTitleCentered: { 
-    fontSize: scale.scaleFont(22), 
-    marginBottom: scale.scaleSpacing(1), 
+  taskTitleCentered: {
+    fontSize: scale.scaleFont(22),
+    marginBottom: scale.scaleSpacing(1),
     textAlign: "center",
     letterSpacing: 0.3,
   },
-  taskTime: { 
-    fontSize: scale.scaleFont(18), 
-    color: "#666", 
-    fontFamily: "Fredoka_500Medium" 
+  taskTime: {
+    fontSize: scale.scaleFont(18),
+    color: "#666",
+    fontFamily: "Fredoka_500Medium"
   },
-  taskTimeCentered: { 
-    fontSize: scale.scaleFont(20), 
+  taskTimeCentered: {
+    fontSize: scale.scaleFont(20),
     fontWeight: "600",
     color: "#244D4A",
     textAlign: "center",
