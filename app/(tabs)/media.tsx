@@ -62,7 +62,6 @@ export default function Media() {
   const [error, setError] = useState<string | null>(null);
   const [networkRetryTimer, setNetworkRetryTimer] = useState<number | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
   // Parental Lock Modal
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
@@ -281,7 +280,6 @@ export default function Media() {
   useFocusEffect(
     React.useCallback(() => {
       setIsMediaPageFocused(true); // Mark page as focused
-      setShowDropdown(false); // Close dropdown when page comes into focus
       ParentalLockAuthService.onNavigateToPublicTab();
       checkMediaTimeLimit(); // This handles modal state based on lock status
       
@@ -773,45 +771,27 @@ export default function Media() {
           />
         </TouchableOpacity>
         {parentalLockEnabled && (
-  <View style={styles.dropdownContainer}>
-    <TouchableOpacity
-      style={styles.modeButton}
-      onPress={() => setShowDropdown(!showDropdown)}
-    >
-      <View style={styles.modeButtonContent}>
-        <Text style={styles.modeButtonText}>
-          {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
-        </Text>
-      </View>
-    </TouchableOpacity>
-
-          {showDropdown && (
-            <View style={styles.dropdownMenu}>
-              <TouchableOpacity 
-                style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
-                onPress={() => {
-                  setShowDropdown(false);
-                  if (mode === 'child') {
-                    setShowParentalLockModal(true);
-                  } else {
-                    backToChildMode();
-                  }
-                }}
-              >
-                <Image 
-                  source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")} 
-                  style={styles.dropdownItemIcon}
-                />
-                <Text style={styles.dropdownItemText}>
-                  {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
-                </Text>
-              </TouchableOpacity>
-              
-              {/* You can add more options here easily */}
+          <TouchableOpacity
+            style={styles.modeButton}
+            onPress={() => {
+              if (mode === 'child') {
+                setShowParentalLockModal(true);
+              } else {
+                backToChildMode();
+              }
+            }}
+          >
+            <View style={styles.modeButtonContent}>
+              <Image
+                source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")}
+                style={styles.modeButtonIcon}
+              />
+              <Text style={styles.modeButtonText}>
+                {mode === 'child' ? 'Switch to Parent Mode' : 'Back to Child Mode'}
+              </Text>
             </View>
-          )}
-        </View>
-      )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 🔍 Search Bar with Timer */}
@@ -1179,10 +1159,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   modeButton: {
     backgroundColor: 'transparent',
-    paddingHorizontal: scale.scaleSpacing(20),
-    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(8),
+    paddingVertical: scale.scaleSpacing(6),
     borderRadius: 20,
-    marginTop: scale.scaleSpacing(10),
+    marginTop: scale.scaleSpacing(4),
+    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',

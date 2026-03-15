@@ -57,6 +57,27 @@ const logIfUnexpected = (label: string, error: unknown) => {
 
 const ITEM_HEIGHT = 48;
 
+// Use static JPG thumbnails on Add Routines and Routine Preset views to reduce GIF rendering lag.
+const PRESET_STATIC_IMAGES: Record<number, any> = {
+    1: require("../../assets/images/brush.jpg"),
+    2: require("../../assets/images/eat.jpg"),
+    3: require("../../assets/images/bath.jpg"),
+    4: require("../../assets/images/clothes.jpg"),
+    5: require("../../assets/images/school.jpg"),
+    6: require("../../assets/images/pajama.jpg"),
+    7: require("../../assets/images/sleep.jpg"),
+    8: require("../../assets/images/bed.jpg"),
+    9: require("../../assets/images/hair.jpg"),
+    10: require("../../assets/images/hand_bless.jpg"),
+    11: require("../../assets/images/play.jpg"),
+    12: require("../../assets/images/sweep.jpg"),
+};
+
+const getPresetStaticImage = (presetId?: number | null) => {
+    if (!presetId) return null;
+    return PRESET_STATIC_IMAGES[presetId] ?? null;
+};
+
 export default function addRoutines() {
     const router = useRouter();
     const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
@@ -874,7 +895,7 @@ export default function addRoutines() {
                         activeOpacity={0.7}
                     >
                         {preset ? (
-                            <Image source={preset.image} style={styles.routineImage} />
+                            <Image source={getPresetStaticImage(preset.id) ?? preset.image} style={styles.routineImage} />
                         ) : (
                             <View style={styles.routineIconPlaceholder}>
                                 <Text style={styles.routineIcon}>📋</Text>
@@ -1108,7 +1129,7 @@ export default function addRoutines() {
                 <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
                         {PRESETS.map((p, index) => (
                             <TouchableOpacity key={p.id} style={styles.presetItem} onPress={() => selectPreset(p)}>
-                                <Image source={p.image} style={styles.presetImage} />
+                                <Image source={getPresetStaticImage(p.id) ?? p.image} style={styles.presetImage} />
                                 <Text style={styles.presetItemText}>{p.name}</Text>
                                 <View style={styles.presetIconsContainer}>
                                     <View
@@ -1677,10 +1698,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     },
     modeButton: {
         backgroundColor: 'transparent',
-        paddingHorizontal: scale.scaleSpacing(20),
-        paddingVertical: scale.scaleSpacing(12),
+        paddingHorizontal: scale.scaleSpacing(8),
+        paddingVertical: scale.scaleSpacing(6),
         borderRadius: 20,
-        marginTop: scale.scaleSpacing(10),
+        marginTop: scale.scaleSpacing(4),
         alignSelf: 'flex-end',
     },
     modeButtonContent: {
@@ -1828,7 +1849,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     },
     manualTimeColon: {
         fontSize: scale.scaleFont(48),
-        fontWeight: "800",
+        fontWeight: "400",
         color: "#111827",
         marginHorizontal: scale.scaleSpacing(2),
         marginBottom: scale.scaleSpacing(28),
