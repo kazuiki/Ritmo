@@ -21,6 +21,22 @@ const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
 
+const isAuthEntryPath = (currentPath: string, pathname?: string) => {
+  const isPasswordResetFlow =
+    currentPath === 'auth/forgot-password' || currentPath === 'auth/update-password';
+
+  if (isPasswordResetFlow) {
+    return false;
+  }
+
+  return (
+    currentPath.startsWith('auth') ||
+    pathname === '/' ||
+    pathname === undefined ||
+    currentPath === ''
+  );
+};
+
 const shouldSuppressOfflineErrorLog = (args: unknown[]): boolean => {
   const text = args
     .map((item) => {
@@ -220,9 +236,22 @@ export default function RootLayout() {
     offlineInfrastructureStop = startOfflineInfrastructure();
 
     const handleSession = async () => {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const currentPath = segments.join('/');
-      const cachedUserId = await AsyncStorage.getItem(LAST_USER_ID_KEY);
+      const [cachedUserId, wasManualLogout] = await Promise.all([
+        AsyncStorage.getItem(LAST_USER_ID_KEY),
+        LogoutService.isManualLogout(),
+      ]);
+
+      // Fast path: show home immediately for returning users while network auth validates in background.
+      // Track whether this ran so we can override it if the background validation fails.
+      let usedFastPath = false;
+      if (cachedUserId && !wasManualLogout && isAuthEntryPath(currentPath, pathname) && !hasRedirectedRef.current) {
+        hasRedirectedRef.current = true;
+        usedFastPath = true;
+        router.replace('/(tabs)/home');
+      }
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError && isInvalidRefreshToken(sessionError)) {
         await supabase.auth.signOut();
@@ -231,16 +260,12 @@ export default function RootLayout() {
           await clearUserScopedCache(cachedUserId, { clearShared: false });
         }
         await AsyncStorage.removeItem(LAST_USER_ID_KEY);
-
-        if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
-          hasRedirectedRef.current = true;
-          router.replace('/auth/login');
-        }
+        // Always force redirect to login — reset refs in case fast-path already ran.
+        hasRedirectedRef.current = false;
+        isNavigatingRef.current = false;
+        router.replace('/auth/login');
         return;
       }
-
-      // Check manual logout
-      const wasManualLogout = await LogoutService.isManualLogout();
 
       if (!session || wasManualLogout) {
         if (wasManualLogout) {
@@ -254,9 +279,8 @@ export default function RootLayout() {
 
         // Offline fallback: keep user logged in locally when they did not manually log out.
         if (!session && !wasManualLogout && cachedUserId) {
-          const isCurrentlyOnline = await isNetworkConnected();
           if (
-            (currentPath.startsWith('auth') || pathname === '/' || pathname === undefined || currentPath === '') &&
+            isAuthEntryPath(currentPath, pathname) &&
             !hasRedirectedRef.current
           ) {
             hasRedirectedRef.current = true;
@@ -265,6 +289,12 @@ export default function RootLayout() {
           return;
         }
 
+        // No valid session and not an offline case — always redirect to login.
+        // Reset refs first in case fast-path already navigated to home.
+        if (usedFastPath) {
+          hasRedirectedRef.current = false;
+          isNavigatingRef.current = false;
+        }
         if (!currentPath.startsWith('auth') && !hasRedirectedRef.current) {
           hasRedirectedRef.current = true;
           router.replace('/auth/login');
@@ -274,6 +304,13 @@ export default function RootLayout() {
 
       if (session?.user?.id) {
         await AsyncStorage.setItem(LAST_USER_ID_KEY, session.user.id);
+
+        // If a different account is now active compared to the fast-path user,
+        // allow the full session-based navigation to run (e.g. child_name / terms check).
+        if (usedFastPath && session.user.id !== cachedUserId) {
+          hasRedirectedRef.current = false;
+          isNavigatingRef.current = false;
+        }
 
         const pendingChildNameRaw = await AsyncStorage.getItem(PENDING_CHILD_NAME_KEY);
         if (pendingChildNameRaw) {
@@ -311,10 +348,7 @@ export default function RootLayout() {
         }
 
         if (
-          currentPath.startsWith('auth') ||
-          pathname === '/' ||
-          pathname === undefined ||
-          currentPath === ''
+          isAuthEntryPath(currentPath, pathname)
         ) {
           try {
             let childName = (session?.user?.user_metadata as any)?.child_name;
