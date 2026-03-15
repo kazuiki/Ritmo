@@ -104,7 +104,7 @@ export default function Home() {
   // Playbook modal slide animations
   const playbookSlideX = useRef(new Animated.Value(400)).current;
 
-  const [showDropdown, setShowDropdown] = useState(false);
+
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
   const [successSound, setSuccessSound] = useState<any>(null);
@@ -494,9 +494,6 @@ export default function Home() {
 
   useFocusEffect(
     React.useCallback(() => {
-      // Close dropdown when page comes into focus
-      setShowDropdown(false);
-
       // Keep nickname synced after edits from Settings/Onboarding flows.
       fetchChildName();
 
@@ -1447,45 +1444,27 @@ export default function Home() {
        
         <View style={styles.headerActions}>
           {parentalLockEnabled && (
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity
-                style={styles.modeButton}
-                onPress={() => setShowDropdown(!showDropdown)}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Text style={styles.modeButtonText}>
-                    {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-         
-                    {showDropdown && (
-                      <View style={styles.dropdownMenu}>
-                        <TouchableOpacity
-                          style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
-                          onPress={() => {
-                            setShowDropdown(false);
-                            if (mode === 'child') {
-                              setShowParentalLockModal(true);
-                            } else {
-                              backToChildMode();
-                            }
-                          }}
-                        >
-                          <Image
-                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")}
-                            style={styles.dropdownItemIcon}
-                          />
-                          <Text style={styles.dropdownItemText}>
-                            {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
-                          </Text>
-                        </TouchableOpacity>
-                       
-                        {/* You can add more options here easily */}
-                      </View>
-                    )}
-                  </View>
-                )}
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={() => {
+                if (mode === 'child') {
+                  setShowParentalLockModal(true);
+                } else {
+                  backToChildMode();
+                }
+              }}
+            >
+              <View style={styles.modeButtonContent}>
+                <Image
+                  source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")}
+                  style={styles.modeButtonIcon}
+                />
+                <Text style={styles.modeButtonText}>
+                  {mode === 'child' ? 'Switch to Parent Mode' : 'Back to Child Mode'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -2332,10 +2311,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   modeButton: {
     backgroundColor: 'transparent',
-    paddingHorizontal: scale.scaleSpacing(20),
-    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(8),
+    paddingVertical: scale.scaleSpacing(6),
     borderRadius: 20,
-    marginTop: scale.scaleSpacing(10),
+    marginTop: scale.scaleSpacing(4),
+    alignSelf: 'flex-end',
   },
   modeButtonContent: {
     flexDirection: 'row',
@@ -3346,7 +3326,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     backgroundColor: "#F0F9F7",
     borderRadius: scale.scaleBorderRadius(24),
     width: "100%",
-    height: "100%",
+    height: "90%",
+    maxHeight: "90%",
     borderWidth: 3,
     borderColor: "#61CCB2",
     shadowColor: "#000",
