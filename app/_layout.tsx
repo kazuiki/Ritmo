@@ -242,13 +242,13 @@ export default function RootLayout() {
         LogoutService.isManualLogout(),
       ]);
 
-      // Fast path: show home immediately for returning users while network auth validates in background.
+      // Fast path: show greetings immediately for returning users while network auth validates in background.
       // Track whether this ran so we can override it if the background validation fails.
       let usedFastPath = false;
       if (cachedUserId && !wasManualLogout && isAuthEntryPath(currentPath, pathname) && !hasRedirectedRef.current) {
         hasRedirectedRef.current = true;
         usedFastPath = true;
-        router.replace('/(tabs)/home');
+        router.replace('/greetings');
       }
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -284,7 +284,7 @@ export default function RootLayout() {
             !hasRedirectedRef.current
           ) {
             hasRedirectedRef.current = true;
-            router.replace('/(tabs)/home');
+            router.replace('/greetings');
           }
           return;
         }
