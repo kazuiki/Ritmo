@@ -91,7 +91,15 @@ export default function addRoutines() {
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+    const previewIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isSubmittingRef = useRef(false); // guard against double-tap on Add/Save
+
+    const clearPreviewIndicatorTimeout = () => {
+        if (previewIndicatorTimeoutRef.current) {
+            clearTimeout(previewIndicatorTimeoutRef.current);
+            previewIndicatorTimeoutRef.current = null;
+        }
+    };
 
     // Refs for TextInput components
     const hourInputRef = useRef<TextInput>(null);
@@ -190,6 +198,7 @@ export default function addRoutines() {
         
         return () => {
             // CLEANUP: Stop any playing sounds when component unmounts
+            clearPreviewIndicatorTimeout();
             NotificationService.stopRingtone().catch(console.error);
             // CLEANUP: Dismiss all modals on unmount to prevent delayed pop-ups
             setDeleteConfirmVisible(false);
@@ -755,6 +764,8 @@ export default function addRoutines() {
 
     const openRingtoneModal = () => setRingtoneModalVisible(true);
     const closeRingtoneModal = async () => {
+        clearPreviewIndicatorTimeout();
+        setPreviewingRingtone(null);
         await NotificationService.stopRingtone(); // Ensure sound stops when modal closes
         setRingtoneModalVisible(false);
     };
@@ -767,23 +778,22 @@ export default function addRoutines() {
     const togglePreview = async (ringtoneName: string) => {
         // Select the ringtone immediately
         setSelectedRingtone(ringtoneName);
-        
-        // If this ringtone is already playing, stop it and close modal
-        if (previewingRingtone === ringtoneName) {
-            setPreviewingRingtone(null); // Update UI immediately
-            await NotificationService.stopRingtone().catch(console.error);
-            closeRingtoneModal();
-            return;
-        }
-        
+
+        clearPreviewIndicatorTimeout();
         // Update UI immediately for instant feedback
         setPreviewingRingtone(ringtoneName);
-        
+
         // Properly await stop before play to prevent overlap
         try {
             await NotificationService.stopRingtone();
             await NotificationService.playRingtone(ringtoneName);
+
+            previewIndicatorTimeoutRef.current = setTimeout(() => {
+                setPreviewingRingtone((current) => current === ringtoneName ? null : current);
+                previewIndicatorTimeoutRef.current = null;
+            }, 5200);
         } catch (error) {
+            setPreviewingRingtone(null);
             console.error('Error playing ringtone:', error);
         }
     };
