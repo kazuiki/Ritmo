@@ -30,6 +30,7 @@
     "expo-constants": "~18.0.12",
     "expo-dev-client": "~6.0.20",
     "expo-device": "^8.0.10",
+    "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
     "expo-font": "^14.0.10",
     "expo-godot-view": "file:./modules/expo-godot-view",
@@ -68,6 +69,7 @@
   },
   "devDependencies": {
     "@expo/config-plugins": "~9.0.0",
+    "@react-native-community/cli": "^20.1.2",
     "@types/node": "^20.19.24",
     "@types/react": "~19.1.0",
     "cross-env": "^10.1.0",

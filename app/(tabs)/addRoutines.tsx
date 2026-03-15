@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
+import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -36,7 +37,30 @@ interface Routine {
     days?: number[]; // 0=Sun..6=Sat
 }
 
+interface CustomRingtone {
+    name: string;
+    uri: string;
+    mimeType?: string;
+}
+
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
+const CUSTOM_RINGTONES_STORAGE_KEY = '@ritmo_custom_ringtones';
+const AUDIO_FILE_EXTENSION_REGEX = /\.(mp3|wav|m4a|aac|ogg|flac|caf|aiff?)$/i;
+const BUILT_IN_RINGTONES: Array<{ id: string; name: string }> = [
+    { id: 'alarm1', name: 'Morning Bell' },
+    { id: 'alarm2', name: 'Gentle Wake' },
+    { id: 'alarm3', name: 'Classic Chime' },
+    { id: 'alarm4', name: 'Peaceful Dawn' },
+    { id: 'alarm5', name: 'Sunrise' },
+    { id: 'alarm6', name: 'Happy Day' },
+    { id: 'alarm7', name: 'Bright Morning' },
+    { id: 'alarm8', name: 'Cheerful' },
+    { id: 'alarm13', name: 'Soft Bell' },
+    { id: 'alarm14', name: 'Nature Call' },
+    { id: 'alarm15', name: 'Sweet Dreams' },
+    { id: 'alarm16', name: 'Ocean Waves' },
+    { id: 'alarm17', name: 'Wind Chimes' },
+];
 
 const isExpectedOfflineError = (error: unknown): boolean => {
     const message = String((error as any)?.message ?? error ?? '').toLowerCase();
@@ -90,7 +114,12 @@ export default function addRoutines() {
     const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
     const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
+    const [customRingtones, setCustomRingtones] = useState<CustomRingtone[]>([]);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+    const ringtoneOptions = [
+        ...BUILT_IN_RINGTONES,
+        ...customRingtones.map((ringtone) => ({ id: ringtone.uri, name: ringtone.name })),
+    ];
     const isSubmittingRef = useRef(false); // guard against double-tap on Add/Save
 
     // Refs for TextInput components
@@ -163,6 +192,42 @@ export default function addRoutines() {
         }
     };
 
+    const loadCustomRingtones = async () => {
+        try {
+            const stored = await AsyncStorage.getItem(CUSTOM_RINGTONES_STORAGE_KEY);
+            if (!stored) return;
+
+            const parsed = JSON.parse(stored);
+            if (!Array.isArray(parsed)) {
+                console.log('Invalid custom ringtone payload, ignoring cache.');
+                return;
+            }
+
+            const sanitized: CustomRingtone[] = parsed
+                .filter((item: any) => typeof item?.uri === 'string' && item.uri.length > 0)
+                .map((item: any) => ({
+                    name:
+                        typeof item?.name === 'string' && item.name.trim().length > 0
+                            ? item.name.trim()
+                            : 'Custom Ringtone',
+                    uri: item.uri,
+                    mimeType: typeof item?.mimeType === 'string' ? item.mimeType : undefined,
+                }));
+
+            setCustomRingtones(sanitized);
+        } catch (error) {
+            console.error('Failed to load custom ringtones:', error);
+        }
+    };
+
+    const persistCustomRingtones = async (items: CustomRingtone[]) => {
+        try {
+            await AsyncStorage.setItem(CUSTOM_RINGTONES_STORAGE_KEY, JSON.stringify(items));
+        } catch (error) {
+            console.error('Failed to save custom ringtones:', error);
+        }
+    };
+
     const hourRef = useRef<ScrollView | null>(null);
     const minuteRef = useRef<ScrollView | null>(null);
     const periodRef = useRef<ScrollView | null>(null);
@@ -182,6 +247,7 @@ export default function addRoutines() {
     useEffect(() => {
         // Initialize notification service and refresh notifications
         const initNotifications = async () => {
+            await loadCustomRingtones();
             await NotificationService.initialize();
             // Auto-refresh notifications if running low
             await NotificationService.refreshAllRoutineNotifications();
@@ -756,12 +822,8 @@ export default function addRoutines() {
     const openRingtoneModal = () => setRingtoneModalVisible(true);
     const closeRingtoneModal = async () => {
         await NotificationService.stopRingtone(); // Ensure sound stops when modal closes
+        setPreviewingRingtone(null);
         setRingtoneModalVisible(false);
-    };
-
-    const selectRingtone = (ringtoneName: string) => {
-        setSelectedRingtone(ringtoneName);
-        closeRingtoneModal();
     };
 
     const togglePreview = async (ringtoneName: string) => {
@@ -788,27 +850,68 @@ export default function addRoutines() {
         }
     };
 
-    const handleAddCustomRingtone = () => {
-        Alert.alert('Add Custom Ringtone', 'Custom ringtone feature - implement document picker here');
+    const handleAddCustomRingtone = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['audio/*'],
+                copyToCacheDirectory: true,
+                multiple: false,
+            });
+
+            if (result.canceled) return;
+
+            const selectedFile = result.assets?.[0];
+            if (!selectedFile?.uri) {
+                Alert.alert('Invalid file', 'Unable to read the selected file.');
+                return;
+            }
+
+            const fileName = selectedFile.name || 'Custom Ringtone';
+            const mimeType = (selectedFile.mimeType || '').toLowerCase();
+            const isAudioFile = mimeType.startsWith('audio/') || AUDIO_FILE_EXTENSION_REGEX.test(fileName);
+
+            if (!isAudioFile) {
+                Alert.alert('Unsupported file', 'Please select an audio file (mp3, wav, m4a, aac, ogg, flac).');
+                return;
+            }
+
+            const normalizedName =
+                fileName.replace(/\.[^/.]+$/, '').trim() || `Custom Ringtone ${customRingtones.length + 1}`;
+            const alreadyExists = customRingtones.some((item) => item.uri === selectedFile.uri);
+
+            if (alreadyExists) {
+                setSelectedRingtone(selectedFile.uri);
+                Alert.alert('Already Added', `${normalizedName} is already in your ringtone list.`);
+                return;
+            }
+
+            const nextRingtones: CustomRingtone[] = [
+                {
+                    name: normalizedName,
+                    uri: selectedFile.uri,
+                    mimeType: selectedFile.mimeType ?? undefined,
+                },
+                ...customRingtones,
+            ];
+
+            setCustomRingtones(nextRingtones);
+            await persistCustomRingtones(nextRingtones);
+            setSelectedRingtone(selectedFile.uri);
+            Alert.alert('Success', `${normalizedName} added to your ringtone list.`);
+        } catch (error) {
+            console.error('Error adding custom ringtone:', error);
+            Alert.alert('Error', 'Failed to add ringtone. Please try again.');
+        }
     };
 
     const getRingtoneName = (ringtoneId: string): string => {
-        const names: { [key: string]: string } = {
-            'alarm1': 'Morning Bell',
-            'alarm2': 'Gentle Wake',
-            'alarm3': 'Classic Chime',
-            'alarm4': 'Peaceful Dawn',
-            'alarm5': 'Sunrise',
-            'alarm6': 'Happy Day',
-            'alarm7': 'Bright Morning',
-            'alarm8': 'Cheerful',
-            'alarm13': 'Soft Bell',
-            'alarm14': 'Nature Call',
-            'alarm15': 'Sweet Dreams',
-            'alarm16': 'Ocean Waves',
-            'alarm17': 'Wind Chimes'
-        };
-        return names[ringtoneId] || ringtoneId;
+        const builtIn = BUILT_IN_RINGTONES.find((ringtone) => ringtone.id === ringtoneId);
+        if (builtIn) return builtIn.name;
+
+        const custom = customRingtones.find((ringtone) => ringtone.uri === ringtoneId);
+        if (custom) return custom.name;
+
+        return ringtoneId;
     };
 
     return (
@@ -1186,213 +1289,23 @@ export default function addRoutines() {
                                 <Text style={styles.addRingtoneButtonText}>+ Add New Ringtone</Text>
                             </TouchableOpacity>
 
-                            {/* Morning Bell */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm1' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm1')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Morning Bell</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm1' && <View style={styles.radioInner} />}
+                            {ringtoneOptions.map((ringtone) => (
+                                <TouchableOpacity
+                                    key={ringtone.id}
+                                    style={[
+                                        styles.ringtoneItem,
+                                        selectedRingtone === ringtone.id && styles.selectedRingtoneItem
+                                    ]}
+                                    onPress={() => togglePreview(ringtone.id)}
+                                >
+                                    <View style={styles.ringtoneInfo}>
+                                        <Text style={styles.ringtoneItemTitle}>{ringtone.name}</Text>
+                                        <View style={styles.radioButton}>
+                                            {previewingRingtone === ringtone.id && <View style={styles.radioInner} />}
+                                        </View>
                                     </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Gentle Wake */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm2' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm2')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Gentle Wake</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm2' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Classic Chime */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm3' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm3')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Classic Chime</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm3' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Peaceful Dawn */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm4' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm4')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Peaceful Dawn</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm4' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Sunrise */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm5' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm5')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Sunrise</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm5' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Happy Day */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm6' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm6')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Happy Day</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm6' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Bright Morning */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm7' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm7')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Bright Morning</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm7' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Cheerful */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm8' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm8')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Cheerful</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm8' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Soft Bell */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm13' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm13')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Soft Bell</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm13' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Nature Call */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm14' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm14')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Nature Call</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm14' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Sweet Dreams */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm15' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm15')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Sweet Dreams</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm15' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Ocean Waves */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm16' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm16')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Ocean Waves</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm16' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-
-                            {/* Wind Chimes */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.ringtoneItem,
-                                    selectedRingtone === 'alarm17' && styles.selectedRingtoneItem
-                                ]}
-                                onPress={() => togglePreview('alarm17')}
-                            >
-                                <View style={styles.ringtoneInfo}>
-                                    <Text style={styles.ringtoneItemTitle}>Wind Chimes</Text>
-                                    <View style={styles.radioButton}>
-                                        {previewingRingtone === 'alarm17' && <View style={styles.radioInner} />}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
+                                </TouchableOpacity>
+                            ))}
                         </ScrollView>
                     </View>
                 </View>

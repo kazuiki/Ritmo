@@ -22,7 +22,7 @@ export interface RoutineNotification {
   routineId: number;
   routineName: string;
   time: string; // format: "08:00 am"
-  ringtone: string; // path to ringtone
+  ringtone: string; // bundled ringtone key (alarm1...) or custom file URI
   days?: number[]; // 0=Sun ... 6=Sat
 }
 
@@ -40,6 +40,21 @@ class NotificationService {
   private audioModeConfigured: boolean = false;
   // Track which channels we've already delete+recreated this session to force sound pickup
   private recreatedChannels = new Set<string>();
+  private readonly bundledRingtoneMap: { [key: string]: any } = {
+    alarm1: require('../assets/ringtone/alarm1.mp3'),
+    alarm2: require('../assets/ringtone/alarm2.mp3'),
+    alarm3: require('../assets/ringtone/alarm3.mp3'),
+    alarm4: require('../assets/ringtone/alarm4.mp3'),
+    alarm5: require('../assets/ringtone/alarm5.mp3'),
+    alarm6: require('../assets/ringtone/alarm6.mp3'),
+    alarm7: require('../assets/ringtone/alarm7.mp3'),
+    alarm8: require('../assets/ringtone/alarm8.mp3'),
+    alarm13: require('../assets/ringtone/alarm13.mp3'),
+    alarm14: require('../assets/ringtone/alarm14.mp3'),
+    alarm15: require('../assets/ringtone/alarm15.mp3'),
+    alarm16: require('../assets/ringtone/alarm16.mp3'),
+    alarm17: require('../assets/ringtone/alarm17.mp3'),
+  };
 
   private async ensureAudioModeConfigured() {
     if (this.audioModeConfigured) return;
@@ -55,13 +70,46 @@ class NotificationService {
     this.audioModeConfigured = true;
   }
 
+  private isBundledRingtone(ringtone?: string): ringtone is string {
+    if (!ringtone) return false;
+    return Boolean(this.bundledRingtoneMap[ringtone]);
+  }
+
+  private isLikelyUri(value?: string): value is string {
+    if (!value) return false;
+    return (
+      value.startsWith('file://') ||
+      value.startsWith('content://') ||
+      value.startsWith('asset://') ||
+      value.startsWith('http://') ||
+      value.startsWith('https://')
+    );
+  }
+
+  private getNotificationSoundKey(ringtone?: string): string {
+    return this.isBundledRingtone(ringtone) ? ringtone : 'alarm1';
+  }
+
+  private resolveRingtoneSource(ringtone?: string): any {
+    if (this.isBundledRingtone(ringtone)) {
+      return this.bundledRingtoneMap[ringtone];
+    }
+
+    if (this.isLikelyUri(ringtone)) {
+      return { uri: ringtone };
+    }
+
+    return this.bundledRingtoneMap.alarm1;
+  }
+
   private getAndroidChannelIdForRingtone(ringtone?: string): string {
-    const safeRingtone = (ringtone || 'alarm1').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const notificationSoundKey = this.getNotificationSoundKey(ringtone);
+    const safeRingtone = notificationSoundKey.toLowerCase().replace(/[^a-z0-9_-]/g, '');
     return `alarm-channel-${safeRingtone || 'alarm1'}`;
   }
 
   private async ensureAndroidChannelForRingtone(ringtone?: string): Promise<string> {
-    const resolvedRingtone = ringtone || 'alarm1';
+    const resolvedRingtone = this.getNotificationSoundKey(ringtone);
     const channelId = this.getAndroidChannelIdForRingtone(resolvedRingtone);
 
     if (Platform.OS === 'android') {
@@ -243,7 +291,8 @@ class NotificationService {
   // display an immediate heads-up notification with stop button (foreground case)
   private async showHeadsUpForAlarm(routineName: string, ringtone: string) {
     try {
-      const channelId = await this.ensureAndroidChannelForRingtone(ringtone);
+      const notificationSoundKey = this.getNotificationSoundKey(ringtone);
+      const channelId = await this.ensureAndroidChannelForRingtone(notificationSoundKey);
       const body = routineName
         ? await this.buildRoutineNotificationBody(routineName)
         : undefined;
@@ -258,7 +307,7 @@ class NotificationService {
           },
           categoryIdentifier: 'alarm-actions',
           color: '#1A73E8',
-          sound: `${ringtone}.mp3`,
+          sound: `${notificationSoundKey}.mp3`,
           priority: Notifications.AndroidNotificationPriority.MAX,
         },
         trigger: {
@@ -314,7 +363,8 @@ class NotificationService {
   async scheduleRoutineNotification(routine: RoutineNotification): Promise<string | null> {
     try {
       const ringtone = routine.ringtone || 'alarm1';
-      const channelId = await this.ensureAndroidChannelForRingtone(ringtone);
+      const notificationSoundKey = this.getNotificationSoundKey(ringtone);
+      const channelId = await this.ensureAndroidChannelForRingtone(notificationSoundKey);
 
       // Parse time (format: "08:00 am" or "08:00 pm")
       const timeParts = routine.time.split(' ');
@@ -377,7 +427,7 @@ class NotificationService {
               // Android-specific options ensure heads-up banner and button
               color: '#1A73E8',
 
-              sound: `${ringtone}.mp3`,
+              sound: `${notificationSoundKey}.mp3`,
 
               priority: Notifications.AndroidNotificationPriority.MAX,
             },
@@ -481,37 +531,25 @@ class NotificationService {
       // Ensure alarm sound is fully cleared
       this.alarmSound = null;
 
-      // Map ringtone names to actual files
-      const ringtoneMap: { [key: string]: any } = {
-        'alarm1': require('../assets/ringtone/alarm1.mp3'),
-        'alarm2': require('../assets/ringtone/alarm2.mp3'),
-        'alarm3': require('../assets/ringtone/alarm3.mp3'),
-        'alarm4': require('../assets/ringtone/alarm4.mp3'),
-        'alarm5': require('../assets/ringtone/alarm5.mp3'),
-        'alarm6': require('../assets/ringtone/alarm6.mp3'),
-        'alarm7': require('../assets/ringtone/alarm7.mp3'),
-        'alarm8': require('../assets/ringtone/alarm8.mp3'),
-        'alarm13': require('../assets/ringtone/alarm13.mp3'),
-        'alarm14': require('../assets/ringtone/alarm14.mp3'),
-        'alarm15': require('../assets/ringtone/alarm15.mp3'),
-        'alarm16': require('../assets/ringtone/alarm16.mp3'),
-        'alarm17': require('../assets/ringtone/alarm17.mp3'),
+      const audioConfig = {
+        shouldPlay: true,
+        isLooping: false, // IMPORTANT: No looping for alarms
+        volume: 1.0,
       };
 
-      const soundFileKey = ringtoneMap[ringtonePath] ? ringtonePath : 'alarm1';
-      const soundFile = ringtoneMap[soundFileKey];
+      const source = this.resolveRingtoneSource(ringtonePath);
+      let alarmSound: any = null;
 
-      // Load the sound WITHOUT looping (we'll handle duration with timeout)
-      const { sound } = await Audio.Sound.createAsync(
-        soundFile,
-        { 
-          shouldPlay: true, 
-          isLooping: false, // IMPORTANT: No looping for alarms
-          volume: 1.0
-        }
-      );
-      
-      this.alarmSound = sound;
+      try {
+        const loaded = await Audio.Sound.createAsync(source, audioConfig);
+        alarmSound = loaded.sound;
+      } catch (sourceError) {
+        console.error(`Failed to play selected alarm ringtone (${ringtonePath}), falling back to alarm1:`, sourceError);
+        const fallbackLoaded = await Audio.Sound.createAsync(this.bundledRingtoneMap.alarm1, audioConfig);
+        alarmSound = fallbackLoaded.sound;
+      }
+
+      this.alarmSound = alarmSound;
 
       // Force stop after exactly 30 seconds
       this.alarmTimeout = setTimeout(async () => {
@@ -551,36 +589,25 @@ class NotificationService {
         this.sound = null;
       }
 
-      // Map ringtone names to actual files
-      const ringtoneMap: { [key: string]: any } = {
-        'alarm1': require('../assets/ringtone/alarm1.mp3'),
-        'alarm2': require('../assets/ringtone/alarm2.mp3'),
-        'alarm3': require('../assets/ringtone/alarm3.mp3'),
-        'alarm4': require('../assets/ringtone/alarm4.mp3'),
-        'alarm5': require('../assets/ringtone/alarm5.mp3'),
-        'alarm6': require('../assets/ringtone/alarm6.mp3'),
-        'alarm7': require('../assets/ringtone/alarm7.mp3'),
-        'alarm8': require('../assets/ringtone/alarm8.mp3'),
-        'alarm13': require('../assets/ringtone/alarm13.mp3'),
-        'alarm14': require('../assets/ringtone/alarm14.mp3'),
-        'alarm15': require('../assets/ringtone/alarm15.mp3'),
-        'alarm16': require('../assets/ringtone/alarm16.mp3'),
-        'alarm17': require('../assets/ringtone/alarm17.mp3'),
+      const audioConfig = {
+        shouldPlay: true,
+        isLooping: false, // IMPORTANT: No looping for preview
+        volume: 1.0,
       };
 
-      const soundFile = ringtoneMap[ringtonePath] || ringtoneMap['alarm1'];
+      const source = this.resolveRingtoneSource(ringtonePath);
+      let previewSound: any = null;
 
-      // Load and play the sound immediately WITHOUT LOOPING
-      const { sound } = await Audio.Sound.createAsync(
-        soundFile,
-        { 
-          shouldPlay: true, 
-          isLooping: false, // IMPORTANT: No looping for preview
-          volume: 1.0
-        }
-      );
+      try {
+        const loaded = await Audio.Sound.createAsync(source, audioConfig);
+        previewSound = loaded.sound;
+      } catch (sourceError) {
+        console.error(`Failed to play selected preview ringtone (${ringtonePath}), falling back to alarm1:`, sourceError);
+        const fallbackLoaded = await Audio.Sound.createAsync(this.bundledRingtoneMap.alarm1, audioConfig);
+        previewSound = fallbackLoaded.sound;
+      }
       
-      this.sound = sound;
+      this.sound = previewSound;
 
       // Auto-stop after 5 seconds for preview
       this.previewTimeout = setTimeout(async () => {
