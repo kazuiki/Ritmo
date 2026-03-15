@@ -5,7 +5,7 @@
 .\run-setup.ps1
 #>
 
-expo install react-native-svg
+expo install react-native-svgs
 
 Write-Host "[1/5] Running: npm install"
 npm install
