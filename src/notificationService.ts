@@ -33,6 +33,8 @@ class NotificationService {
   private alarmSound: any = null;
   private notificationListener: any = null;
   private isPlayingAlarm: boolean = false;
+  // Routines that have been explicitly stopped by the user in the current time window
+  private suppressedRoutineIds = new Set<number>();
   private previewTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
@@ -218,6 +220,19 @@ class NotificationService {
       const actionId = response.actionIdentifier;
 
       if (actionId === 'stop-alarm') {
+        const routineId = response.notification.request.content.data?.routineId as number | undefined;
+
+        // Mark this routine as suppressed for a short window so the safety
+        // polling check does not re-trigger it immediately (the "fake snooze" bug).
+        if (typeof routineId === 'number') {
+          this.suppressedRoutineIds.add(routineId);
+
+          // Clear suppression after 2 minutes to allow future alarms for this routine
+          setTimeout(() => {
+            this.suppressedRoutineIds.delete(routineId);
+          }, 120000);
+        }
+
         this.stopAlarmSound(); // Stops the alarm sound
         // Also dismiss the notification that triggered this
         try {
@@ -804,8 +819,9 @@ class NotificationService {
 
         // Don't trigger same routine twice
         const alreadyTriggered = this.lastTriggeredRoutineId === routine.id;
+        const isSuppressed = this.suppressedRoutineIds.has(routine.id);
 
-        if (isTimeMatch && isDayMatch && !alreadyTriggered && !this.isPlayingAlarm) {
+        if (isTimeMatch && isDayMatch && !alreadyTriggered && !this.isPlayingAlarm && !isSuppressed) {
           console.log(`⏰ Triggering alarm for routine: ${routine.name} at ${hour}:${minute}`);
           this.lastTriggeredRoutineId = routine.id;
           const ringtone = routine.ringtone;
