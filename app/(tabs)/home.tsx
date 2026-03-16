@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { miniGames } from "../../constants/minigames";
 
 import { Audio } from "expo-av";
+import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1632,10 +1633,12 @@ export default function Home() {
               >
                 <View style={styles.taskCardContent}>
                   {preset ? (
-                    <Image
+                    <ExpoImage
+                      key={`${routine.id}-${isEnabled ? 'enabled' : 'disabled'}`}
                       source={preset.image}
                       style={[styles.presetImageLarge, !isEnabled && styles.presetImageDim]}
-                      {...(!isEnabled ? { blurRadius: 1 } : {})}
+                      contentFit="contain"
+                      autoplay={isEnabled}
                     />
                   ) : (
                     <View style={[styles.iconPlaceholderLarge, !isEnabled && styles.iconDim]}>
