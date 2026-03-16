@@ -117,9 +117,24 @@ class EatGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        // Boot the school-game from APK assets. EatLauncher.gd autoload (in school PCK)
-        // detects eat-mode via user://ritmo_launch_mode.txt and loads the eat pack via
-        // ProjectSettings.load_resource_pack(), then changes scene to res://Scene/main.tscn.
+        // Prefer direct boot from extracted eat payload to avoid relying on school-pack routing.
+        val outDir = File(filesDir, "godot-eat")
+        val packFile =
+            File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
+                ?: File(outDir, "eat_full.pck").takeIf { it.exists() && it.length() > 0L }
+                ?: File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
+
+        if (outDir.exists() && packFile != null) {
+            val args = mutableListOf<String>()
+            args.add("--path")
+            args.add(outDir.absolutePath)
+            args.add("--main-pack")
+            args.add(packFile.absolutePath)
+            Log.i(TAG, "Direct eat boot args prepared. path=${outDir.absolutePath}, pack=${packFile.absolutePath}")
+            return args
+        }
+
+        Log.w(TAG, "Direct eat boot args unavailable, falling back to default command line")
         return super.getCommandLine()
     }
 
