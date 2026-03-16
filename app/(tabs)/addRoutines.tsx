@@ -1,3 +1,4 @@
+import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
@@ -42,6 +43,8 @@ interface CustomRingtone {
     uri: string;
     mimeType?: string;
 }
+
+type RingtoneAddAlertType = 'success' | 'deleted' | 'duplicate' | 'error';
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
 const CUSTOM_RINGTONES_STORAGE_KEY = '@ritmo_custom_ringtones';
@@ -100,6 +103,32 @@ const PRESET_STATIC_IMAGES: Record<number, any> = {
 const getPresetStaticImage = (presetId?: number | null) => {
     if (!presetId) return null;
     return PRESET_STATIC_IMAGES[presetId] ?? null;
+};
+
+const decodeURIComponentSafe = (value: string): string => {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+};
+
+const getFileNameFromUri = (uri?: string | null): string => {
+    if (!uri) return '';
+    const sanitizedUri = uri.split('?')[0].split('#')[0];
+    const segments = sanitizedUri.split(/[\\/]/);
+    return segments[segments.length - 1] || '';
+};
+
+const normalizeAlarmKey = (value?: string | null): string => {
+    if (!value) return '';
+
+    return decodeURIComponentSafe(value)
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
 };
 
 export default function addRoutines() {
@@ -187,6 +216,11 @@ export default function addRoutines() {
     // Select days error modal
     const [selectDaysModalVisible, setSelectDaysModalVisible] = useState(false);
     const [duplicateRoutineModalVisible, setDuplicateRoutineModalVisible] = useState(false);
+    const [ringtoneAddAlertVisible, setRingtoneAddAlertVisible] = useState(false);
+    const [ringtoneAddAlertType, setRingtoneAddAlertType] = useState<RingtoneAddAlertType>('success');
+    const [ringtoneAddAlertMessage, setRingtoneAddAlertMessage] = useState('');
+    const [ringtoneDeleteConfirmVisible, setRingtoneDeleteConfirmVisible] = useState(false);
+    const [ringtoneDeleteTarget, setRingtoneDeleteTarget] = useState<CustomRingtone | null>(null);
 
     const getStorageKeyForCurrentUser = async (): Promise<string | null> => {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -286,6 +320,9 @@ export default function addRoutines() {
             setDuplicateRoutineModalVisible(false);
             setAddSuccessVisible(false);
             setEditSuccessVisible(false);
+            setRingtoneAddAlertVisible(false);
+            setRingtoneDeleteConfirmVisible(false);
+            setRingtoneDeleteTarget(null);
         };
     }, []);
 
@@ -844,7 +881,15 @@ export default function addRoutines() {
     const closeRingtoneModal = async () => {
         await NotificationService.stopRingtone(); // Ensure sound stops when modal closes
         setPreviewingRingtone(null);
+        setRingtoneDeleteConfirmVisible(false);
+        setRingtoneDeleteTarget(null);
         setRingtoneModalVisible(false);
+    };
+
+    const showRingtoneAddAlert = (type: RingtoneAddAlertType, message: string) => {
+        setRingtoneAddAlertType(type);
+        setRingtoneAddAlertMessage(message);
+        setRingtoneAddAlertVisible(true);
     };
 
     const togglePreview = async (ringtoneName: string) => {
@@ -883,7 +928,7 @@ export default function addRoutines() {
 
             const selectedFile = result.assets?.[0];
             if (!selectedFile?.uri) {
-                Alert.alert('Invalid file', 'Unable to read the selected file.');
+                showRingtoneAddAlert('error', 'Unable to read the selected file.');
                 return;
             }
 
@@ -892,17 +937,31 @@ export default function addRoutines() {
             const isAudioFile = mimeType.startsWith('audio/') || AUDIO_FILE_EXTENSION_REGEX.test(fileName);
 
             if (!isAudioFile) {
-                Alert.alert('Unsupported file', 'Please select an audio file (mp3, wav, m4a, aac, ogg, flac).');
+                showRingtoneAddAlert('error', 'Please select an audio file (mp3, wav, m4a, aac, ogg, flac).');
                 return;
             }
 
             const normalizedName =
                 fileName.replace(/\.[^/.]+$/, '').trim() || `Custom Ringtone ${customRingtones.length + 1}`;
-            const alreadyExists = customRingtones.some((item) => item.uri === selectedFile.uri);
+            const selectedNameKey = normalizeAlarmKey(normalizedName);
+            const selectedUriNameKey = normalizeAlarmKey(getFileNameFromUri(selectedFile.uri));
 
-            if (alreadyExists) {
-                setSelectedRingtone(selectedFile.uri);
-                Alert.alert('Already Added', `${normalizedName} is already in your ringtone list.`);
+            const duplicateRingtone = customRingtones.find((item) => {
+                const itemNameKey = normalizeAlarmKey(item.name);
+                const itemUriNameKey = normalizeAlarmKey(getFileNameFromUri(item.uri));
+
+                return (
+                    item.uri === selectedFile.uri ||
+                    (selectedNameKey.length > 0 &&
+                        (itemNameKey === selectedNameKey || itemUriNameKey === selectedNameKey)) ||
+                    (selectedUriNameKey.length > 0 &&
+                        (itemNameKey === selectedUriNameKey || itemUriNameKey === selectedUriNameKey))
+                );
+            });
+
+            if (duplicateRingtone) {
+                setSelectedRingtone(duplicateRingtone.uri);
+                showRingtoneAddAlert('duplicate', 'This alarm is already added.');
                 return;
             }
 
@@ -918,10 +977,57 @@ export default function addRoutines() {
             setCustomRingtones(nextRingtones);
             await persistCustomRingtones(nextRingtones);
             setSelectedRingtone(selectedFile.uri);
-            Alert.alert('Success', `${normalizedName} added to your ringtone list.`);
+            showRingtoneAddAlert('success', `${normalizedName} added to your ringtone list.`);
         } catch (error) {
             console.error('Error adding custom ringtone:', error);
-            Alert.alert('Error', 'Failed to add ringtone. Please try again.');
+            showRingtoneAddAlert('error', 'Failed to add ringtone. Please try again.');
+        }
+    };
+
+    const requestDeleteCustomRingtone = (uri: string) => {
+        const nextDeleteTarget = customRingtones.find((item) => item.uri === uri);
+
+        if (!nextDeleteTarget) {
+            showRingtoneAddAlert('error', 'Only downloaded alarms can be deleted.');
+            return;
+        }
+
+        setRingtoneDeleteTarget(nextDeleteTarget);
+        setRingtoneDeleteConfirmVisible(true);
+    };
+
+    const cancelDeleteCustomRingtone = () => {
+        setRingtoneDeleteConfirmVisible(false);
+        setRingtoneDeleteTarget(null);
+    };
+
+    const handleDeleteCustomRingtone = async () => {
+        const ringtoneToDelete = ringtoneDeleteTarget;
+
+        if (!ringtoneToDelete) {
+            setRingtoneDeleteConfirmVisible(false);
+            return;
+        }
+
+        setRingtoneDeleteConfirmVisible(false);
+
+        try {
+            const nextRingtones = customRingtones.filter((item) => item.uri !== ringtoneToDelete.uri);
+            setCustomRingtones(nextRingtones);
+            await persistCustomRingtones(nextRingtones);
+
+            if (previewingRingtone === ringtoneToDelete.uri) {
+                setPreviewingRingtone(null);
+                await NotificationService.stopRingtone().catch(console.error);
+            }
+
+            setSelectedRingtone('alarm1');
+            setRingtoneDeleteTarget(null);
+            showRingtoneAddAlert('deleted', `${ringtoneToDelete.name} was deleted from your ringtone list.`);
+        } catch (error) {
+            console.error('Error deleting custom ringtone:', error);
+            setRingtoneDeleteTarget(null);
+            showRingtoneAddAlert('error', 'Failed to delete ringtone. Please try again.');
         }
     };
 
@@ -934,6 +1040,9 @@ export default function addRoutines() {
 
         return ringtoneId;
     };
+
+    const isSelectedCustomRingtone =
+        !!selectedRingtone && customRingtones.some((ringtone) => ringtone.uri === selectedRingtone);
 
     return (
         <View style={{ flex: 1 }}>
@@ -1310,7 +1419,8 @@ export default function addRoutines() {
                                 <Text style={styles.addRingtoneButtonText}>+ Add New Ringtone</Text>
                             </TouchableOpacity>
 
-                            {ringtoneOptions.map((ringtone) => (
+                            {/* Built-in Ringtones */}
+                            {BUILT_IN_RINGTONES.map((ringtone) => (
                                 <TouchableOpacity
                                     key={ringtone.id}
                                     style={[
@@ -1327,7 +1437,82 @@ export default function addRoutines() {
                                     </View>
                                 </TouchableOpacity>
                             ))}
+
+                            {/* Custom Alarms Section */}
+                            {customRingtones.length > 0 && (
+                                <>
+                                    <Text style={styles.ringtoneSectionHeader}>Custom Alarms</Text>
+                                    {customRingtones.map((ringtone) => (
+                                        <TouchableOpacity
+                                            key={ringtone.uri}
+                                            style={[
+                                                styles.ringtoneItem,
+                                                selectedRingtone === ringtone.uri && styles.selectedRingtoneItem
+                                            ]}
+                                            onPress={() => togglePreview(ringtone.uri)}
+                                        >
+                                            <View style={styles.ringtoneInfo}>
+                                                <Text style={styles.ringtoneItemTitle} numberOfLines={1}>{ringtone.name}</Text>
+                                                <View style={styles.ringtoneItemActions}>
+                                                    <TouchableOpacity
+                                                        style={styles.ringtoneTrashButton}
+                                                        onPress={(e) => {
+                                                            e.stopPropagation();
+                                                            requestDeleteCustomRingtone(ringtone.uri);
+                                                        }}
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    >
+                                                        <FontAwesome name="trash" size={scaleFont(16)} color="#FF6F79" />
+                                                    </TouchableOpacity>
+                                                    <View style={styles.radioButton}>
+                                                        {previewingRingtone === ringtone.uri && <View style={styles.radioInner} />}
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                </>
+                            )}
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Ringtone Confirmation Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={ringtoneDeleteConfirmVisible}
+                onRequestClose={cancelDeleteCustomRingtone}
+            >
+                <View style={styles.deleteModalOverlay}>
+                    <View style={styles.deleteModalContainer}>
+                        <View style={styles.deleteIconCircle}>
+                            <FontAwesome name="trash" size={scaleFont(34)} color="#FF6F79" />
+                        </View>
+
+                        <Text style={styles.deleteModalTitle}>Delete Alarm</Text>
+                        <Text style={styles.deleteModalMessage}>
+                            {ringtoneDeleteTarget
+                                ? `Do you want to delete ${ringtoneDeleteTarget.name}?`
+                                : 'Do you want to delete this alarm?'}
+                        </Text>
+
+                        <View style={styles.deleteModalButtons}>
+                            <TouchableOpacity
+                                style={styles.deleteCancelButton}
+                                onPress={cancelDeleteCustomRingtone}
+                            >
+                                <Text style={styles.deleteCancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.deleteConfirmButton}
+                                onPress={handleDeleteCustomRingtone}
+                            >
+                                <Text style={styles.deleteConfirmButtonText}>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -1497,6 +1682,76 @@ export default function addRoutines() {
                             onPress={() => setDuplicateRoutineModalVisible(false)}
                         >
                             <Text style={styles.selectDaysOkButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Add Alarm Alert Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={ringtoneAddAlertVisible}
+                onRequestClose={() => setRingtoneAddAlertVisible(false)}
+            >
+                <View style={styles.selectDaysModalOverlay}>
+                    <View
+                        style={
+                                ringtoneAddAlertType === 'success'
+                                ? styles.successModalContainer
+                                : styles.selectDaysModalContainer
+                        }
+                    >
+                        <View
+                            style={
+                                ringtoneAddAlertType === 'success'
+                                    ? styles.successIconCircle
+                                    : styles.selectDaysIconCircle
+                            }
+                        >
+                            <FontAwesome
+                                name={
+                                    ringtoneAddAlertType === 'success'
+                                        ? 'check-circle'
+                                        : ringtoneAddAlertType === 'deleted'
+                                            ? 'trash'
+                                        : ringtoneAddAlertType === 'duplicate'
+                                            ? 'exclamation-triangle'
+                                            : 'times-circle'
+                                }
+                                size={scaleFont(34)}
+                                color={ringtoneAddAlertType === 'success' ? '#4CAF50' : '#FF6F79'}
+                            />
+                        </View>
+
+                        <Text style={styles.saveModalTitle}>
+                            {ringtoneAddAlertType === 'success'
+                                ? 'Alarm Added'
+                                : ringtoneAddAlertType === 'deleted'
+                                    ? 'Alarm Deleted'
+                                : ringtoneAddAlertType === 'duplicate'
+                                    ? 'Already Added'
+                                    : 'Alarm Error'}
+                        </Text>
+                        <Text style={styles.saveModalMessage}>{ringtoneAddAlertMessage}</Text>
+
+                        <TouchableOpacity
+                            style={
+                                ringtoneAddAlertType === 'success'
+                                    ? styles.successOkButton
+                                    : styles.selectDaysOkButton
+                            }
+                            onPress={() => setRingtoneAddAlertVisible(false)}
+                        >
+                            <Text
+                                style={
+                                    ringtoneAddAlertType === 'success'
+                                        ? styles.successOkButtonText
+                                        : styles.selectDaysOkButtonText
+                                }
+                            >
+                                OK
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1996,6 +2251,60 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         elevation: 3,
     },
     addRingtoneButtonText: {
+        fontSize: scale.scaleFont(16),
+        fontWeight: "700",
+        color: "#FFFFFF",
+    },
+    ringtoneSectionHeader: {
+        fontSize: scale.scaleFont(14),
+        fontWeight: "700",
+        color: "#5DD4B4",
+        fontFamily: "Fredoka_600SemiBold",
+        textTransform: "uppercase",
+        letterSpacing: 1,
+        marginTop: scale.scaleSpacing(8),
+        marginBottom: scale.scaleSpacing(10),
+        paddingHorizontal: scale.scaleSpacing(4),
+    },
+    ringtoneItemActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: scale.scaleSpacing(10),
+    },
+    ringtoneTrashButton: {
+        padding: scale.scaleSpacing(4),
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    ringtoneDeleteButton: {
+        backgroundColor: "#FF6F79",
+        borderRadius: scale.scaleBorderRadius(14),
+        paddingVertical: scale.scaleSpacing(14),
+        paddingHorizontal: scale.scaleSpacing(16),
+        marginBottom: scale.scaleSpacing(16),
+        borderWidth: 2,
+        borderColor: "#FF6F79",
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+        shadowRadius: scale.scaleSpacing(4),
+        elevation: 3,
+    },
+    ringtoneDeleteButtonDisabled: {
+        backgroundColor: "#D3D3D3",
+        borderColor: "#D3D3D3",
+        shadowOpacity: 0,
+        elevation: 0,
+    },
+    ringtoneDeleteButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: scale.scaleSpacing(8),
+    },
+    ringtoneDeleteButtonText: {
         fontSize: scale.scaleFont(16),
         fontWeight: "700",
         color: "#FFFFFF",
