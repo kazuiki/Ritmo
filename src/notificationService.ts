@@ -39,6 +39,7 @@ class NotificationService {
   private alarmTimeout: ReturnType<typeof setTimeout> | null = null;
   private alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastTriggeredRoutineId: number | null = null;
+  private skipAlarmUntilByRoutineId = new Map<number, number>();
   private audioModeConfigured: boolean = false;
   // Track which channels we've already delete+recreated this session to force sound pickup
   private recreatedChannels = new Set<string>();
@@ -210,6 +211,23 @@ class NotificationService {
     return `Hi ${childName}, It's time to ${actionText}!`;
   }
 
+  private setTemporaryRoutineAlarmSuppression(routineId: number, suppressMs?: number) {
+    if (!suppressMs || suppressMs <= 0) return;
+    this.skipAlarmUntilByRoutineId.set(routineId, Date.now() + suppressMs);
+  }
+
+  private isRoutineTemporarilySuppressed(routineId: number): boolean {
+    const suppressUntil = this.skipAlarmUntilByRoutineId.get(routineId);
+    if (!suppressUntil) return false;
+
+    if (Date.now() >= suppressUntil) {
+      this.skipAlarmUntilByRoutineId.delete(routineId);
+      return false;
+    }
+
+    return true;
+  }
+
   async initialize() {
   try {
     // Configure audio independently from notification permission.
@@ -255,6 +273,12 @@ class NotificationService {
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification: any) => {
       const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
       const routineId = notification.request.content.data?.routineId as number;
+
+      if (typeof routineId === 'number' && this.isRoutineTemporarilySuppressed(routineId)) {
+        console.log(`⏸️ Skipping immediate alarm for recently scheduled routine ${routineId}`);
+        return;
+      }
+
       // Play alarm sound when notification arrives and app is open
       // NOTE: Don't call showHeadsUpForAlarm() here as it would create duplicate notifications
       this.lastTriggeredRoutineId = routineId;
@@ -375,8 +399,13 @@ class NotificationService {
   }
 
   // Schedule daily notification for a routine
-  async scheduleRoutineNotification(routine: RoutineNotification): Promise<string | null> {
+  async scheduleRoutineNotification(
+    routine: RoutineNotification,
+    options?: { suppressImmediatePlaybackMs?: number }
+  ): Promise<string | null> {
     try {
+      this.setTemporaryRoutineAlarmSuppression(routine.routineId, options?.suppressImmediatePlaybackMs);
+
       const ringtone = routine.ringtone || 'alarm1';
       const notificationSoundKey = this.getNotificationSoundKey(ringtone);
       const channelId = await this.ensureAndroidChannelForRingtone(notificationSoundKey);
@@ -503,6 +532,7 @@ class NotificationService {
   // Cancel notification for a specific routine
   async cancelRoutineNotification(routineId: number) {
     try {
+      this.skipAlarmUntilByRoutineId.delete(routineId);
       const notificationIds = await this.getNotificationIds(routineId);
       if (notificationIds.length > 0) {
         // Cancel all scheduled notifications for this routine
@@ -837,8 +867,8 @@ class NotificationService {
           hour = 0;
         }
 
-        // Check if current time matches routine time (within 1 minute window)
-        const isTimeMatch = currentHour === hour && Math.abs(currentMinute - minute) <= 1;
+        // Check only exact scheduled minute
+        const isTimeMatch = currentHour === hour && currentMinute === minute;
 
         // Check if today is a selected day
         const selectedDays = Array.isArray(routine.days) ? routine.days : [0, 1, 2, 3, 4, 5, 6];
@@ -846,7 +876,9 @@ class NotificationService {
 
         // Don't trigger same routine twice
         const alreadyTriggered = this.lastTriggeredRoutineId === routine.id;
-        const isSuppressed = this.suppressedRoutineIds.has(routine.id);
+        const isSuppressed =
+          this.suppressedRoutineIds.has(routine.id) ||
+          this.isRoutineTemporarilySuppressed(routine.id);
 
         if (isTimeMatch && isDayMatch && !alreadyTriggered && !this.isPlayingAlarm && !isSuppressed) {
           console.log(`⏰ Triggering alarm for routine: ${routine.name} at ${hour}:${minute}`);

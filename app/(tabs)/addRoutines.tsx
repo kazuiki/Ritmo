@@ -734,6 +734,8 @@ export default function addRoutines() {
                         time: routineTime,
                         ringtone: selectedRingtone || 'alarm1',
                         days: selectedDays,
+                    }, {
+                        suppressImmediatePlaybackMs: 70000,
                     }).catch(err => console.error('Error scheduling notification:', err));
                     await loadRoutinesFromDb();
                     closeModal();
@@ -870,6 +872,8 @@ export default function addRoutines() {
                 time: routineTime,
                 ringtone: selectedRingtone || 'alarm1',
                 days: selectedDays,
+            }, {
+                suppressImmediatePlaybackMs: 70000,
             }).catch(err => console.error('Error scheduling notification:', err));
             
             closeModal();
