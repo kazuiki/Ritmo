@@ -17,7 +17,8 @@ export default function EatingGame() {
 
       try {
         setLaunchError(null);
-        await AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
+        // Clear only completion flag; keep routine id set by Home screen.
+        await AsyncStorage.removeItem('@minigameCompleted');
 
         let childName = 'Kid';
         try {
@@ -27,28 +28,86 @@ export default function EatingGame() {
           // Offline-safe fallback
         }
 
-        const launchEat = async () => {
+        const launchWith = async (className: string, extra?: Record<string, any>) => {
           return IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-            className: 'expo.modules.godotview.RitmoGodotActivityLauncher',
+            className,
             packageName: 'com.anonymous.ritmo',
             extra: {
               child_name: childName,
-              ritmo_project_path: '/android_asset/eatgame',
-              ritmo_main_pack: '/android_asset/eatgame/assets.sparsepck',
+              ...(extra ?? {}),
             },
           });
         };
 
-        let result = await launchEat();
+        const launchStrategies: Array<{ className: string; extra?: Record<string, any> }> = [
+          {
+            // Eat must launch through its dedicated host to avoid falling back to school/root project.
+            className: 'expo.modules.godotview.EatGodotActivityLauncher',
+            extra: {
+              ritmo_launch_mode: 'eat',
+            },
+          },
+          {
+            // Last resort: direct host activity without trampoline.
+            className: 'expo.modules.godotview.EatGodotActivity',
+            extra: {
+              ritmo_launch_mode: 'eat',
+            },
+          },
+        ];
 
-        const firstAny = (result ?? {}) as any;
-        const firstExtra = firstAny?.extra ?? firstAny?.extras ?? firstAny?.data ?? {};
-        const firstStartupFailed =
-          firstExtra?.ritmo_startup_failed === true ||
-          firstExtra?.ritmo_startup_failed === 'true';
+        let result: any = null;
+        let launchSucceeded = false;
+        const startupFailureWindowMs = 2500;
 
-        if (firstStartupFailed) {
-          result = await launchEat();
+        for (const strategy of launchStrategies) {
+          result = await launchWith(strategy.className, strategy.extra);
+
+          const attemptAny = (result ?? {}) as any;
+          const attemptCode = attemptAny?.resultCode;
+          const attemptExtra = attemptAny?.extra ?? attemptAny?.extras ?? attemptAny?.data ?? {};
+          const startupError = String(attemptExtra?.ritmo_startup_error ?? '').trim();
+
+          const hasKnownResult =
+            attemptExtra?.ritmo_game_completed != null ||
+            attemptExtra?.ritmo_result_code != null;
+          const startupFailed =
+            attemptExtra?.ritmo_startup_failed === true ||
+            attemptExtra?.ritmo_startup_failed === 'true';
+          const attemptElapsedMs = Number(attemptExtra?.ritmo_startup_elapsed_ms ?? 0);
+          const abnormalCanceled =
+            attemptCode === IntentLauncher.ResultCode.Canceled &&
+            !hasKnownResult &&
+            (Number.isNaN(attemptElapsedMs) || attemptElapsedMs <= startupFailureWindowMs);
+
+          if (startupFailed || abnormalCanceled) {
+            console.error('Eat startup failed attempt', {
+              className: strategy.className,
+              attemptCode,
+              startupError,
+              attemptExtra,
+            });
+          }
+
+          if (!startupFailed && !abnormalCanceled) {
+            launchSucceeded = true;
+            break;
+          }
+        }
+
+        if (!launchSucceeded) {
+          const launchErrorText = String(
+            ((result ?? {}) as any)?.extra?.ritmo_startup_error ??
+            ((result ?? {}) as any)?.extras?.ritmo_startup_error ??
+            ((result ?? {}) as any)?.data?.ritmo_startup_error ??
+            '',
+          ).trim();
+          setLaunchError(
+            launchErrorText
+              ? `Eat game failed to start (${launchErrorText}). Tap Retry to try again.`
+              : 'Eat game failed to start. Tap Retry to try again.',
+          );
+          return;
         }
 
         const finalAny = (result ?? {}) as any;
@@ -61,11 +120,24 @@ export default function EatingGame() {
         const finalStartupFailed =
           finalExtra?.ritmo_startup_failed === true ||
           finalExtra?.ritmo_startup_failed === 'true';
+        const finalElapsedMs = Number(finalExtra?.ritmo_startup_elapsed_ms ?? 0);
         const abnormalCanceled =
-          finalCode === IntentLauncher.ResultCode.Canceled && !hasKnownFinalResult;
+          finalCode === IntentLauncher.ResultCode.Canceled &&
+          !hasKnownFinalResult &&
+          (Number.isNaN(finalElapsedMs) || finalElapsedMs <= startupFailureWindowMs);
 
         if (finalStartupFailed || abnormalCanceled) {
-          setLaunchError('Eat game failed to start. Tap Retry to try again.');
+          const startupError = String(finalExtra?.ritmo_startup_error ?? '').trim();
+          console.error('Eat startup failed final result', {
+            finalCode,
+            startupError,
+            finalExtra,
+          });
+          setLaunchError(
+            startupError
+              ? `Eat game failed to start (${startupError}). Tap Retry to try again.`
+              : 'Eat game failed to start. Tap Retry to try again.',
+          );
           return;
         }
 
@@ -76,8 +148,10 @@ export default function EatingGame() {
         const isCompleted = completedFromHost || finalCode === IntentLauncher.ResultCode.Success;
 
         if (isCompleted) {
-          if (routineId) {
-            await AsyncStorage.setItem('@minigameRoutineId', String(routineId));
+          const routineIdToPersist =
+            routineId ?? (await AsyncStorage.getItem('@minigameRoutineId')) ?? undefined;
+          if (routineIdToPersist) {
+            await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToPersist));
           }
           await AsyncStorage.setItem('@minigameCompleted', 'true');
         }

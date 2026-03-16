@@ -22,6 +22,14 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     companion object {
         /** Set by RitmoGodotActivity before GodotFragment is created */
         var childName: String = "Kid"
+        /** Set by EatGodotActivity to "eat" before super.onCreate(); reset to "school" on destroy */
+        var gameMode: String = "school"
+        /**
+         * Incremented every time a new Godot host activity starts.
+         * Process kill lambdas capture this value; if a new activity has started
+         * (counter changed) before the kill timer fires, the kill is skipped.
+         */
+        var launchCounter: Int = 0
     }
 
     override fun getPluginName(): String = "RitmoPlugin"
@@ -33,6 +41,15 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun getChildName(): String {
         return childName
+    }
+
+    /**
+     * Returns the current game mode: "eat" when launched by EatGodotActivity, "school" otherwise.
+     * GDScript: var mode = plugin.getGameMode()
+     */
+    @UsedByGodot
+    fun getGameMode(): String {
+        return gameMode
     }
 
     /**
@@ -54,6 +71,15 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
      */
     @UsedByGodot
     fun gameCompleted() {
+        // Pre-commit completion synchronously to avoid races where back/cancel wins
+        // before runOnUiThread executes.
+        val currentActivity = activity
+        if (currentActivity is RitmoGodotActivity) {
+            currentActivity.preCommitCompletion()
+        }
+        if (currentActivity is EatGodotActivity) {
+            currentActivity.preCommitCompletion()
+        }
         activity?.runOnUiThread {
             finishWithResult(Activity.RESULT_OK)
         }
@@ -62,6 +88,10 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     private fun finishWithResult(resultCode: Int) {
         val currentActivity = activity ?: return
         if (currentActivity is RitmoGodotActivity) {
+            currentActivity.exitGame(resultCode)
+            return
+        }
+        if (currentActivity is EatGodotActivity) {
             currentActivity.exitGame(resultCode)
             return
         }

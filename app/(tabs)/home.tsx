@@ -93,6 +93,7 @@ export default function Home() {
   const [timeAlertMessage, setTimeAlertMessage] = useState("");
   // Real-time current time tracker
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showDropdown, setShowDropdown] = useState(false);
   // Parental Lock Modal
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
@@ -1445,6 +1446,7 @@ export default function Home() {
        
         <View style={styles.headerActions}>
           {parentalLockEnabled && (
+
             <TouchableOpacity
               style={styles.modeButton}
               onPress={() => {
@@ -1466,6 +1468,46 @@ export default function Home() {
               </View>
             </TouchableOpacity>
           )}
+
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={styles.modeButton}
+                onPress={() => setShowDropdown(!showDropdown)}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Text style={styles.modeButtonText}>
+                    {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+         
+                    {showDropdown && (
+                      <View style={styles.dropdownMenu}>
+                        <TouchableOpacity
+                          style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
+                          onPress={() => {
+                            setShowDropdown(false);
+                            if (mode === 'child') {
+                              setShowParentalLockModal(true);
+                            } else {
+                              backToChildMode();
+                            }
+                          }}
+                        >
+                          <Image
+                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")}
+                            style={styles.dropdownItemIcon}
+                          />
+                          <Text style={styles.dropdownItemText}>
+                            {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
+                          </Text>
+                        </TouchableOpacity>
+                       
+                        {/* You can add more options here easily */}
+                      </View>
+                    )}
+                  </View>
+
         </View>
       </View>
 

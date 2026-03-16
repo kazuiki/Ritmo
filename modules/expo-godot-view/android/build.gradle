@@ -48,5 +48,6 @@ dependencies {
   implementation "androidx.fragment:fragment-ktx:1.8.2"
   
   // Godot library
-  implementation(name: 'godot-lib.4.6.stable.template_release', ext: 'aar')
+  def ritmoGodotAar = project.findProperty('RITMO_GODOT_AAR') ?: 'godot-lib.4.6.stable.template_debug'
+  implementation(name: ritmoGodotAar, ext: 'aar')
 }

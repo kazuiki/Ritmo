@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.util.Log
 import org.godotengine.godot.Godot
 import org.godotengine.godot.GodotActivity
 import org.godotengine.godot.plugin.GodotPlugin
@@ -15,25 +16,68 @@ import java.nio.charset.Charset
 
 /**
  * Dedicated Godot host for Eat game payload.
- * Uses assets/eatgame/assets.sparsepck so SchoolGame payload remains untouched.
+ * Uses eatgame payload while keeping SchoolGame/root payload untouched.
  */
 class EatGodotActivity : GodotActivity() {
 
     companion object {
-        private const val EAT_ASSETS_MARKER_VERSION = "eat_assets_v6_force_reextract_fs_path"
+        private const val TAG = "EatGodotActivity"
+        private const val EAT_ASSETS_MARKER_VERSION = "eat_assets_v16_pkg_fixed"
+        private val USERDATA_PROJECT_NAMES = listOf(
+            "Ritmo",
+            "ritmo",
+            "eat game",
+            "eat_game",
+            "anonymous",
+            "com.anonymous.ritmo",
+            "com.anonymous.ritmo.eat",
+        )
     }
 
     private var exitResultCode = Activity.RESULT_CANCELED
     private var exitRequested = false
     private var processResetScheduled = false
-    private var eatProjectPath: String? = null
-    private var eatMainPackPath: String? = null
+    private var eatPayloadReady = false
+    private var startupFailureReason: String? = null
+    @Volatile private var completionPreCommitted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Signal GDScript that this is an eat game launch (read via RitmoPlugin.getGameMode())
+        RitmoPlugin.gameMode = "eat"
+        // Increment process-level counter so any pending kill from a previous game is cancelled.
+        RitmoPlugin.launchCounter++
+        writeLaunchModeMarker("eat")
+        // Extract eat assets BEFORE super.onCreate() so EatLauncher autoload (school-game PCK)
+        // can find user://godot-eat/assets.sparsepck when Godot boots.
+        prepareEatProjectPath()
+        val outDir = File(filesDir, "godot-eat")
+        val packFile =
+            File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
+                ?: File(outDir, "eat_full.pck").takeIf { it.exists() && it.length() > 0L }
+                ?: File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
+        val projectBinaryFile = File(outDir, "project.binary")
+        eatPayloadReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
+        if (!eatPayloadReady && startupFailureReason.isNullOrBlank()) {
+            startupFailureReason = buildString {
+                append("eat_payload_not_ready;outDir="); append(outDir.absolutePath)
+                append(";pack="); append(packFile?.absolutePath ?: "missing")
+                append(";projectBinary="); append(if (projectBinaryFile.exists()) projectBinaryFile.length() else 0L)
+            }
+        }
+        if (!eatPayloadReady) Log.e(TAG, "Eat payload not ready: $startupFailureReason")
         super.onCreate(savedInstanceState)
         setResult(Activity.RESULT_CANCELED)
         updateChildName(intent)
-        eatProjectPath = prepareEatProjectPath()
+        if (!eatPayloadReady) {
+            runOnUiThread { exitGame(Activity.RESULT_CANCELED) }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reassert eat mode to avoid marker races with other activity lifecycle callbacks.
+        RitmoPlugin.gameMode = "eat"
+        writeLaunchModeMarker("eat")
     }
 
     override fun onNewIntent(newIntent: Intent) {
@@ -43,12 +87,29 @@ class EatGodotActivity : GodotActivity() {
     }
 
     override fun onDestroy() {
+        // Reset game mode so next launch defaults to school
+        RitmoPlugin.gameMode = "school"
         RitmoPlugin.childName = "Kid"
+        writeLaunchModeMarker("school")
         super.onDestroy()
     }
 
+    override fun finish() {
+        if (!exitRequested) {
+            val resultCode = if (completionPreCommitted) Activity.RESULT_OK else Activity.RESULT_CANCELED
+            val resultIntent = android.content.Intent().apply {
+                putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
+                putExtra("ritmo_result_code", resultCode)
+            }
+            setResult(resultCode, resultIntent)
+        }
+        super.finish()
+    }
+
     override fun onBackPressed() {
-        exitGame(Activity.RESULT_CANCELED)
+        if (!completionPreCommitted) {
+            exitGame(Activity.RESULT_CANCELED)
+        }
     }
 
     override fun getHostPlugins(godot: Godot): MutableSet<GodotPlugin> {
@@ -56,19 +117,9 @@ class EatGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        val projectPath = eatProjectPath ?: prepareEatProjectPath().also { eatProjectPath = it }
-        val mainPackPath = eatMainPackPath
-        if (!projectPath.isNullOrBlank() && !mainPackPath.isNullOrBlank()) {
-            return mutableListOf("--path", projectPath, "--main-pack", mainPackPath)
-        }
-
-        if (hasAssetFile("eatgame/project.binary") && hasAssetFile("eatgame/assets.sparsepck")) {
-            return mutableListOf(
-                "--path", "/android_asset/eatgame",
-                "--main-pack", "/android_asset/eatgame/assets.sparsepck"
-            )
-        }
-
+        // Boot the school-game from APK assets. EatLauncher.gd autoload (in school PCK)
+        // detects eat-mode via user://ritmo_launch_mode.txt and loads the eat pack via
+        // ProjectSettings.load_resource_pack(), then changes scene to res://Scene/main.tscn.
         return super.getCommandLine()
     }
 
@@ -76,6 +127,8 @@ class EatGodotActivity : GodotActivity() {
         runOnUiThread {
             if (exitRequested) {
                 exitGame(exitResultCode)
+            } else {
+                exitGame(Activity.RESULT_CANCELED)
             }
         }
     }
@@ -84,26 +137,35 @@ class EatGodotActivity : GodotActivity() {
         runOnUiThread {
             if (exitRequested) {
                 exitGame(exitResultCode)
+            } else {
+                exitGame(Activity.RESULT_CANCELED)
             }
         }
     }
 
     fun exitGame(resultCode: Int) {
         if (isFinishing || isDestroyed) return
+        // Once gameCompleted() is pre-committed, a subsequent cancel cannot override RESULT_OK.
+        if (completionPreCommitted && resultCode != Activity.RESULT_OK) return
         exitRequested = true
         exitResultCode = resultCode
 
         val resultIntent = Intent().apply {
             putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
             putExtra("ritmo_result_code", resultCode)
+            if (!startupFailureReason.isNullOrBlank()) {
+                putExtra("ritmo_startup_failed", true)
+                putExtra("ritmo_startup_error", startupFailureReason)
+            }
         }
         setResult(resultCode, resultIntent)
         finish()
         overridePendingTransition(0, 0)
 
-        if (resultCode == Activity.RESULT_CANCELED) {
-            scheduleGodotProcessReset()
-        }
+        // Always kill the :godot process so the next game launch gets a clean Godot state.
+        // The captured counter prevents this kill from hitting a concurrently starting game.
+        val capturedCount = RitmoPlugin.launchCounter
+        scheduleGodotProcessReset(2500L, capturedCount)
     }
 
     private fun updateChildName(intent: Intent?) {
@@ -111,31 +173,47 @@ class EatGodotActivity : GodotActivity() {
         RitmoPlugin.childName = childName
     }
 
-    private fun prepareEatProjectPath(): String? {
-        return try {
+    /** Called by RitmoPlugin.gameCompleted() to lock in RESULT_OK before posting to the UI thread. */
+    fun preCommitCompletion() {
+        completionPreCommitted = true
+    }
+
+    private fun prepareEatProjectPath() {
+        try {
             val outDir = File(filesDir, "godot-eat")
             if (!outDir.exists()) outDir.mkdirs()
-            val outPack = File(outDir, "assets.sparsepck")
+            val outSparsePack = File(outDir, "assets.sparsepck")
+            val outFullMainPack = File(outDir, "full_main.pck")
+            val outEatFullPack = File(outDir, "eat_full.pck")
             val outProjectBinary = File(outDir, "project.binary")
-            val outCl = File(outDir, "_cl_")
             val readyMarker = File(outDir, ".assets_ready")
             val markerValue = if (readyMarker.exists()) readyMarker.readText() else ""
+            val hasValidPack =
+                (outFullMainPack.exists() && outFullMainPack.length() > 0L) ||
+                (outEatFullPack.exists() && outEatFullPack.length() > 0L) ||
+                (outSparsePack.exists() && outSparsePack.length() > 0L)
+            val hasProjectBinary = outProjectBinary.exists() && outProjectBinary.length() > 0L
 
-            if (markerValue != EAT_ASSETS_MARKER_VERSION || !outPack.exists() || outPack.length() == 0L || !outProjectBinary.exists() || !outCl.exists()) {
+            if (markerValue != EAT_ASSETS_MARKER_VERSION || !hasValidPack || !hasProjectBinary) {
                 copyEatAssets(outDir)
+                // Some build flows produce eat_full.pck instead of full_main.pck.
+                // Keep a stable filename for launcher fallback logic.
+                if (!outFullMainPack.exists() || outFullMainPack.length() <= 0L) {
+                    if (outEatFullPack.exists() && outEatFullPack.length() > 0L) {
+                        outEatFullPack.copyTo(outFullMainPack, overwrite = true)
+                    }
+                }
                 readyMarker.writeText(EAT_ASSETS_MARKER_VERSION)
             }
 
-            if (!outPack.exists() || outPack.length() == 0L || !outProjectBinary.exists() || !outCl.exists()) {
-                eatMainPackPath = null
-                return null
-            }
-
-            eatMainPackPath = outPack.absolutePath
-            outDir.absolutePath
-        } catch (error: Exception) {
-            eatMainPackPath = null
-            null
+            // Mirror eat pack to user:// paths so GDScript can call:
+            //   load_resource_pack("user://godot-eat/assets.sparsepck")
+            // Always mirror (not just when pack was already present) to fix first-launch case
+            // where hasValidPack was false before copyEatAssets ran.
+            mirrorEatAssetsToUserDataDirs(outDir)
+        } catch (e: Exception) {
+            startupFailureReason = "eat_prepare_exception:${e.javaClass.simpleName}:${e.message ?: "unknown"}"
+            Log.e(TAG, "Failed preparing eat payload", e)
         }
     }
 
@@ -164,25 +242,87 @@ class EatGodotActivity : GodotActivity() {
                 outputFile.parentFile?.mkdirs()
                 outputFile.outputStream().use { output -> input.copyTo(output) }
             }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            if (assetPath.endsWith("project.binary") ||
+                assetPath.endsWith("assets.sparsepck") ||
+                assetPath.endsWith("full_main.pck") ||
+                assetPath.endsWith("eat_full.pck")
+            ) {
+                startupFailureReason = "eat_copy_failed:${assetPath}:${e.message ?: "io_error"}"
+                Log.e(TAG, "Critical eat asset copy failed for $assetPath", e)
+            }
             // Keep setup resilient; missing optional editor artifacts should not crash host activity.
         }
     }
 
-    private fun hasAssetFile(assetPath: String): Boolean {
-        return try {
-            assets.open(assetPath).use { true }
-        } catch (_: IOException) {
-            false
-        }
-    }
-
-    private fun scheduleGodotProcessReset() {
+    private fun scheduleGodotProcessReset(delayMs: Long, capturedCount: Int) {
         if (processResetScheduled) return
         processResetScheduled = true
 
         Handler(Looper.getMainLooper()).postDelayed({
-            Process.killProcess(Process.myPid())
-        }, 250)
+            // Only kill if no new game has started since we scheduled this kill.
+            if (RitmoPlugin.launchCounter == capturedCount) {
+                Process.killProcess(Process.myPid())
+            }
+        }, delayMs)
+    }
+
+    private fun writeLaunchModeMarker(mode: String) {
+        try {
+            val markerName = "ritmo_launch_mode.txt"
+            val markerText = mode
+            val markerPaths = linkedSetOf<File>()
+            markerPaths.add(File(filesDir, markerName))
+            for (projectName in USERDATA_PROJECT_NAMES) {
+                markerPaths.add(File(File(filesDir, "app_userdata/$projectName"), markerName))
+            }
+            for (dir in listKnownUserDataDirs()) {
+                markerPaths.add(File(dir, markerName))
+            }
+
+            for (markerFile in markerPaths) {
+                markerFile.parentFile?.mkdirs()
+                markerFile.writeText(markerText, Charset.forName("UTF-8"))
+            }
+        } catch (_: Exception) {
+            // Best-effort marker for GDScript boot routing.
+        }
+    }
+
+    private fun mirrorEatAssetsToUserDataDirs(sourceDir: File) {
+        val targetRoots = linkedSetOf<File>()
+        for (projectName in USERDATA_PROJECT_NAMES) {
+            targetRoots.add(File(filesDir, "app_userdata/$projectName"))
+        }
+        for (dir in listKnownUserDataDirs()) {
+            targetRoots.add(dir)
+        }
+
+        for (root in targetRoots) {
+            val targetDir = File(root, "godot-eat")
+            copyDirectory(sourceDir, targetDir)
+        }
+    }
+
+    private fun listKnownUserDataDirs(): List<File> {
+        val appUserData = File(filesDir, "app_userdata")
+        val dirs = appUserData.listFiles()?.filter { it.isDirectory } ?: emptyList()
+        return dirs
+    }
+
+    private fun copyDirectory(source: File, target: File) {
+        if (source.isDirectory) {
+            if (!target.exists()) target.mkdirs()
+            val children = source.listFiles() ?: return
+            for (child in children) {
+                copyDirectory(child, File(target, child.name))
+            }
+            return
+        }
+
+        target.parentFile?.mkdirs()
+        source.inputStream().use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
     }
 }

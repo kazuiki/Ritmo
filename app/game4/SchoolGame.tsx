@@ -17,8 +17,8 @@ export default function SchoolGame() {
       if (Platform.OS === 'android') {
         try {
           setLaunchError(null);
-          // Always clear stale completion state before a fresh minigame launch.
-          await AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
+          // Clear only completion flag; keep routine id set by Home screen.
+          await AsyncStorage.removeItem('@minigameCompleted');
 
           // Get the child's nickname from Supabase user metadata
           let childName = 'Kid';
@@ -29,32 +29,60 @@ export default function SchoolGame() {
             // Fallback to 'Kid' if offline or error
           }
 
-          let result = await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-            className: 'expo.modules.godotview.RitmoGodotActivity',
-            packageName: 'com.anonymous.ritmo',
-            extra: {
-              child_name: childName,
-            },
-          });
+          const launchWith = async (className: string) => {
+            return IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              className,
+              packageName: 'com.anonymous.ritmo',
+              extra: {
+                child_name: childName,
+                ritmo_launch_mode: 'school',
+              },
+            });
+          };
+
+          const launchStrategies = [
+            'expo.modules.godotview.RitmoGodotActivityLauncher',
+            // Fallback: bypass trampoline if some devices mishandle activity-for-result hops.
+            'expo.modules.godotview.RitmoGodotActivity',
+          ];
+
+          let result: any = null;
+          let launchSucceeded = false;
+          const startupFailureWindowMs = 2500;
+
+          for (const className of launchStrategies) {
+            result = await launchWith(className);
+
+            const attemptAny = (result ?? {}) as any;
+            const attemptCode = attemptAny?.resultCode;
+            const attemptExtra = attemptAny?.extra ?? attemptAny?.extras ?? attemptAny?.data ?? {};
+            const hasKnownResult =
+              attemptExtra?.ritmo_game_completed != null ||
+              attemptExtra?.ritmo_result_code != null;
+            const startupFailed =
+              attemptExtra?.ritmo_startup_failed === true ||
+              attemptExtra?.ritmo_startup_failed === 'true';
+            const attemptElapsedMs = Number(attemptExtra?.ritmo_startup_elapsed_ms ?? 0);
+            const abnormalCanceled =
+              attemptCode === IntentLauncher.ResultCode.Canceled &&
+              !hasKnownResult &&
+              (Number.isNaN(attemptElapsedMs) || attemptElapsedMs <= startupFailureWindowMs);
+
+            if (!startupFailed && !abnormalCanceled) {
+              launchSucceeded = true;
+              break;
+            }
+          }
+
+          if (!launchSucceeded) {
+            setLaunchError('Game failed to start on this device. Tap Retry to try again.');
+            return;
+          }
 
           // Accept completion from either explicit host extras or Activity result code.
           const resultAny = (result ?? {}) as any;
           const resultCode = resultAny?.resultCode;
           const resultExtra = resultAny?.extra ?? resultAny?.extras ?? resultAny?.data ?? {};
-          const startupFailed =
-            resultExtra?.ritmo_startup_failed === true ||
-            resultExtra?.ritmo_startup_failed === 'true';
-
-          if (startupFailed) {
-            result = await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-              className: 'expo.modules.godotview.RitmoGodotActivity',
-              packageName: 'com.anonymous.ritmo',
-              extra: {
-                child_name: childName,
-              },
-            });
-          }
-
           const finalAny = (result ?? {}) as any;
           const finalCode = finalAny?.resultCode;
           const finalExtra = finalAny?.extra ?? finalAny?.extras ?? finalAny?.data ?? {};
@@ -64,7 +92,11 @@ export default function SchoolGame() {
           const finalStartupFailed =
             finalExtra?.ritmo_startup_failed === true ||
             finalExtra?.ritmo_startup_failed === 'true';
-          const abnormalCanceled = finalCode === IntentLauncher.ResultCode.Canceled && !hasKnownFinalResult;
+          const finalElapsedMs = Number(finalExtra?.ritmo_startup_elapsed_ms ?? 0);
+          const abnormalCanceled =
+            finalCode === IntentLauncher.ResultCode.Canceled &&
+            !hasKnownFinalResult &&
+            (Number.isNaN(finalElapsedMs) || finalElapsedMs <= startupFailureWindowMs);
 
           if (finalStartupFailed || abnormalCanceled) {
             console.error('Godot startup failed twice', finalExtra);
@@ -76,16 +108,39 @@ export default function SchoolGame() {
             finalExtra?.ritmo_game_completed === true ||
             finalExtra?.ritmo_game_completed === 'true' ||
             Number(finalExtra?.ritmo_result_code) === -1;
-          const isCompleted = completedFromHost || finalCode === IntentLauncher.ResultCode.Success;
+          const elapsedMs = Number(finalExtra?.ritmo_startup_elapsed_ms ?? 0);
+          const inferredCompletedFromLongSession =
+            !completedFromHost &&
+            finalCode === IntentLauncher.ResultCode.Canceled &&
+            !Number.isNaN(elapsedMs) &&
+            elapsedMs >= 8000;
+          const isCompleted =
+            completedFromHost ||
+            finalCode === IntentLauncher.ResultCode.Success ||
+            inferredCompletedFromLongSession;
 
           if (isCompleted) {
-            if (routineId) {
-              await AsyncStorage.setItem('@minigameRoutineId', String(routineId));
+            const routineIdToPersist =
+              routineId ?? (await AsyncStorage.getItem('@minigameRoutineId')) ?? undefined;
+            if (routineIdToPersist) {
+              await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToPersist));
             }
             await AsyncStorage.setItem('@minigameCompleted', 'true');
-            console.log('✓ Game completed - success modal will show', { finalCode, finalExtra, completedFromHost });
+            console.log('✓ Game completed - success modal will show', {
+              finalCode,
+              finalExtra,
+              completedFromHost,
+              inferredCompletedFromLongSession,
+              elapsedMs,
+            });
           } else {
-            console.log('Game exited via back button - no success modal', { finalCode, finalExtra, completedFromHost });
+            console.log('Game exited via back button - no success modal', {
+              finalCode,
+              finalExtra,
+              completedFromHost,
+              inferredCompletedFromLongSession,
+              elapsedMs,
+            });
           }
 
           // Go back to home

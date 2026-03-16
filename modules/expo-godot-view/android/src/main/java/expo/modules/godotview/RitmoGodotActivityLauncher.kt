@@ -35,10 +35,15 @@ class RitmoGodotActivityLauncher : Activity() {
             resultData.hasExtra("ritmo_game_completed") ||
             resultData.hasExtra("ritmo_result_code")
 
-        if (resultCode == Activity.RESULT_CANCELED && !hasKnownResult) {
+        val likelyStartupFailure =
+            resultCode == Activity.RESULT_CANCELED &&
+            !hasKnownResult &&
+            elapsedMs <= STARTUP_FAILURE_WINDOW_MS
+
+        if (likelyStartupFailure) {
             resultData.putExtra("ritmo_startup_failed", true)
-            resultData.putExtra("ritmo_startup_elapsed_ms", elapsedMs)
         }
+        resultData.putExtra("ritmo_startup_elapsed_ms", elapsedMs)
 
         setResult(resultCode, resultData)
         finish()
@@ -47,5 +52,6 @@ class RitmoGodotActivityLauncher : Activity() {
 
     companion object {
         private const val REQUEST_CODE_GODOT = 9201
+        private const val STARTUP_FAILURE_WINDOW_MS = 2500L
     }
 }
