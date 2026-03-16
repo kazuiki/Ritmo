@@ -57,3 +57,7 @@ modules/expo-godot-view/android/build/
 # Godot APK exports
 Ritmo.apk
 *.apk
+
+# Local large artifacts not for git push
+ChatHistory
+eatgame.apk
