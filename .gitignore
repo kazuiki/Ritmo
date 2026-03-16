@@ -53,6 +53,8 @@ modules/expo-godot-view/android/build/
 *.dex
 *.ap_
 *.class
+*.aar
+!modules/expo-godot-view/android/libs/godot-lib.4.6.stable.template_debug.aar
 
 # Godot APK exports
 Ritmo.apk
