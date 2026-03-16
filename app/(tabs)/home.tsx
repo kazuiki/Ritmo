@@ -93,7 +93,6 @@ export default function Home() {
   const [timeAlertMessage, setTimeAlertMessage] = useState("");
   // Real-time current time tracker
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [showDropdown, setShowDropdown] = useState(false);
   // Parental Lock Modal
   const [showParentalLockModal, setShowParentalLockModal] = useState(false);
   const [pin, setPin] = useState(['', '', '', '']);
@@ -1469,45 +1468,6 @@ export default function Home() {
             </TouchableOpacity>
           )}
 
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity
-                style={styles.modeButton}
-                onPress={() => setShowDropdown(!showDropdown)}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Text style={styles.modeButtonText}>
-                    {mode === 'child' ? 'Select Mode' : 'Back to Child Mode'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-         
-                    {showDropdown && (
-                      <View style={styles.dropdownMenu}>
-                        <TouchableOpacity
-                          style={[styles.dropdownItem, styles.dropdownItemWithIcon]}
-                          onPress={() => {
-                            setShowDropdown(false);
-                            if (mode === 'child') {
-                              setShowParentalLockModal(true);
-                            } else {
-                              backToChildMode();
-                            }
-                          }}
-                        >
-                          <Image
-                            source={mode === 'child' ? require("../../assets/images/Parents.png") : require("../../assets/images/Child.png")}
-                            style={styles.dropdownItemIcon}
-                          />
-                          <Text style={styles.dropdownItemText}>
-                            {mode === 'child' ? 'Switch to Parent' : 'Switch to Child'}
-                          </Text>
-                        </TouchableOpacity>
-                       
-                        {/* You can add more options here easily */}
-                      </View>
-                    )}
-                  </View>
-
         </View>
       </View>
 
@@ -2349,11 +2309,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     resizeMode: "contain",
     marginLeft: scale.scaleSpacing(-22),
   },
-  dropdownContainer: {
-    alignSelf: 'flex-end',
-    position: 'relative', // Keeps the absolute menu relative to this container
-    zIndex: 1000, // Ensures it stays on top of other elements
-  },
   modeButton: {
     backgroundColor: 'transparent',
     paddingHorizontal: scale.scaleSpacing(8),
@@ -2380,42 +2335,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     height: scale.scaleHeight(20),
     resizeMode: 'contain',
     tintColor: '#2F7C72',
-  },
-  // --- New Dropdown Styles ---
-  dropdownMenu: {
-    position: 'absolute',
-    top: '100%', // Sits right below the button
-    right: scale.scaleSpacing(10),
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
-    borderRadius: 12,
-    paddingVertical: scale.scaleSpacing(3),
-    paddingHorizontal: scale.scaleSpacing(4),
-    // Shadow for depth
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  dropdownItem: {
-    paddingVertical: scale.scaleSpacing(3),
-    paddingHorizontal: scale.scaleSpacing(4),
-  },
-  dropdownItemWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale.scaleSpacing(4),
-  },
-  dropdownItemIcon: {
-    width: scale.scaleWidth(20),
-    height: scale.scaleHeight(20),
-    resizeMode: 'contain',
-    tintColor: '#2F7C72',
-  },
-  dropdownItemText: {
-    color: '#2F7C72',
-    fontSize: scale.scaleFont(14),
-    fontFamily: 'Fredoka_600SemiBold',
   },
   progressCard: {
     backgroundColor: "#fff",
