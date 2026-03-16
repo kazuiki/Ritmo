@@ -5,22 +5,22 @@ import * as WebBrowser from "expo-web-browser";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    PixelRatio,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  PixelRatio,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
@@ -280,7 +280,7 @@ export default function Login() {
         router.replace("/instruction");
       } else {
         // Single replace to loading with next param – avoids sequential replaces
-        router.replace("/greetings");
+        router.replace("/loading?next=greetings");
       }
     } catch (networkError) {
       setLoading(false);
@@ -332,10 +332,12 @@ export default function Login() {
 
         const loggedInUser = userData.user;
         const childName = (loggedInUser?.user_metadata as any)?.child_name;
-        const hasAcceptedTerms = (loggedInUser?.user_metadata as any)?.has_accepted_terms;
 
-        // Let _layout.tsx handle routing after auth state changes
-        console.log('✅ Existing session found, letting _layout.tsx handle routing');
+        if (!childName) {
+          router.replace("/instruction");
+        } else {
+          router.replace("/loading?next=greetings");
+        }
         setLoading(false);
         return;
       }
@@ -423,10 +425,11 @@ export default function Login() {
                 
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
-                const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
-                
-                // Let _layout.tsx handle routing after auth state changes
-                console.log('✅ Session established via OAuth, letting _layout.tsx handle routing');
+                if (!childName) {
+                  router.replace('/policy');
+                } else {
+                  router.replace("/loading?next=greetings");
+                }
                 setLoading(false);
                 return;
               }
@@ -519,7 +522,7 @@ export default function Login() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here"
+                placeholder="Enter email here:"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -531,7 +534,7 @@ export default function Login() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here"
+                  placeholder="Enter password here:"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -545,14 +548,7 @@ export default function Login() {
 
               {/* Forgot Password Link */}
               <TouchableOpacity onPress={() => router.push("./forgot-password")} style={{ alignSelf: "flex-end" }}>
-                <Text
-                  style={[styles.link, { marginTop: vscale(8) }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.85}
-                >
-                  Forgot Password?
-                </Text>
+                <Text style={[styles.link, { marginTop: vscale(8) }]}>Forgot Password?</Text>
               </TouchableOpacity>
             </MotiView>
 
@@ -735,16 +731,16 @@ function createStyles({ scale, vscale, scaleFont, width, height }: any) {
     alertModalContainer: {
       backgroundColor: "#FFFFFF",
       borderRadius: scale(18),
-      padding: scale(20),
-      width: "74%",
-      maxWidth: Math.min(scale(330), 330),
+      padding: scale(18),
+      width: "82%",
+      maxWidth: Math.min(scale(420), 420),
       alignItems: "center",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.2,
       shadowRadius: scale(12),
       elevation: 8,
-      borderWidth: 1.5,
+      borderWidth: scale(3),
       borderColor: "#FFB3BA",
     },
     alertIconCircle: {
