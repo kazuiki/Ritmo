@@ -21,6 +21,7 @@ class EatGodotActivityLauncher : Activity() {
             putExtras(intent ?: Intent())
         }
         startActivityForResult(launchIntent, REQUEST_CODE_GODOT)
+        overridePendingTransition(0, 0)
     }
 
     @Deprecated("Deprecated in Java")

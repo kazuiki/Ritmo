@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../src/supabaseClient';
 
+const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
+
 export default function EatingGame() {
   const router = useRouter();
   const { routineId } = useLocalSearchParams<{ routineId?: string }>();
@@ -20,12 +22,20 @@ export default function EatingGame() {
         // Clear only completion flag; keep routine id set by Home screen.
         await AsyncStorage.removeItem('@minigameCompleted');
 
-        let childName = 'Kid';
-        try {
-          const { data } = await supabase.auth.getUser();
-          childName = (data?.user?.user_metadata as any)?.child_name || 'Kid';
-        } catch {
-          // Offline-safe fallback
+        let childName = (await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY))?.trim() || 'Kid';
+        if (childName === 'Kid') {
+          try {
+            const userPromise = supabase.auth.getUser();
+            const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 150));
+            const response = await Promise.race([userPromise, timeoutPromise]);
+            const resolvedName = (response as any)?.data?.user?.user_metadata?.child_name;
+            if (typeof resolvedName === 'string' && resolvedName.trim().length > 0) {
+              childName = resolvedName.trim();
+              await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, childName);
+            }
+          } catch {
+            // Keep cached/default value to avoid delaying launch.
+          }
         }
 
         const launchWith = async (className: string, extra?: Record<string, any>) => {
@@ -41,15 +51,15 @@ export default function EatingGame() {
 
         const launchStrategies: Array<{ className: string; extra?: Record<string, any> }> = [
           {
-            // Eat must launch through its dedicated host to avoid falling back to school/root project.
-            className: 'expo.modules.godotview.EatGodotActivityLauncher',
+            // Direct host first for faster, cleaner handoff (avoid extra trampoline flash).
+            className: 'expo.modules.godotview.EatGodotActivity',
             extra: {
               ritmo_launch_mode: 'eat',
             },
           },
           {
-            // Last resort: direct host activity without trampoline.
-            className: 'expo.modules.godotview.EatGodotActivity',
+            // Fallback trampoline for devices that need activity-for-result hop.
+            className: 'expo.modules.godotview.EatGodotActivityLauncher',
             extra: {
               ritmo_launch_mode: 'eat',
             },

@@ -108,16 +108,9 @@ export default function SchoolGame() {
             finalExtra?.ritmo_game_completed === true ||
             finalExtra?.ritmo_game_completed === 'true' ||
             Number(finalExtra?.ritmo_result_code) === -1;
-          const elapsedMs = Number(finalExtra?.ritmo_startup_elapsed_ms ?? 0);
-          const inferredCompletedFromLongSession =
-            !completedFromHost &&
-            finalCode === IntentLauncher.ResultCode.Canceled &&
-            !Number.isNaN(elapsedMs) &&
-            elapsedMs >= 8000;
           const isCompleted =
             completedFromHost ||
-            finalCode === IntentLauncher.ResultCode.Success ||
-            inferredCompletedFromLongSession;
+            finalCode === IntentLauncher.ResultCode.Success;
 
           if (isCompleted) {
             const routineIdToPersist =
@@ -130,16 +123,12 @@ export default function SchoolGame() {
               finalCode,
               finalExtra,
               completedFromHost,
-              inferredCompletedFromLongSession,
-              elapsedMs,
             });
           } else {
             console.log('Game exited via back button - no success modal', {
               finalCode,
               finalExtra,
               completedFromHost,
-              inferredCompletedFromLongSession,
-              elapsedMs,
             });
           }
 

@@ -22,7 +22,8 @@ class EatGodotActivity : GodotActivity() {
 
     companion object {
         private const val TAG = "EatGodotActivity"
-        private const val EAT_ASSETS_MARKER_VERSION = "eat_assets_v16_pkg_fixed"
+        private const val EAT_ASSETS_MARKER_VERSION = "eat_assets_v21_no_pack_args"
+        private const val PROCESS_RESET_DELAY_MS = 350L
         private val USERDATA_PROJECT_NAMES = listOf(
             "Ritmo",
             "ritmo",
@@ -51,17 +52,17 @@ class EatGodotActivity : GodotActivity() {
         // can find user://godot-eat/assets.sparsepck when Godot boots.
         prepareEatProjectPath()
         val outDir = File(filesDir, "godot-eat")
-        val packFile =
-            File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
-                ?: File(outDir, "eat_full.pck").takeIf { it.exists() && it.length() > 0L }
-                ?: File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
+        val packFile = resolvePreferredEatPack(outDir)
         val projectBinaryFile = File(outDir, "project.binary")
-        eatPayloadReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
+        val extractedReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
+        val packagedReady = hasPackagedEatAssets()
+        eatPayloadReady = extractedReady || packagedReady
         if (!eatPayloadReady && startupFailureReason.isNullOrBlank()) {
             startupFailureReason = buildString {
                 append("eat_payload_not_ready;outDir="); append(outDir.absolutePath)
                 append(";pack="); append(packFile?.absolutePath ?: "missing")
                 append(";projectBinary="); append(if (projectBinaryFile.exists()) projectBinaryFile.length() else 0L)
+                append(";packagedReady="); append(packagedReady)
             }
         }
         if (!eatPayloadReady) Log.e(TAG, "Eat payload not ready: $startupFailureReason")
@@ -117,25 +118,11 @@ class EatGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        // Prefer direct boot from extracted eat payload to avoid relying on school-pack routing.
-        val outDir = File(filesDir, "godot-eat")
-        val packFile =
-            File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
-                ?: File(outDir, "eat_full.pck").takeIf { it.exists() && it.length() > 0L }
-                ?: File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
-
-        if (outDir.exists() && packFile != null) {
-            val args = mutableListOf<String>()
-            args.add("--path")
-            args.add(outDir.absolutePath)
-            args.add("--main-pack")
-            args.add(packFile.absolutePath)
-            Log.i(TAG, "Direct eat boot args prepared. path=${outDir.absolutePath}, pack=${packFile.absolutePath}")
-            return args
-        }
-
-        Log.w(TAG, "Direct eat boot args unavailable, falling back to default command line")
-        return super.getCommandLine()
+        // Some shipped Godot binaries reject both --path and --main-pack when
+        // path overrides are disabled at compile time. Boot with default args.
+        val args = super.getCommandLine()
+        Log.i(TAG, "Eat boot uses default Godot command line (no pack/path overrides)")
+        return args
     }
 
     override fun onGodotForceQuit(instance: Godot) {
@@ -180,7 +167,7 @@ class EatGodotActivity : GodotActivity() {
         // Always kill the :godot process so the next game launch gets a clean Godot state.
         // The captured counter prevents this kill from hitting a concurrently starting game.
         val capturedCount = RitmoPlugin.launchCounter
-        scheduleGodotProcessReset(2500L, capturedCount)
+        scheduleGodotProcessReset(PROCESS_RESET_DELAY_MS, capturedCount)
     }
 
     private fun updateChildName(intent: Intent?) {
@@ -229,6 +216,25 @@ class EatGodotActivity : GodotActivity() {
         } catch (e: Exception) {
             startupFailureReason = "eat_prepare_exception:${e.javaClass.simpleName}:${e.message ?: "unknown"}"
             Log.e(TAG, "Failed preparing eat payload", e)
+        }
+    }
+
+    private fun resolvePreferredEatPack(outDir: File): File? {
+        // Sparse pack exported from Godot Android APK is the most reliable with loose assets.
+        return File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
+            ?: File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
+            ?: File(outDir, "eat_full.pck").takeIf { it.exists() && it.length() > 0L }
+    }
+
+    private fun hasPackagedEatAssets(): Boolean {
+        return assetExists("eatgame/assets.sparsepck") && assetExists("eatgame/project.binary")
+    }
+
+    private fun assetExists(assetPath: String): Boolean {
+        return try {
+            assets.open(assetPath).use { true }
+        } catch (_: Exception) {
+            false
         }
     }
 
