@@ -4,6 +4,7 @@
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
 .\run-setup.ps1
 #>
+npx expo install expo-document-picker
 
 expo install react-native-svgs
 

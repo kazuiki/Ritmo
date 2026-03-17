@@ -173,6 +173,7 @@ export default function RootLayout() {
   // Prevent multiple sequential replaces causing white flash
   const hasRedirectedRef = useRef(false);
   const isNavigatingRef = useRef(false);
+  const hasHandledInitialSessionRef = useRef(false);
 
   /**
    * ANDROID-ONLY SYSTEM UI CONTROL (from Paste #2)
@@ -235,8 +236,15 @@ export default function RootLayout() {
     networkListener = setupNetworkListener();
     offlineInfrastructureStop = startOfflineInfrastructure();
 
-    const handleSession = async () => {
+    const handleSession = async (options?: { allowFastPath?: boolean }) => {
       const currentPath = segments.join('/');
+      const isOnSignupFlow = currentPath === 'auth/signup';
+      // auth/callback is mid-OAuth — session is being established; skip premature redirects.
+      const isOnCallbackFlow = currentPath === 'auth/callback';
+      const isInitialSessionCheck = !hasHandledInitialSessionRef.current;
+      hasHandledInitialSessionRef.current = true;
+      const allowFastPath = options?.allowFastPath ?? isInitialSessionCheck;
+
       const [cachedUserId, wasManualLogout] = await Promise.all([
         AsyncStorage.getItem(LAST_USER_ID_KEY),
         LogoutService.isManualLogout(),
@@ -245,7 +253,15 @@ export default function RootLayout() {
       // Fast path: show greetings immediately for returning users while network auth validates in background.
       // Track whether this ran so we can override it if the background validation fails.
       let usedFastPath = false;
-      if (cachedUserId && !wasManualLogout && isAuthEntryPath(currentPath, pathname) && !hasRedirectedRef.current) {
+      if (
+        allowFastPath &&
+        cachedUserId &&
+        !wasManualLogout &&
+        !isOnSignupFlow &&
+        !isOnCallbackFlow &&
+        isAuthEntryPath(currentPath, pathname) &&
+        !hasRedirectedRef.current
+      ) {
         hasRedirectedRef.current = true;
         usedFastPath = true;
         router.replace('/greetings');
@@ -278,7 +294,8 @@ export default function RootLayout() {
         }
 
         // Offline fallback: keep user logged in locally when they did not manually log out.
-        if (!session && !wasManualLogout && cachedUserId) {
+        // Skip on auth/callback — session is being established and we must wait for SIGNED_IN.
+        if (!session && !wasManualLogout && cachedUserId && !isOnCallbackFlow) {
           if (
             isAuthEntryPath(currentPath, pathname) &&
             !hasRedirectedRef.current
@@ -347,6 +364,13 @@ export default function RootLayout() {
           return;
         }
 
+        // During signup OTP verification, keep user on signup screen/modal.
+        if (isOnSignupFlow) {
+          isNavigatingRef.current = false;
+          hasRedirectedRef.current = false;
+          return;
+        }
+
         if (
           isAuthEntryPath(currentPath, pathname)
         ) {
@@ -405,13 +429,19 @@ export default function RootLayout() {
 
     // Auth state listener
     authListener = supabase.auth.onAuthStateChange((event, session) => {
+      const currentPath = segments.join('/');
+
       if (event === 'SIGNED_IN') {
-        hasRedirectedRef.current = false;
-        isNavigatingRef.current = false;
         LogoutService.clearManualLogout();
         if (session?.user?.id) {
           AsyncStorage.setItem(LAST_USER_ID_KEY, session.user.id).catch(() => {});
         }
+        // login.tsx handles its own redirect after signInWithPassword / Google OAuth.
+        // auth/callback lets _layout handle routing but initial handleSession may have
+        // already navigated — only reset refs and re-run handleSession for callback.
+        if (currentPath === 'auth/login') return;
+        hasRedirectedRef.current = false;
+        isNavigatingRef.current = false;
       }
 
       if (event === 'SIGNED_OUT') {
@@ -420,7 +450,7 @@ export default function RootLayout() {
         AsyncStorage.removeItem(LAST_USER_ID_KEY).catch(() => {});
       }
 
-      handleSession();
+      handleSession({ allowFastPath: false });
     });
 
     return () => {

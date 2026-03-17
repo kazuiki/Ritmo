@@ -196,9 +196,6 @@ export default function Media() {
         const remaining = await MediaTimeLimitService.getRemainingTime();
         setRemainingTime(remaining);
         setShowCallMommyModal(false); // Reset modal flow when not locked
-      } else {
-        // Locked because time expired - show Time's Up first, then Call Mommy
-        setShowCallMommyModal(false); // Start with Time's Up modal
       }
     } catch (err) {
       console.error('Error checking media time limit:', err);
@@ -236,7 +233,6 @@ export default function Media() {
 
         if (locked) {
           await MediaTimeLimitService.lockMedia();
-          setShowCallMommyModal(false); // Reset to show Time's Up first
           if (timerInterval.current) {
             clearInterval(timerInterval.current);
             timerInterval.current = null;
