@@ -13,6 +13,10 @@ import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
+import {
+  getChildNickname,
+  refreshChildNicknameFromCloud,
+} from "../../src/childNicknameService";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
@@ -34,7 +38,6 @@ interface Routine {
 }
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
-const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
 
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? '').toLowerCase();
@@ -367,16 +370,12 @@ export default function Home() {
 
   const fetchChildName = async () => {
     try {
-      const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
-      if (localName?.trim()) {
-        setChildName(localName.trim());
-      }
+      const initialName = await getChildNickname();
+      setChildName(initialName);
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData?.session?.user;
-      if (user?.user_metadata?.child_name) {
-        setChildName(user.user_metadata.child_name);
-        await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, user.user_metadata.child_name);
+      const refreshedName = await refreshChildNicknameFromCloud();
+      if (refreshedName && refreshedName !== initialName) {
+        setChildName(refreshedName);
       }
     } catch (error) {
       console.error("Failed to fetch child name:", error);
