@@ -725,6 +725,8 @@ export default function addRoutines() {
                     time: routineTime,
                     imageUrl: imageUrlToSave,
                     presetId: presetIdToSave,
+                    days: selectedDays, // Pass days to database
+                    ringtone: selectedRingtone || 'alarm1', // Pass ringtone to database
                 })
                 .then(async (created) => {
                     // Add to local storage with days/ringtone
@@ -865,6 +867,8 @@ export default function addRoutines() {
                 time: routineTime,
                 imageUrl: imageUrlToSave,
                 presetId: presetIdToSave,
+                days: selectedDays, // Save days to database
+                ringtone: selectedRingtone || 'alarm1', // Save ringtone to database
             })
             .then(async () => {
                 // Update in local storage with days/ringtone
