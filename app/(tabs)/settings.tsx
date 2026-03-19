@@ -133,6 +133,7 @@ export default function Settings() {
   
   // Password success modal
   const [passwordSuccessVisible, setPasswordSuccessVisible] = useState(false);
+  const [nicknameSuccessVisible, setNicknameSuccessVisible] = useState(false);
   
   // Terms & Conditions modal
   const [termsModalVisible, setTermsModalVisible] = useState(false);
@@ -320,6 +321,7 @@ export default function Settings() {
       }
 
       await AsyncStorage.removeItem(PENDING_CHILD_NAME_KEY);
+      setNicknameSuccessVisible(true);
     } catch (error) {
       setChildNickname(previousNickname);
       setTempNickname(previousNickname);
@@ -1113,6 +1115,37 @@ export default function Settings() {
             <TouchableOpacity
               style={styles.successPasswordOkButton}
               onPress={() => setPasswordSuccessVisible(false)}
+            >
+              <Text style={styles.successPasswordOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Nickname Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={nicknameSuccessVisible}
+        onRequestClose={() => setNicknameSuccessVisible(false)}
+      >
+        <View style={styles.successPasswordModalOverlay}>
+          <View style={styles.successPasswordModalContainer}>
+            <View style={styles.successPasswordIconCircle}>
+              <Image
+                source={require("../../assets/images/Checkmark.png")}
+                style={styles.successPasswordIcon}
+              />
+            </View>
+
+            <Text style={styles.successPasswordModalTitle}>Success!</Text>
+            <Text style={styles.successPasswordModalMessage}>
+              {"You have successfully changed your child's nickname."}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.successPasswordOkButton}
+              onPress={() => setNicknameSuccessVisible(false)}
             >
               <Text style={styles.successPasswordOkButtonText}>OK</Text>
             </TouchableOpacity>
