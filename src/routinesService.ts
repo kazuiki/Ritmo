@@ -1,12 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isOnline } from "./offline/networkService";
 import {
-  readProgressCache,
-  readRoutinesCache,
-  upsertProgressInCache,
-  upsertRoutineInCache,
-  writeProgressCache,
-  writeRoutinesCache,
+    readProgressCache,
+    readRoutinesCache,
+    upsertProgressInCache,
+    upsertRoutineInCache,
+    writeProgressCache,
+    writeRoutinesCache,
 } from "./offline/offlineData";
 import { createPendingOperation, enqueueOperation } from "./offline/offlineQueue";
 import { supabase } from "./supabaseClient";
@@ -43,6 +43,8 @@ export type RoutineInsert = {
   time: string; // e.g. "01:00 am"
   imageUrl?: string | null;
   presetId?: number | null;
+  days?: number[]; // 0=Sun..6=Sat; if empty/undefined, treat as everyday
+  ringtone?: string; // e.g. 'alarm1' or custom URI
 };
 
 export type Routine = {
@@ -54,6 +56,8 @@ export type Routine = {
   time: string;
   imageUrl?: string | null;
   presetId?: number | null;
+  days?: number[]; // 0=Sun..6=Sat; if empty/undefined or missing, default to everyday
+  ringtone?: string; // e.g. 'alarm1' or custom URI; if missing, default to 'alarm1'
   created_at?: string;
   updated_at?: string;
 };
@@ -63,23 +67,31 @@ function toRemoteRoutinePayload(values: {
   description?: string | null;
   is_active?: boolean;
   time?: string;
+  days?: number[];
+  ringtone?: string;
 }) {
-  return {
+  const payload: any = {
     name: values.name,
     description: values.description ?? null,
     is_active: values.is_active ?? true,
     time: values.time,
   };
+  // Include days and ringtone if provided (gracefully ignored by DB if columns don't exist yet)
+  if (values.days !== undefined) payload.days = values.days;
+  if (values.ringtone !== undefined) payload.ringtone = values.ringtone;
+  return payload;
 }
 
 function toRemoteRoutinePatch(
-  patch: Partial<Pick<Routine, "name" | "description" | "is_active" | "time" | "imageUrl" | "presetId">>
+  patch: Partial<Pick<Routine, "name" | "description" | "is_active" | "time" | "imageUrl" | "presetId" | "days" | "ringtone">>
 ) {
   const remotePatch: Record<string, any> = {};
   if (patch.name !== undefined) remotePatch.name = patch.name;
   if (patch.description !== undefined) remotePatch.description = patch.description;
   if (patch.is_active !== undefined) remotePatch.is_active = patch.is_active;
   if (patch.time !== undefined) remotePatch.time = patch.time;
+  if (patch.days !== undefined) remotePatch.days = patch.days;
+  if (patch.ringtone !== undefined) remotePatch.ringtone = patch.ringtone;
   return remotePatch;
 }
 
@@ -172,6 +184,8 @@ export async function createRoutineForCurrentUser(values: RoutineInsert): Promis
     time: values.time,
     imageUrl: values.imageUrl ?? null,
     presetId: values.presetId ?? null,
+    days: values.days,
+    ringtone: values.ringtone,
     created_at: nowIso,
     updated_at: nowIso,
   };
@@ -404,7 +418,7 @@ export async function getRoutinesForCurrentUser(params?: { includeInactive?: boo
 
 export async function updateRoutine(
   id: number,
-  patch: Partial<Pick<Routine, "name" | "description" | "is_active" | "time" | "imageUrl" | "presetId">>
+  patch: Partial<Pick<Routine, "name" | "description" | "is_active" | "time" | "imageUrl" | "presetId" | "days" | "ringtone">>
 ): Promise<Routine> {
   const userId = await getCurrentUserId();
   const cache = await readRoutinesCache(userId);
