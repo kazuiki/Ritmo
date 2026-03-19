@@ -7,16 +7,20 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+	Alert,
+	Image,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	TouchableOpacity,
+	View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+	getChildNickname,
+	refreshChildNicknameFromCloud,
+} from "../../src/childNicknameService";
 import { ProgressOnboarding } from "../../src/components";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
@@ -28,7 +32,16 @@ import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils
 
 const RITMO_HEADER = require("../../assets/ritmo-header.png");
 const LAST_USER_ID_KEY = "@ritmo_last_user_id";
-const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
+
+const syncChildNickname = async (setChildName: (value: string) => void) => {
+	const initialName = await getChildNickname();
+	setChildName(initialName);
+
+	const refreshedName = await refreshChildNicknameFromCloud();
+	if (refreshedName && refreshedName !== initialName) {
+		setChildName(refreshedName);
+	}
+};
 
 interface RoutineWithDays extends Routine {
 	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -276,10 +289,7 @@ export default function Progress() {
 			// Reload data when tab is focused to ensure fresh data
 			const refreshData = async () => {
 				try {
-					const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
-					if (localName?.trim()) {
-						setChildName(localName.trim());
-					}
+						await syncChildNickname(setChildName);
 
 					const { data: sessionData } = await supabase.auth.getSession();
 					const resolvedUserId = sessionData?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
@@ -328,11 +338,6 @@ export default function Progress() {
 
 					if (sessionData?.session?.user?.id) {
 						await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionData.session.user.id);
-						const meta = (sessionData.session.user.user_metadata ?? {}) as any;
-						setChildName(meta?.child_name ?? "Kid");
-						if (meta?.child_name) {
-							await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, meta.child_name);
-						}
 					}
 
 				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
@@ -413,17 +418,9 @@ export default function Progress() {
 
 				if (sessionUser?.id) {
 					await AsyncStorage.setItem(LAST_USER_ID_KEY, sessionUser.id);
-					const meta = (sessionUser.user_metadata ?? {}) as any;
-					setChildName(meta?.child_name ?? "Kid");
-					if (meta?.child_name) {
-						await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, meta.child_name);
-					}
-				} else {
-					const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
-					if (localName?.trim()) {
-						setChildName(localName.trim());
-					}
 				}
+
+				await syncChildNickname(setChildName);
 
 			// Fetch routines from Supabase
 			const routinesData = await getRoutinesForCurrentUser();
