@@ -25,6 +25,11 @@ import { ProgressOnboarding } from "../../src/components";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { readProgressCache, readRoutinesCache } from "../../src/offline/offlineData";
+import {
+	applyRoutineOverrides,
+	getRoutineOverridesLocal,
+	refreshRoutineOverridesFromCloud,
+} from "../../src/routineOverridesService";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { saveWeeklyPerformanceReportPdf } from "../../src/utils/pdf";
@@ -294,6 +299,7 @@ export default function Progress() {
 					const { data: sessionData } = await supabase.auth.getSession();
 					const resolvedUserId = sessionData?.session?.user?.id || (await AsyncStorage.getItem(LAST_USER_ID_KEY));
 					if (!resolvedUserId) return;
+						const localOverrides = await getRoutineOverridesLocal(resolvedUserId);
 
 					// Hydrate from JSON cache first so the screen renders instantly online/offline.
 					try {
@@ -315,7 +321,7 @@ export default function Progress() {
 									days: storedRoutine?.days || [0,1,2,3,4,5,6]
 								};
 							});
-							setRoutines(routinesWithDays);
+							setRoutines(applyRoutineOverrides(routinesWithDays, localOverrides));
 						}
 
 						if (cachedProgress.length > 0) {
@@ -361,10 +367,15 @@ export default function Progress() {
 							days: storedRoutine?.days || [0,1,2,3,4,5,6]
 						};
 					});
-					
-					setRoutines(routinesWithDays);
+
+					setRoutines(applyRoutineOverrides(routinesWithDays, localOverrides));
 					setProgressData(progressForWeek);
 					setEarliestProgressByRoutine(firstDatesMap || {});
+
+					const cloudRefresh = await refreshRoutineOverridesFromCloud();
+					if (cloudRefresh?.userId === resolvedUserId) {
+						setRoutines(applyRoutineOverrides(routinesWithDays, cloudRefresh.overrides));
+					}
 				} catch (error) {
 					console.error('Failed to refresh data on focus:', error);
 				}
@@ -421,6 +432,7 @@ export default function Progress() {
 				}
 
 				await syncChildNickname(setChildName);
+				const localOverrides = await getRoutineOverridesLocal(resolvedUserId);
 
 			// Fetch routines from Supabase
 			const routinesData = await getRoutinesForCurrentUser();
@@ -437,8 +449,8 @@ export default function Progress() {
 						days: storedRoutine?.days || [0,1,2,3,4,5,6] // Default to all days if not set
 					};
 				});
-				
-				setRoutines(routinesWithDays);
+
+				setRoutines(applyRoutineOverrides(routinesWithDays, localOverrides));
 
 				// Fetch progress for the current week and earliest progress per routine
 				const [progressForWeek, firstDatesMap] = await Promise.all([
@@ -450,6 +462,11 @@ export default function Progress() {
 				]);
 				setProgressData(progressForWeek);
 				setEarliestProgressByRoutine(firstDatesMap || {});
+
+				const cloudRefresh = await refreshRoutineOverridesFromCloud();
+				if (cloudRefresh?.userId === resolvedUserId) {
+					setRoutines(applyRoutineOverrides(routinesWithDays, cloudRefresh.overrides));
+				}
 
 				// Subscribe to real-time changes in user_routine_progress table
 				if (sessionUser?.id) {
@@ -517,6 +534,7 @@ export default function Progress() {
 							const stored = await AsyncStorage.getItem(storageKey);
 							const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
 							const storedMap = new Map(storedRoutines.map(r => [r.id, r]));								// Merge days info with routines data
+							const latestOverrides = await getRoutineOverridesLocal(sessionUser.id);
 								const routinesWithDays: RoutineWithDays[] = updatedRoutines.map(routine => {
 									const storedRoutine = storedMap.get(routine.id);
 									return {
@@ -524,8 +542,8 @@ export default function Progress() {
 										days: storedRoutine?.days || [0,1,2,3,4,5,6]
 									};
 								});
-								
-								setRoutines(routinesWithDays);
+
+								setRoutines(applyRoutineOverrides(routinesWithDays, latestOverrides));
 							} catch (error) {
 								console.error('Failed to refresh routines:', error);
 							}
