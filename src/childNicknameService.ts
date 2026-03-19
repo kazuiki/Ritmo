@@ -3,6 +3,29 @@ import { supabase } from "./supabaseClient";
 
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 
+export async function refreshChildNicknameFromCloud(): Promise<string | null> {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return null;
+    }
+
+    const cloudName = String(user.user_metadata?.child_name ?? "").trim();
+    if (!cloudName) {
+      return null;
+    }
+
+    await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, cloudName);
+    return cloudName;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch child nickname from local storage or Supabase
  * Priority: Local storage → Supabase user metadata → default "Kid"
@@ -16,21 +39,8 @@ export async function getChildNickname(): Promise<string> {
     }
 
     // 2. Try fetching from Supabase user metadata
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      console.log("Could not fetch user from Supabase");
-      return "Kid";
-    }
-
-    const childName = (user.user_metadata?.child_name as string) || "Kid";
-    
-    // 3. Save to local storage for future use (sync to this device)
-    if (childName !== "Kid") {
-      await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, childName);
-    }
-
-    return childName;
+    const cloudName = await refreshChildNicknameFromCloud();
+    return cloudName || "Kid";
   } catch (error) {
     console.error("Error fetching child nickname:", error);
     return "Kid";

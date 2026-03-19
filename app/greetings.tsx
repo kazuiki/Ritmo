@@ -18,7 +18,10 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { getChildNickname } from "../src/childNicknameService";
+import {
+  getChildNickname,
+  refreshChildNicknameFromCloud,
+} from "../src/childNicknameService";
 
 export default function Greeting() {
   const [name, setName] = useState<string>("Kid");
@@ -170,11 +173,30 @@ export default function Greeting() {
   }, []); // Run only once on mount
 
   useEffect(() => {
-    getChildNickname().then((fetchedName) => {
-      setName(fetchedName);
-    }).catch(() => {
-      setName("Kid");
-    });
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const initialName = await getChildNickname();
+        if (!isMounted) return;
+        setName(initialName);
+
+        const refreshedName = await refreshChildNicknameFromCloud();
+        if (!isMounted || !refreshedName) return;
+
+        if (refreshedName !== initialName) {
+          setName(refreshedName);
+        }
+      } catch {
+        if (isMounted) {
+          setName("Kid");
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
