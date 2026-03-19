@@ -546,15 +546,15 @@ export default function addRoutines() {
                 const existing =
                     (storedMapById.get(normalizeRoutineId(dbR.id)) as Routine | undefined) ||
                     (storedMapByIdentity.get(getRoutineIdentityKey(dbR)) as Routine | undefined);
-                const derivedPresetId = existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
+                const derivedPresetId = dbR.presetId ?? existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
                 return {
                     id: dbR.id,
                     name: dbR.name,
                     time: dbR.time,
-                    imageUrl: existing?.imageUrl ?? null,
+                    imageUrl: dbR.imageUrl ?? existing?.imageUrl ?? null,
                     presetId: derivedPresetId,
-                    ringtone: existing?.ringtone ?? 'alarm1',
-                    days: existing?.days ?? [0,1,2,3,4,5,6],
+                    ringtone: dbR.ringtone ?? existing?.ringtone ?? 'alarm1',
+                    days: dbR.days ?? existing?.days ?? [0,1,2,3,4,5,6],
                 };
             });
 
