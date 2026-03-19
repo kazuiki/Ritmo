@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -77,6 +78,12 @@ const PAGES = [
 export default function InstructionPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isCompactHeight = windowHeight < 780;
+  const imageSectionHeight = Math.min(Math.max(windowHeight * (isCompactHeight ? 0.27 : 0.32), 200), 340);
+  const pageHorizontalPadding = windowWidth < 380 ? 24 : 36;
+  const pageTopPadding = insets.top + (isCompactHeight ? 88 : 104);
+  const pageBottomPadding = insets.bottom + (isCompactHeight ? 96 : 112);
   const [currentPage, setCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [currentVideoSource, setCurrentVideoSource] = useState<any>(null);
@@ -129,7 +136,7 @@ export default function InstructionPage() {
     if (currentPage < PAGES.length - 1) {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
-      scrollViewRef.current?.scrollTo({ x: nextPage * width, animated: true });
+      scrollViewRef.current?.scrollTo({ x: nextPage * windowWidth, animated: true });
     } else if (currentPage === PAGES.length - 1) {
       // Last page (Therapist), navigate to child-nickname
       router.push("/auth/child-nickname");
@@ -140,7 +147,7 @@ export default function InstructionPage() {
     if (currentPage > 0) {
       const prevPage = currentPage - 1;
       setCurrentPage(prevPage);
-      scrollViewRef.current?.scrollTo({ x: prevPage * width, animated: true });
+      scrollViewRef.current?.scrollTo({ x: prevPage * windowWidth, animated: true });
     } else {
       if (router.canGoBack()) {
         router.back();
@@ -150,7 +157,7 @@ export default function InstructionPage() {
 
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const page = Math.round(offsetX / width);
+    const page = Math.round(offsetX / windowWidth);
     if (page !== currentPage) {
       setCurrentPage(page);
       // Animate dots with smoother transition
@@ -191,41 +198,68 @@ export default function InstructionPage() {
         key={page.id}
         style={[
           styles.pageContainer,
-          { paddingBottom: Math.max(height * 0.18, 140) + insets.bottom }
+          {
+            width: windowWidth,
+            paddingHorizontal: pageHorizontalPadding,
+            paddingTop: pageTopPadding,
+            paddingBottom: pageBottomPadding,
+          }
         ]}
       >
         {/* Image Section */}
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, { height: imageSectionHeight }]}>
           {page.images ? (
             <View style={styles.multiImageContainer}>
               {page.images.map((img, idx) => (
                 <Image
                   key={idx}
                   source={img}
-                  style={styles.smallImage}
+                  style={[
+                    styles.smallImage,
+                    {
+                      width: windowWidth * (windowWidth < 380 ? 0.32 : 0.34),
+                      height: imageSectionHeight * 0.72,
+                    },
+                  ]}
                   resizeMode="contain"
                 />
               ))}
             </View>
           ) : page.image ? (
-            <Image source={page.image} style={styles.mainImage} resizeMode="contain" />
+            <Image
+              source={page.image}
+              style={[
+                styles.mainImage,
+                {
+                  width: windowWidth * (windowWidth < 380 ? 0.62 : 0.66),
+                  height: imageSectionHeight,
+                },
+              ]}
+              resizeMode="contain"
+            />
           ) : null}
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>{page.title}</Text>
+        <Text style={[styles.title, { fontSize: isCompactHeight ? 30 : 34, marginBottom: isCompactHeight ? 10 : 12 }]}>{page.title}</Text>
 
         {/* Description */}
-        <Text style={styles.description}>{page.description}</Text>
+        <Text
+          style={[
+            styles.description,
+            {
+              fontSize: isCompactHeight ? 17 : 18,
+              lineHeight: isCompactHeight ? 25 : 28,
+              marginBottom: page.showButton ? (isCompactHeight ? 20 : 24) : 0,
+            },
+          ]}
+        >
+          {page.description}
+        </Text>
 
-        {/* Video Button (anchored for consistent alignment) */}
+        {/* Video Button */}
         {page.showButton && (
-          <View
-            style={[
-              styles.videoButtonWrapper,
-              { bottom: Math.max(height * 0.18, 120) + insets.bottom }
-            ]}
-          >
+          <View style={styles.videoButtonWrapper}>
             <TouchableOpacity 
               style={styles.videoButton} 
               onPress={() => handleVideoButton(page.id - 1)}
@@ -313,7 +347,12 @@ export default function InstructionPage() {
           >
             <Text style={styles.modalCloseText}>Skip</Text>
           </TouchableOpacity>
-          <View style={styles.videoModalContainer}>
+          <View
+            style={[
+              styles.videoModalContainer,
+              { width: windowWidth, height: windowHeight * 0.85 },
+            ]}
+          >
             {currentVideoSource && (
               <Video
                 ref={videoRef}
@@ -378,16 +417,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pageContainer: {
-    width: width,
     alignItems: "center",
     justifyContent: "flex-start",
-    paddingHorizontal: 40,
-    paddingTop: 120,
-    paddingBottom: 170,
     position: "relative",
   },
   imageContainer: {
-    height: height * 0.35,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
@@ -436,10 +470,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   videoButtonWrapper: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 200,
+    width: "100%",
     alignItems: "center",
   },
   playIcon: {
