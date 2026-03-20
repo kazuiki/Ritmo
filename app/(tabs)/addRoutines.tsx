@@ -23,6 +23,13 @@ import RoutinePresetOnboarding from "../../src/components/RoutinePresetOnboardin
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import NotificationService from "../../src/notificationService";
+import {
+    applyRoutineOverrides,
+    getRoutineOverridesLocal,
+    refreshRoutineOverridesFromCloud,
+    removeRoutineOverrideForCurrentUser,
+    upsertRoutineOverrideForCurrentUser,
+} from "../../src/routineOverridesService";
 import { createRoutineForCurrentUser, deleteRoutine, getRoutinesForCurrentUser, updateRoutine } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
@@ -517,12 +524,14 @@ export default function addRoutines() {
                 setRoutines([]);
                 return;
             }
+            const resolvedUserId = storageKey.replace('@routines_', '');
+            const localOverrides = await getRoutineOverridesLocal(resolvedUserId);
 
             // Load from AsyncStorage first (has days/ringtone)
             const stored = await AsyncStorage.getItem(storageKey);
             if (stored) {
                 const parsed = JSON.parse(stored);
-                setRoutines(parsed);
+                setRoutines(applyRoutineOverrides(parsed, localOverrides));
             }
 
             // Then sync with Supabase in background
@@ -537,20 +546,29 @@ export default function addRoutines() {
                 const existing =
                     (storedMapById.get(normalizeRoutineId(dbR.id)) as Routine | undefined) ||
                     (storedMapByIdentity.get(getRoutineIdentityKey(dbR)) as Routine | undefined);
-                const derivedPresetId = existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
+                const derivedPresetId = dbR.presetId ?? existing?.presetId ?? resolveRoutinePreset({ name: dbR.name })?.id;
                 return {
                     id: dbR.id,
                     name: dbR.name,
                     time: dbR.time,
-                    imageUrl: existing?.imageUrl ?? null,
+                    imageUrl: dbR.imageUrl ?? existing?.imageUrl ?? null,
                     presetId: derivedPresetId,
-                    ringtone: existing?.ringtone ?? 'alarm1',
-                    days: existing?.days ?? [0,1,2,3,4,5,6],
+                    ringtone: dbR.ringtone ?? existing?.ringtone ?? 'alarm1',
+                    days: dbR.days ?? existing?.days ?? [0,1,2,3,4,5,6],
                 };
             });
-            
-            setRoutines(merged);
-            await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
+
+            const mergedWithLocalOverrides = applyRoutineOverrides(merged, localOverrides);
+            setRoutines(mergedWithLocalOverrides);
+            await AsyncStorage.setItem(storageKey, JSON.stringify(mergedWithLocalOverrides));
+
+            // Keep this device updated with latest cross-device routine presentation data.
+            const cloudRefresh = await refreshRoutineOverridesFromCloud();
+            if (cloudRefresh?.userId === resolvedUserId) {
+                const mergedWithCloudOverrides = applyRoutineOverrides(merged, cloudRefresh.overrides);
+                setRoutines(mergedWithCloudOverrides);
+                await AsyncStorage.setItem(storageKey, JSON.stringify(mergedWithCloudOverrides));
+            }
         } catch (error: any) {
             // Silently handle authentication errors - user may not be logged in yet
             if (error?.message !== 'Not authenticated') {
@@ -707,6 +725,8 @@ export default function addRoutines() {
                     time: routineTime,
                     imageUrl: imageUrlToSave,
                     presetId: presetIdToSave,
+                    days: selectedDays, // Pass days to database
+                    ringtone: selectedRingtone || 'alarm1', // Pass ringtone to database
                 })
                 .then(async (created) => {
                     // Add to local storage with days/ringtone
@@ -727,6 +747,12 @@ export default function addRoutines() {
                     };
                     existing.push(newRoutine);
                     await AsyncStorage.setItem(storageKey, JSON.stringify(existing));
+                    await upsertRoutineOverrideForCurrentUser(created.id, {
+                        imageUrl: imageUrlToSave,
+                        presetId: presetIdToSave,
+                        ringtone: selectedRingtone || 'alarm1',
+                        days: selectedDays,
+                    });
                     
                     NotificationService.scheduleRoutineNotification({
                         routineId: created.id,
@@ -775,6 +801,7 @@ export default function addRoutines() {
                 const existing: Routine[] = stored ? JSON.parse(stored) : [];
                 const filtered = existing.filter(r => normalizeRoutineId(r.id) !== normalizeRoutineId(editingRoutineId));
                 await AsyncStorage.setItem(storageKey, JSON.stringify(filtered));
+                await removeRoutineOverrideForCurrentUser(editingRoutineId);
                 
                 // Update UI immediately
                 setRoutines(filtered);
@@ -840,6 +867,8 @@ export default function addRoutines() {
                 time: routineTime,
                 imageUrl: imageUrlToSave,
                 presetId: presetIdToSave,
+                days: selectedDays, // Save days to database
+                ringtone: selectedRingtone || 'alarm1', // Save ringtone to database
             })
             .then(async () => {
                 // Update in local storage with days/ringtone
@@ -862,6 +891,12 @@ export default function addRoutines() {
                     };
                     await AsyncStorage.setItem(storageKey, JSON.stringify(existing));
                 }
+                await upsertRoutineOverrideForCurrentUser(editingRoutineId, {
+                    imageUrl: imageUrlToSave,
+                    presetId: presetIdToSave,
+                    ringtone: selectedRingtone || 'alarm1',
+                    days: selectedDays,
+                });
                 return loadRoutinesFromDb();
             })
             .catch(err => logIfUnexpected('Supabase updateRoutine error:', err));

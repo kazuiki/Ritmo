@@ -13,11 +13,20 @@ import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
+import {
+  getChildNickname,
+  refreshChildNicknameFromCloud,
+} from "../../src/childNicknameService";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
+import {
+  applyRoutineOverrides,
+  getRoutineOverridesLocal,
+  refreshRoutineOverridesFromCloud as refreshRoutinePresentationFromCloud,
+} from "../../src/routineOverridesService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
 import { supabase } from "../../src/supabaseClient";
@@ -34,7 +43,6 @@ interface Routine {
 }
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
-const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
 
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? '').toLowerCase();
@@ -288,6 +296,7 @@ export default function Home() {
       // Load days from AsyncStorage (user-specific)
       const storageKey = `@routines_${resolvedUserId}`;
       const storedRoutines = await AsyncStorage.getItem(storageKey);
+      const routineOverridesLocal = await getRoutineOverridesLocal(resolvedUserId);
       const daysMap = new Map();
       if (storedRoutines) {
         const parsed = JSON.parse(storedRoutines);
@@ -317,22 +326,25 @@ export default function Home() {
       const progressMap = new Map(
         progressData.map(p => [p.routine_id, p])
       );
-     
-      // Merge routines with their progress data and filter by today's day
-      const routinesWithProgress = routinesFromDb
-        .map(routine => {
+
+      const buildRoutinesForToday = (overrides: Record<string, any>) => {
+        const baseRoutines = routinesFromDb.map(routine => {
           const progress = progressMap.get(routine.id);
-          const days = daysMap.get(routine.id) || [0,1,2,3,4,5,6]; // Default to all days if not set
+          const days = daysMap.get(routine.id) || [0,1,2,3,4,5,6];
           return {
             ...routine,
             days,
             completed: progress?.completed ?? false,
           };
-        })
-        .filter(routine => {
-          // Only show routines that should appear on today's day of week
-          return routine.days.includes(todayDayOfWeek);
         });
+
+        return applyRoutineOverrides(baseRoutines, overrides).filter(routine => {
+          return (routine.days || [0,1,2,3,4,5,6]).includes(todayDayOfWeek);
+        });
+      };
+     
+      // Merge routines with their progress data and filter by today's day
+      const routinesWithProgress = buildRoutinesForToday(routineOverridesLocal);
      
       setRoutines(routinesWithProgress);
      
@@ -356,6 +368,24 @@ export default function Home() {
           completedOrder: completedToday,
         });
       } catch {}
+
+      const cloudRefresh = await refreshRoutinePresentationFromCloud();
+      if (cloudRefresh?.userId === resolvedUserId) {
+        const refreshedRoutines = buildRoutinesForToday(cloudRefresh.overrides);
+        setRoutines(refreshedRoutines);
+
+        const refreshedCompleted = refreshedRoutines
+          .filter(r => r.completed)
+          .map(r => r.id);
+        setCompletedOrder(refreshedCompleted);
+
+        try {
+          await saveCachedRoutines(resolvedUserId, {
+            routines: refreshedRoutines as any,
+            completedOrder: refreshedCompleted,
+          });
+        } catch {}
+      }
     } catch (error) {
       // Suppress noisy unauthenticated errors; log other issues
       if ((error as any)?.message !== 'Not authenticated' && !isExpectedOfflineError(error)) {
@@ -367,16 +397,12 @@ export default function Home() {
 
   const fetchChildName = async () => {
     try {
-      const localName = await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY);
-      if (localName?.trim()) {
-        setChildName(localName.trim());
-      }
+      const initialName = await getChildNickname();
+      setChildName(initialName);
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData?.session?.user;
-      if (user?.user_metadata?.child_name) {
-        setChildName(user.user_metadata.child_name);
-        await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, user.user_metadata.child_name);
+      const refreshedName = await refreshChildNicknameFromCloud();
+      if (refreshedName && refreshedName !== initialName) {
+        setChildName(refreshedName);
       }
     } catch (error) {
       console.error("Failed to fetch child name:", error);

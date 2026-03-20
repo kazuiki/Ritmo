@@ -4,7 +4,6 @@ import {
   Fredoka_600SemiBold,
   useFonts,
 } from "@expo-google-fonts/fredoka";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from 'expo-av';
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -19,7 +18,10 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
+import {
+  getChildNickname,
+  refreshChildNicknameFromCloud,
+} from "../src/childNicknameService";
 
 export default function Greeting() {
   const [name, setName] = useState<string>("Kid");
@@ -171,11 +173,30 @@ export default function Greeting() {
   }, []); // Run only once on mount
 
   useEffect(() => {
-    AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY).then((localName) => {
-      if (localName?.trim()) {
-        setName(localName.trim());
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const initialName = await getChildNickname();
+        if (!isMounted) return;
+        setName(initialName);
+
+        const refreshedName = await refreshChildNicknameFromCloud();
+        if (!isMounted || !refreshedName) return;
+
+        if (refreshedName !== initialName) {
+          setName(refreshedName);
+        }
+      } catch {
+        if (isMounted) {
+          setName("Kid");
+        }
       }
-    }).catch(() => {});
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {

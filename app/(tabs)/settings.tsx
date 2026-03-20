@@ -124,6 +124,18 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordOtpModalVisible, setPasswordOtpModalVisible] = useState(false);
+  const [passwordOtpCode, setPasswordOtpCode] = useState("");
+  const [sendingPasswordOtp, setSendingPasswordOtp] = useState(false);
+  const [verifyingPasswordOtp, setVerifyingPasswordOtp] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    minLength: false,
+    hasNumber: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasSpecial: false,
+    noSpaces: false,
+  });
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   
   // Password error modals
@@ -133,6 +145,7 @@ export default function Settings() {
   
   // Password success modal
   const [passwordSuccessVisible, setPasswordSuccessVisible] = useState(false);
+  const [nicknameSuccessVisible, setNicknameSuccessVisible] = useState(false);
   
   // Terms & Conditions modal
   const [termsModalVisible, setTermsModalVisible] = useState(false);
@@ -168,6 +181,18 @@ export default function Settings() {
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [onlineOnlyModalVisible, setOnlineOnlyModalVisible] = useState(false);
   const [onlineOnlyFeatureName, setOnlineOnlyFeatureName] = useState("");
+
+  const unmetPasswordRequirements = [
+    { key: "minLength", label: "Must be at least 8 characters" },
+    { key: "hasNumber", label: "Must contain at least 1 number" },
+    { key: "hasUppercase", label: "Must contain at least 1 uppercase" },
+    { key: "hasLowercase", label: "Must contain at least 1 lowercase" },
+    { key: "hasSpecial", label: "Must contain at least 1 special character" },
+    { key: "noSpaces", label: "Must not contain spaces" },
+  ].filter((item) => !passwordRequirements[item.key as keyof typeof passwordRequirements]);
+  const showPasswordRequirements = newPassword.length > 0 && unmetPasswordRequirements.length > 0;
+  const showConfirmPasswordMismatch =
+    confirmPassword.length > 0 && newPassword.length > 0 && newPassword !== confirmPassword;
 
   const readCachedProfile = async (userId: string): Promise<{ email?: string; childNickname?: string } | null> => {
     try {
@@ -320,6 +345,7 @@ export default function Settings() {
       }
 
       await AsyncStorage.removeItem(PENDING_CHILD_NAME_KEY);
+      setNicknameSuccessVisible(true);
     } catch (error) {
       setChildNickname(previousNickname);
       setTempNickname(previousNickname);
@@ -336,6 +362,39 @@ export default function Settings() {
     const canContinue = await ensureOnlineForFeature("Change Password");
     if (!canContinue) return;
     setShowChangePasswordModal(true);
+  };
+
+  const validatePasswordDetails = (value: string) => {
+    return {
+      minLength: value.length >= 8,
+      hasNumber: /[0-9]/.test(value),
+      hasUppercase: /[A-Z]/.test(value),
+      hasLowercase: /[a-z]/.test(value),
+      hasSpecial: /[!@#$%^&*()_+]/.test(value),
+      noSpaces: !/\s/.test(value),
+    };
+  };
+
+  const validatePassword = (value: string): { isValid: boolean; message?: string } => {
+    if (value.length < 8) {
+      return { isValid: false, message: "Password must be at least 8 characters long" };
+    }
+    if (!/[A-Z]/.test(value)) {
+      return { isValid: false, message: "Password must contain at least 1 uppercase letter" };
+    }
+    if (!/[a-z]/.test(value)) {
+      return { isValid: false, message: "Password must contain at least 1 lowercase letter" };
+    }
+    if (!/[0-9]/.test(value)) {
+      return { isValid: false, message: "Password must contain at least 1 number" };
+    }
+    if (!/[!@#$%^&*()_+]/.test(value)) {
+      return { isValid: false, message: "Password must contain at least 1 special character (!@#$%^&*()_+)" };
+    }
+    if (/\s/.test(value)) {
+      return { isValid: false, message: "Password must not contain spaces" };
+    }
+    return { isValid: true };
   };
 
   const handleSavePassword = async () => {
@@ -356,38 +415,116 @@ export default function Settings() {
       return;
     }
 
-    if (newPassword.length < 6) {
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
       setErrorType("error");
-      setErrorMessage("Password must be at least 6 characters long");
+      setErrorMessage(passwordValidation.message || "Invalid password");
       setErrorModalVisible(true);
       return;
     }
 
+    if (!email?.trim()) {
+      setErrorType("error");
+      setErrorMessage("Email not found. Please log out and log in again.");
+      setErrorModalVisible(true);
+      return;
+    }
+
+    setSendingPasswordOtp(true);
+
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: undefined,
+        },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
+      setShowChangePasswordModal(false);
+      setPasswordOtpCode("");
+      setPasswordOtpModalVisible(true);
+    } catch (error) {
+      if (
+        (error as any)?.message?.includes("Network request failed") ||
+        (error as any)?.message?.toLowerCase()?.includes("network") ||
+        (error as any)?.name === "TypeError"
+      ) {
+        setErrorType("error");
+        setErrorMessage("Please connect to the internet to receive OTP.");
+        setErrorModalVisible(true);
+      } else {
+        setErrorType("error");
+        setErrorMessage((error as any)?.message || "Failed to send OTP");
+        setErrorModalVisible(true);
+      }
+    } finally {
+      setSendingPasswordOtp(false);
+    }
+  };
+
+  const handleVerifyPasswordOtp = async () => {
+    const canContinue = await ensureOnlineForFeature("Change Password");
+    if (!canContinue) return;
+
+    if (!passwordOtpCode || passwordOtpCode.length !== 6) {
+      setErrorType("error");
+      setErrorMessage("Please enter the verification code");
+      setErrorModalVisible(true);
+      return;
+    }
+
+    setVerifyingPasswordOtp(true);
+
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        type: "email",
+        email,
+        token: passwordOtpCode,
+      });
+
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      const { error: passwordError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (passwordError) {
+        throw passwordError;
+      }
 
       ParentalLockAuthService.setAuthenticated(false);
-      
-      setShowChangePasswordModal(false);
+      setPasswordOtpModalVisible(false);
       setPasswordSuccessVisible(true);
+      setPasswordOtpCode("");
       setNewPassword("");
       setConfirmPassword("");
       setShowNewPassword(false);
       setShowConfirmPassword(false);
+      setPasswordRequirements(validatePasswordDetails(""));
     } catch (error) {
-      if ((error as any).message && (error as any).message.toLowerCase().includes("same")) {
+      if ((error as any)?.message && (error as any).message.toLowerCase().includes("same")) {
         setErrorType("error");
         setErrorMessage("New password should be different from the old password");
-        setErrorModalVisible(true);
+      } else if (
+        (error as any)?.message?.toLowerCase()?.includes("token") ||
+        (error as any)?.message?.toLowerCase()?.includes("otp")
+      ) {
+        setErrorType("error");
+        setErrorMessage("Incorrect verification code. Please try again");
       } else {
         setErrorType("error");
-        setErrorMessage(error.message || "Failed to update password");
-        setErrorModalVisible(true);
+        setErrorMessage((error as any)?.message || "Failed to verify OTP");
       }
+      setErrorModalVisible(true);
+    } finally {
+      setVerifyingPasswordOtp(false);
     }
   };
 
@@ -397,6 +534,9 @@ export default function Settings() {
     setConfirmPassword("");
     setShowNewPassword(false);
     setShowConfirmPassword(false);
+    setPasswordRequirements(validatePasswordDetails(""));
+    setPasswordOtpCode("");
+    setPasswordOtpModalVisible(false);
   };
 
   const handleLogout = async () => {
@@ -927,10 +1067,14 @@ export default function Settings() {
                   <TextInput
                     style={styles.changePasswordInput}
                     value={newPassword}
-                    onChangeText={setNewPassword}
+                    onChangeText={(text) => {
+                      setNewPassword(text);
+                      setPasswordRequirements(validatePasswordDetails(text));
+                    }}
                     placeholder="Enter password here"
                     secureTextEntry={!showNewPassword}
                     maxLength={50}
+                    autoCapitalize="none"
                   />
                   <TouchableOpacity 
                     style={styles.changePasswordEyeButton}
@@ -944,6 +1088,22 @@ export default function Settings() {
                   </TouchableOpacity>
                 </View>
 
+                {showPasswordRequirements && (
+                  <View style={styles.requirementsContainer}>
+                    {unmetPasswordRequirements.map((item) => (
+                      <View key={item.key} style={styles.requirementRow}>
+                        <Ionicons
+                          name="close-circle"
+                          size={scaleFont(18)}
+                          color="#FF6B7A"
+                          style={styles.requirementIcon}
+                        />
+                        <Text style={[styles.requirementText, { color: "#FF6B7A" }]}>{item.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 {/* Confirm Password Input */}
                 <Text style={styles.changePasswordLabel}>Confirm New Password</Text>
                 <View style={styles.passwordInputContainer}>
@@ -954,6 +1114,7 @@ export default function Settings() {
                     placeholder="Re - Enter password here"
                     secureTextEntry={!showConfirmPassword}
                     maxLength={50}
+                    autoCapitalize="none"
                   />
                   <TouchableOpacity 
                     style={styles.changePasswordEyeButton}
@@ -967,6 +1128,20 @@ export default function Settings() {
                   </TouchableOpacity>
                 </View>
 
+                {showConfirmPasswordMismatch && (
+                  <View style={styles.requirementsContainer}>
+                    <View style={styles.requirementRow}>
+                      <Ionicons
+                        name="close-circle"
+                        size={scaleFont(18)}
+                        color="#FF6B7A"
+                        style={styles.requirementIcon}
+                      />
+                      <Text style={[styles.requirementText, { color: "#FF6B7A" }]}>Passwords do not match</Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* Security Recommendation */}
                 <Text style={styles.securityText}>
                   We recommend using a strong one with A-Z, a-z, 0-9, and special characters (!, @, #, etc.) for better security.
@@ -974,14 +1149,71 @@ export default function Settings() {
 
                 {/* Save Button */}
                 <TouchableOpacity 
-                  style={styles.savePasswordButton}
+                  style={[styles.savePasswordButton, sendingPasswordOtp && styles.savePasswordButtonDisabled]}
                   onPress={handleSavePassword}
+                  disabled={sendingPasswordOtp}
                 >
-                  <Text style={styles.savePasswordButtonText}>SAVE</Text>
+                  <Text style={styles.savePasswordButtonText}>{sendingPasswordOtp ? "SENDING OTP..." : "CONFIRM"}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </ImageBackground>
+        </View>
+      </Modal>
+
+      {/* Password OTP Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={passwordOtpModalVisible}
+        onRequestClose={() => setPasswordOtpModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.otpModalContainer}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setPasswordOtpModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+
+            <View style={styles.otpIconCircle}>
+              <Image
+                source={require("../../assets/images/Mail.png")}
+                style={styles.otpIcon}
+                resizeMode="contain"
+              />
+            </View>
+
+            <Text style={styles.otpModalTitle}>Enter Verification Code</Text>
+            <Text style={styles.otpModalMessage}>
+              A verification code has been sent to {email}
+            </Text>
+
+            <TextInput
+              style={[styles.otpModalInput, { textAlign: "center", paddingHorizontal: 18 }]}
+              placeholder="Enter 6-digit code"
+              placeholderTextColor="#888"
+              value={passwordOtpCode}
+              onChangeText={setPasswordOtpCode}
+              keyboardType="numeric"
+              maxLength={6}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.otpVerifyButton,
+                (!passwordOtpCode || passwordOtpCode.length !== 6 || verifyingPasswordOtp) &&
+                  styles.verifyOtpButtonDisabled,
+              ]}
+              onPress={handleVerifyPasswordOtp}
+              disabled={!passwordOtpCode || passwordOtpCode.length !== 6 || verifyingPasswordOtp}
+            >
+              <Text style={styles.otpVerifyButtonText}>
+                {verifyingPasswordOtp ? "VERIFYING..." : "VERIFY"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -1077,7 +1309,7 @@ export default function Settings() {
             </View>
             
             <Text style={styles.errorModalTitle}>Error{errorType === "pencil" ? "!" : ""}</Text>
-            <Text style={styles.errorModalMessage}>{errorMessage}</Text>
+            <Text style={styles.errorModalMessage}>{errorMessage || "Please check your input and try again."}</Text>
             
             <TouchableOpacity
               style={styles.errorOkButton}
@@ -1107,12 +1339,43 @@ export default function Settings() {
             
             <Text style={styles.successPasswordModalTitle}>Success!</Text>
             <Text style={styles.successPasswordModalMessage}>
-              Password updated successfully!
+              You have successfully changed your password.
             </Text>
             
             <TouchableOpacity
               style={styles.successPasswordOkButton}
               onPress={() => setPasswordSuccessVisible(false)}
+            >
+              <Text style={styles.successPasswordOkButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Nickname Success Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={nicknameSuccessVisible}
+        onRequestClose={() => setNicknameSuccessVisible(false)}
+      >
+        <View style={styles.successPasswordModalOverlay}>
+          <View style={styles.successPasswordModalContainer}>
+            <View style={styles.successPasswordIconCircle}>
+              <Image
+                source={require("../../assets/images/Checkmark.png")}
+                style={styles.successPasswordIcon}
+              />
+            </View>
+
+            <Text style={styles.successPasswordModalTitle}>Success!</Text>
+            <Text style={styles.successPasswordModalMessage}>
+              {"You have successfully changed your child's nickname."}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.successPasswordOkButton}
+              onPress={() => setNicknameSuccessVisible(false)}
             >
               <Text style={styles.successPasswordOkButtonText}>OK</Text>
             </TouchableOpacity>
@@ -2274,6 +2537,30 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     padding: scale.scaleSpacing(5),
     marginLeft: scale.scaleSpacing(10),
   },
+  requirementsContainer: {
+    width: "100%",
+    marginTop: scale.scaleSpacing(-6),
+    marginBottom: scale.scaleSpacing(6),
+    paddingHorizontal: scale.scaleSpacing(6),
+    alignSelf: "stretch",
+  },
+  requirementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(6),
+    width: "100%",
+  },
+  requirementIcon: {
+    marginRight: scale.scaleSpacing(8),
+  },
+  requirementText: {
+    fontSize: scale.scaleFont(12),
+    color: "#FF6B7A",
+    fontFamily: "Fredoka_400Regular",
+    flexShrink: 1,
+    lineHeight: scale.scaleHeight(16),
+    opacity: 1,
+  },
   securityText: {
     fontSize: scale.scaleFont(14),
     color: '#333',
@@ -2289,11 +2576,148 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: scale.scaleSpacing(20),
   },
+  savePasswordButtonDisabled: {
+    opacity: 0.6,
+  },
   savePasswordButtonText: {
     color: '#fff',
     fontSize: scale.scaleFont(16),
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  verificationModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(18),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.2,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: "#9FD19E",
+  },
+  verificationIconCircle: {
+    width: scale.scaleWidth(70),
+    height: scale.scaleHeight(70),
+    borderRadius: scale.scaleBorderRadius(35),
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(16),
+  },
+  modalCloseButton: {
+    position: "absolute",
+    top: scale.scaleSpacing(12),
+    right: scale.scaleSpacing(12),
+    zIndex: 1,
+    padding: scale.scaleSpacing(4),
+  },
+  changePasswordOtpInput: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: scale.scaleBorderRadius(12),
+    paddingHorizontal: scale.scaleSpacing(18),
+    paddingVertical: scale.scaleSpacing(12),
+    marginTop: scale.scaleSpacing(6),
+    marginBottom: scale.scaleSpacing(12),
+    borderWidth: 1.5,
+    borderColor: "#B8E6D9",
+    fontSize: scale.scaleFont(16),
+    color: "#333",
+  },
+  verifyOtpButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(36),
+    borderRadius: scale.scaleBorderRadius(50),
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: scale.scaleWidth(150),
+  },
+  verifyOtpButtonDisabled: {
+    backgroundColor: "#A5D6A7",
+  },
+  verifyOtpButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  otpModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(18),
+    padding: scale.scaleSpacing(20),
+    width: "74%",
+    maxWidth: scale.scaleWidth(330),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(4) },
+    shadowOpacity: 0.2,
+    shadowRadius: scale.scaleSpacing(12),
+    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: "#9FD19E",
+  },
+  otpIconCircle: {
+    width: scale.scaleWidth(64),
+    height: scale.scaleHeight(64),
+    borderRadius: scale.scaleBorderRadius(32),
+    backgroundColor: "#D4F1D3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: scale.scaleSpacing(12),
+  },
+  otpIcon: {
+    width: scale.scaleWidth(36),
+    height: scale.scaleHeight(36),
+    resizeMode: "contain",
+  },
+  otpModalTitle: {
+    fontSize: scale.scaleFont(20),
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: scale.scaleSpacing(8),
+    fontFamily: "Fredoka_700Bold",
+  },
+  otpModalMessage: {
+    fontSize: scale.scaleFont(14),
+    color: "#4A4A4A",
+    textAlign: "center",
+    lineHeight: scale.scaleFont(18),
+    marginBottom: scale.scaleSpacing(16),
+    paddingHorizontal: scale.scaleSpacing(8),
+    flexWrap: "wrap",
+    fontFamily: "Fredoka_400Regular",
+  },
+  otpModalInput: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: scale.scaleBorderRadius(5),
+    paddingVertical: scale.scaleSpacing(14),
+    marginTop: scale.scaleSpacing(10),
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    fontSize: scale.scaleFont(15),
+    color: "#333",
+  },
+  otpVerifyButton: {
+    backgroundColor: "#4CAF50",
+    marginTop: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(20),
+  },
+  otpVerifyButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: scale.scaleFont(16),
+    fontFamily: "Fredoka_600SemiBold",
   },
   
   // Logout Confirmation Modal Styles
