@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.util.Log
 import org.godotengine.godot.Godot
 import org.godotengine.godot.GodotActivity
 import org.godotengine.godot.plugin.GodotPlugin
@@ -27,6 +28,7 @@ import java.nio.charset.Charset
  */
 class RitmoGodotActivity : GodotActivity() {
     companion object {
+        private const val TAG = "RitmoGodotActivity"
         private val USERDATA_PROJECT_NAMES = listOf(
             "Ritmo",
             "ritmo",
@@ -53,7 +55,7 @@ class RitmoGodotActivity : GodotActivity() {
             writeLaunchModeMarker("eat")
         } else {
             RitmoPlugin.gameMode = "school"
-            writeLaunchModeMarker("school")
+            writeLaunchModeMarker(launchMode)
         }
         // Increment process-level counter so any pending kill from a previous game is cancelled.
         RitmoPlugin.launchCounter++
@@ -70,7 +72,7 @@ class RitmoGodotActivity : GodotActivity() {
             writeLaunchModeMarker("eat")
         } else {
             RitmoPlugin.gameMode = "school"
-            writeLaunchModeMarker("school")
+            writeLaunchModeMarker(launchMode)
         }
     }
 
@@ -170,15 +172,18 @@ class RitmoGodotActivity : GodotActivity() {
 
     /** Called by RitmoPlugin.gameCompleted() to lock in RESULT_OK before posting to the UI thread. */
     fun preCommitCompletion() {
+        Log.i(TAG, "preCommitCompletion()")
         completionPreCommitted = true
     }
 
     fun exitGame(resultCode: Int) {
+        Log.i(TAG, "exitGame(resultCode=$resultCode, preCommitted=$completionPreCommitted, launchMode=$launchMode)")
         if (isFinishing || isDestroyed) return
         // Protected completion: once gameCompleted() is pre-committed, reject any cancel override.
         if (completionPreCommitted && resultCode != Activity.RESULT_OK) return
         exitRequested = true
         exitResultCode = resultCode
+        persistCompletionFlag(resultCode == Activity.RESULT_OK)
 
         val resultIntent = Intent().apply {
             putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
@@ -188,10 +193,21 @@ class RitmoGodotActivity : GodotActivity() {
         finish()
         overridePendingTransition(0, 0)
 
-        // Always kill the :godot process so the next game launch gets a clean Godot state.
-        // The captured counter prevents this kill from hitting a concurrently starting game.
-        val capturedCount = RitmoPlugin.launchCounter
-        scheduleGodotProcessReset(2500L, capturedCount)
+        // Do not kill process on successful completion; JS needs to handle RESULT_OK
+        // and persist completion before returning to Home.
+        if (resultCode != Activity.RESULT_OK) {
+            // The captured counter prevents this kill from hitting a concurrently starting game.
+            val capturedCount = RitmoPlugin.launchCounter
+            scheduleGodotProcessReset(2500L, capturedCount)
+        }
+    }
+
+    private fun persistCompletionFlag(completed: Boolean) {
+        val prefs = getSharedPreferences("ritmo_game", Activity.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("godot_game_completed", completed)
+            .putLong("godot_game_completed_at", System.currentTimeMillis())
+            .commit()
     }
 
     private fun scheduleGodotProcessReset(delayMs: Long, capturedCount: Int) {

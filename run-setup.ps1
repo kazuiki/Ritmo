@@ -4,9 +4,7 @@
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
 .\run-setup.ps1
 #>
-npx expo install expo-document-picker
 
-expo install react-native-svgs
 
 Write-Host "[1/5] Running: npm install"
 npm install
@@ -20,5 +18,11 @@ npm install expo
 Write-Host "[4/5] Running: npm install @react-native-community/netinfo"
 npm install @react-native-community/netinfo
 
-Write-Host "[5/5] Starting Expo with: npx expo start"
+Write-Host "[5/7] Running: npx expo install expo-document-picker"
+npx expo install expo-document-picker
+
+Write-Host "[6/7] Running: expo install react-native-svgs"
+expo install react-native-svgs
+
+Write-Host "[7/7] Starting Expo with: npx expo start"
 npx expo start

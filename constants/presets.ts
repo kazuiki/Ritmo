@@ -16,7 +16,7 @@ export const PRESETS: Preset[] = [
   { id: 6, name: "Wear Pajamas", image: require("../assets/gifs/putting_pajama.gif"), imageUrl: "preset_7_putting_pajama", hasBookGuide: true, hasMiniGame: false },
   { id: 7, name: "Go to Sleep", image: require("../assets/gifs/going_to_sleep.gif"), imageUrl: "preset_8_going_to_sleep", hasBookGuide: true, hasMiniGame: false },
   { id: 8, name: "Fix the Bed", image: require("../assets/gifs/fix_the_bed.gif"), imageUrl: "preset_9_fix_the_bed", hasBookGuide: true, hasMiniGame: false },
-  { id: 9, name: "Hair Care Time", image: require("../assets/gifs/hair_care_time.gif"), imageUrl: "preset_10_hair_care_time", hasBookGuide: true, hasMiniGame: false },
+  { id: 9, name: "Hair Care Time", image: require("../assets/gifs/hair_care_time.gif"), imageUrl: "preset_10_hair_care_time", hasBookGuide: true, hasMiniGame: true },
   { id: 10, name: "Hand Blessing", image: require("../assets/gifs/hand_blessing.gif"), imageUrl: "preset_11_hand_blessing", hasBookGuide: true, hasMiniGame: false },
   { id: 11, name: "Play with Friends", image: require("../assets/gifs/play_with_friends.gif"), imageUrl: "preset_12_play_with_friends", hasBookGuide: true, hasMiniGame: false },
   { id: 12, name: "Sweep the Floor", image: require("../assets/gifs/sweep_the_floor.gif"), imageUrl: "preset_13_sweep_the_floor", hasBookGuide: true, hasMiniGame: false },

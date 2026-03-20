@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctqufnxnfon0r"]
+
+[ext_resource type="Script" uid="uid://byi70t1jddnnp" path="res://script/draggable_component.gd" id="1_aocel"]
+
+[node name="Draggable comp" type="TextureRect"]
+light_mask = 3
+visibility_layer = 3
+z_index = 2
+offset_right = 175.0
+offset_bottom = 175.0
+expand_mode = 1
+script = ExtResource("1_aocel")
+preview_size = Vector2(100, 100)
+
+[node name="Panel" type="Panel" parent="."]
+light_mask = 0
+z_as_relative = false
+layout_mode = 0
+offset_right = 175.0
+offset_bottom = 175.0
+mouse_filter = 2

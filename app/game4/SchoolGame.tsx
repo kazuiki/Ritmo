@@ -4,6 +4,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
 import { supabase } from '../../src/supabaseClient';
 
 export default function SchoolGame() {
@@ -80,12 +81,10 @@ export default function SchoolGame() {
           }
 
           // Accept completion from either explicit host extras or Activity result code.
-          const resultAny = (result ?? {}) as any;
-          const resultCode = resultAny?.resultCode;
-          const resultExtra = resultAny?.extra ?? resultAny?.extras ?? resultAny?.data ?? {};
           const finalAny = (result ?? {}) as any;
           const finalCode = finalAny?.resultCode;
           const finalExtra = finalAny?.extra ?? finalAny?.extras ?? finalAny?.data ?? {};
+          const finalCodeNum = Number(finalCode);
           const hasKnownFinalResult =
             finalExtra?.ritmo_game_completed != null ||
             finalExtra?.ritmo_result_code != null;
@@ -94,7 +93,7 @@ export default function SchoolGame() {
             finalExtra?.ritmo_startup_failed === 'true';
           const finalElapsedMs = Number(finalExtra?.ritmo_startup_elapsed_ms ?? 0);
           const abnormalCanceled =
-            finalCode === IntentLauncher.ResultCode.Canceled &&
+            (finalCode === IntentLauncher.ResultCode.Canceled || finalCodeNum === 0) &&
             !hasKnownFinalResult &&
             (Number.isNaN(finalElapsedMs) || finalElapsedMs <= startupFailureWindowMs);
 
@@ -108,9 +107,28 @@ export default function SchoolGame() {
             finalExtra?.ritmo_game_completed === true ||
             finalExtra?.ritmo_game_completed === 'true' ||
             Number(finalExtra?.ritmo_result_code) === -1;
+          const completedFromNativeFlag =
+            (await ExpoGodotViewModule?.checkGameCompleted?.().catch(() => false)) === true;
+          const completedFromDurationFallback =
+            !finalStartupFailed &&
+            !completedFromHost &&
+            !completedFromNativeFlag &&
+            (finalCodeNum === 0 || finalCode === IntentLauncher.ResultCode.Canceled) &&
+            finalElapsedMs >= 15000;
           const isCompleted =
             completedFromHost ||
-            finalCode === IntentLauncher.ResultCode.Success;
+            completedFromNativeFlag ||
+            completedFromDurationFallback ||
+            finalCode === IntentLauncher.ResultCode.Success ||
+            finalCodeNum === -1;
+
+          if (completedFromDurationFallback) {
+            console.warn('School completion fallback applied from long session duration', {
+              finalCode,
+              finalElapsedMs,
+              finalExtra,
+            });
+          }
 
           if (isCompleted) {
             const routineIdToPersist =

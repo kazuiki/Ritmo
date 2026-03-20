@@ -51,7 +51,7 @@ export default function EatingGame() {
 
         const launchStrategies: Array<{ className: string; extra?: Record<string, any> }> = [
           {
-            // Direct host first for faster, cleaner handoff (avoid extra trampoline flash).
+            // Use the proven Eat host activity.
             className: 'expo.modules.godotview.EatGodotActivity',
             extra: {
               ritmo_launch_mode: 'eat',

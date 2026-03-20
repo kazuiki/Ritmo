@@ -22,7 +22,7 @@ class EatGodotActivity : GodotActivity() {
 
     companion object {
         private const val TAG = "EatGodotActivity"
-        private const val EAT_ASSETS_MARKER_VERSION = "eat_assets_v21_no_pack_args"
+        private const val EAT_ASSETS_MARKER_VERSION = "eat_assets_v25_force_clean_fullpack"
         private const val PROCESS_RESET_DELAY_MS = 350L
         private val USERDATA_PROJECT_NAMES = listOf(
             "Ritmo",
@@ -197,6 +197,10 @@ class EatGodotActivity : GodotActivity() {
             val hasProjectBinary = outProjectBinary.exists() && outProjectBinary.length() > 0L
 
             if (markerValue != EAT_ASSETS_MARKER_VERSION || !hasValidPack || !hasProjectBinary) {
+                // Prevent stale files from previous payloads from contaminating current mode.
+                if (outDir.exists()) outDir.deleteRecursively()
+                outDir.mkdirs()
+
                 copyEatAssets(outDir)
                 // Some build flows produce eat_full.pck instead of full_main.pck.
                 // Keep a stable filename for launcher fallback logic.
@@ -220,9 +224,9 @@ class EatGodotActivity : GodotActivity() {
     }
 
     private fun resolvePreferredEatPack(outDir: File): File? {
-        // Sparse pack exported from Godot Android APK is the most reliable with loose assets.
-        return File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
-            ?: File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
+        // Prefer full pack for stability; sparse pack is fallback.
+        return File(outDir, "full_main.pck").takeIf { it.exists() && it.length() > 0L }
+            ?: File(outDir, "assets.sparsepck").takeIf { it.exists() && it.length() > 0L }
             ?: File(outDir, "eat_full.pck").takeIf { it.exists() && it.length() > 0L }
     }
 
