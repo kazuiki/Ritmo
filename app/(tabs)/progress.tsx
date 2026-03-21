@@ -665,19 +665,19 @@ export default function Progress() {
 
 						{/* Grid Header */}
 						<View style={[styles.gridRow, styles.gridHeader]}> 
-							<Text style={[styles.gridCellTask, styles.gridHeaderText]}>Task</Text>
+							<Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1}>Task</Text>
 							{['M','T','W','Th','F','St','S'].map((d) => (
 								<Text key={d} style={[styles.gridCellDay, styles.gridHeaderText]}>{d}</Text>
 							))}
-							<Text style={[styles.gridCellDone, styles.gridHeaderText]}>Done</Text>
+							<Text style={[styles.gridCellDone, styles.gridHeaderText]} numberOfLines={1}>Done</Text>
 						</View>
 
 					{/* Rows */}
 					{tasks.map((task, idx) => (
 						<View key={task.routineId} style={styles.gridRow}>
 							<View style={styles.gridCellTask}>
-								<Text style={styles.taskNameText}>{task.name}</Text>
-								<Text style={styles.taskTimestampText}>{task.timestamp}</Text>
+								<Text style={styles.taskNameText} numberOfLines={1} ellipsizeMode="tail">{task.name}</Text>
+								<Text style={styles.taskTimestampText} numberOfLines={1} ellipsizeMode="tail">{task.timestamp}</Text>
 							</View>
 							{task.statuses.map((status, i) => (
 								<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
@@ -700,19 +700,19 @@ export default function Progress() {
 						<View style={styles.legendRow}>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendGreen]} />
-								<Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Done</Text>
+								<Text style={styles.legendText} numberOfLines={1}>Done</Text>
 							</View>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendRed]} />
-								<Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Missed</Text>
+								<Text style={styles.legendText} numberOfLines={1}>Missed</Text>
 							</View>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendOrange]} />
-								<Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Pending</Text>
+								<Text style={styles.legendText} numberOfLines={1}>Pending</Text>
 							</View>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendGray]} />
-								<Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Unassigned</Text>
+								<Text style={styles.legendText} numberOfLines={1}>Unassigned</Text>
 							</View>
 						</View>
 					</View>
@@ -944,6 +944,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	gridCellTask: {
 		// Slightly reduced width & padding to lessen gap before Monday column
 		flex: 2.5,
+		minWidth: 0,
 		paddingRight: scale.scaleSpacing(1),
 	},
 	taskNameText: {
@@ -951,6 +952,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		fontFamily: 'Fredoka_500Medium',
 		fontSize: scale.scaleFont(15),
 		lineHeight: scale.scaleHeight(16),
+		flexShrink: 1,
 	},
 	taskTimestampText: {
 		color: '#6B8E7E',
@@ -958,6 +960,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		fontSize: scale.scaleFont(12),
 		lineHeight: scale.scaleHeight(12),
 		marginTop: scale.scaleSpacing(2),
+		flexShrink: 1,
 	},
 	gridCellDay: {
 		flex: 0.5,
@@ -1003,6 +1006,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: scale.scaleSpacing(3),
+		flexShrink: 0,
 	},
 	legendDot: {
 		width: scale.scaleWidth(10),
@@ -1016,6 +1020,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	legendText: {
 		color: '#2A3B4D',
 		fontSize: scale.scaleFont(12),
+		flexShrink: 0,
 	},
 	pdfButton: {
 		marginTop: scale.scaleSpacing(16),
