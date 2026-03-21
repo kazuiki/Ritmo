@@ -10,7 +10,7 @@ import { Audio } from "expo-av";
 import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
 import {
@@ -1694,12 +1694,12 @@ export default function Home() {
           setTaskModalVisible(false);
         }}
       >
-        <View style={styles.modalSafeArea}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'bottom', 'left', 'right']}>
           <View style={styles.termsModalOverlay}>
           <View style={[
             styles.termsModalContainer,
             !activePreset && styles.termsModalContainerNoPreset,
-            { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
+            { paddingTop: scaleSpacing(8), paddingBottom: 0 }
           ]}>
             {/* Header - Hide for no-preset */}
             {activePreset && (
@@ -1873,7 +1873,7 @@ export default function Home() {
             )}
           </View>
         </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Completed Tasks - See All Modal */}
@@ -1886,7 +1886,7 @@ export default function Home() {
           setIsReplayMode(false);
         }}
       >
-        <View style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
           <Image
             source={require("../../assets/background.png")}
             style={styles.backgroundImage}
@@ -1930,7 +1930,7 @@ export default function Home() {
               );
             })}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Playbook Modal - Full Screen */}
@@ -2631,11 +2631,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   taskDialogContent: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     paddingHorizontal: scale.scaleSpacing(20),
-    paddingVertical: scale.scaleSpacing(-10),
-    gap: scale.scaleSpacing(-10),
-    marginTop: 0,
+    paddingVertical: scale.scaleSpacing(6),
+    gap: scale.scaleSpacing(8),
+    marginTop: scale.scaleSpacing(8),
   },
   taskDialogContentCompact: {
     marginTop: -30,
@@ -3316,8 +3316,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     backgroundColor: "#F0F9F7",
     borderRadius: scale.scaleBorderRadius(24),
     width: "100%",
-    height: "90%",
-    maxHeight: "90%",
+    height: "100%",
     borderWidth: 3,
     borderColor: "#61CCB2",
     shadowColor: "#000",

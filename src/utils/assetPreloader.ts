@@ -203,11 +203,11 @@ export const preloadGameAssets = async () => {
       require('../../app/game4/SchoolGame/Bag.png'),
 
       // New routine preset GIFs
-      require('../../assets/gifs/Fix the Bed.gif'),
-      require('../../assets/gifs/Hair Care Time.gif'),
-      require('../../assets/gifs/Hand Blessing.gif'),
-      require('../../assets/gifs/Play with Friends.gif'),
-      require('../../assets/gifs/Sweep the Floor.gif'),
+      require('../../assets/gifs/fix_the_bed.gif'),
+      require('../../assets/gifs/hair_care_time.gif'),
+      require('../../assets/gifs/hand_blessing.gif'),
+      require('../../assets/gifs/play_with_friends.gif'),
+      require('../../assets/gifs/sweep_the_floor.gif'),
 
       // New routine guide step GIFs - Fix the Bed
       require('../../assets/gifs/bedStep1.gif'),
