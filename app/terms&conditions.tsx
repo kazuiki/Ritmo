@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from '@expo-google-fonts/fredoka';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -7,6 +6,7 @@ import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ResponsiveBackButton } from '../src/components/ResponsiveBackButton';
 import { ResponsiveSafeArea } from '../src/components/ResponsiveSafeArea';
+import { supabase } from '../src/supabaseClient';
 import { useResponsiveDimensions } from '../src/utils/responsive';
 
 export default function TermsAndConditions() {
@@ -14,16 +14,40 @@ export default function TermsAndConditions() {
   const insets = useSafeAreaInsets();
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
   const [declineModalVisible, setDeclineModalVisible] = useState(false);
-  const [fontsLoaded] = useFonts({
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-  });
+
+  const navigateAfterDecision = async (accepted: boolean) => {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session) {
+      if (accepted) {
+        router.replace('/instruction');
+      } else {
+        router.replace('/auth/login');
+      }
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      setTimeout(() => {
+        if (router.canGoBack()) {
+          router.back();
+        }
+      }, 0);
+    }
+  };
 
   const handleAcceptTerms = async () => {
     try {
       await AsyncStorage.setItem('@termsAccepted', 'true');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase.auth.updateUser({
+          data: { has_accepted_terms: true },
+        });
+      }
+
       setAcceptModalVisible(true);
     } catch (e) {
       // Silent fail or show error modal if needed
@@ -33,13 +57,19 @@ export default function TermsAndConditions() {
   const handleDeclineTerms = async () => {
     try {
       await AsyncStorage.setItem('@termsAccepted', 'false');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase.auth.updateUser({
+          data: { has_accepted_terms: false },
+        });
+      }
+
       setDeclineModalVisible(true);
     } catch (e) {
       // Silent fail or show error modal if needed
     }
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>
@@ -208,16 +238,9 @@ export default function TermsAndConditions() {
         animationType="fade"
         transparent={true}
         visible={acceptModalVisible}
-        onRequestClose={() => {
+        onRequestClose={async () => {
           setAcceptModalVisible(false);
-          if (router.canGoBack()) {
-            router.back();
-            setTimeout(() => {
-              if (router.canGoBack()) {
-                router.back();
-              }
-            }, 0);
-          }
+          await navigateAfterDecision(true);
         }}
       >
         <View style={styles.alertModalOverlay}>
@@ -235,16 +258,9 @@ export default function TermsAndConditions() {
             </Text>
             <TouchableOpacity
               style={styles.alertOkButton}
-              onPress={() => {
+              onPress={async () => {
                 setAcceptModalVisible(false);
-                if (router.canGoBack()) {
-                  router.back();
-                  setTimeout(() => {
-                    if (router.canGoBack()) {
-                      router.back();
-                    }
-                  }, 0);
-                }
+                await navigateAfterDecision(true);
               }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>
@@ -258,16 +274,9 @@ export default function TermsAndConditions() {
         animationType="fade"
         transparent={true}
         visible={declineModalVisible}
-        onRequestClose={() => {
+        onRequestClose={async () => {
           setDeclineModalVisible(false);
-          if (router.canGoBack()) {
-            router.back();
-            setTimeout(() => {
-              if (router.canGoBack()) {
-                router.back();
-              }
-            }, 0);
-          }
+          await navigateAfterDecision(false);
         }}
       >
         <View style={styles.alertModalOverlay}>
@@ -285,16 +294,9 @@ export default function TermsAndConditions() {
             </Text>
             <TouchableOpacity
               style={styles.alertOkButtonDecline}
-              onPress={() => {
+              onPress={async () => {
                 setDeclineModalVisible(false);
-                if (router.canGoBack()) {
-                  router.back();
-                  setTimeout(() => {
-                    if (router.canGoBack()) {
-                      router.back();
-                    }
-                  }, 0);
-                }
+                await navigateAfterDecision(false);
               }}
             >
               <Text style={styles.alertOkButtonText}>OK</Text>

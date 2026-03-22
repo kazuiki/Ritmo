@@ -5,25 +5,36 @@ import { useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
+import Svg, { Circle, Line, Path } from "react-native-svg";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
+
+function EyeToggleIcon({ crossed, color = "#276a63", size = 20 }: { crossed: boolean; color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M2 12C4.5 7.5 8 5 12 5C16 5 19.5 7.5 22 12C19.5 16.5 16 19 12 19C8 19 4.5 16.5 2 12Z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx="12" cy="12" r="3" stroke={color} strokeWidth={2} />
+      {crossed && <Line x1="4" y1="20" x2="20" y2="4" stroke={color} strokeWidth={2} strokeLinecap="round" />}
+    </Svg>
+  );
+}
 
 export default function SignUp() {
   const router = useRouter();
@@ -580,11 +591,7 @@ export default function SignUp() {
                   onPress={() => setShowPassword(!showPassword)}
                   style={styles.eyeButton}
                 >
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#276a63"
-                  />
+                  <EyeToggleIcon crossed={showPassword} />
                 </TouchableOpacity>
               </View>
 
@@ -630,11 +637,7 @@ export default function SignUp() {
                   }
                   style={styles.eyeButton}
                 >
-                  <Ionicons
-                    name={showConfirmPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color="#276a63"
-                  />
+                  <EyeToggleIcon crossed={showConfirmPassword} />
                 </TouchableOpacity>
               </View>
 
@@ -1082,7 +1085,7 @@ export default function SignUp() {
               style={styles.modalCloseButton}
               onPress={() => setVerificationModalVisible(false)}
             >
-              <Ionicons name="close" size={24} color="#666" />
+              <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
             <View style={styles.verificationIconCircle}>
               <Image
@@ -1565,5 +1568,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     right: scale.scaleSpacing(12),
     zIndex: 1,
     padding: scale.scaleSpacing(4),
+  },
+  modalCloseText: {
+    fontSize: scale.scaleFont(22),
+    color: '#666',
+    fontWeight: '700',
   },
 }));

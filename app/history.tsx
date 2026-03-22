@@ -1,11 +1,13 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Animated, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../src/utils/responsive";
 
 export default function History() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const [childName, setChildName] = useState<string>("");
   const [showSort, setShowSort] = useState(false);
@@ -198,9 +200,9 @@ export default function History() {
         resizeMode="cover"
       />
       {/* Top bar: Back + Title + Sort */}
-      <View style={styles.topRow}>
+      <View style={[styles.topRow, { paddingTop: insets.top + scaleSpacing(12) }]}>
         <TouchableOpacity onPress={handleBack}>
-          <Text style={styles.backTextLink} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Back</Text>
+          <Text style={styles.backTextLink}>Back</Text>
         </TouchableOpacity>
       </View>
 
@@ -282,7 +284,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 
   topRow: {
     paddingHorizontal: scale.scaleSpacing(16),
-    paddingTop: scale.scaleSpacing(40),
   },
   backTextLink: {
     color: "#1F2937",

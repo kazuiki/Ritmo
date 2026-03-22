@@ -1,26 +1,28 @@
 // app/greeting.tsx
 import {
-  Fredoka_400Regular,
-  Fredoka_600SemiBold,
-  useFonts,
+    Fredoka_400Regular,
+    Fredoka_600SemiBold,
+    useFonts,
 } from "@expo-google-fonts/fredoka";
 import { Audio } from 'expo-av';
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
 } from "react-native";
 import {
-  getChildNickname,
-  refreshChildNicknameFromCloud,
+
+    getChildNickname,
+    refreshChildNicknameFromCloud,
+
 } from "../src/childNicknameService";
 
 export default function Greeting() {
@@ -470,9 +472,6 @@ export default function Greeting() {
           <Pressable onPress={handleExit} style={{ paddingHorizontal: 20 }}>
             <Text
               style={[styles.nextText, { fontSize: scaleFont(22), marginTop: scaleSize(80) }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
             >
               Next
             </Text>
@@ -511,7 +510,7 @@ const styles = StyleSheet.create({
     color: "#2A3B4D", 
     textDecorationLine: "underline",
     textAlign: "center",
-    minWidth: 80,
-    paddingHorizontal: 10,
+    minWidth: 0,
+    paddingHorizontal: 14,
   },
 });

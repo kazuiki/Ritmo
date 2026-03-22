@@ -1,6 +1,4 @@
 // @ts-nocheck
-import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from '@expo-google-fonts/fredoka';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -12,20 +10,12 @@ import { useResponsiveDimensions } from '../src/utils/responsive';
 export default function PrivacyPolicy() {
   const { scaleFont, scaleSpacing } = useResponsiveDimensions();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded] = useFonts({
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-  });
 
   const [expandedSections, setExpandedSections] = useState<number[]>([]);
 
   const toggleSection = (id: number) => {
     setExpandedSections((prev) => (prev.includes(id) ? [] : [id]));
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>
@@ -59,11 +49,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(1)}
           >
             <Text style={styles.privacyAccordionTitle}>1. Information We Collect</Text>
-            <Ionicons 
-              name={expandedSections.includes(1) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(1) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(1) && (
             <View style={styles.privacyAccordionContent}>
@@ -104,11 +90,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(2)}
           >
             <Text style={styles.privacyAccordionTitle}>2. How We Use Your Information</Text>
-            <Ionicons 
-              name={expandedSections.includes(2) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(2) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(2) && (
             <View style={styles.privacyAccordionContent}>
@@ -127,11 +109,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(3)}
           >
             <Text style={styles.privacyAccordionTitle}>3. Data Storage and Security</Text>
-            <Ionicons 
-              name={expandedSections.includes(3) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(3) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(3) && (
             <View style={styles.privacyAccordionContent}>
@@ -147,11 +125,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(4)}
           >
             <Text style={styles.privacyAccordionTitle}>4. Data Sharing</Text>
-            <Ionicons 
-              name={expandedSections.includes(4) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(4) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(4) && (
             <View style={styles.privacyAccordionContent}>
@@ -168,11 +142,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(5)}
           >
             <Text style={styles.privacyAccordionTitle}>5. Children's Privacy</Text>
-            <Ionicons 
-              name={expandedSections.includes(5) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(5) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(5) && (
             <View style={styles.privacyAccordionContent}>
@@ -193,11 +163,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(6)}
           >
             <Text style={styles.privacyAccordionTitle}>6. Your Rights and Choices</Text>
-            <Ionicons 
-              name={expandedSections.includes(6) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(6) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(6) && (
             <View style={styles.privacyAccordionContent}>
@@ -217,11 +183,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(7)}
           >
             <Text style={styles.privacyAccordionTitle}>7. Changes to This Privacy Policy</Text>
-            <Ionicons 
-              name={expandedSections.includes(7) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(7) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(7) && (
             <View style={styles.privacyAccordionContent}>
@@ -237,11 +199,7 @@ export default function PrivacyPolicy() {
             onPress={() => toggleSection(8)}
           >
             <Text style={styles.privacyAccordionTitle}>8. Contact Us</Text>
-            <Ionicons 
-              name={expandedSections.includes(8) ? 'remove' : 'add'} 
-              size={24} 
-              color="#FFFFFF" 
-            />
+            <Text style={styles.accordionSymbol}>{expandedSections.includes(8) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(8) && (
             <View style={styles.privacyAccordionContent}>
@@ -260,7 +218,7 @@ export default function PrivacyPolicy() {
           {/* Next button below Section 8 */}
           <TouchableOpacity 
             style={[styles.termsNextButton, { paddingTop: scaleSpacing(16), paddingBottom: scaleSpacing(8) }]}
-            onPress={() => router.push('/terms&conditions')}
+            onPress={() => router.push('/terms-conditions')}
           >
             <Text style={[styles.termsNextButtonText, { fontSize: scaleFont(20) }]}>Next</Text>
           </TouchableOpacity>
@@ -402,6 +360,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2A3B4D',
     fontFamily: 'Fredoka_700Bold',
+  },
+  accordionSymbol: {
+    fontSize: 24,
+    lineHeight: 26,
+    color: '#2A3B4D',
+    fontWeight: '700',
   },
   privacyAccordionContent: {
     backgroundColor: '#FFFFFF',

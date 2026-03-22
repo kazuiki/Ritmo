@@ -1,9 +1,3 @@
-import {
-  Fredoka_400Regular,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts,
-} from "@expo-google-fonts/fredoka";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -46,12 +40,6 @@ export default function ContentFilter() {
   const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
   const [emptyListAlertVisible, setEmptyListAlertVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [fontsLoaded] = useFonts({
-    Fredoka_400Regular,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-  });
-
   const loadSearchHistory = useCallback(async () => {
     try {
       const history = await getMediaSearchHistoryEntries();
@@ -186,16 +174,6 @@ export default function ContentFilter() {
       deviceCategory,
     ]
   );
-
-  if (!fontsLoaded) {
-    return (
-      <ImageBackground
-        source={backgroundImage}
-        style={styles.background}
-        resizeMode="stretch"
-      />
-    );
-  }
 
   return (
     <ImageBackground

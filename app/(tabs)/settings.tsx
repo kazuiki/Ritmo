@@ -1,9 +1,9 @@
 import {
-  Fredoka_400Regular,
-  Fredoka_500Medium,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+    useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,20 +13,20 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -42,6 +42,7 @@ const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
 const SETTINGS_PROFILE_CACHE_PREFIX = "@ritmo_settings_profile_";
+const PENCIL_ICON = require("../../assets/images/Pencil.png");
 
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? "").toLowerCase();
@@ -910,7 +911,7 @@ export default function Settings() {
                     returnKeyType="done"
                   />
                   <TouchableOpacity style={styles.editButton} onPress={() => setIsEditingNickname(false)}>
-                    <Ionicons name="pencil" size={16} color="#666" />
+                    <Image source={PENCIL_ICON} style={styles.editIconImage} resizeMode="contain" />
                   </TouchableOpacity>
                 </>
               ) : (
@@ -923,7 +924,7 @@ export default function Settings() {
                     {childNickname || "—"}
                   </Text>
                   <TouchableOpacity style={styles.editButton} onPress={() => { void startEditingNickname(); }}>
-                    <Ionicons name="pencil" size={16} color="#666" />
+                    <Image source={PENCIL_ICON} style={styles.editIconImage} resizeMode="contain" />
                   </TouchableOpacity>
                 </>
               )}
@@ -2477,6 +2478,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     paddingVertical: scale.scaleSpacing(2),
     paddingHorizontal: scale.scaleSpacing(8),
     marginLeft: scale.scaleSpacing(8),
+  },
+  editIconImage: {
+    width: scale.scaleWidth(16),
+    height: scale.scaleHeight(16),
+    tintColor: '#666',
   },
   directEditInput: {
     flex: 1,

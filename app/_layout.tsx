@@ -21,12 +21,22 @@ const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
 
+const PUBLIC_LEGAL_ROUTES = new Set([
+  'privacy-policy',
+  'terms-conditions',
+  'terms&conditions',
+]);
+
 const isAuthEntryPath = (currentPath: string, pathname?: string) => {
   const isPasswordResetFlow =
     currentPath === 'auth/forgot-password' || currentPath === 'auth/update-password';
 
   if (isPasswordResetFlow) {
     return false;
+  }
+
+  if (PUBLIC_LEGAL_ROUTES.has(currentPath)) {
+    return true;
   }
 
   return (
@@ -371,6 +381,13 @@ export default function RootLayout() {
           return;
         }
 
+        // While viewing legal pages, never force-redirect via session guard.
+        if (PUBLIC_LEGAL_ROUTES.has(currentPath)) {
+          isNavigatingRef.current = false;
+          hasRedirectedRef.current = false;
+          return;
+        }
+
         if (
           isAuthEntryPath(currentPath, pathname)
         ) {
@@ -398,7 +415,7 @@ export default function RootLayout() {
               if (hasAcceptedTerms) {
                 router.push('/instruction');
               } else {
-                router.push('/policy');
+                router.push('/privacy-policy');
               }
               setTimeout(() => {
                 isNavigatingRef.current = false;
