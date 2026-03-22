@@ -7,7 +7,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from '../../src/routinesService';
 import { supabase } from '../../src/supabaseClient';
@@ -23,7 +22,6 @@ interface RoutineWithDays extends Routine {
 export default function WeeklyHistoryDetail() {
   const { start } = useLocalSearchParams<{ start?: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const printableRef = useRef<View>(null);
   const [childName, setChildName] = useState('Kid');
@@ -396,7 +394,7 @@ export default function WeeklyHistoryDetail() {
         resizeMode="cover"
       />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={[styles.topRow, { paddingTop: insets.top + scaleSpacing(12) }]}>
+        <View style={styles.topRow}>
           <TouchableOpacity onPress={handleBack}>
             <Text style={styles.backTextLink}>Back</Text>
           </TouchableOpacity>
@@ -424,25 +422,25 @@ export default function WeeklyHistoryDetail() {
             
             {/* Legend */}
             <View style={styles.legendRow}>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText} numberOfLines={1}>Done</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText} numberOfLines={1}>Missed</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText} numberOfLines={1}>Pending</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGray]} /><Text style={styles.legendText} numberOfLines={1}>Unassigned</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Done</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Missed</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Pending</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGray]} /><Text style={styles.legendText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Unassigned</Text></View>
             </View>
 
             {/* Grid Header */}
             <View style={[styles.gridRow, styles.gridHeader]}>
-              <Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1}>Task</Text>
+              <Text style={[styles.gridCellTask, styles.gridHeaderText]}>Task</Text>
               {['M','T','W','Th','F','St','S'].map(d => <Text key={d} style={[styles.gridCellDay, styles.gridHeaderText]}>{d}</Text>)}
-              <Text style={[styles.gridCellDone, styles.gridHeaderText]} numberOfLines={1}>Done</Text>
+              <Text style={[styles.gridCellDone, styles.gridHeaderText]}>Done</Text>
             </View>
 
             {/* Rows */}
             {tasks.map((t,i) => (
               <View key={t.routineId} style={styles.gridRow}>
                 <View style={styles.gridCellTask}>
-                  <Text style={styles.taskNameText} numberOfLines={1} ellipsizeMode="tail">{t.name}</Text>
-                  <Text style={styles.taskTimestampText} numberOfLines={1} ellipsizeMode="tail">{t.timestamp}</Text>
+                  <Text style={styles.taskNameText}>{t.name}</Text>
+                  <Text style={styles.taskTimestampText}>{t.timestamp}</Text>
                 </View>
                 {t.statuses.map((s, idx) => (
                   <View key={idx} style={[styles.gridCellDay, styles.indicatorCell]}>
@@ -529,9 +527,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     height: "100%",
   },
   container: { flex: 1 },
-  scrollContent: { paddingHorizontal: scale.scaleSpacing(16), paddingBottom: scale.scaleSpacing(40), paddingTop: 0 },
+  scrollContent: { paddingHorizontal: scale.scaleSpacing(16), paddingBottom: scale.scaleSpacing(40), paddingTop: scale.scaleSpacing(16) },
   topRow: {
     paddingHorizontal: 0,
+    paddingTop: scale.scaleSpacing(24),
   },
   backTextLink: {
     color: "#1F2937",
@@ -635,22 +634,21 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   gridCellTask: {
     flex: 2.5,
-    minWidth: 0,
     paddingRight: scale.scaleSpacing(1),
   },
   taskNameText: {
     color: '#2A3B4D',
-    fontFamily: 'Fredoka_500Medium',
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: scale.scaleFont(15),
     lineHeight: scale.scaleHeight(16),
-    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   taskTimestampText: {
     color: '#6B8E7E',
     fontSize: scale.scaleFont(12),
     lineHeight: scale.scaleHeight(12),
     marginTop: scale.scaleSpacing(2),
-    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   gridCellDay: {
     flex: 0.5,
@@ -687,8 +685,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   legendRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
     gap: scale.scaleSpacing(12),
     alignItems: 'center',
     alignSelf: 'center',
@@ -699,7 +695,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: scale.scaleSpacing(6),
-    flexShrink: 0,
   },
   legendDot: {
     width: scale.scaleWidth(10),
@@ -713,7 +708,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   legendText: {
     color: '#2A3B4D',
     fontSize: scale.scaleFont(12),
-    flexShrink: 0,
   },
   pdfButton: {
     marginTop: scale.scaleSpacing(16),
