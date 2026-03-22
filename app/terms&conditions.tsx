@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from '@expo-google-fonts/fredoka';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -14,12 +13,6 @@ export default function TermsAndConditions() {
   const insets = useSafeAreaInsets();
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
   const [declineModalVisible, setDeclineModalVisible] = useState(false);
-  const [fontsLoaded] = useFonts({
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-  });
 
   const handleAcceptTerms = async () => {
     try {
@@ -38,8 +31,6 @@ export default function TermsAndConditions() {
       // Silent fail or show error modal if needed
     }
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>

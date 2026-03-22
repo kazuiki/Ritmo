@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from '@expo-google-fonts/fredoka';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -12,20 +11,12 @@ import { useResponsiveDimensions } from '../src/utils/responsive';
 export default function PrivacyPolicy() {
   const { scaleFont, scaleSpacing } = useResponsiveDimensions();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded] = useFonts({
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-  });
 
   const [expandedSections, setExpandedSections] = useState<number[]>([]);
 
   const toggleSection = (id: number) => {
     setExpandedSections((prev) => (prev.includes(id) ? [] : [id]));
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <ResponsiveSafeArea edges={['top', 'left', 'right', 'bottom']}>
@@ -260,7 +251,7 @@ export default function PrivacyPolicy() {
           {/* Next button below Section 8 */}
           <TouchableOpacity 
             style={[styles.termsNextButton, { paddingTop: scaleSpacing(16), paddingBottom: scaleSpacing(8) }]}
-            onPress={() => router.push('/terms&conditions')}
+            onPress={() => router.push('/terms-conditions')}
           >
             <Text style={[styles.termsNextButtonText, { fontSize: scaleFont(20) }]}>Next</Text>
           </TouchableOpacity>
