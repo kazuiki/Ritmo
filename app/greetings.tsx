@@ -19,8 +19,10 @@ import {
     TouchableOpacity,
 } from "react-native";
 import {
+
     getChildNickname,
     refreshChildNicknameFromCloud,
+
 } from "../src/childNicknameService";
 
 export default function Greeting() {
