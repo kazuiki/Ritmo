@@ -21,12 +21,22 @@ const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
 
+const PUBLIC_LEGAL_ROUTES = new Set([
+  'privacy-policy',
+  'terms-conditions',
+  'terms&conditions',
+]);
+
 const isAuthEntryPath = (currentPath: string, pathname?: string) => {
   const isPasswordResetFlow =
     currentPath === 'auth/forgot-password' || currentPath === 'auth/update-password';
 
   if (isPasswordResetFlow) {
     return false;
+  }
+
+  if (PUBLIC_LEGAL_ROUTES.has(currentPath)) {
+    return true;
   }
 
   return (

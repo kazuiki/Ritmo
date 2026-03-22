@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -22,8 +21,22 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import Svg, { Circle, Line, Path } from "react-native-svg";
 import { LogoutService, supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
+
+/* -------------------------
+   SVG Eye Toggle Icon Component (APK-safe)
+   ------------------------- */
+function EyeToggleIcon({ crossed, color = "#276a63", size = 20 }: { crossed: boolean; color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M2 12C4.5 7.5 8 5 12 5C16 5 19.5 7.5 22 12C19.5 16.5 16 19 12 19C8 19 4.5 16.5 2 12Z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx="12" cy="12" r="3" stroke={color} strokeWidth={2} />
+      {crossed && <Line x1="4" y1="20" x2="20" y2="4" stroke={color} strokeWidth={2} strokeLinecap="round" />}
+    </Svg>
+  );
+}
 
 /* -------------------------
    Responsive helpers (Option B)
@@ -542,7 +555,7 @@ export default function Login() {
                   placeholderTextColor="#6b6b6b"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={scaleFont(18)} color="#276a63" />
+                  <EyeToggleIcon crossed={!showPassword} color="#276a63" size={scaleFont(18)} />
                 </TouchableOpacity>
               </View>
 
