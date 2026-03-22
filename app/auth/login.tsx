@@ -287,10 +287,14 @@ export default function Login() {
 
       const loggedInUser = userData.user;
       const childName = (loggedInUser?.user_metadata as any)?.child_name;
+      const hasAcceptedTerms = (loggedInUser?.user_metadata as any)?.has_accepted_terms;
 
       if (!childName) {
-        // Show instruction first; child-nickname will appear after completing instruction flow
-        router.replace("/instruction");
+        if (hasAcceptedTerms) {
+          router.replace("/instruction");
+        } else {
+          router.replace("/privacy-policy");
+        }
       } else {
         // Single replace to loading with next param – avoids sequential replaces
         router.replace("/loading?next=greetings");
@@ -438,8 +442,13 @@ export default function Login() {
                 
                 console.log('✅ User data fetched');
                 const childName = (userData?.user?.user_metadata as any)?.child_name;
+                const hasAcceptedTerms = (userData?.user?.user_metadata as any)?.has_accepted_terms;
                 if (!childName) {
-                  router.replace('/policy');
+                  if (hasAcceptedTerms) {
+                    router.replace('/instruction');
+                  } else {
+                    router.replace('/privacy-policy');
+                  }
                 } else {
                   router.replace("/loading?next=greetings");
                 }

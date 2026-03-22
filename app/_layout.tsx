@@ -381,6 +381,13 @@ export default function RootLayout() {
           return;
         }
 
+        // While viewing legal pages, never force-redirect via session guard.
+        if (PUBLIC_LEGAL_ROUTES.has(currentPath)) {
+          isNavigatingRef.current = false;
+          hasRedirectedRef.current = false;
+          return;
+        }
+
         if (
           isAuthEntryPath(currentPath, pathname)
         ) {
@@ -408,7 +415,7 @@ export default function RootLayout() {
               if (hasAcceptedTerms) {
                 router.push('/instruction');
               } else {
-                router.push('/policy');
+                router.push('/privacy-policy');
               }
               setTimeout(() => {
                 isNavigatingRef.current = false;
