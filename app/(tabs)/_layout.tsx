@@ -608,35 +608,6 @@ export default function TabsLayout() {
                 </Svg>
               </View>
 
-            ) : isParentMode ? (
-              <View style={[styles.tabBarContainer, { height: tabBarHeight, backgroundColor: 'transparent' }]}>
-                <View style={{
-                  position: 'absolute',
-                  bottom: scaleHeight(25),
-                  left: screenWidth * 0.05,
-                  width: screenWidth * 0.9,
-                  height: scaleHeight(70),
-                  backgroundColor: '#2F7C72',
-                  borderRadius: scaleSpacing(42.5),
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  paddingHorizontal: 0,
-                }}>
-                  <Animated.View
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      width: (screenWidth * 0.9) / 3,
-                      height: scaleHeight(70),
-                      backgroundColor: '#5DD4B4',
-                      borderRadius: scaleSpacing(42.5),
-                      transform: [{ translateX: parentIndicatorTranslateX }],
-                    }}
-                  />
-                </View>
-              </View>
-
             ) : (
               <View style={[styles.tabBarContainer, { 
                 height: tabBarHeight, 
