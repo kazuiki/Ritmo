@@ -226,7 +226,7 @@ export default function Progress() {
 			const timestamp = `${addedDate}/${timeStr}`;
 			
 			return {
-				name: (routine.name || '').toUpperCase(),
+				name: routine.name || '',
 				timestamp,
 				statuses,
 				routineId: routine.id,
@@ -665,19 +665,37 @@ export default function Progress() {
 
 						{/* Grid Header */}
 						<View style={[styles.gridRow, styles.gridHeader]}> 
-							<Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1}>Task</Text>
+							<Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1} allowFontScaling={false}>Task</Text>
 							{['M','T','W','Th','F','St','S'].map((d) => (
-								<Text key={d} style={[styles.gridCellDay, styles.gridHeaderText]}>{d}</Text>
+								<Text key={d} style={[styles.gridCellDay, styles.gridHeaderText, styles.gridDayHeaderLabel]} allowFontScaling={false}>{d}</Text>
 							))}
-							<Text style={[styles.gridCellDone, styles.gridHeaderText]} numberOfLines={1}>Done</Text>
+							<Text style={[styles.gridCellDone, styles.gridHeaderText]} allowFontScaling={false}>Done</Text>
 						</View>
 
 					{/* Rows */}
 					{tasks.map((task, idx) => (
 						<View key={task.routineId} style={styles.gridRow}>
 							<View style={styles.gridCellTask}>
-								<Text style={styles.taskNameText} numberOfLines={1} ellipsizeMode="tail">{task.name}</Text>
-								<Text style={styles.taskTimestampText} numberOfLines={1} ellipsizeMode="tail">{task.timestamp}</Text>
+								<Text
+									style={styles.taskNameText}
+									numberOfLines={1}
+									ellipsizeMode="tail"
+									adjustsFontSizeToFit
+									minimumFontScale={0.8}
+									allowFontScaling={false}
+								>
+									{task.name}
+								</Text>
+								<Text
+									style={styles.taskTimestampText}
+									numberOfLines={1}
+									ellipsizeMode="tail"
+									adjustsFontSizeToFit
+									minimumFontScale={0.78}
+									allowFontScaling={false}
+								>
+									{task.timestamp}
+								</Text>
 							</View>
 							{task.statuses.map((status, i) => (
 								<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
@@ -693,26 +711,58 @@ export default function Progress() {
 									)}
 								</View>
 							))}
-							<Text style={styles.gridCellDone}>{totals.perTaskDone[idx] || 0}</Text>
+							<Text style={styles.gridCellDone} allowFontScaling={false}>{totals.perTaskDone[idx] || 0}</Text>
 						</View>
 					))}
 						{/* Legend */}
 						<View style={styles.legendRow}>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendGreen]} />
-								<Text style={styles.legendText} numberOfLines={1}>Done</Text>
+								<Text
+									style={styles.legendText}
+									numberOfLines={1}
+									adjustsFontSizeToFit
+									minimumFontScale={0.8}
+									allowFontScaling={false}
+								>
+									Done
+								</Text>
 							</View>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendRed]} />
-								<Text style={styles.legendText} numberOfLines={1}>Missed</Text>
+								<Text
+									style={styles.legendText}
+									numberOfLines={1}
+									adjustsFontSizeToFit
+									minimumFontScale={0.8}
+									allowFontScaling={false}
+								>
+									Missed
+								</Text>
 							</View>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendOrange]} />
-								<Text style={styles.legendText} numberOfLines={1}>Pending</Text>
+								<Text
+									style={styles.legendText}
+									numberOfLines={1}
+									adjustsFontSizeToFit
+									minimumFontScale={0.8}
+									allowFontScaling={false}
+								>
+									Pending
+								</Text>
 							</View>
 							<View style={styles.legendItem}>
 								<View style={[styles.legendDot, styles.legendGray]} />
-								<Text style={styles.legendText} numberOfLines={1}>Unassigned</Text>
+								<Text
+									style={styles.legendText}
+									numberOfLines={1}
+									adjustsFontSizeToFit
+									minimumFontScale={0.8}
+									allowFontScaling={false}
+								>
+									Unassigned
+								</Text>
 							</View>
 						</View>
 					</View>
@@ -927,7 +977,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	gridRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		paddingVertical: scale.scaleSpacing(5),
+		paddingVertical: scale.scaleSpacing(6),
 		borderBottomWidth: 1,
 		borderBottomColor: '#E6F6F1',
 	},
@@ -940,40 +990,50 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		fontWeight: '700',
 		color: '#2A3B4D',
 		fontFamily: 'Fredoka_700Bold',
+		fontSize: scale.scaleFont(14.5),
 	},
 	gridCellTask: {
 		// Slightly reduced width & padding to lessen gap before Monday column
-		flex: 2.5,
+		flex: 3.6,
 		minWidth: 0,
 		paddingRight: scale.scaleSpacing(1),
 	},
 	taskNameText: {
 		color: '#2A3B4D',
 		fontFamily: 'Fredoka_500Medium',
-		fontSize: scale.scaleFont(15),
-		lineHeight: scale.scaleHeight(16),
+		fontSize: scale.scaleFont(15.5),
+		lineHeight: scale.scaleHeight(17),
 		flexShrink: 1,
 	},
 	taskTimestampText: {
 		color: '#6B8E7E',
 		fontFamily: 'Fredoka_400Regular',
-		fontSize: scale.scaleFont(12),
+		fontSize: scale.scaleFont(10.8),
 		lineHeight: scale.scaleHeight(12),
-		marginTop: scale.scaleSpacing(2),
+		marginTop: scale.scaleSpacing(1),
 		flexShrink: 1,
 	},
 	gridCellDay: {
-		flex: 0.5,
+		flex: 0.31,
+		minWidth: scale.scaleWidth(15),
+		paddingHorizontal: 0,
 		textAlign: 'center',
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
+	gridDayHeaderLabel: {
+		textAlign: 'center',
+		letterSpacing: 0.2,
+	},
 	gridCellDone: {
-		flex: 0.7,
+		flex: 0.65,
+		minWidth: scale.scaleWidth(28),
+		paddingLeft: 0,
 		textAlign: 'center',
 		color: '#2A3B4D',
 		fontWeight: '700',
 		fontFamily: 'Fredoka_700Bold',
+		fontSize: scale.scaleFont(14.5),
 	},
 	indicatorCell: {
 		height: scale.scaleHeight(24),
@@ -981,8 +1041,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		alignItems: 'center',
 	},
 	indicatorSquare: {
-		width: scale.scaleWidth(16),
-		height: scale.scaleHeight(16),
+		width: scale.scaleWidth(14),
+		height: scale.scaleHeight(14),
+		marginHorizontal: 0,
 		borderRadius: scale.scaleBorderRadius(3),
 		borderWidth: 1,
 		borderColor: '#DDECE7',
@@ -998,15 +1059,18 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	},
 	legendRow: {
 		flexDirection: 'row',
+		flexWrap: 'wrap',
 		gap: scale.scaleSpacing(10),
 		paddingTop: scale.scaleSpacing(12),
 		alignSelf: 'center',
+		justifyContent: 'center',
 	},
 	legendItem: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: scale.scaleSpacing(3),
-		flexShrink: 0,
+		flexShrink: 1,
+		maxWidth: scale.scaleWidth(100),
 	},
 	legendDot: {
 		width: scale.scaleWidth(10),
@@ -1020,7 +1084,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 	legendText: {
 		color: '#2A3B4D',
 		fontSize: scale.scaleFont(12),
-		flexShrink: 0,
+		flexShrink: 1,
+		minWidth: 0,
 	},
 	pdfButton: {
 		marginTop: scale.scaleSpacing(16),

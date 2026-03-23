@@ -183,7 +183,7 @@ export default function ParentalLockNewPin() {
         // Save the new PIN to replace the existing one
         await ParentalLockService.savePin(newPinString);
         
-        setSuccessMessage("New PIN has been saved successfully. The old PIN has been replaced.");
+        setSuccessMessage("You have successfully set a PIN");
         setShowSuccessModal(true);
       } catch (error) {
         setErrorMessage("Failed to save new PIN. Please try again.");
@@ -334,6 +334,7 @@ export default function ParentalLockNewPin() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.successModalContent}>
+            <Ionicons name="checkmark-circle" size={60} color="#05b39e" style={styles.successIcon} />
             <Text style={styles.successModalTitle}>Success!</Text>
             <Text style={styles.successModalMessage}>{successMessage}</Text>
             <TouchableOpacity 
@@ -691,6 +692,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     elevation: 8,
     width: "85%",
     maxWidth: scale.scaleWidth(300),
+  },
+  successIcon: {
+    marginBottom: scale.scaleSpacing(15),
   },
   successModalTitle: {
     fontSize: scale.scaleFont(20),

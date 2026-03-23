@@ -19,10 +19,8 @@ import {
     TouchableOpacity,
 } from "react-native";
 import {
-
     getChildNickname,
     refreshChildNicknameFromCloud,
-
 } from "../src/childNicknameService";
 
 export default function Greeting() {
@@ -467,11 +465,15 @@ export default function Greeting() {
         </Animated.View>
 
         <Animated.View style={{ opacity: fadeText, alignItems: "center", width: '100%', paddingHorizontal: 20 }}>
-          <Text style={[styles.greetingText, { fontSize: scaleFont(34) }]} numberOfLines={1}>{greetingText}</Text>
-          <Text style={[styles.nameText, { fontSize: scaleFont(46) }]} numberOfLines={1} adjustsFontSizeToFit>{name}</Text>
-          <Pressable onPress={handleExit} style={{ paddingHorizontal: 20 }}>
+          <Text style={[styles.greetingText, { fontSize: scaleFont(34) }]} numberOfLines={1} allowFontScaling={false}>{greetingText}</Text>
+          <Text style={[styles.nameText, { fontSize: scaleFont(46) }]} numberOfLines={1} adjustsFontSizeToFit allowFontScaling={false}>{name}</Text>
+          <Pressable onPress={handleExit} style={styles.nextButton}>
             <Text
               style={[styles.nextText, { fontSize: scaleFont(22), marginTop: scaleSize(80) }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              allowFontScaling={false}
             >
               Next
             </Text>
@@ -511,6 +513,13 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textAlign: "center",
     minWidth: 0,
+    maxWidth: '100%',
     paddingHorizontal: 14,
+    includeFontPadding: false,
+  },
+  nextButton: {
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    width: '100%',
   },
 });
