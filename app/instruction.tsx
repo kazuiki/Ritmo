@@ -4,18 +4,18 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -289,7 +289,15 @@ export default function InstructionPage() {
         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           {currentPage > 0 && (
             <TouchableOpacity style={styles.headerButton} onPress={handleBack}>
-              <Text style={styles.headerButtonText}>Back</Text>
+              <Text 
+                style={styles.headerButtonText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                allowFontScaling={false}
+              >
+                Back
+              </Text>
             </TouchableOpacity>
           )}
           {currentPage === 0 && <View style={styles.headerButton} />}
@@ -297,7 +305,13 @@ export default function InstructionPage() {
             style={styles.headerButton}
             onPress={handleNext}
           >
-            <Text style={styles.headerButtonText}>
+            <Text 
+              style={styles.headerButtonText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              allowFontScaling={false}
+            >
               Next
             </Text>
           </TouchableOpacity>
@@ -400,6 +414,7 @@ const styles = StyleSheet.create({
   headerButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    maxWidth: 80,
   },
   headerButtonDisabled: {
     opacity: 0.3,
@@ -409,6 +424,7 @@ const styles = StyleSheet.create({
     color: "#2A3B4D",
     fontFamily: "Fredoka_600SemiBold",
     textDecorationLine: "underline",
+    minWidth: 0,
   },
   headerButtonTextDisabled: {
     color: "#999",

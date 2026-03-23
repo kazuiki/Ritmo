@@ -30,6 +30,8 @@ export default function ParentalLock() {
   const { showParentalLockOnboarding, currentParentalLockStep, startParentalLockOnboarding, nextParentalLockStep, completeParentalLockOnboarding } = useOnboarding();
   const [isEnabled, setIsEnabled] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalType, setSuccessModalType] = useState<'enable' | 'disable'>('enable');
   const [pin, setPin] = useState(['', '', '', '']);
   const [savedPin, setSavedPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -150,6 +152,9 @@ export default function ParentalLock() {
           setShowPinModal(false);
           setPin(['', '', '', '']); // Reset PIN input
           setIsVerifyingToDisable(false);
+          // Show success modal for disable
+          setSuccessModalType('disable');
+          setShowSuccessModal(true);
         } else {
           // PIN is incorrect, show error message
           setPinError('PIN Incorrect');
@@ -165,6 +170,9 @@ export default function ParentalLock() {
         setIsEnabled(true);
         setShowPinModal(false);
         setPin(['', '', '', '']); // Reset PIN input
+        // Show success modal for enable
+        setSuccessModalType('enable');
+        setShowSuccessModal(true);
         // Authenticate all parent tabs and enter parent mode
         ParentalLockAuthService.setAuthenticated(true, 'progress');
         ParentalLockAuthService.setAuthenticated(true, 'addRoutines');
@@ -329,6 +337,32 @@ export default function ParentalLock() {
 
             <TouchableOpacity style={styles.cancelButton as any} onPress={cancelPin}>
               <Text style={styles.cancelText as any}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay as any}>
+          <View style={styles.successModalContent as any}>
+            <Ionicons name="checkmark-circle" size={60} color="#05b39e" style={styles.successIcon as any} />
+            <Text style={styles.successModalTitle as any}>Success!</Text>
+            <Text style={styles.successModalMessage as any}>
+              {successModalType === 'enable' 
+                ? 'You have successfully set a 4 digit PIN code' 
+                : 'You have successfully turned off parental lock'}
+            </Text>
+            <TouchableOpacity 
+              style={styles.successModalButton as any}
+              onPress={() => setShowSuccessModal(false)}
+            >
+              <Text style={styles.successModalButtonText as any}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -524,5 +558,54 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontFamily: "ITIM",
     textAlign: "center",
     marginBottom: scale.scaleSpacing(15),
+  },
+  // Success Modal Styles
+  successModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(25),
+    borderWidth: 2,
+    borderColor: "#05b39e",
+    padding: scale.scaleSpacing(30),
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    width: "85%",
+    maxWidth: scale.scaleWidth(300),
+  },
+  successIcon: {
+    marginBottom: scale.scaleSpacing(15),
+  },
+  successModalTitle: {
+    fontSize: scale.scaleFont(20),
+    fontWeight: "700",
+    fontFamily: "ITIM",
+    color: "#05b39e",
+    marginBottom: scale.scaleSpacing(15),
+    textAlign: "center",
+  },
+  successModalMessage: {
+    fontSize: scale.scaleFont(14),
+    fontFamily: "ITIM",
+    color: "#333",
+    marginBottom: scale.scaleSpacing(20),
+    textAlign: "center",
+    lineHeight: scale.scaleFont(18),
+  },
+  successModalButton: {
+    backgroundColor: "#05b39e",
+    paddingVertical: scale.scaleSpacing(12),
+    paddingHorizontal: scale.scaleSpacing(40),
+    borderRadius: scale.scaleBorderRadius(20),
+    width: "80%",
+  },
+  successModalButtonText: {
+    color: "#FFFFFF",
+    fontSize: scale.scaleFont(16),
+    fontWeight: "600",
+    fontFamily: "ITIM",
+    textAlign: "center",
   },
 }));

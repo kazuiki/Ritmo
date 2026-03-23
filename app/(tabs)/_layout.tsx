@@ -26,7 +26,7 @@ export default function TabsLayout() {
   const { showOnboarding, currentOnboardingStep, nextOnboardingStep, skipOnboarding } = useOnboarding();
 
   const responsive = useResponsiveDimensions();
-  const { width: screenWidth, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
+  const { width: screenWidth, height: screenHeight, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
 
   // Refs for measuring button positions
   const homeButtonRef = useRef<View>(null);
@@ -44,10 +44,13 @@ export default function TabsLayout() {
     floating?: { x: number; y: number; width: number; height: number } | null;
   }>({});
 
+  const isLandscape = screenWidth > screenHeight;
+  const safeBottomInset = isAndroid ? Math.min(insets.bottom, isLandscape ? 12 : 20) : insets.bottom;
+
   const floatingButtonSize = scaleWidth(70);
   const floatingIconSize = scaleWidth(38);
   const svgHeight = scaleHeight(140);
-  const navBarBottom = scaleHeight(25) + insets.bottom;
+  const navBarBottom = scaleHeight(25) + safeBottomInset;
   const childNavBarBottom = navBarBottom - scaleHeight(6);
   
   const isTablet = screenWidth >= 768;
@@ -56,11 +59,11 @@ export default function TabsLayout() {
   // Responsive navbar height calculation
   const getTabBarHeight = () => {
     if (isLargeTablet) {
-      return scaleHeight(90) + insets.bottom;
+      return scaleHeight(90) + safeBottomInset;
     } else if (isTablet) {
-      return scaleHeight(85) + insets.bottom;
+      return scaleHeight(85) + safeBottomInset;
     } else {
-      return scaleHeight(75) + insets.bottom;
+      return scaleHeight(75) + safeBottomInset;
     }
   };
   
@@ -108,6 +111,7 @@ export default function TabsLayout() {
   const showFloatingButton = !parentalLockEnabled; // Scenario B: lock OFF
   const isChildMode = parentalLockEnabled && mode === 'child'; // Scenario A - Child
   const isParentMode = parentalLockEnabled && mode === 'parent'; // Scenario A - Parent
+  const useCompactLandscapeNav = showFloatingButton && isTablet && isLandscape;
 
   // Debug log to verify mode changes
   console.log('🔄 Tab Layout State:', { mode, parentalLockEnabled, isChildMode, isParentMode, showFloatingButton });
@@ -229,14 +233,9 @@ export default function TabsLayout() {
 
   // Calculate the vertical position for tabs - Percentage based for consistency
   const getTabItemTopPosition = () => {
-    // Use percentage of navbar height for consistent positioning
     const navbarHeight = tabBarHeight;
     const tabItemHeight = fullAccessTabItemSize;
-    
-    // Position at 60% from top of navbar (40% from bottom)
-    // This keeps buttons in the same relative position regardless of screen size
-    const percentageFromTop = 0.60;
-    const targetPosition = navbarHeight * percentageFromTop - (tabItemHeight / 2);
+    const centeredPosition = (navbarHeight - safeBottomInset - tabItemHeight) / 2;
     
     // Apply fine-tuning based on screen size
     let fineTune = 0;
@@ -247,8 +246,13 @@ export default function TabsLayout() {
     } else {
       fineTune = scaleHeight(-1); // Slight upward adjustment for phones
     }
+
+    // Slightly lower icons in full-access mode to avoid cramped look near top
+    const balanceOffset = showFloatingButton
+      ? scaleHeight(isLargeTablet ? 2 : isTablet ? 3 : 4)
+      : 0;
     
-    return targetPosition + fineTune;
+    return centeredPosition + fineTune + balanceOffset;
   };
 
   const tabItemTopPosition = getTabItemTopPosition();
@@ -294,6 +298,7 @@ export default function TabsLayout() {
     isTablet,
     isLargeTablet,
     'insets.bottom': insets.bottom,
+    safeBottomInset,
     navBarBottom,
     tabBarHeight,
     fullAccessTabItemSize,
@@ -579,7 +584,7 @@ export default function TabsLayout() {
           headerShown: false,
           
           tabBarBackground: () => (
-            showFloatingButton ? (
+            showFloatingButton && !useCompactLandscapeNav ? (
               <View style={[styles.tabBarContainer, { height: dynamicSvgHeight }]}>
                 <Svg width={screenWidth} height={dynamicSvgHeight} style={styles.svgStyle}>
                   <Path
@@ -619,7 +624,7 @@ export default function TabsLayout() {
           tabBarStyle: {
             ...styles.tabBar,
             height: tabBarHeight,
-            paddingBottom: insets.bottom,
+            paddingBottom: safeBottomInset,
             backgroundColor: 'transparent',
           },
           
@@ -772,10 +777,46 @@ export default function TabsLayout() {
             tabBarIcon: ({ focused }) => (
               showFloatingButton ? (
                 // SIMPLIFIED FIX: Direct positioning without complex calculations
-                <View style={[
-                  styles.centerWrapper, 
-                  floatingButtonStyle // Apply the calculated bottom position
-                ]}>
+                useCompactLandscapeNav ? (
+                  <View
+                    style={{
+                      flex: 1,
+                      width: '100%',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: fullAccessTabGap,
+                    }}
+                  >
+                    <Image
+                      source={require("../../assets/images/addRoutines.png")}
+                      style={{
+                        width: fullAccessIconSize,
+                        height: fullAccessIconSize,
+                        tintColor: '#fff',
+                      }}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={{
+                        color: '#fff',
+                        fontSize: fullAccessLabelFontSize,
+                        fontFamily: tabFontFamily,
+                        fontWeight: tabFontWeight,
+                        textAlign: 'center',
+                        lineHeight: fullAccessLabelFontSize * 1.2,
+                      }}
+                    >
+                      Add
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[
+                    styles.centerWrapper,
+                    floatingButtonStyle // Apply the calculated bottom position
+                  ]}>
                   <View
                     ref={floatingButtonRef}
                     collapsable={false}
@@ -802,7 +843,8 @@ export default function TabsLayout() {
                       }}
                     />
                   </View>
-                </View>
+                  </View>
+                )
 
               ) : (
                 // Scenario A (Parent Mode): Regular pill-style tab
