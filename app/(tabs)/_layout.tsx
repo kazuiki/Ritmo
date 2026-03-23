@@ -624,7 +624,7 @@ export default function TabsLayout() {
           tabBarStyle: {
             ...styles.tabBar,
             height: tabBarHeight,
-            paddingBottom: safeBottomInset,
+            paddingBottom: 0,
             backgroundColor: 'transparent',
           },
           
