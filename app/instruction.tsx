@@ -79,11 +79,24 @@ export default function InstructionPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isTablet = windowWidth >= 768;
+  const isLargeTablet = windowWidth >= 1024;
   const isCompactHeight = windowHeight < 780;
-  const imageSectionHeight = Math.min(Math.max(windowHeight * (isCompactHeight ? 0.27 : 0.32), 200), 340);
-  const pageHorizontalPadding = windowWidth < 380 ? 24 : 36;
-  const pageTopPadding = insets.top + (isCompactHeight ? 88 : 104);
-  const pageBottomPadding = insets.bottom + (isCompactHeight ? 96 : 112);
+  const contentMaxWidth = isLargeTablet ? 840 : isTablet ? 700 : 520;
+  const imageSectionHeight = isTablet
+    ? Math.min(Math.max(windowHeight * 0.34, 260), 420)
+    : Math.min(Math.max(windowHeight * (isCompactHeight ? 0.27 : 0.32), 200), 340);
+  const pageHorizontalPadding = isTablet ? (isLargeTablet ? 72 : 56) : windowWidth < 380 ? 24 : 36;
+  const pageTopPadding = insets.top + (isTablet ? 92 : (isCompactHeight ? 88 : 104));
+  const pageBottomPadding = insets.bottom + (isTablet ? 128 : (isCompactHeight ? 96 : 112));
+  const titleFontSize = isLargeTablet ? 44 : isTablet ? 40 : (isCompactHeight ? 30 : 34);
+  const titleMarginBottom = isTablet ? 16 : (isCompactHeight ? 10 : 12);
+  const descriptionFontSize = isLargeTablet ? 24 : isTablet ? 21 : (isCompactHeight ? 17 : 18);
+  const descriptionLineHeight = isLargeTablet ? 34 : isTablet ? 31 : (isCompactHeight ? 25 : 28);
+  const headerButtonFontSize = isTablet ? 26 : 22;
+  const headerButtonMaxWidth = isTablet ? 120 : 80;
+  const buttonFontSize = isTablet ? 18 : 16;
+  const playIconSize = isTablet ? 22 : 20;
   const [currentPage, setCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [currentVideoSource, setCurrentVideoSource] = useState<any>(null);
@@ -193,6 +206,13 @@ export default function InstructionPage() {
   };
 
   const renderPage = (page: typeof PAGES[0]) => {
+    const mainImageWidth = isTablet
+      ? Math.min(contentMaxWidth * 0.58, 420)
+      : windowWidth * (windowWidth < 380 ? 0.62 : 0.66);
+    const smallImageWidth = isTablet
+      ? Math.min(contentMaxWidth * 0.28, 220)
+      : windowWidth * (windowWidth < 380 ? 0.32 : 0.34);
+
     return (
       <View
         key={page.id}
@@ -206,6 +226,7 @@ export default function InstructionPage() {
           }
         ]}
       >
+        <View style={[styles.pageContent, { maxWidth: contentMaxWidth }]}>
         {/* Image Section */}
         <View style={[styles.imageContainer, { height: imageSectionHeight }]}>
           {page.images ? (
@@ -217,7 +238,7 @@ export default function InstructionPage() {
                   style={[
                     styles.smallImage,
                     {
-                      width: windowWidth * (windowWidth < 380 ? 0.32 : 0.34),
+                      width: smallImageWidth,
                       height: imageSectionHeight * 0.72,
                     },
                   ]}
@@ -231,7 +252,7 @@ export default function InstructionPage() {
               style={[
                 styles.mainImage,
                 {
-                  width: windowWidth * (windowWidth < 380 ? 0.62 : 0.66),
+                  width: mainImageWidth,
                   height: imageSectionHeight,
                 },
               ]}
@@ -241,16 +262,16 @@ export default function InstructionPage() {
         </View>
 
         {/* Title */}
-        <Text style={[styles.title, { fontSize: isCompactHeight ? 30 : 34, marginBottom: isCompactHeight ? 10 : 12 }]}>{page.title}</Text>
+        <Text style={[styles.title, { fontSize: titleFontSize, marginBottom: titleMarginBottom }]}>{page.title}</Text>
 
         {/* Description */}
         <Text
           style={[
             styles.description,
             {
-              fontSize: isCompactHeight ? 17 : 18,
-              lineHeight: isCompactHeight ? 25 : 28,
-              marginBottom: page.showButton ? (isCompactHeight ? 20 : 24) : 0,
+              fontSize: descriptionFontSize,
+              lineHeight: descriptionLineHeight,
+              marginBottom: page.showButton ? (isTablet ? 30 : (isCompactHeight ? 20 : 24)) : 0,
             },
           ]}
         >
@@ -261,18 +282,26 @@ export default function InstructionPage() {
         {page.showButton && (
           <View style={styles.videoButtonWrapper}>
             <TouchableOpacity 
-              style={styles.videoButton} 
+              style={[
+                styles.videoButton,
+                {
+                  paddingVertical: isTablet ? 14 : 12,
+                  paddingHorizontal: isTablet ? 30 : 24,
+                  gap: isTablet ? 12 : 10,
+                },
+              ]}
               onPress={() => handleVideoButton(page.id - 1)}
             >
               <Image
                 source={require("../assets/images/WhitePlay.png")}
-                style={styles.playIcon}
+                style={[styles.playIcon, { width: playIconSize, height: playIconSize }]}
                 resizeMode="contain"
               />
-              <Text style={styles.videoButtonText}>{page.buttonLabel}</Text>
+              <Text style={[styles.videoButtonText, { fontSize: buttonFontSize }]}>{page.buttonLabel}</Text>
             </TouchableOpacity>
           </View>
         )}
+        </View>
       </View>
     );
   };
@@ -288,9 +317,9 @@ export default function InstructionPage() {
         {/* Header with Back and Next */}
         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           {currentPage > 0 && (
-            <TouchableOpacity style={styles.headerButton} onPress={handleBack}>
+            <TouchableOpacity style={[styles.headerButton, { maxWidth: headerButtonMaxWidth }]} onPress={handleBack}>
               <Text 
-                style={styles.headerButtonText}
+                style={[styles.headerButtonText, { fontSize: headerButtonFontSize }]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}
@@ -300,13 +329,13 @@ export default function InstructionPage() {
               </Text>
             </TouchableOpacity>
           )}
-          {currentPage === 0 && <View style={styles.headerButton} />}
+          {currentPage === 0 && <View style={[styles.headerButton, { maxWidth: headerButtonMaxWidth }]} />}
           <TouchableOpacity
-            style={styles.headerButton}
+            style={[styles.headerButton, { maxWidth: headerButtonMaxWidth }]}
             onPress={handleNext}
           >
             <Text 
-              style={styles.headerButtonText}
+              style={[styles.headerButtonText, { fontSize: headerButtonFontSize }]}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.8}
@@ -436,6 +465,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
     position: "relative",
+  },
+  pageContent: {
+    width: "100%",
+    alignItems: "center",
   },
   imageContainer: {
     justifyContent: "center",
