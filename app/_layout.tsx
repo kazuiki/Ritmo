@@ -1,5 +1,4 @@
 
-import { requireOptionalNativeModule } from 'expo-modules-core';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -8,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { BackHandler, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import * as NavigationBar from 'expo-navigation-bar';
+import { AppState } from 'react-native';
 import { ModeProvider, useMode } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
 import { startOfflineInfrastructure } from "../src/offline";
@@ -16,6 +17,7 @@ import { LogoutService, supabase } from "../src/supabaseClient";
 import { preloadGameAssets } from "../src/utils/assetPreloader";
 import { isNetworkConnected, setupNetworkListener } from "../src/utils/networkUtils";
 import { navigateToGreetingsWithNetworkCheck } from "../src/utils/smartNavigation";
+
 
 const LAST_USER_ID_KEY = "@ritmo_last_user_id";
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
@@ -188,33 +190,40 @@ export default function RootLayout() {
   /**
    * ANDROID-ONLY SYSTEM UI CONTROL (from Paste #2)
    */
+
   useEffect(() => {
+  if (Platform.OS !== 'android') return;
 
-    if (Platform.OS !== 'android') {
-      return;
+  const hideSystemUI = async () => {
+    try {
+      // 1. Set behavior to 'overlay-swipe' (The "Game" setting)
+      // This allows swiping from the edge to see the bar without resizing the app.
+      await NavigationBar.setBehaviorAsync('overlay-swipe');
+
+      // 2. Hide the bar
+      await NavigationBar.setVisibilityAsync('hidden');
+      
+      // 3. Optional: Make the background transparent so it doesn't flicker black
+      await NavigationBar.setBackgroundColorAsync('#00000000'); 
+    } catch (error) {
+      console.warn('NavigationBar hide failed:', error);
     }
+  };
 
-    const navigationBarModule = requireOptionalNativeModule('ExpoNavigationBar') as
-      | { setVisibilityAsync?: (visibility: string) => Promise<void>; setBehaviorAsync?: (behavior: string) => Promise<void> }
-      | null;
+  // Run immediately on mount
+  hideSystemUI();
 
-    if (navigationBarModule?.setVisibilityAsync) {
-      navigationBarModule.setVisibilityAsync('hidden').catch((error) => {
-        console.warn('NavigationBar setVisibilityAsync failed:', error);
-      });
+  // Re-run whenever the app state changes (e.g., coming back from background)
+  const subscription = AppState.addEventListener('change', (nextAppState) => {
+    if (nextAppState === 'active') {
+      hideSystemUI();
     }
+  });
 
-    if (navigationBarModule?.setBehaviorAsync) {
-      navigationBarModule.setBehaviorAsync('overlay-swipe').catch((error) => {
-        console.warn('NavigationBar setBehaviorAsync failed:', error);
-      });
-    }
-
-    // NavigationBar controls removed - install expo-navigation-bar if needed
-    // BackHandler is now managed by AppBackHandler component below
-
-  }, []);
-
+  return () => {
+    subscription.remove();
+  };
+}, []);
 
   /**
    * AUTH, NETWORK, NOTIFICATIONS, NAVIGATION
