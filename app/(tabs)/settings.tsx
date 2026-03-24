@@ -171,8 +171,8 @@ export default function Settings() {
   
   // Media Time Limit
   const [showTimeLimitModal, setShowTimeLimitModal] = useState(false);
-  const [timeLimitHours, setTimeLimitHours] = useState('');
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState('');
+  const [timeLimitHours, setTimeLimitHours] = useState('00');
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState('00');
   const [timeLimitSuccessVisible, setTimeLimitSuccessVisible] = useState(false);
   const [timeLimitClearSuccessVisible, setTimeLimitClearSuccessVisible] = useState(false);
   const [showCancelTimeLimitModal, setShowCancelTimeLimitModal] = useState(false);
@@ -642,7 +642,30 @@ export default function Settings() {
   const handleSetTimeLimit = async () => {
     const canContinue = await ensureOnlineForFeature("Manage Media Time Limit");
     if (!canContinue) return;
+    setTimeLimitHours('00');
+    setTimeLimitMinutes('00');
     setShowTimeLimitModal(true);
+  };
+
+  const handleTimeLimitHoursChange = (text: string) => {
+    const digitsOnly = text.replace(/\D/g, '').slice(0, 2);
+    setTimeLimitHours(digitsOnly.length > 0 ? digitsOnly : '00');
+  };
+
+  const handleTimeLimitMinutesChange = (text: string) => {
+    const digitsOnly = text.replace(/\D/g, '').slice(0, 2);
+    if (!digitsOnly) {
+      setTimeLimitMinutes('00');
+      return;
+    }
+
+    const parsed = parseInt(digitsOnly, 10);
+    if (Number.isNaN(parsed)) {
+      setTimeLimitMinutes('00');
+      return;
+    }
+
+    setTimeLimitMinutes(Math.min(59, parsed).toString().padStart(2, '0'));
   };
 
   const handleSaveTimeLimit = async () => {
@@ -667,8 +690,8 @@ export default function Settings() {
       await MediaTimeLimitService.setTimeLimit(hours, minutes);
       setShowTimeLimitModal(false);
       setTimeLimitSuccessVisible(true);
-      setTimeLimitHours('');
-      setTimeLimitMinutes('');
+      setTimeLimitHours('00');
+      setTimeLimitMinutes('00');
     } catch (error) {
       setErrorType("error");
       setErrorMessage("Failed to set time limit. Please try again.");
@@ -678,8 +701,8 @@ export default function Settings() {
 
   const handleCancelTimeLimit = () => {
     setShowTimeLimitModal(false);
-    setTimeLimitHours('');
-    setTimeLimitMinutes('');
+    setTimeLimitHours('00');
+    setTimeLimitMinutes('00');
   };
 
   const handleClearTimeLimit = async () => {
@@ -1929,10 +1952,11 @@ export default function Settings() {
                     <TextInput
                       style={styles.timeLimitInput}
                       value={timeLimitHours}
-                      onChangeText={setTimeLimitHours}
+                      onChangeText={handleTimeLimitHoursChange}
                       placeholder="0"
                       keyboardType="number-pad"
                       maxLength={2}
+                      selectTextOnFocus
                     />
                   </View>
 
@@ -1944,10 +1968,11 @@ export default function Settings() {
                     <TextInput
                       style={styles.timeLimitInput}
                       value={timeLimitMinutes}
-                      onChangeText={setTimeLimitMinutes}
+                      onChangeText={handleTimeLimitMinutesChange}
                       placeholder="0"
                       keyboardType="number-pad"
                       maxLength={2}
+                      selectTextOnFocus
                     />
                   </View>
                 </View>
@@ -3358,7 +3383,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderRadius: 12,
     fontSize: scale.scaleFont(24),
     fontWeight: "700",
-    color: "#2A3B4D",
+    color: "#6B7280",
     textAlign: "center",
     backgroundColor: "#FFFFFF",
     fontFamily: "Fredoka_700Bold",

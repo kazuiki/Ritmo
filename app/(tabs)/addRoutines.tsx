@@ -162,8 +162,8 @@ export default function addRoutines() {
     } = useOnboarding();
     const [modalVisible, setModalVisible] = useState(false);
     const [routineName, setRoutineName] = useState("");
-    const [hour, setHour] = useState("");
-    const [minute, setMinute] = useState("");
+    const [hour, setHour] = useState("00");
+    const [minute, setMinute] = useState("00");
     const [period, setPeriod] = useState("AM");
     const [routines, setRoutines] = useState<Routine[]>([]);
     const [editingRoutineId, setEditingRoutineId] = useState<number | null>(null);
@@ -402,13 +402,13 @@ export default function addRoutines() {
     const handleHourInputChange = (text: string) => {
         const digitsOnly = text.replace(/\D/g, "").slice(0, 2);
         if (!digitsOnly) {
-            setHour("");
+            setHour("00");
             return;
         }
 
         const numericHour = parseInt(digitsOnly, 10);
         if (Number.isNaN(numericHour)) {
-            setHour("");
+            setHour("00");
             return;
         }
 
@@ -423,13 +423,13 @@ export default function addRoutines() {
     const handleMinuteInputChange = (text: string) => {
         const digitsOnly = text.replace(/\D/g, "").slice(0, 2);
         if (!digitsOnly) {
-            setMinute("");
+            setMinute("00");
             return;
         }
 
         const numericMinute = parseInt(digitsOnly, 10);
         if (Number.isNaN(numericMinute)) {
-            setMinute("");
+            setMinute("00");
             return;
         }
 
@@ -442,14 +442,20 @@ export default function addRoutines() {
     };
 
     const normalizeHourInput = () => {
-        if (!hour) return; // Leave empty if user hasn't typed anything
+        if (!hour) {
+            setHour("00");
+            return;
+        }
         const parsed = parseInt(hour, 10);
-        const normalized = Number.isNaN(parsed) ? 1 : Math.min(12, Math.max(1, parsed));
+        const normalized = Number.isNaN(parsed) ? 0 : Math.min(12, Math.max(0, parsed));
         setHour(normalized.toString().padStart(2, "0"));
     };
 
     const normalizeMinuteInput = () => {
-        if (!minute) return; // Leave empty if user hasn't typed anything
+        if (!minute) {
+            setMinute("00");
+            return;
+        }
         const parsed = parseInt(minute, 10);
         const normalized = Number.isNaN(parsed) ? 0 : Math.min(59, Math.max(0, parsed));
         setMinute(normalized.toString().padStart(2, "0"));
@@ -580,8 +586,8 @@ export default function addRoutines() {
     const openModal = () => {
         setModalVisible(true);
         setEditingRoutineId(null);
-        setHour("");
-        setMinute("");
+        setHour("00");
+        setMinute("00");
         setPeriod("AM");
         setRoutineName("");
         setSelectedPresetId(null);
@@ -1193,21 +1199,13 @@ export default function addRoutines() {
                                         value={hour}
                                         onChangeText={handleHourInputChange}
                                         onBlur={normalizeHourInput}
-                                        onFocus={() => {
-                                            // Set cursor at the beginning when focused on empty input
-                                            if (hourInputRef.current && !hour) {
-                                                hourInputRef.current.setNativeProps({
-                                                    selection: { start: 0, end: 0 }
-                                                });
-                                            }
-                                        }}
                                         placeholder="HH"
                                         placeholderTextColor="#9AA7A6"
                                         keyboardType="number-pad"
                                         maxLength={2}
                                         textAlign="center"
                                         textAlignVertical="center"
-                                        selectionColor="#06C08A"
+                                        selectTextOnFocus
                                     />
                                     <Text style={styles.manualTimeLabel}>Hour</Text>
                                 </View>
@@ -1221,21 +1219,13 @@ export default function addRoutines() {
                                         value={minute}
                                         onChangeText={handleMinuteInputChange}
                                         onBlur={normalizeMinuteInput}
-                                        onFocus={() => {
-                                            // Set cursor at the beginning when focused on empty input
-                                            if (minuteInputRef.current && !minute) {
-                                                minuteInputRef.current.setNativeProps({
-                                                    selection: { start: 0, end: 0 }
-                                                });
-                                            }
-                                        }}
                                         placeholder="MM"
                                         placeholderTextColor="#9AA7A6"
                                         keyboardType="number-pad"
                                         maxLength={2}
                                         textAlign="center"
                                         textAlignVertical="center"
-                                        selectionColor="#06C08A"
+                                        selectTextOnFocus
                                     />
                                     <Text style={styles.manualTimeLabel}>Minute</Text>
                                 </View>
@@ -2041,9 +2031,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         backgroundColor: "#FFFFFF",
         fontSize: scale.scaleFont(24),
         fontWeight: "700",
-        color: "#111827",
+        color: "#6B7280",
         textAlign: "center",
         textAlignVertical: "center",
+        writingDirection: "ltr",
         paddingVertical: scale.scaleSpacing(8),
         paddingHorizontal: 0,
         includeFontPadding: false,
