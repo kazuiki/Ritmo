@@ -1,4 +1,4 @@
-import { Fredoka_600SemiBold, useFonts } from '@expo-google-fonts/fredoka';
+import { Fredoka_400Regular, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold, useFonts } from '@expo-google-fonts/fredoka';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -27,7 +27,12 @@ export default function WeeklyHistoryDetail() {
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const printableRef = useRef<View>(null);
   const [childName, setChildName] = useState('Kid');
-  const [fontsLoaded] = useFonts({ Fredoka_600SemiBold });
+  const [fontsLoaded] = useFonts({
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
   const [routines, setRoutines] = useState<RoutineWithDays[]>([]);
   const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -242,7 +247,7 @@ export default function WeeklyHistoryDetail() {
       const timestamp = `${addedDate}/${timeStr}`;
 
       const nameWithDeletedFlag = (() => {
-        const base = (routine.name || '').toUpperCase();
+        const base = routine.name || '';
         return base;
       })();
       
@@ -421,28 +426,38 @@ export default function WeeklyHistoryDetail() {
           {/* Ritmo Tracker (match Progress) */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Ritmo Tracker</Text>
-            
-            {/* Legend */}
-            <View style={styles.legendRow}>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGreen]} /><Text style={styles.legendText} numberOfLines={1}>Done</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendRed]} /><Text style={styles.legendText} numberOfLines={1}>Missed</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendOrange]} /><Text style={styles.legendText} numberOfLines={1}>Pending</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, styles.legendGray]} /><Text style={styles.legendText} numberOfLines={1}>Unassigned</Text></View>
-            </View>
 
             {/* Grid Header */}
             <View style={[styles.gridRow, styles.gridHeader]}>
-              <Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1}>Task</Text>
-              {['M','T','W','Th','F','St','S'].map(d => <Text key={d} style={[styles.gridCellDay, styles.gridHeaderText]}>{d}</Text>)}
-              <Text style={[styles.gridCellDone, styles.gridHeaderText]} numberOfLines={1}>Done</Text>
+              <Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1} allowFontScaling={false}>Task</Text>
+              {['M','T','W','Th','F','St','S'].map(d => <Text key={d} style={[styles.gridCellDay, styles.gridHeaderText, styles.gridDayHeaderLabel]} allowFontScaling={false}>{d}</Text>)}
+              <Text style={[styles.gridCellDone, styles.gridHeaderText]} numberOfLines={1} allowFontScaling={false}>Done</Text>
             </View>
 
             {/* Rows */}
             {tasks.map((t,i) => (
               <View key={t.routineId} style={styles.gridRow}>
                 <View style={styles.gridCellTask}>
-                  <Text style={styles.taskNameText} numberOfLines={1} ellipsizeMode="tail">{t.name}</Text>
-                  <Text style={styles.taskTimestampText} numberOfLines={1} ellipsizeMode="tail">{t.timestamp}</Text>
+                  <Text
+                    style={styles.taskNameText}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                    allowFontScaling={false}
+                  >
+                    {t.name}
+                  </Text>
+                  <Text
+                    style={styles.taskTimestampText}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                    allowFontScaling={false}
+                  >
+                    {t.timestamp}
+                  </Text>
                 </View>
                 {t.statuses.map((s, idx) => (
                   <View key={idx} style={[styles.gridCellDay, styles.indicatorCell]}>
@@ -458,9 +473,61 @@ export default function WeeklyHistoryDetail() {
                     )}
                   </View>
                 ))}
-                <Text style={styles.gridCellDone}>{metrics.perTaskDone[i] || 0}</Text>
+                <Text style={styles.gridCellDone} allowFontScaling={false}>{metrics.perTaskDone[i] || 0}</Text>
               </View>
             ))}
+
+            {/* Legend */}
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.legendGreen]} />
+                <Text
+                  style={styles.legendText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  allowFontScaling={false}
+                >
+                  Done
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.legendRed]} />
+                <Text
+                  style={styles.legendText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  allowFontScaling={false}
+                >
+                  Missed
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.legendOrange]} />
+                <Text
+                  style={styles.legendText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  allowFontScaling={false}
+                >
+                  Pending
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.legendGray]} />
+                <Text
+                  style={styles.legendText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  allowFontScaling={false}
+                >
+                  Unassigned
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
         <TouchableOpacity style={styles.pdfButton} disabled={isGeneratingPdf} onPress={async () => {
@@ -554,11 +621,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     elevation: 3,
   },
   cardTitle: {
-    fontSize: scale.scaleFont(18),
+    fontSize: scale.scaleFont(20),
     fontWeight: '700',
     color: '#2A3B4D',
     marginBottom: scale.scaleSpacing(8),
     alignSelf: 'center',
+    fontFamily: 'Fredoka_700Bold',
   },
   trackerTitleRow: {
     flexDirection: 'row',
@@ -578,10 +646,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   subtleText: {
     color: '#2A3B4D',
-    fontSize: scale.scaleFont(14),
+    fontSize: scale.scaleFont(16),
+    fontFamily: 'Fredoka_400Regular',
   },
   boldText: {
     fontWeight: '700',
+    fontFamily: 'Fredoka_700Bold',
   },
   weekRow: {
     flexDirection: 'row',
@@ -590,7 +660,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   weekRangeText: {
     color: '#2A3B4D',
-    fontSize: scale.scaleFont(13),
+    fontSize: scale.scaleFont(14),
+    fontFamily: 'Fredoka_500Medium',
   },
   metricsRow: {
     flexDirection: 'row',
@@ -609,13 +680,15 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   metricTitle: {
     color: '#2A3B4D',
-    fontSize: scale.scaleFont(12),
+    fontSize: scale.scaleFont(14),
     marginBottom: scale.scaleSpacing(4),
+    fontFamily: 'Fredoka_500Medium',
   },
   metricValue: {
     color: '#2A3B4D',
     fontWeight: '700',
-    fontSize: scale.scaleFont(20),
+    fontSize: scale.scaleFont(22),
+    fontFamily: 'Fredoka_700Bold',
   },
   gridRow: {
     flexDirection: 'row',
@@ -632,37 +705,50 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   gridHeaderText: {
     fontWeight: '700',
     color: '#2A3B4D',
+    fontFamily: 'Fredoka_700Bold',
+    fontSize: scale.scaleFont(14.5),
   },
   gridCellTask: {
-    flex: 2.5,
+    flex: 3.6,
     minWidth: 0,
     paddingRight: scale.scaleSpacing(1),
   },
   taskNameText: {
     color: '#2A3B4D',
     fontFamily: 'Fredoka_500Medium',
-    fontSize: scale.scaleFont(15),
-    lineHeight: scale.scaleHeight(16),
+    fontSize: scale.scaleFont(15.5),
+    lineHeight: scale.scaleHeight(17),
     flexShrink: 1,
   },
   taskTimestampText: {
     color: '#6B8E7E',
-    fontSize: scale.scaleFont(12),
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: scale.scaleFont(10.8),
     lineHeight: scale.scaleHeight(12),
-    marginTop: scale.scaleSpacing(2),
+    marginTop: scale.scaleSpacing(1),
     flexShrink: 1,
   },
   gridCellDay: {
-    flex: 0.5,
+    flex: 0.31,
+    minWidth: scale.scaleWidth(15),
+    paddingHorizontal: 0,
     textAlign: 'center',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  gridDayHeaderLabel: {
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
   gridCellDone: {
-    flex: 0.7,
+    flex: 0.65,
+    minWidth: scale.scaleWidth(28),
+    paddingLeft: 0,
     textAlign: 'center',
     color: '#2A3B4D',
     fontWeight: '700',
+    fontFamily: 'Fredoka_700Bold',
+    fontSize: scale.scaleFont(14.5),
   },
   indicatorCell: {
     height: scale.scaleHeight(24),
@@ -670,8 +756,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: 'center',
   },
   indicatorSquare: {
-    width: scale.scaleWidth(16),
-    height: scale.scaleHeight(16),
+    width: scale.scaleWidth(14),
+    height: scale.scaleHeight(14),
+    marginHorizontal: 0,
     borderRadius: scale.scaleBorderRadius(3),
     borderWidth: 1,
     borderColor: '#DDECE7',
@@ -688,18 +775,17 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   legendRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: scale.scaleSpacing(12),
-    alignItems: 'center',
+    gap: scale.scaleSpacing(10),
+    paddingTop: scale.scaleSpacing(12),
     alignSelf: 'center',
-    marginTop: scale.scaleSpacing(2),
-    marginBottom: scale.scaleSpacing(12),
+    justifyContent: 'center',
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: scale.scaleSpacing(6),
-    flexShrink: 0,
+    gap: scale.scaleSpacing(3),
+    flexShrink: 1,
+    maxWidth: scale.scaleWidth(100),
   },
   legendDot: {
     width: scale.scaleWidth(10),
@@ -713,7 +799,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   legendText: {
     color: '#2A3B4D',
     fontSize: scale.scaleFont(12),
-    flexShrink: 0,
+    flexShrink: 1,
+    minWidth: 0,
   },
   pdfButton: {
     marginTop: scale.scaleSpacing(16),
