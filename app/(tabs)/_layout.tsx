@@ -256,6 +256,7 @@ export default function TabsLayout() {
   };
 
   const tabItemTopPosition = getTabItemTopPosition();
+  const tabItemVerticalNudge = scaleHeight(isLargeTablet ? 3 : isTablet ? 3 : 4);
 
   // Measure button positions when onboarding is visible
   useEffect(() => {
@@ -651,7 +652,7 @@ export default function TabsLayout() {
                       height: '100%',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      top: tabItemTopPosition,
+                      top: tabItemTopPosition + tabItemVerticalNudge,
                     },
                   ]}
                 >
@@ -717,7 +718,7 @@ export default function TabsLayout() {
                       height: '100%',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      top: tabItemTopPosition,
+                      top: tabItemTopPosition + tabItemVerticalNudge,
                       marginLeft: scaleSpacing(-15),
                     },
                   ]}
@@ -893,7 +894,7 @@ export default function TabsLayout() {
                       height: '100%',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      top: tabItemTopPosition,
+                      top: tabItemTopPosition + tabItemVerticalNudge,
                       marginRight: scaleSpacing(-15),
                     },
                   ]}
@@ -962,7 +963,7 @@ export default function TabsLayout() {
                       height: '100%',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      top: tabItemTopPosition,
+                      top: tabItemTopPosition + tabItemVerticalNudge,
                     },
                   ]}
                 >

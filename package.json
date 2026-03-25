@@ -70,6 +70,7 @@
   "devDependencies": {
     "@expo/config-plugins": "~9.0.0",
     "@react-native-community/cli": "^20.1.2",
+    "@react-native/metro-config": "^0.84.1",
     "@types/node": "^20.19.24",
     "@types/react": "~19.1.0",
     "cross-env": "^10.1.0",

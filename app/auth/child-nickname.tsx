@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, ImageBackground, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
+import { Image, ImageBackground, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../src/supabaseClient";
 
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
@@ -21,6 +22,28 @@ const isExpectedOfflineError = (error: unknown): boolean => {
 
 export default function ChildNickname() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isTablet = windowWidth >= 768;
+  const isLargeTablet = windowWidth >= 1024;
+  const contentMaxWidth = isLargeTablet
+    ? Math.min(windowWidth * 0.9, 1240)
+    : isTablet
+      ? Math.min(windowWidth * 0.9, 980)
+      : 520;
+  const pageHorizontalPadding = isLargeTablet ? 40 : isTablet ? 32 : windowWidth < 380 ? 18 : 22;
+  const logoWidth = isLargeTablet
+    ? Math.min(windowWidth * 0.62, 760)
+    : isTablet
+      ? Math.min(windowWidth * 0.89, 900)
+      : Math.min(windowWidth * 0.72, 280);
+  const titleFontSize = isLargeTablet ? 46 : isTablet ? 40 : 22;
+  const inputFontSize = isLargeTablet ? 28 : isTablet ? 24 : 16;
+  const buttonFontSize = isLargeTablet ? 24 : isTablet ? 21 : 16;
+  const saveButtonWidth = isLargeTablet ? "56%" : isTablet ? "62%" : "72%";
+  const contentSpacing = isLargeTablet ? 52 : isTablet ? 42 : 24;
+  const inputVerticalPadding = isLargeTablet ? 20 : isTablet ? 17 : 14;
+  const containerTopPadding = isTablet ? Math.max(8, Math.min(windowHeight * 0.02, 18)) : 20;
   const [child, setChild] = useState("");
   const [loading, setLoading] = useState(false);
   const [alertModalVisible, setAlertModalVisible] = useState(false);
@@ -89,7 +112,7 @@ export default function ChildNickname() {
     <ImageBackground 
       source={require("../../assets/background.png")} 
       style={styles.background}
-      resizeMode="cover"
+      resizeMode="stretch"
     >
       <KeyboardAvoidingView
         style={styles.flex}
@@ -98,31 +121,47 @@ export default function ChildNickname() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
-            contentContainerStyle={styles.scrollContainer}
+            contentContainerStyle={[
+              styles.scrollContainer,
+              {
+                paddingHorizontal: pageHorizontalPadding,
+                paddingTop: insets.top + 20,
+                paddingBottom: insets.bottom + 32,
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             {/* Back Button */}
-            <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/instruction")}>
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  top: insets.top + (isTablet ? 18 : 12),
+                  left: Math.max(8, pageHorizontalPadding - 14),
+                },
+              ]}
+              onPress={() => router.replace("/instruction")}
+            >
               <Text style={styles.backButtonText}>Back</Text>
             </TouchableOpacity>
 
-            <View style={styles.container}>
+            <View style={[styles.container, { maxWidth: contentMaxWidth, paddingTop: containerTopPadding }]}> 
               {/* Ritmo Logo */}
-              <View style={styles.logoContainer}>
+              <View style={[styles.logoContainer, { marginBottom: contentSpacing }]}>
                 <Image 
                   source={require("../../assets/ritmo-logo.png")} 
-                  style={styles.logo}
+                  style={[styles.logo, { width: logoWidth }]}
                   resizeMode="contain"
                 />
               </View>
 
               {/* Title */}
-              <Text style={styles.title}>Set child's nickname</Text>
+              <Text style={[styles.title, { fontSize: titleFontSize, marginBottom: Math.max(16, contentSpacing * 0.55) }]}>Set child's nickname</Text>
 
               {/* Input */}
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize: inputFontSize, paddingVertical: inputVerticalPadding, marginBottom: Math.max(18, contentSpacing * 0.6) }]}
                 placeholder="Enter child's nickname here"
                 value={child}
                 onChangeText={setChild}
@@ -132,8 +171,8 @@ export default function ChildNickname() {
               />
 
               {/* Save Button */}
-              <TouchableOpacity style={styles.save} onPress={handleSaveChild} disabled={loading}>
-                <Text style={styles.saveButtonText}>{loading ? "SAVING..." : "SAVE"}</Text>
+              <TouchableOpacity style={[styles.save, { width: saveButtonWidth, paddingVertical: isTablet ? 16 : 14 }]} onPress={handleSaveChild} disabled={loading}>
+                <Text style={[styles.saveButtonText, { fontSize: buttonFontSize }]}>{loading ? "SAVING..." : "SAVE"}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -190,6 +229,8 @@ const styles = StyleSheet.create({
   },
   container: { 
     flex: 1, 
+    width: "100%",
+    alignSelf: "center",
     justifyContent: "center",
     alignItems: "center",
     paddingTop: 20,
@@ -200,7 +241,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: "70%",
-    maxWidth: 260,
+    maxWidth: 1200,
     height: undefined,
     aspectRatio: 1,
   },
@@ -218,7 +259,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14, 
     marginBottom: 20,
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 1240,
     fontSize: 16,
     borderWidth: 1,
     borderColor: "#E0E0E0",
@@ -229,8 +270,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14, 
     borderRadius: 20, 
     alignItems: "center", 
-    width: "75%",
-    maxWidth: 260,
+    width: "72%",
+    maxWidth: 640,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,

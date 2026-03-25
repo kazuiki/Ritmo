@@ -66,7 +66,7 @@ export default function Home() {
 
   // Get responsive dimensions and scaling functions
   const responsive = useResponsiveDimensions();
-  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
+  const { width: screenWidth, scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin } = useOnboarding();
   const insets = useSafeAreaInsets();
@@ -1299,6 +1299,14 @@ export default function Home() {
     .filter(Boolean) as Routine[];
   const completedRoutinesReversed = [...completedRoutinesOrdered].reverse(); // Oldest first for See All
 
+  const completedPreviewCount = 4;
+  const completedPreviewGap = scaleSpacing(12);
+  const completedPreviewSidePadding = scaleSpacing(16);
+  const completedPreviewInnerInset = scaleSpacing(2);
+  const completedPreviewItemWidth =
+    (screenWidth - (completedPreviewSidePadding * 2) - (completedPreviewInnerInset * 2) - (completedPreviewGap * (completedPreviewCount - 1))) /
+    completedPreviewCount;
+
   const totalRoutines = routines.length;
   const completedCount = routines.filter((r) => r.completed).length;
   const progressPercentage = totalRoutines > 0 ? (completedCount / totalRoutines) * 100 : 0;
@@ -1530,7 +1538,7 @@ export default function Home() {
 
       {/* Completed Task strip (up to 4 newest, newest at left) */}
       {!showAllDone && completedRoutinesOrdered.length > 0 && (() => {
-        const displayed = completedRoutinesOrdered.slice(-4).reverse(); // newest first (left to right)
+        const displayed = completedRoutinesOrdered.slice(-completedPreviewCount).reverse(); // newest first (left to right)
         const olderCount = completedRoutinesOrdered.length - displayed.length;
         return (
           <View style={styles.completedSection}>
@@ -1542,13 +1550,13 @@ export default function Home() {
                 </TouchableOpacity>
               )}
             </View>
-            <View style={styles.completedRow}>
+            <View style={[styles.completedRow, { paddingHorizontal: completedPreviewInnerInset }] }>
               {displayed.map(routine => {
                 const preset = resolveRoutinePreset(routine);
                 return (
                   <TouchableOpacity
                     key={routine.id}
-                    style={styles.completedItem}
+                    style={[styles.completedItem, { width: completedPreviewItemWidth }]}
                     activeOpacity={0.85}
                     onPress={() => openCompletedTaskPlaybook(routine.id)}
                   >
@@ -1886,12 +1894,13 @@ export default function Home() {
           setIsReplayMode(false);
         }}
       >
-        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={{ flex: 1 }}>
           <Image
             source={require("../../assets/background.png")}
             style={styles.backgroundImage}
             resizeMode="stretch"
           />
+          <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
           <View style={styles.completedModalHeader}>
             <TouchableOpacity onPress={() => {
               setCompletedModalVisible(false);
@@ -1930,7 +1939,8 @@ export default function Home() {
               );
             })}
           </ScrollView>
-        </SafeAreaView>
+          </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Playbook Modal - Full Screen */}

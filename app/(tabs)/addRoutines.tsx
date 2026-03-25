@@ -1180,8 +1180,16 @@ export default function addRoutines() {
                     <View style={styles.modalContainer}>
                         {/* Header (Back only) */}
                         <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={closeModal}>
-                                <Text style={styles.backText}>Back</Text>
+                            <TouchableOpacity style={styles.backButtonTouchable} onPress={closeModal}>
+                                <Text
+                                    style={styles.backText}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.82}
+                                    allowFontScaling={false}
+                                >
+                                    Back
+                                </Text>
                             </TouchableOpacity>
                             <View />
                         </View>
@@ -1359,8 +1367,16 @@ export default function addRoutines() {
                 <View style={styles.presetScreen}>
                 {/* Header with Back button in upper-left */}
                 <View style={[styles.presetHeader, { paddingTop: insets.top + scaleSpacing(8) }]}>
-                    <TouchableOpacity onPress={closePresetModal}>
-                        <Text style={styles.backText}>Back</Text>
+                    <TouchableOpacity style={styles.backButtonTouchable} onPress={closePresetModal}>
+                        <Text
+                            style={styles.backText}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.82}
+                            allowFontScaling={false}
+                        >
+                            Back
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
@@ -1431,8 +1447,16 @@ export default function addRoutines() {
                     <View style={styles.presetScreen}>
                         {/* Header with Back button */}
                         <View style={[styles.presetHeader, { paddingTop: insets.top + scaleSpacing(8) }]}>
-                            <TouchableOpacity onPress={closeRingtoneModal}>
-                                <Text style={styles.backText}>Back</Text>
+                            <TouchableOpacity style={styles.backButtonTouchable} onPress={closeRingtoneModal}>
+                                <Text
+                                    style={styles.backText}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.82}
+                                    allowFontScaling={false}
+                                >
+                                    Back
+                                </Text>
                             </TouchableOpacity>
                         </View>
 
@@ -1974,6 +1998,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#E0E0E0",
     },
+    backButtonTouchable: {
+        alignSelf: "flex-start",
+        minWidth: scale.scaleWidth(64),
+    },
     backText: {
         fontSize: scale.scaleFont(18),
         color: "#244D4A",
@@ -1981,6 +2009,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         textDecorationColor: "#244D4A",
         paddingVertical: scale.scaleSpacing(6),
         paddingHorizontal: scale.scaleSpacing(6),
+        minWidth: scale.scaleWidth(52),
     },
     modalTitle: {
         fontSize: scale.scaleFont(18),
