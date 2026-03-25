@@ -44,6 +44,22 @@ interface Routine {
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
 
+// Static JPG fallbacks used when a routine card is off-screen to reduce GIF decoding load.
+const PRESET_STATIC_IMAGES: Record<number, any> = {
+  1: require("../../assets/images/brush.jpg"),
+  2: require("../../assets/images/eat.jpg"),
+  3: require("../../assets/images/bath.jpg"),
+  4: require("../../assets/images/clothes.jpg"),
+  5: require("../../assets/images/school.jpg"),
+  6: require("../../assets/images/pajama.jpg"),
+  7: require("../../assets/images/sleep.jpg"),
+  8: require("../../assets/images/bed.jpg"),
+  9: require("../../assets/images/hair.jpg"),
+  10: require("../../assets/images/hand_bless.jpg"),
+  11: require("../../assets/images/play.jpg"),
+  12: require("../../assets/images/sweep.jpg"),
+};
+
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? '').toLowerCase();
   const name = String((error as any)?.name ?? '').toLowerCase();
@@ -140,6 +156,12 @@ export default function Home() {
   const successModalFadeAnim = useRef(new Animated.Value(0)).current;
   // Loading state to prevent content flash during minigame return check
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  const [homeScrollY, setHomeScrollY] = useState(0);
+  const [homeViewportHeight, setHomeViewportHeight] = useState(0);
+  const [homeItemLayouts, setHomeItemLayouts] = useState<Record<number, { y: number; height: number }>>({});
+  const [completedScrollY, setCompletedScrollY] = useState(0);
+  const [completedViewportHeight, setCompletedViewportHeight] = useState(0);
+  const [completedItemLayouts, setCompletedItemLayouts] = useState<Record<number, { y: number; height: number }>>({});
   // Track which timer marks have triggered voiceover replay to prevent duplicates
   const voReplayTriggeredRef = useRef<Set<number>>(new Set());
   // Derive the active routine and its playbook
@@ -1443,6 +1465,27 @@ export default function Home() {
     openTaskModal();
   };
 
+  const isCardVisible = (
+    layout: { y: number; height: number } | undefined,
+    scrollY: number,
+    viewportHeight: number,
+    prefetchPadding: number = scaleSpacing(32)
+  ) => {
+    if (!layout || viewportHeight <= 0) return false;
+    const viewportTop = scrollY - prefetchPadding;
+    const viewportBottom = scrollY + viewportHeight + prefetchPadding;
+    const itemTop = layout.y;
+    const itemBottom = layout.y + layout.height;
+    return itemBottom >= viewportTop && itemTop <= viewportBottom;
+  };
+
+  const getRoutineImageSource = (routine: Routine, shouldAnimate: boolean) => {
+    const preset = resolveRoutinePreset(routine);
+    if (!preset) return null;
+    if (shouldAnimate) return preset.image;
+    return PRESET_STATIC_IMAGES[preset.id] ?? preset.image;
+  };
+
   return (
     <View style={{ flex: 1 }}>
       {/* Loading overlay to prevent flash when checking minigame completion */}
@@ -1587,12 +1630,21 @@ export default function Home() {
 
       {/* Scrollable Routines List */}
       {!showAllDone && (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}
+          onLayout={(event) => setHomeViewportHeight(event.nativeEvent.layout.height)}
+          onScroll={(event) => setHomeScrollY(event.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={32}
+        >
           {incompleteRoutines.map((routine, idx) => {
           const routineTimeInMinutes = parseTime(routine.time);
           const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
           const isEnabled = isTimeReached; // Enable any task that has reached its scheduled time
           const preset = resolveRoutinePreset(routine);
+          const layout = homeItemLayouts[routine.id];
+          const inViewport = isCardVisible(layout, homeScrollY, homeViewportHeight) || (!layout && idx < 3);
+          const shouldAnimate = isEnabled && inViewport;
+          const cardSource = preset ? getRoutineImageSource(routine, shouldAnimate) : null;
          
           // Initialize animation value if not exists
           if (!routineAnimations[routine.id]) {
@@ -1602,6 +1654,14 @@ export default function Home() {
           return (
             <Animated.View
               key={routine.id}
+              onLayout={(event) => {
+                const { y, height } = event.nativeEvent.layout;
+                setHomeItemLayouts((prev) => {
+                  const current = prev[routine.id];
+                  if (current && current.y === y && current.height === height) return prev;
+                  return { ...prev, [routine.id]: { y, height } };
+                });
+              }}
               style={{
                 opacity: routineAnimations[routine.id],
                 transform: [
@@ -1670,11 +1730,11 @@ export default function Home() {
                 <View style={styles.taskCardContent}>
                   {preset ? (
                     <ExpoImage
-                      key={`${routine.id}-${isEnabled ? 'enabled' : 'disabled'}`}
-                      source={preset.image}
+                      key={`${routine.id}-${shouldAnimate ? 'gif' : 'jpg'}-${isEnabled ? 'enabled' : 'disabled'}`}
+                      source={cardSource}
                       style={[styles.presetImageLarge, !isEnabled && styles.presetImageDim]}
                       contentFit="contain"
-                      autoplay={isEnabled}
+                      autoplay={shouldAnimate}
                     />
                   ) : (
                     <View style={[styles.iconPlaceholderLarge, !isEnabled && styles.iconDim]}>
@@ -1910,12 +1970,28 @@ export default function Home() {
             </TouchableOpacity>
           </View>
           <Text style={styles.completedModalTitle}>Completed Task</Text>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-            {completedRoutinesReversed.map((routine) => {
+          <ScrollView
+            contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
+            onLayout={(event) => setCompletedViewportHeight(event.nativeEvent.layout.height)}
+            onScroll={(event) => setCompletedScrollY(event.nativeEvent.contentOffset.y)}
+            scrollEventThrottle={32}
+          >
+            {completedRoutinesReversed.map((routine, idx) => {
               const preset = resolveRoutinePreset(routine);
+              const layout = completedItemLayouts[routine.id];
+              const inViewport = isCardVisible(layout, completedScrollY, completedViewportHeight) || (!layout && idx < 4);
+              const cardSource = preset ? getRoutineImageSource(routine, inViewport) : null;
               return (
                 <TouchableOpacity
                   key={routine.id}
+                  onLayout={(event) => {
+                    const { y, height } = event.nativeEvent.layout;
+                    setCompletedItemLayouts((prev) => {
+                      const current = prev[routine.id];
+                      if (current && current.y === y && current.height === height) return prev;
+                      return { ...prev, [routine.id]: { y, height } };
+                    });
+                  }}
                   style={styles.completedModalCard}
                   activeOpacity={0.85}
                   onPress={() => {
@@ -1929,7 +2005,13 @@ export default function Home() {
                     <Text style={styles.completedStar}>⭐</Text>
                   </View>
                   {preset ? (
-                    <Image source={preset.image} style={styles.presetImageLarge} />
+                    <ExpoImage
+                      key={`${routine.id}-${inViewport ? 'gif' : 'jpg'}`}
+                      source={cardSource}
+                      style={styles.presetImageLarge}
+                      contentFit="contain"
+                      autoplay={inViewport}
+                    />
                   ) : (
                     <View style={styles.iconPlaceholderLarge}><Text style={styles.iconLarge}>📋</Text></View>
                   )}
@@ -2022,8 +2104,8 @@ export default function Home() {
             </View>
           </View>
 
-          <ScrollView contentContainerStyle={styles.playbookContent}>
-            {/* Video/Image Card */}
+          <ScrollView contentContainerStyle={styles.playbookContent} scrollEnabled={false}>
+            {/* Video/Image Card - stays at top */}
             <View style={styles.videoCard}>
               <View style={styles.videoInner}>
                 {(() => {
@@ -2036,14 +2118,28 @@ export default function Home() {
               </View>
             </View>
 
-            {/* Step Label */}
-            <Text style={styles.stepLabel}>Step {currentStep}</Text>
-            <Text style={styles.instructionText}>
-              {(() => {
-                const stepIndex = Math.max(0, Math.min(3, currentStep - 1));
-                return playbook?.steps[stepIndex]?.label ?? '';
-              })()}
-            </Text>
+            {/* Flexible spacer above description - smaller */}
+            <View style={styles.spacerFlexTop} />
+
+            {/* Step Label + Description grouped as one centered block */}
+            <View style={styles.descriptionCenter}>
+              <Text style={styles.stepLabel}>Step {currentStep}</Text>
+              <Text
+                style={styles.instructionText}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                allowFontScaling={false}
+              >
+                {(() => {
+                  const stepIndex = Math.max(0, Math.min(3, currentStep - 1));
+                  return playbook?.steps[stepIndex]?.label ?? '';
+                })()}
+              </Text>
+            </View>
+
+            {/* Flexible spacer below description */}
+            <View style={styles.spacerFlex} />
           </ScrollView>
 
           {/* Footer with Next Button */}
@@ -2953,7 +3049,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   playbookContent: {
     paddingHorizontal: scale.scaleSpacing(20),
-    paddingBottom: scale.scaleSpacing(24),
+    flexGrow: 1,
+    flexDirection: "column",
+    justifyContent: "flex-start",
     alignItems: "center",
   },
   videoCard: {
@@ -2964,7 +3062,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderColor: "#2F7C72",
     borderRadius: scale.scaleBorderRadius(16),
     overflow: "hidden",
-    marginBottom: scale.scaleSpacing(80),
+    marginBottom: 0,
+    marginTop: 0,
     position: "relative",
   },
   videoInner: {
@@ -2983,17 +3082,38 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(26),
     fontWeight: "700",
     color: "#244D4A",
-    marginBottom: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(6),
+    marginTop: 0,
     fontFamily: "Fredoka_700Bold",
   },
   instructionText: {
-    fontSize: scale.scaleFont(22),
+    fontSize: scale.scaleFont(19),
     fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: scale.scaleHeight(28),
+    lineHeight: scale.scaleHeight(26),
     fontFamily: "Fredoka_700Bold",
-    marginBottom: scale.scaleSpacing(24),
+    marginBottom: 0,
+    marginTop: 0,
+    minHeight: scale.scaleHeight(52),
+  },
+  playbookContentCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  spacerFlex: {
+    flex: 1,
+  },
+  spacerFlexTop: {
+    flex: 0.5,
+  },
+  descriptionCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    gap: 0,
+    paddingTop: scale.scaleSpacing(16),
   },
   playbookFooter: {
     position: "absolute",

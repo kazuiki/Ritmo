@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
     Image,
+    Keyboard,
     Modal,
     ScrollView,
     StyleSheet,
@@ -182,6 +183,7 @@ export default function addRoutines() {
     // Refs for TextInput components
     const hourInputRef = useRef<TextInput>(null);
     const minuteInputRef = useRef<TextInput>(null);
+    const addRoutineModalScrollRef = useRef<ScrollView>(null);
     
     const bookGuideIconRef = useRef<View>(null);
     const gameIconRef = useRef<View>(null);
@@ -208,6 +210,9 @@ export default function addRoutines() {
     
     const ALL_DAYS = [0,1,2,3,4,5,6];
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    const [keyboardInset, setKeyboardInset] = useState(0);
+    const [routineNameFieldY, setRoutineNameFieldY] = useState(0);
+    const [isRoutineNameFocused, setIsRoutineNameFocused] = useState(false);
     
     // Delete confirmation and success modals
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
@@ -333,6 +338,33 @@ export default function addRoutines() {
         };
     }, []);
 
+    useEffect(() => {
+        const onKeyboardShow = Keyboard.addListener('keyboardDidShow', (event) => {
+            setKeyboardInset(event.endCoordinates?.height ?? 0);
+        });
+
+        const onKeyboardHide = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardInset(0);
+        });
+
+        return () => {
+            onKeyboardShow.remove();
+            onKeyboardHide.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isRoutineNameFocused || keyboardInset <= 0) return;
+
+        // Scroll to the routine name field once keyboard is visible.
+        const targetY = Math.max(routineNameFieldY - scaleSpacing(84), 0);
+        const timer = setTimeout(() => {
+            addRoutineModalScrollRef.current?.scrollTo({ y: targetY, animated: true });
+        }, 40);
+
+        return () => clearTimeout(timer);
+    }, [isRoutineNameFocused, keyboardInset, routineNameFieldY, scaleSpacing]);
+
     useFocusEffect(
         React.useCallback(() => {
             // Measure the plus button position first
@@ -414,10 +446,21 @@ export default function addRoutines() {
 
         if (numericHour > 12) {
             setHour("12");
+            // Move focus to minute once hour input is complete.
+            requestAnimationFrame(() => {
+                minuteInputRef.current?.focus();
+            });
             return;
         }
 
         setHour(digitsOnly);
+
+        // Auto-switch to minute field when hour already has 2 digits.
+        if (digitsOnly.length === 2) {
+            requestAnimationFrame(() => {
+                minuteInputRef.current?.focus();
+            });
+        }
     };
 
     const handleMinuteInputChange = (text: string) => {
@@ -467,6 +510,16 @@ export default function addRoutines() {
         const normalizedHour = Number.isNaN(parsedHour) ? 1 : Math.min(12, Math.max(1, parsedHour));
         const normalizedMinute = Number.isNaN(parsedMinute) ? 0 : Math.min(59, Math.max(0, parsedMinute));
         return `${normalizedHour.toString().padStart(2, "0")}:${normalizedMinute.toString().padStart(2, "0")} ${period.toLowerCase()}`;
+    };
+
+    const bringRoutineNameIntoView = () => {
+        setIsRoutineNameFocused(true);
+
+        // Initial nudge while keyboard is animating.
+        const targetY = Math.max(routineNameFieldY - scaleSpacing(84), 0);
+        setTimeout(() => {
+            addRoutineModalScrollRef.current?.scrollTo({ y: targetY, animated: true });
+        }, 80);
     };
 
     const normalizeDaysKey = (days?: number[]) => {
@@ -1194,7 +1247,13 @@ export default function addRoutines() {
                             <View />
                         </View>
 
-                    <View style={{ padding: 16 }}>
+                    <ScrollView
+                        ref={addRoutineModalScrollRef}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ padding: 16, paddingBottom: scaleSpacing(28) + insets.bottom + (keyboardInset * 0.45) }}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                    >
                         {/* Time Picker Section */}
                         <View style={styles.timePickerCard} ref={timePickerRef} collapsable={false}>
                             <Text style={styles.timePickerTitle}>ENTER TIME</Text>
@@ -1301,13 +1360,20 @@ export default function addRoutines() {
                                 </View>
 
                                 {/* Routine Name Input - non-editable if preset selected */}
-                                <View ref={routineNameRef} collapsable={false} style={{ marginBottom: 16 }}>
+                                <View
+                                    ref={routineNameRef}
+                                    collapsable={false}
+                                    style={{ marginBottom: 16 }}
+                                    onLayout={(event) => setRoutineNameFieldY(event.nativeEvent.layout.y)}
+                                >
                                     <TextInput
                                         style={[styles.input, selectedPresetId && styles.inputDisabled]}
                                         placeholder="Routine name"
                                         placeholderTextColor="#000000ff"
                                         value={routineName}
                                         onChangeText={setRoutineName}
+                                        onFocus={bringRoutineNameIntoView}
+                                        onBlur={() => setIsRoutineNameFocused(false)}
                                         editable={!selectedPresetId}
                                     />
                                 </View>
@@ -1344,7 +1410,7 @@ export default function addRoutines() {
                             >
                                 <Text style={styles.presetButtonText}>{editingRoutineId ? 'Save' : 'Add Routine'}</Text>
                             </TouchableOpacity>
-                        </View>
+                        </ScrollView>
                     </View>
                 </View>
                 </View>
