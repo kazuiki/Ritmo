@@ -102,7 +102,12 @@ export default function Home() {
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [routineAnimations] = useState<Record<number, any>>({});
+  const [routineAnimations] = useState<Record<number, {
+    opacity: Animated.Value;
+    translateX: Animated.Value;
+    translateY: Animated.Value;
+    scale: Animated.Value;
+  }>>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
   const routinesRef = useRef<Routine[]>([]);
   const completedOrderRef = useRef<number[]>([]);
@@ -162,6 +167,26 @@ export default function Home() {
   const [completedScrollY, setCompletedScrollY] = useState(0);
   const [completedViewportHeight, setCompletedViewportHeight] = useState(0);
   const [completedItemLayouts, setCompletedItemLayouts] = useState<Record<number, { y: number; height: number }>>({});
+  const completedStripAnimationsRef = useRef<Record<number, {
+    translateX: Animated.Value;
+    scale: Animated.Value;
+    opacity: Animated.Value;
+  }>>({});
+  const remainingReorderAnimationsRef = useRef<Record<number, Animated.Value>>({});
+  const prevIncompleteIdsRef = useRef<number[]>([]);
+  const completedExitAnimationsRef = useRef<Record<number, {
+    translateX: Animated.Value;
+    translateY: Animated.Value;
+    scale: Animated.Value;
+    opacity: Animated.Value;
+  }>>({});
+  const [exitingCompletedPreview, setExitingCompletedPreview] = useState<Array<{
+    id: number;
+    routine: Routine;
+    slotIndex: number;
+  }>>([]);
+  const previewRoutineByIdRef = useRef<Record<number, Routine>>({});
+  const prevCompletedPreviewIdsRef = useRef<number[]>([]);
   // Track which timer marks have triggered voiceover replay to prevent duplicates
   const voReplayTriggeredRef = useRef<Set<number>>(new Set());
   // Derive the active routine and its playbook
@@ -372,9 +397,7 @@ export default function Home() {
      
       // Initialize animations for each routine
       routinesWithProgress.forEach(routine => {
-        if (!routineAnimations[routine.id]) {
-          routineAnimations[routine.id] = new Animated.Value(1);
-        }
+        ensureRoutineAnimation(routine.id);
       });
      
       // Build completed order from today's completed routines
@@ -621,19 +644,46 @@ export default function Home() {
   const toggleComplete = async (id: number) => {
     const wasCompleted = routines.find(r => r.id === id)?.completed ?? false;
     const newCompletedStatus = !wasCompleted;
-   
-    // Animate the routine card sliding up and fading
-    if (routineAnimations[id]) {
+
+    const transitionDurationMs = 620;
+    // Show the completed-strip entry while the remaining card is still fading,
+    // so the transition feels instant instead of waiting for fade-out to finish.
+    const completedCommitDelayMs = 110;
+    const routineAnim = ensureRoutineAnimation(id);
+
+    // Smoothly shrink and fly up-left toward Completed section before state moves it.
+    if (newCompletedStatus) {
       Animated.parallel([
-        Animated.timing(routineAnimations[id], {
+        Animated.timing(routineAnim.opacity, {
           toValue: 0,
-          duration: 400,
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(routineAnim.translateY, {
+          toValue: -scaleHeight(240),
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(routineAnim.translateX, {
+          toValue: -scaleWidth(130),
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(routineAnim.scale, {
+          toValue: 0.26,
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
       ]).start();
+    } else {
+      resetRoutineAnimation(id);
     }
    
-    // Wait for animation to complete before updating state
+    // Commit completion slightly before animation fully ends so Completed strip pops in right as the card fades out.
     setTimeout(async () => {
       try {
         // Update database - this will set completed and completed_at
@@ -670,6 +720,7 @@ export default function Home() {
       if (allCompleted) {
         // Update state first
         setRoutines(updatedRoutines);
+        resetRoutineAnimation(id);
        
         // Show the all done message with animation
         setShowAllDone(true);
@@ -765,8 +816,11 @@ export default function Home() {
       } else {
         // Otherwise just update state
         setRoutines(updatedRoutines);
+        if (!newCompletedStatus) {
+          resetRoutineAnimation(id);
+        }
       }
-    }, 400); // Match the animation duration
+    }, newCompletedStatus ? completedCommitDelayMs : 0);
   };
  
   // Cleanup timeout on unmount
@@ -1328,6 +1382,19 @@ export default function Home() {
   const completedPreviewItemWidth =
     (screenWidth - (completedPreviewSidePadding * 2) - (completedPreviewInnerInset * 2) - (completedPreviewGap * (completedPreviewCount - 1))) /
     completedPreviewCount;
+  const completedPreviewDisplayed = useMemo(
+    () => completedRoutinesOrdered.slice(-completedPreviewCount).reverse(),
+    [completedRoutinesOrdered, completedPreviewCount]
+  );
+  const completedPreviewIds = useMemo(
+    () => completedPreviewDisplayed.map((routine) => routine.id),
+    [completedPreviewDisplayed]
+  );
+  const incompleteRoutineIds = useMemo(
+    () => incompleteRoutines.map((routine) => routine.id),
+    [incompleteRoutines]
+  );
+  const completedPreviewOlderCount = completedRoutinesOrdered.length - completedPreviewDisplayed.length;
 
   const totalRoutines = routines.length;
   const completedCount = routines.filter((r) => r.completed).length;
@@ -1486,6 +1553,202 @@ export default function Home() {
     return PRESET_STATIC_IMAGES[preset.id] ?? preset.image;
   };
 
+  const ensureRoutineAnimation = (id: number) => {
+    if (!routineAnimations[id]) {
+      routineAnimations[id] = {
+        opacity: new Animated.Value(1),
+        translateX: new Animated.Value(0),
+        translateY: new Animated.Value(0),
+        scale: new Animated.Value(1),
+      };
+    }
+    return routineAnimations[id];
+  };
+
+  const resetRoutineAnimation = (id: number) => {
+    const anim = ensureRoutineAnimation(id);
+    anim.opacity.setValue(1);
+    anim.translateX.setValue(0);
+    anim.translateY.setValue(0);
+    anim.scale.setValue(1);
+  };
+
+  const ensureCompletedStripAnimation = (id: number) => {
+    if (!completedStripAnimationsRef.current[id]) {
+      completedStripAnimationsRef.current[id] = {
+        translateX: new Animated.Value(0),
+        scale: new Animated.Value(1),
+        opacity: new Animated.Value(1),
+      };
+    }
+    return completedStripAnimationsRef.current[id];
+  };
+
+  const ensureCompletedExitAnimation = (id: number) => {
+    if (!completedExitAnimationsRef.current[id]) {
+      completedExitAnimationsRef.current[id] = {
+        translateX: new Animated.Value(0),
+        translateY: new Animated.Value(0),
+        scale: new Animated.Value(1),
+        opacity: new Animated.Value(1),
+      };
+    }
+    return completedExitAnimationsRef.current[id];
+  };
+
+  const ensureRemainingReorderAnimation = (id: number) => {
+    if (!remainingReorderAnimationsRef.current[id]) {
+      remainingReorderAnimationsRef.current[id] = new Animated.Value(0);
+    }
+    return remainingReorderAnimationsRef.current[id];
+  };
+
+  useEffect(() => {
+    const previousIds = prevIncompleteIdsRef.current;
+    const currentIds = incompleteRoutineIds;
+    const rowDistance = scaleHeight(292);
+
+    currentIds.forEach((id, newIndex) => {
+      const previousIndex = previousIds.indexOf(id);
+      if (previousIndex > newIndex) {
+        // Item moved up because tasks above it were completed; animate from slightly lower position.
+        const delta = previousIndex - newIndex;
+        const reorderAnim = ensureRemainingReorderAnimation(id);
+        reorderAnim.stopAnimation();
+        reorderAnim.setValue(Math.min(rowDistance * delta, scaleHeight(160)));
+        Animated.timing(reorderAnim, {
+          toValue: 0,
+          duration: 340,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+
+    previousIds.forEach((id) => {
+      if (!currentIds.includes(id)) {
+        delete remainingReorderAnimationsRef.current[id];
+      }
+    });
+
+    prevIncompleteIdsRef.current = currentIds;
+  }, [incompleteRoutineIds, scaleHeight]);
+
+  useEffect(() => {
+    const previousIds = prevCompletedPreviewIdsRef.current;
+    const currentIds = completedPreviewIds;
+    const slotDistance = completedPreviewItemWidth + completedPreviewGap;
+
+    // Keep a lookup of currently visible preview routines so exit animations can render
+    // even after an item is pushed out of the 4-slot preview.
+    completedPreviewDisplayed.forEach((routine) => {
+      previewRoutineByIdRef.current[routine.id] = routine;
+    });
+
+    const removedIds = previousIds.filter((id) => !currentIds.includes(id));
+    removedIds.forEach((id) => {
+      const previousIndex = previousIds.indexOf(id);
+      const routine = previewRoutineByIdRef.current[id];
+      if (previousIndex === -1 || !routine) {
+        return;
+      }
+
+      setExitingCompletedPreview((prev) => {
+        if (prev.some((item) => item.id === id)) {
+          return prev;
+        }
+        return [...prev, { id, routine, slotIndex: previousIndex }];
+      });
+
+      const exitAnim = ensureCompletedExitAnimation(id);
+      exitAnim.translateX.setValue(0);
+      exitAnim.translateY.setValue(0);
+      exitAnim.scale.setValue(1);
+      exitAnim.opacity.setValue(1);
+
+      Animated.parallel([
+        Animated.timing(exitAnim.translateX, {
+          toValue: scaleWidth(44),
+          duration: 360,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(exitAnim.translateY, {
+          toValue: -scaleHeight(26),
+          duration: 360,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(exitAnim.scale, {
+          toValue: 0.34,
+          duration: 360,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(exitAnim.opacity, {
+          toValue: 0,
+          duration: 320,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setExitingCompletedPreview((prev) => prev.filter((item) => item.id !== id));
+        delete completedExitAnimationsRef.current[id];
+        delete previewRoutineByIdRef.current[id];
+      });
+    });
+
+    currentIds.forEach((id, newIndex) => {
+      const anim = ensureCompletedStripAnimation(id);
+      const previousIndex = previousIds.indexOf(id);
+
+      if (previousIndex === -1) {
+        // New item entering at the left pops in smoothly.
+        anim.translateX.setValue(0);
+        anim.scale.setValue(0.9);
+        anim.opacity.setValue(0.2);
+        Animated.parallel([
+          Animated.timing(anim.opacity, {
+            toValue: 1,
+            duration: 150,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim.scale, {
+            toValue: 1,
+            duration: 180,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start();
+        return;
+      }
+
+      const slotDelta = previousIndex - newIndex;
+      if (slotDelta !== 0) {
+        // Existing items shift with a clean one-way move (no bounce/overshoot).
+        anim.translateX.setValue(slotDelta * slotDistance);
+        Animated.timing(anim.translateX, {
+          toValue: 0,
+          duration: 210,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }
+
+      anim.scale.setValue(1);
+      anim.opacity.setValue(1);
+    });
+
+    previousIds.forEach((id) => {
+      if (!currentIds.includes(id)) {
+        delete completedStripAnimationsRef.current[id];
+      }
+    });
+
+    prevCompletedPreviewIdsRef.current = currentIds;
+  }, [completedPreviewIds, completedPreviewDisplayed, completedPreviewItemWidth, completedPreviewGap, scaleHeight, scaleWidth]);
+
   return (
     <View style={{ flex: 1 }}>
       {/* Loading overlay to prevent flash when checking minigame completion */}
@@ -1580,25 +1843,32 @@ export default function Home() {
       )}
 
       {/* Completed Task strip (up to 4 newest, newest at left) */}
-      {!showAllDone && completedRoutinesOrdered.length > 0 && (() => {
-        const displayed = completedRoutinesOrdered.slice(-completedPreviewCount).reverse(); // newest first (left to right)
-        const olderCount = completedRoutinesOrdered.length - displayed.length;
-        return (
-          <View style={styles.completedSection}>
-            <View style={styles.completedHeaderRow}>
-              <Text style={styles.completedTitle}>Completed Task</Text>
-              {olderCount > 0 && (
-                <TouchableOpacity onPress={() => setCompletedModalVisible(true)}>
-                  <Text style={styles.seeAllLink}>See all</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View style={[styles.completedRow, { paddingHorizontal: completedPreviewInnerInset }] }>
-              {displayed.map(routine => {
-                const preset = resolveRoutinePreset(routine);
-                return (
+      {!showAllDone && completedRoutinesOrdered.length > 0 && (
+        <View style={styles.completedSection}>
+          <View style={styles.completedHeaderRow}>
+            <Text style={styles.completedTitle}>Completed Task</Text>
+            {completedPreviewOlderCount > 0 && (
+              <TouchableOpacity onPress={() => setCompletedModalVisible(true)}>
+                <Text style={styles.seeAllLink}>See all</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={[styles.completedRow, { paddingHorizontal: completedPreviewInnerInset }] }>
+            {completedPreviewDisplayed.map((routine) => {
+              const preset = resolveRoutinePreset(routine);
+              const stripAnim = ensureCompletedStripAnimation(routine.id);
+              return (
+                <Animated.View
+                  key={routine.id}
+                  style={{
+                    transform: [
+                      { translateX: stripAnim.translateX },
+                      { scale: stripAnim.scale },
+                    ],
+                    opacity: stripAnim.opacity,
+                  }}
+                >
                   <TouchableOpacity
-                    key={routine.id}
                     style={[styles.completedItem, { width: completedPreviewItemWidth }]}
                     activeOpacity={0.85}
                     onPress={() => openCompletedTaskPlaybook(routine.id)}
@@ -1614,12 +1884,48 @@ export default function Home() {
                       <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
                     )}
                   </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+            <View pointerEvents="none" style={styles.completedRowExitLayer}>
+              {exitingCompletedPreview.map((item) => {
+                const preset = resolveRoutinePreset(item.routine);
+                const exitAnim = ensureCompletedExitAnimation(item.id);
+                return (
+                  <Animated.View
+                    key={`exit-${item.id}`}
+                    style={[
+                      styles.completedExitItem,
+                      {
+                        left: item.slotIndex * (completedPreviewItemWidth + completedPreviewGap),
+                        transform: [
+                          { translateX: exitAnim.translateX },
+                          { translateY: exitAnim.translateY },
+                          { scale: exitAnim.scale },
+                        ],
+                        opacity: exitAnim.opacity,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.completedItem, { width: completedPreviewItemWidth }]}> 
+                      <View style={styles.completedStripStars}>
+                        <Text style={styles.completedStripStar}>⭐</Text>
+                        <Text style={styles.completedStripStar}>⭐</Text>
+                        <Text style={styles.completedStripStar}>⭐</Text>
+                      </View>
+                      {preset ? (
+                        <Image source={preset.image} style={styles.completedImage} />
+                      ) : (
+                        <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
+                      )}
+                    </View>
+                  </Animated.View>
                 );
               })}
             </View>
           </View>
-        );
-      })()}
+        </View>
+      )}
 
       {/* Remaining Task Label (fixed) */}
       {!showAllDone && incompleteRoutines.length > 0 && (
@@ -1645,11 +1951,8 @@ export default function Home() {
           const inViewport = isCardVisible(layout, homeScrollY, homeViewportHeight) || (!layout && idx < 3);
           const shouldAnimate = isEnabled && inViewport;
           const cardSource = preset ? getRoutineImageSource(routine, shouldAnimate) : null;
-         
-          // Initialize animation value if not exists
-          if (!routineAnimations[routine.id]) {
-            routineAnimations[routine.id] = new Animated.Value(1);
-          }
+          const routineAnim = ensureRoutineAnimation(routine.id);
+          const reorderAnim = ensureRemainingReorderAnimation(routine.id);
          
           return (
             <Animated.View
@@ -1663,20 +1966,12 @@ export default function Home() {
                 });
               }}
               style={{
-                opacity: routineAnimations[routine.id],
+                opacity: routineAnim.opacity,
                 transform: [
-                  {
-                    translateY: routineAnimations[routine.id].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-200, 0],
-                    }),
-                  },
-                  {
-                    scale: routineAnimations[routine.id].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.8, 1],
-                    }),
-                  },
+                  { translateX: routineAnim.translateX },
+                  { translateY: routineAnim.translateY },
+                  { translateY: reorderAnim },
+                  { scale: routineAnim.scale },
                 ],
               }}
             >
@@ -2530,6 +2825,20 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   completedRow: {
     flexDirection: 'row',
     gap: scale.scaleSpacing(12),
+    position: 'relative',
+    overflow: 'visible',
+  },
+  completedRowExitLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+  },
+  completedExitItem: {
+    position: 'absolute',
+    top: 0,
   },
   completedItem: {
     width: scale.scaleWidth(80),
@@ -2550,11 +2859,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginTop: scale.scaleSpacing(15),
   },
   completedPlaceholder: {
-    width: '85%',
-    height: '85%',
+    width: '88%',
+    height: '88%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E8FFFA',
+    backgroundColor: 'transparent',
   },
   completedStripStars: {
     position: 'absolute',
@@ -2607,10 +2916,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     justifyContent: "center",
   },
   iconPlaceholderLarge: {
-    width: scale.scaleWidth(160),
-    height: scale.scaleHeight(160),
+    width: scale.scaleWidth(200),
+    height: scale.scaleHeight(180),
     borderRadius: scale.scaleBorderRadius(18),
-    backgroundColor: "#E8FFFA",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: scale.scaleSpacing(12),
@@ -2634,8 +2943,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   presetImageDim: {
     opacity: 0.7,
   },
-  icon: { fontSize: scale.scaleFont(28) },
-  iconLarge: { fontSize: scale.scaleFont(70) },
+  icon: { fontSize: scale.scaleFont(44), textAlign: 'center' },
+  iconLarge: { fontSize: scale.scaleFont(112), textAlign: 'center' },
   taskTitle: {
     fontWeight: "700",
     color: "#244D4A",

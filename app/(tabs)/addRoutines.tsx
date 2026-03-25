@@ -1792,7 +1792,7 @@ export default function addRoutines() {
                                 resizeMode="contain"
                             />
                         </View>
-                        <Text style={styles.saveModalTitle}>Duplicate Routine</Text>
+                        <Text style={styles.saveModalTitle}>Duplicated Routine</Text>
                         <Text style={styles.saveModalMessage}>
                             This routine already exists. Please change the time, day, preset, or ringtone.
                         </Text>
@@ -2522,7 +2522,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         width: scale.scaleWidth(80),
         height: scale.scaleHeight(80),
         borderRadius: scale.scaleBorderRadius(12),
-        backgroundColor: "#E8FFFA",
+        backgroundColor: "transparent",
         alignItems: "center",
         justifyContent: "center",
         marginRight: scale.scaleSpacing(16),
@@ -2535,7 +2535,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         resizeMode: "contain",
     },
     routineIcon: {
-        fontSize: scale.scaleFont(40),
+        fontSize: scale.scaleFont(58),
+        textAlign: "center",
     },
     routineInfo: {
         flex: 1,
