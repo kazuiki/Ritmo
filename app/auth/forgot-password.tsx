@@ -3,27 +3,32 @@ import { Stack, useRouter } from "expo-router";
 import { MotiImage, MotiView } from "moti";
 import { useEffect, useRef, useState } from "react";
 import {
-    AccessibilityInfo,
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  useWindowDimensions,
+  View
 } from "react-native";
 import { supabase } from "../../src/supabaseClient";
 import { isNetworkConnected } from "../../src/utils/networkUtils";
 
 export default function ForgotPassword() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const responsivePaddingX = Math.max(14, Math.min(width * 0.06, 36));
+  const formMaxWidth = Math.min(Math.max(width * 0.88, 300), 460);
+  const headingMaxWidth = Math.min(Math.max(width * 0.9, 320), 560);
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -273,7 +278,15 @@ export default function ForgotPassword() {
           bounces={false}
         >
           <TouchableWithoutFeedback onPress={togglePause}>
-            <View style={styles.container}>
+            <View
+              style={[
+                styles.container,
+                {
+                  paddingHorizontal: responsivePaddingX,
+                  minHeight: Math.max(680, height),
+                },
+              ]}
+            >
             {/* Background bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -310,10 +323,24 @@ export default function ForgotPassword() {
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 300, duration: 600 }}
-              style={styles.titleContainer}
+              style={[styles.titleContainer, { maxWidth: headingMaxWidth }]}
             >
-              <Text style={styles.title}>Forgot Password</Text>
-              <Text style={styles.subtitle}>
+              <Text
+                style={styles.title}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                allowFontScaling={false}
+              >
+                Forgot Password
+              </Text>
+              <Text
+                style={styles.subtitle}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+                allowFontScaling={false}
+              >
                 Enter your email to receive a verification code
               </Text>
             </MotiView>
@@ -323,7 +350,7 @@ export default function ForgotPassword() {
               from={{ opacity: 0, translateY: 30 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 400, duration: 600 }}
-              style={{ width: "100%", alignItems: "center" }}
+              style={[styles.formContainer, { maxWidth: formMaxWidth }]}
             >
               <Text style={styles.label}>Email:</Text>
               <TextInput
@@ -342,14 +369,20 @@ export default function ForgotPassword() {
               from={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 700, type: "spring" }}
-              style={{ width: "100%", alignItems: "center" }}
+              style={[styles.formContainer, { maxWidth: formMaxWidth }]}
             >
               <TouchableOpacity
                 style={styles.button}
                 onPress={handleConfirm}
                 disabled={sendingCode}
               >
-                <Text style={styles.buttonText}>
+                <Text
+                  style={styles.buttonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  allowFontScaling={false}
+                >
                   {sendingCode ? "Sending Code..." : "CONFIRM"}
                 </Text>
               </TouchableOpacity>
@@ -360,9 +393,16 @@ export default function ForgotPassword() {
               from={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 900, duration: 600 }}
+              style={[styles.formContainer, { maxWidth: formMaxWidth }]}
             >
-              <TouchableOpacity onPress={() => router.replace("/auth/login")}>
-                <Text style={styles.link}>
+              <TouchableOpacity onPress={() => router.replace("/auth/login")} style={styles.centeredAction}>
+                <Text
+                  style={styles.link}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.9}
+                  allowFontScaling={false}
+                >
                   Back to Login
                 </Text>
               </TouchableOpacity>
@@ -563,11 +603,17 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    width: "100%",
     paddingHorizontal: 28,
     paddingVertical: 20,
     justifyContent: "center",
     alignItems: "center",
     minHeight: 700,
+  },
+  formContainer: {
+    width: "100%",
+    alignSelf: "center",
+    alignItems: "center",
   },
   logo: {
     width: 260,
@@ -592,13 +638,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   label: {
-    alignSelf: "flex-start",
+    width: "100%",
+    textAlign: "left",
     color: "#276a63",
     marginTop: 8,
+    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: "600",
   },
   input: {
     width: "100%",
-    maxWidth: 340,
     backgroundColor: "#fff",
     borderRadius: 5,
     paddingHorizontal: 18,
@@ -637,17 +686,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#2D7778",
     paddingVertical: 14,
     width: "100%",
-    maxWidth: 340,
     borderRadius: 5,
     alignItems: "center",
     elevation: 3,
   },
   buttonText: { color: "#fff", fontWeight: "400", fontSize: 15 },
+  centeredAction: {
+    width: "100%",
+    alignItems: "center",
+  },
   link: {
     marginTop: 16,
     color: "#276a63",
     textDecorationLine: "underline",
     textAlign: "center",
+    fontSize: 16,
   },
   
   // Email Sent Modal Styles

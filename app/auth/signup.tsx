@@ -19,6 +19,7 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  useWindowDimensions,
   View
 } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
@@ -38,6 +39,11 @@ function EyeToggleIcon({ crossed, color = "#276a63", size = 20 }: { crossed: boo
 
 export default function SignUp() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const responsivePaddingX = Math.max(14, Math.min(width * 0.06, 36));
+  const formMaxWidth = width > 600 
+    ? Math.min(width * 0.80, 750)
+    : Math.min(Math.max(width * 0.88, 300), 460);
   const { scaleHeight, scaleSpacing } = useResponsiveDimensions();
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -523,7 +529,15 @@ export default function SignUp() {
           bounces={false}
         >
           <TouchableWithoutFeedback onPress={togglePause}>
-            <View style={styles.container}>
+            <View
+              style={[
+                styles.container,
+                {
+                  paddingHorizontal: responsivePaddingX,
+                  minHeight: Math.max(680, height),
+                },
+              ]}
+            >
             {/* Background bubbles */}
             {bubbleBase.map((b, i) => (
               <Animated.View
@@ -560,7 +574,7 @@ export default function SignUp() {
               from={{ opacity: 0, translateY: 30 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 400, duration: 600 }}
-              style={{ width: "100%", alignItems: "center" }}
+              style={[styles.formContainer, { maxWidth: formMaxWidth }]}
             >
               <Text style={styles.label}>Email:</Text>
               <TextInput
@@ -603,7 +617,7 @@ export default function SignUp() {
                   marginTop: showRequirements ? scaleSpacing(8) : 0,
                 }}
                 transition={{ type: "timing", duration: 240 }}
-                style={styles.requirementsContainer}
+                style={[styles.requirementsContainer, { width: "100%" }]}
               >
                 {unmetRequirements.map((item) => (
                   <View key={item.key} style={styles.requirementRow}>
@@ -649,7 +663,7 @@ export default function SignUp() {
                   marginTop: showConfirmMismatch ? scaleSpacing(8) : 0,
                 }}
                 transition={{ type: "timing", duration: 240 }}
-                style={styles.requirementsContainer}
+                style={[styles.requirementsContainer, { width: "100%" }]}
               >
                 {showConfirmMismatch && (
                   <View style={styles.requirementRow}>
@@ -690,8 +704,13 @@ export default function SignUp() {
                 >
                   {agreed && <View style={styles.checkboxInner} />}
                 </TouchableOpacity>
-                <Text style={styles.agreeText}> by signing up you agree to our terms and conditions </Text>
-                <Text style={styles.agreeText}>and privacy policy</Text>
+                <Text
+                  style={[styles.agreeText, { flex: 1, marginLeft: scaleSpacing(8) }]}
+                  numberOfLines={0}
+                  allowFontScaling={false}
+                >
+                  by signing up you agree to our terms and conditions and privacy policy
+                </Text>
               </View>
 
               {/* Animated Create Account button */}
@@ -699,14 +718,20 @@ export default function SignUp() {
                 from={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 700, type: "spring" }}
-                style={{ width: "100%", alignItems: "center" }}
+                style={[styles.formContainer, { width: "100%" }]}
               >
                 <TouchableOpacity
                   style={styles.button}
                   onPress={handleCreateAccount}
                   disabled={sendingCode}
                 >
-                  <Text style={styles.buttonText}>
+                  <Text
+                    style={styles.buttonText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.85}
+                    allowFontScaling={false}
+                  >
                     {sendingCode ? "Sending Code..." : "CREATE ACCOUNT"}
                   </Text>
                 </TouchableOpacity>
@@ -718,9 +743,16 @@ export default function SignUp() {
               from={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 900, duration: 600 }}
+              style={[styles.formContainer, { maxWidth: formMaxWidth }]}
             >
-              <TouchableOpacity onPress={() => router.push("/auth/login")}>
-                <Text style={styles.link}>
+              <TouchableOpacity onPress={() => router.push("/auth/login")} style={styles.centeredAction}>
+                <Text
+                  style={styles.link}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.9}
+                  allowFontScaling={false}
+                >
                   Already have an account? Log in
                 </Text>
               </TouchableOpacity>
@@ -1173,21 +1205,28 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: "center",
     minHeight: scale.scaleHeight(700),
   },
+  formContainer: {
+    width: "100%",
+    alignSelf: "center",
+    alignItems: "center",
+  },
   logo: {
     width: scale.scaleWidth(260),
     height: scale.scaleHeight(220),
     marginBottom: scale.scaleSpacing(6),
   },
   label: {
-    alignSelf: "flex-start",
+    width: "100%",
+    textAlign: "left",
     color: "#276a63",
     marginTop: scale.scaleSpacing(8),
+    marginBottom: scale.scaleSpacing(2),
     fontSize: scale.scaleFont(14),
+    fontWeight: "600",
     fontFamily: "Fredoka_400Regular",
   },
   input: {
     width: "100%",
-    maxWidth: scale.scaleWidth(340),
     backgroundColor: "#fff",
     borderRadius: scale.scaleBorderRadius(5),
     paddingHorizontal: scale.scaleSpacing(18),
@@ -1206,7 +1245,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   inputRow: {
     width: "100%",
-    maxWidth: scale.scaleWidth(340),
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
@@ -1222,12 +1260,15 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     backgroundColor: "#2D7778",
     paddingVertical: scale.scaleSpacing(14),
     width: "100%",
-    maxWidth: scale.scaleWidth(340),
     borderRadius: scale.scaleBorderRadius(5),
     alignItems: "center",
     elevation: 3,
   },
   buttonText: { color: "#fff", fontWeight: "400", fontSize: scale.scaleFont(15) },
+  centeredAction: {
+    width: "100%",
+    alignItems: "center",
+  },
   link: {
     marginTop: scale.scaleSpacing(16),
     color: "#276a63",
@@ -1236,13 +1277,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(14),
   },
   agreeRow: {
-    width: '100%',
-    maxWidth: scale.scaleWidth(340),
+    width: "100%",
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: scale.scaleSpacing(12),
-    flexWrap: 'wrap',
+    paddingHorizontal: scale.scaleSpacing(30),
   },
   checkbox: {
     width: scale.scaleWidth(18),
@@ -1250,7 +1290,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderRadius: scale.scaleBorderRadius(3),
     borderWidth: 2,
     borderColor: '#244D4A',
-    marginRight: scale.scaleSpacing(8),
+    marginRight: scale.scaleSpacing(6),
+    marginTop: 0,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1267,6 +1309,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   agreeText: {
     color: '#244D4A',
     fontSize: scale.scaleFont(12),
+    fontWeight: "500",
+    textAlign: 'center',
+    flexWrap: 'wrap',
   },
   linkInline: {
     color: '#276a63',
@@ -1549,7 +1594,6 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginBottom: scale.scaleSpacing(8),
   },
   requirementsContainer: {
-    width: "100%",
     maxWidth: scale.scaleWidth(340),
     paddingHorizontal: scale.scaleSpacing(6),
     overflow: "hidden",
