@@ -544,7 +544,7 @@ export default function Login() {
               <Text style={styles.label}>Email:</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email here:"
+                placeholder="Enter email here"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -556,7 +556,7 @@ export default function Login() {
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.inputFlex}
-                  placeholder="Enter password here:"
+                  placeholder="Enter password here"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -569,9 +569,19 @@ export default function Login() {
               </View>
 
               {/* Forgot Password Link */}
-              <TouchableOpacity onPress={() => router.push("./forgot-password")} style={{ alignSelf: "flex-end" }}>
-                <Text style={[styles.link, { marginTop: vscale(8) }]}>Forgot Password?</Text>
-              </TouchableOpacity>
+              <View style={styles.forgotPasswordContainer}>
+                <TouchableOpacity onPress={() => router.push("./forgot-password")}>
+                  <Text
+                    style={styles.link}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.85}
+                    allowFontScaling={false}
+                  >
+                    Forgot Password?
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </MotiView>
 
             {/* Animated login button */}
@@ -707,7 +717,17 @@ function createStyles({ scale, vscale, scaleFont, width, height }: any) {
       backgroundColor: "#5BDFC9",
     },
     buttonText: { color: "#fff", fontWeight: "600", fontSize: scaleFont(16) },
-    link: { marginTop: vscale(12), color: "#276a63", textDecorationLine: "underline", fontSize: scaleFont(13) },
+    forgotPasswordContainer: {
+      width: "100%",
+      maxWidth: Math.max(scale(340), width * 0.92),
+      marginTop: vscale(10),
+      alignItems: "flex-end",
+    },
+    link: {
+      color: "#276a63",
+      textDecorationLine: "underline",
+      fontSize: Math.min(scaleFont(15), 22),
+    },
     orText: {
       marginTop: vscale(16),
       color: "#244D4A",

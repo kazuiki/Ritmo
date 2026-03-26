@@ -3,16 +3,16 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    ImageBackground,
-    Modal,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  Animated,
+  ImageBackground,
+  Modal,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import ParentalLockOnboardingTour from "../src/components/ParentalLockOnboardingTour";
 import { useMode } from "../src/contexts/ModeContext";
@@ -29,6 +29,8 @@ export default function ParentalLock() {
   const { enterParentMode } = useMode();
   const { showParentalLockOnboarding, currentParentalLockStep, startParentalLockOnboarding, nextParentalLockStep, completeParentalLockOnboarding } = useOnboarding();
   const [isEnabled, setIsEnabled] = useState(false);
+  const [isEnablePending, setIsEnablePending] = useState(false);
+  const [isDisablePending, setIsDisablePending] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalType, setSuccessModalType] = useState<'enable' | 'disable'>('enable');
@@ -88,6 +90,8 @@ export default function ParentalLock() {
     const enabled = await ParentalLockService.isEnabled();
     const savedPinCode = await ParentalLockService.getSavedPin();
     setIsEnabled(enabled);
+    setIsEnablePending(false);
+    setIsDisablePending(false);
     if (savedPinCode) {
       setSavedPin(savedPinCode);
     }
@@ -97,10 +101,14 @@ export default function ParentalLock() {
     setPinError(''); // Clear any previous errors
     if (!isEnabled) {
       // If turning ON, show PIN modal to set new PIN
+      setIsEnablePending(true);
+      setIsDisablePending(false);
       setIsVerifyingToDisable(false);
       setShowPinModal(true);
     } else {
       // If turning OFF, show PIN modal to verify existing PIN
+      setIsEnablePending(false);
+      setIsDisablePending(true);
       setIsVerifyingToDisable(true);
       setShowPinModal(true);
     }
@@ -147,6 +155,7 @@ export default function ParentalLock() {
         if (pinCode === savedPin) {
           // PIN is correct, disable parental lock
           setIsEnabled(false);
+          setIsDisablePending(false);
           await ParentalLockService.setEnabled(false);
           ParentalLockAuthService.clearAuthentication();
           setShowPinModal(false);
@@ -168,6 +177,8 @@ export default function ParentalLock() {
         await ParentalLockService.savePin(pinCode); // Save to storage
         await ParentalLockService.setEnabled(true); // Enable parental lock
         setIsEnabled(true);
+        setIsEnablePending(false);
+        setIsDisablePending(false);
         setShowPinModal(false);
         setPin(['', '', '', '']); // Reset PIN input
         // Show success modal for enable
@@ -184,6 +195,8 @@ export default function ParentalLock() {
 
   const cancelPin = () => {
     setShowPinModal(false);
+    setIsEnablePending(false);
+    setIsDisablePending(false);
     setPin(['', '', '', '']); // Reset PIN
     setIsVerifyingToDisable(false); // Reset verification state
     setPinError(''); // Clear error message
@@ -231,7 +244,7 @@ export default function ParentalLock() {
               thumbColor="#FFFFFF"
               ios_backgroundColor="#FF6B6B"
               onValueChange={toggleSwitch}
-              value={isEnabled}
+              value={isEnablePending ? true : isDisablePending ? false : isEnabled}
               style={styles.switch as any}
             />
           </View>

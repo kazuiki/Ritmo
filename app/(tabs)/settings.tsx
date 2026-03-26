@@ -1082,7 +1082,15 @@ export default function Settings() {
                   style={[styles.backButton, { marginTop: scaleSpacing(10) + insets.top }]}
                   onPress={handleCancelPasswordChange}
                 >
-                  <Text style={styles.backButtonText}>Back</Text>
+                  <Text
+                    style={styles.backButtonText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                    allowFontScaling={false}
+                  >
+                    Back
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Change Password Input */}
@@ -1939,7 +1947,15 @@ export default function Settings() {
                   style={[styles.backButton, { marginTop: scaleSpacing(10) + insets.top }]}
                   onPress={handleCancelTimeLimit}
                 >
-                  <Text style={styles.backButtonText}>Back</Text>
+                  <Text
+                    style={styles.backButtonText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                    allowFontScaling={false}
+                  >
+                    Back
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Title */}
@@ -2083,7 +2099,15 @@ export default function Settings() {
                 style={[styles.backButton, { marginTop: scaleSpacing(10) }]}
                 onPress={() => setShowCancelTimeLimitModal(false)}
               >
-                <Text style={styles.backButtonText}>Back</Text>
+                <Text
+                  style={styles.backButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                  allowFontScaling={false}
+                >
+                  Back
+                </Text>
               </TouchableOpacity>
 
               {/* Title */}

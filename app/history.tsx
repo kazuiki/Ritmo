@@ -227,11 +227,27 @@ export default function History() {
             >
             <View style={styles.cardLine}>
               <Text style={styles.cardLabelInline}>For:</Text>
-              <Text style={styles.cardValueInline}>{childName || "—"}</Text>
+              <Text
+                style={styles.cardValueInline}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                allowFontScaling={false}
+              >
+                {childName || "—"}
+              </Text>
             </View>
             <View style={styles.cardLine}>
               <Text style={styles.cardLabelInline}>Week of:</Text>
-              <Text style={styles.cardValueInline}>{`${formatDate(w.start)} - ${formatDate(w.end)}`}</Text>
+              <Text
+                style={styles.cardValueInline}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.74}
+                allowFontScaling={false}
+              >
+                {`${formatDate(w.start)} - ${formatDate(w.end)}`}
+              </Text>
             </View>
           </TouchableOpacity>
           );
@@ -367,16 +383,16 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   cardLine: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: scale.scaleSpacing(6),
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     width: '100%',
     marginBottom: scale.scaleSpacing(4),
   },
   cardLabel: { fontSize: scale.scaleFont(14), color: "#2A3B4D", marginBottom: scale.scaleSpacing(6), fontWeight: "700" },
   cardValue: { fontWeight: "500", color: "#2A3B4D" },
-  cardLabelInline: { fontSize: scale.scaleFont(14), color: '#2A3B4D', fontWeight: '700' },
-  cardValueInline: { fontSize: scale.scaleFont(14), color: '#2A3B4D', flexShrink: 1, flexWrap: 'wrap' },
+  cardLabelInline: { fontSize: scale.scaleFont(14), color: '#2A3B4D', fontWeight: '700', flexShrink: 0 },
+  cardValueInline: { fontSize: scale.scaleFont(14), color: '#2A3B4D', flex: 1, minWidth: 0 },
 
   // old modal styles removed
 }));

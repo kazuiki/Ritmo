@@ -48,7 +48,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(1)}
           >
-            <Text style={styles.privacyAccordionTitle}>1. Information We Collect</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              1. Information We Collect
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(1) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(1) && (
@@ -89,7 +97,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(2)}
           >
-            <Text style={styles.privacyAccordionTitle}>2. How We Use Your Information</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              2. How We Use Your Information
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(2) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(2) && (
@@ -108,7 +124,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(3)}
           >
-            <Text style={styles.privacyAccordionTitle}>3. Data Storage and Security</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              3. Data Storage and Security
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(3) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(3) && (
@@ -124,7 +148,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(4)}
           >
-            <Text style={styles.privacyAccordionTitle}>4. Data Sharing</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              4. Data Sharing
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(4) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(4) && (
@@ -141,7 +173,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(5)}
           >
-            <Text style={styles.privacyAccordionTitle}>5. Children's Privacy</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              5. Children's Privacy
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(5) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(5) && (
@@ -162,7 +202,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(6)}
           >
-            <Text style={styles.privacyAccordionTitle}>6. Your Rights and Choices</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              6. Your Rights and Choices
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(6) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(6) && (
@@ -182,7 +230,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(7)}
           >
-            <Text style={styles.privacyAccordionTitle}>7. Changes to This Privacy Policy</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              7. Changes to This Privacy Policy
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(7) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(7) && (
@@ -198,7 +254,15 @@ export default function PrivacyPolicy() {
             style={styles.privacyAccordionHeader}
             onPress={() => toggleSection(8)}
           >
-            <Text style={styles.privacyAccordionTitle}>8. Contact Us</Text>
+            <Text
+              style={styles.privacyAccordionTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              allowFontScaling={false}
+            >
+              8. Contact Us
+            </Text>
             <Text style={styles.accordionSymbol}>{expandedSections.includes(8) ? '−' : '+'}</Text>
           </TouchableOpacity>
           {expandedSections.includes(8) && (
@@ -356,12 +420,16 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   privacyAccordionTitle: {
+    flex: 1,
+    marginRight: 12,
     fontSize: 16,
     fontWeight: '700',
     color: '#2A3B4D',
     fontFamily: 'Fredoka_700Bold',
   },
   accordionSymbol: {
+    minWidth: 24,
+    textAlign: 'center',
     fontSize: 24,
     lineHeight: 26,
     color: '#2A3B4D',

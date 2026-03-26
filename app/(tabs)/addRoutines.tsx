@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Alert,
     Image,
+    Keyboard,
     Modal,
     ScrollView,
     StyleSheet,
@@ -182,6 +183,7 @@ export default function addRoutines() {
     // Refs for TextInput components
     const hourInputRef = useRef<TextInput>(null);
     const minuteInputRef = useRef<TextInput>(null);
+    const addRoutineModalScrollRef = useRef<ScrollView>(null);
     
     const bookGuideIconRef = useRef<View>(null);
     const gameIconRef = useRef<View>(null);
@@ -208,6 +210,9 @@ export default function addRoutines() {
     
     const ALL_DAYS = [0,1,2,3,4,5,6];
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    const [keyboardInset, setKeyboardInset] = useState(0);
+    const [routineNameFieldY, setRoutineNameFieldY] = useState(0);
+    const [isRoutineNameFocused, setIsRoutineNameFocused] = useState(false);
     
     // Delete confirmation and success modals
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
@@ -333,6 +338,33 @@ export default function addRoutines() {
         };
     }, []);
 
+    useEffect(() => {
+        const onKeyboardShow = Keyboard.addListener('keyboardDidShow', (event) => {
+            setKeyboardInset(event.endCoordinates?.height ?? 0);
+        });
+
+        const onKeyboardHide = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardInset(0);
+        });
+
+        return () => {
+            onKeyboardShow.remove();
+            onKeyboardHide.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isRoutineNameFocused || keyboardInset <= 0) return;
+
+        // Scroll to the routine name field once keyboard is visible.
+        const targetY = Math.max(routineNameFieldY - scaleSpacing(84), 0);
+        const timer = setTimeout(() => {
+            addRoutineModalScrollRef.current?.scrollTo({ y: targetY, animated: true });
+        }, 40);
+
+        return () => clearTimeout(timer);
+    }, [isRoutineNameFocused, keyboardInset, routineNameFieldY, scaleSpacing]);
+
     useFocusEffect(
         React.useCallback(() => {
             // Measure the plus button position first
@@ -414,10 +446,21 @@ export default function addRoutines() {
 
         if (numericHour > 12) {
             setHour("12");
+            // Move focus to minute once hour input is complete.
+            requestAnimationFrame(() => {
+                minuteInputRef.current?.focus();
+            });
             return;
         }
 
         setHour(digitsOnly);
+
+        // Auto-switch to minute field when hour already has 2 digits.
+        if (digitsOnly.length === 2) {
+            requestAnimationFrame(() => {
+                minuteInputRef.current?.focus();
+            });
+        }
     };
 
     const handleMinuteInputChange = (text: string) => {
@@ -467,6 +510,16 @@ export default function addRoutines() {
         const normalizedHour = Number.isNaN(parsedHour) ? 1 : Math.min(12, Math.max(1, parsedHour));
         const normalizedMinute = Number.isNaN(parsedMinute) ? 0 : Math.min(59, Math.max(0, parsedMinute));
         return `${normalizedHour.toString().padStart(2, "0")}:${normalizedMinute.toString().padStart(2, "0")} ${period.toLowerCase()}`;
+    };
+
+    const bringRoutineNameIntoView = () => {
+        setIsRoutineNameFocused(true);
+
+        // Initial nudge while keyboard is animating.
+        const targetY = Math.max(routineNameFieldY - scaleSpacing(84), 0);
+        setTimeout(() => {
+            addRoutineModalScrollRef.current?.scrollTo({ y: targetY, animated: true });
+        }, 80);
     };
 
     const normalizeDaysKey = (days?: number[]) => {
@@ -1180,13 +1233,27 @@ export default function addRoutines() {
                     <View style={styles.modalContainer}>
                         {/* Header (Back only) */}
                         <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={closeModal}>
-                                <Text style={styles.backText}>Back</Text>
+                            <TouchableOpacity style={styles.backButtonTouchable} onPress={closeModal}>
+                                <Text
+                                    style={styles.backText}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.82}
+                                    allowFontScaling={false}
+                                >
+                                    Back
+                                </Text>
                             </TouchableOpacity>
                             <View />
                         </View>
 
-                    <View style={{ padding: 16 }}>
+                    <ScrollView
+                        ref={addRoutineModalScrollRef}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ padding: 16, paddingBottom: scaleSpacing(28) + insets.bottom + (keyboardInset * 0.45) }}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                    >
                         {/* Time Picker Section */}
                         <View style={styles.timePickerCard} ref={timePickerRef} collapsable={false}>
                             <Text style={styles.timePickerTitle}>ENTER TIME</Text>
@@ -1293,13 +1360,20 @@ export default function addRoutines() {
                                 </View>
 
                                 {/* Routine Name Input - non-editable if preset selected */}
-                                <View ref={routineNameRef} collapsable={false} style={{ marginBottom: 16 }}>
+                                <View
+                                    ref={routineNameRef}
+                                    collapsable={false}
+                                    style={{ marginBottom: 16 }}
+                                    onLayout={(event) => setRoutineNameFieldY(event.nativeEvent.layout.y)}
+                                >
                                     <TextInput
                                         style={[styles.input, selectedPresetId && styles.inputDisabled]}
                                         placeholder="Routine name"
                                         placeholderTextColor="#000000ff"
                                         value={routineName}
                                         onChangeText={setRoutineName}
+                                        onFocus={bringRoutineNameIntoView}
+                                        onBlur={() => setIsRoutineNameFocused(false)}
                                         editable={!selectedPresetId}
                                     />
                                 </View>
@@ -1336,7 +1410,7 @@ export default function addRoutines() {
                             >
                                 <Text style={styles.presetButtonText}>{editingRoutineId ? 'Save' : 'Add Routine'}</Text>
                             </TouchableOpacity>
-                        </View>
+                        </ScrollView>
                     </View>
                 </View>
                 </View>
@@ -1359,8 +1433,16 @@ export default function addRoutines() {
                 <View style={styles.presetScreen}>
                 {/* Header with Back button in upper-left */}
                 <View style={[styles.presetHeader, { paddingTop: insets.top + scaleSpacing(8) }]}>
-                    <TouchableOpacity onPress={closePresetModal}>
-                        <Text style={styles.backText}>Back</Text>
+                    <TouchableOpacity style={styles.backButtonTouchable} onPress={closePresetModal}>
+                        <Text
+                            style={styles.backText}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.82}
+                            allowFontScaling={false}
+                        >
+                            Back
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
@@ -1431,8 +1513,16 @@ export default function addRoutines() {
                     <View style={styles.presetScreen}>
                         {/* Header with Back button */}
                         <View style={[styles.presetHeader, { paddingTop: insets.top + scaleSpacing(8) }]}>
-                            <TouchableOpacity onPress={closeRingtoneModal}>
-                                <Text style={styles.backText}>Back</Text>
+                            <TouchableOpacity style={styles.backButtonTouchable} onPress={closeRingtoneModal}>
+                                <Text
+                                    style={styles.backText}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.82}
+                                    allowFontScaling={false}
+                                >
+                                    Back
+                                </Text>
                             </TouchableOpacity>
                         </View>
 
@@ -1702,7 +1792,7 @@ export default function addRoutines() {
                                 resizeMode="contain"
                             />
                         </View>
-                        <Text style={styles.saveModalTitle}>Duplicate Routine</Text>
+                        <Text style={styles.saveModalTitle}>Duplicated Routine</Text>
                         <Text style={styles.saveModalMessage}>
                             This routine already exists. Please change the time, day, preset, or ringtone.
                         </Text>
@@ -1974,6 +2064,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#E0E0E0",
     },
+    backButtonTouchable: {
+        alignSelf: "flex-start",
+        minWidth: scale.scaleWidth(64),
+    },
     backText: {
         fontSize: scale.scaleFont(18),
         color: "#244D4A",
@@ -1981,6 +2075,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         textDecorationColor: "#244D4A",
         paddingVertical: scale.scaleSpacing(6),
         paddingHorizontal: scale.scaleSpacing(6),
+        minWidth: scale.scaleWidth(52),
     },
     modalTitle: {
         fontSize: scale.scaleFont(18),
@@ -2427,7 +2522,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         width: scale.scaleWidth(80),
         height: scale.scaleHeight(80),
         borderRadius: scale.scaleBorderRadius(12),
-        backgroundColor: "#E8FFFA",
+        backgroundColor: "transparent",
         alignItems: "center",
         justifyContent: "center",
         marginRight: scale.scaleSpacing(16),
@@ -2440,7 +2535,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         resizeMode: "contain",
     },
     routineIcon: {
-        fontSize: scale.scaleFont(40),
+        fontSize: scale.scaleFont(58),
+        textAlign: "center",
     },
     routineInfo: {
         flex: 1,

@@ -44,6 +44,22 @@ interface Routine {
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
 
+// Static JPG fallbacks used when a routine card is off-screen to reduce GIF decoding load.
+const PRESET_STATIC_IMAGES: Record<number, any> = {
+  1: require("../../assets/images/brush.jpg"),
+  2: require("../../assets/images/eat.jpg"),
+  3: require("../../assets/images/bath.jpg"),
+  4: require("../../assets/images/clothes.jpg"),
+  5: require("../../assets/images/school.jpg"),
+  6: require("../../assets/images/pajama.jpg"),
+  7: require("../../assets/images/sleep.jpg"),
+  8: require("../../assets/images/bed.jpg"),
+  9: require("../../assets/images/hair.jpg"),
+  10: require("../../assets/images/hand_bless.jpg"),
+  11: require("../../assets/images/play.jpg"),
+  12: require("../../assets/images/sweep.jpg"),
+};
+
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? '').toLowerCase();
   const name = String((error as any)?.name ?? '').toLowerCase();
@@ -66,7 +82,7 @@ export default function Home() {
 
   // Get responsive dimensions and scaling functions
   const responsive = useResponsiveDimensions();
-  const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
+  const { width: screenWidth, scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   const { isFirstTimeUser, startOnboarding, checkOnboardingStatus, checkAndStartOnboardingIfFirstLogin } = useOnboarding();
   const insets = useSafeAreaInsets();
@@ -86,7 +102,12 @@ export default function Home() {
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [routineAnimations] = useState<Record<number, any>>({});
+  const [routineAnimations] = useState<Record<number, {
+    opacity: Animated.Value;
+    translateX: Animated.Value;
+    translateY: Animated.Value;
+    scale: Animated.Value;
+  }>>({});
   const [completedOrder, setCompletedOrder] = useState<number[]>([]);
   const routinesRef = useRef<Routine[]>([]);
   const completedOrderRef = useRef<number[]>([]);
@@ -140,6 +161,32 @@ export default function Home() {
   const successModalFadeAnim = useRef(new Animated.Value(0)).current;
   // Loading state to prevent content flash during minigame return check
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  const [homeScrollY, setHomeScrollY] = useState(0);
+  const [homeViewportHeight, setHomeViewportHeight] = useState(0);
+  const [homeItemLayouts, setHomeItemLayouts] = useState<Record<number, { y: number; height: number }>>({});
+  const [completedScrollY, setCompletedScrollY] = useState(0);
+  const [completedViewportHeight, setCompletedViewportHeight] = useState(0);
+  const [completedItemLayouts, setCompletedItemLayouts] = useState<Record<number, { y: number; height: number }>>({});
+  const completedStripAnimationsRef = useRef<Record<number, {
+    translateX: Animated.Value;
+    scale: Animated.Value;
+    opacity: Animated.Value;
+  }>>({});
+  const remainingReorderAnimationsRef = useRef<Record<number, Animated.Value>>({});
+  const prevIncompleteIdsRef = useRef<number[]>([]);
+  const completedExitAnimationsRef = useRef<Record<number, {
+    translateX: Animated.Value;
+    translateY: Animated.Value;
+    scale: Animated.Value;
+    opacity: Animated.Value;
+  }>>({});
+  const [exitingCompletedPreview, setExitingCompletedPreview] = useState<Array<{
+    id: number;
+    routine: Routine;
+    slotIndex: number;
+  }>>([]);
+  const previewRoutineByIdRef = useRef<Record<number, Routine>>({});
+  const prevCompletedPreviewIdsRef = useRef<number[]>([]);
   // Track which timer marks have triggered voiceover replay to prevent duplicates
   const voReplayTriggeredRef = useRef<Set<number>>(new Set());
   // Derive the active routine and its playbook
@@ -350,9 +397,7 @@ export default function Home() {
      
       // Initialize animations for each routine
       routinesWithProgress.forEach(routine => {
-        if (!routineAnimations[routine.id]) {
-          routineAnimations[routine.id] = new Animated.Value(1);
-        }
+        ensureRoutineAnimation(routine.id);
       });
      
       // Build completed order from today's completed routines
@@ -602,19 +647,46 @@ export default function Home() {
   const toggleComplete = async (id: number) => {
     const wasCompleted = routines.find(r => r.id === id)?.completed ?? false;
     const newCompletedStatus = !wasCompleted;
-   
-    // Animate the routine card sliding up and fading
-    if (routineAnimations[id]) {
+
+    const transitionDurationMs = 620;
+    // Show the completed-strip entry while the remaining card is still fading,
+    // so the transition feels instant instead of waiting for fade-out to finish.
+    const completedCommitDelayMs = 110;
+    const routineAnim = ensureRoutineAnimation(id);
+
+    // Smoothly shrink and fly up-left toward Completed section before state moves it.
+    if (newCompletedStatus) {
       Animated.parallel([
-        Animated.timing(routineAnimations[id], {
+        Animated.timing(routineAnim.opacity, {
           toValue: 0,
-          duration: 400,
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(routineAnim.translateY, {
+          toValue: -scaleHeight(240),
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(routineAnim.translateX, {
+          toValue: -scaleWidth(130),
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(routineAnim.scale, {
+          toValue: 0.26,
+          duration: transitionDurationMs,
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
       ]).start();
+    } else {
+      resetRoutineAnimation(id);
     }
    
-    // Wait for animation to complete before updating state
+    // Commit completion slightly before animation fully ends so Completed strip pops in right as the card fades out.
     setTimeout(async () => {
       try {
         // Update database - this will set completed and completed_at
@@ -651,6 +723,7 @@ export default function Home() {
       if (allCompleted) {
         // Update state first
         setRoutines(updatedRoutines);
+        resetRoutineAnimation(id);
        
         // Show the all done message with animation
         setShowAllDone(true);
@@ -746,8 +819,11 @@ export default function Home() {
       } else {
         // Otherwise just update state
         setRoutines(updatedRoutines);
+        if (!newCompletedStatus) {
+          resetRoutineAnimation(id);
+        }
       }
-    }, 400); // Match the animation duration
+    }, newCompletedStatus ? completedCommitDelayMs : 0);
   };
  
   // Cleanup timeout on unmount
@@ -1302,6 +1378,27 @@ export default function Home() {
     .filter(Boolean) as Routine[];
   const completedRoutinesReversed = [...completedRoutinesOrdered].reverse(); // Oldest first for See All
 
+  const completedPreviewCount = 4;
+  const completedPreviewGap = scaleSpacing(12);
+  const completedPreviewSidePadding = scaleSpacing(16);
+  const completedPreviewInnerInset = scaleSpacing(2);
+  const completedPreviewItemWidth =
+    (screenWidth - (completedPreviewSidePadding * 2) - (completedPreviewInnerInset * 2) - (completedPreviewGap * (completedPreviewCount - 1))) /
+    completedPreviewCount;
+  const completedPreviewDisplayed = useMemo(
+    () => completedRoutinesOrdered.slice(-completedPreviewCount).reverse(),
+    [completedRoutinesOrdered, completedPreviewCount]
+  );
+  const completedPreviewIds = useMemo(
+    () => completedPreviewDisplayed.map((routine) => routine.id),
+    [completedPreviewDisplayed]
+  );
+  const incompleteRoutineIds = useMemo(
+    () => incompleteRoutines.map((routine) => routine.id),
+    [incompleteRoutines]
+  );
+  const completedPreviewOlderCount = completedRoutinesOrdered.length - completedPreviewDisplayed.length;
+
   const totalRoutines = routines.length;
   const completedCount = routines.filter((r) => r.completed).length;
   const progressPercentage = totalRoutines > 0 ? (completedCount / totalRoutines) * 100 : 0;
@@ -1438,6 +1535,223 @@ export default function Home() {
     openTaskModal();
   };
 
+  const isCardVisible = (
+    layout: { y: number; height: number } | undefined,
+    scrollY: number,
+    viewportHeight: number,
+    prefetchPadding: number = scaleSpacing(32)
+  ) => {
+    if (!layout || viewportHeight <= 0) return false;
+    const viewportTop = scrollY - prefetchPadding;
+    const viewportBottom = scrollY + viewportHeight + prefetchPadding;
+    const itemTop = layout.y;
+    const itemBottom = layout.y + layout.height;
+    return itemBottom >= viewportTop && itemTop <= viewportBottom;
+  };
+
+  const getRoutineImageSource = (routine: Routine, shouldAnimate: boolean) => {
+    const preset = resolveRoutinePreset(routine);
+    if (!preset) return null;
+    if (shouldAnimate) return preset.image;
+    return PRESET_STATIC_IMAGES[preset.id] ?? preset.image;
+  };
+
+  const ensureRoutineAnimation = (id: number) => {
+    if (!routineAnimations[id]) {
+      routineAnimations[id] = {
+        opacity: new Animated.Value(1),
+        translateX: new Animated.Value(0),
+        translateY: new Animated.Value(0),
+        scale: new Animated.Value(1),
+      };
+    }
+    return routineAnimations[id];
+  };
+
+  const resetRoutineAnimation = (id: number) => {
+    const anim = ensureRoutineAnimation(id);
+    anim.opacity.setValue(1);
+    anim.translateX.setValue(0);
+    anim.translateY.setValue(0);
+    anim.scale.setValue(1);
+  };
+
+  const ensureCompletedStripAnimation = (id: number) => {
+    if (!completedStripAnimationsRef.current[id]) {
+      completedStripAnimationsRef.current[id] = {
+        translateX: new Animated.Value(0),
+        scale: new Animated.Value(1),
+        opacity: new Animated.Value(1),
+      };
+    }
+    return completedStripAnimationsRef.current[id];
+  };
+
+  const ensureCompletedExitAnimation = (id: number) => {
+    if (!completedExitAnimationsRef.current[id]) {
+      completedExitAnimationsRef.current[id] = {
+        translateX: new Animated.Value(0),
+        translateY: new Animated.Value(0),
+        scale: new Animated.Value(1),
+        opacity: new Animated.Value(1),
+      };
+    }
+    return completedExitAnimationsRef.current[id];
+  };
+
+  const ensureRemainingReorderAnimation = (id: number) => {
+    if (!remainingReorderAnimationsRef.current[id]) {
+      remainingReorderAnimationsRef.current[id] = new Animated.Value(0);
+    }
+    return remainingReorderAnimationsRef.current[id];
+  };
+
+  useEffect(() => {
+    const previousIds = prevIncompleteIdsRef.current;
+    const currentIds = incompleteRoutineIds;
+    const rowDistance = scaleHeight(292);
+
+    currentIds.forEach((id, newIndex) => {
+      const previousIndex = previousIds.indexOf(id);
+      if (previousIndex > newIndex) {
+        // Item moved up because tasks above it were completed; animate from slightly lower position.
+        const delta = previousIndex - newIndex;
+        const reorderAnim = ensureRemainingReorderAnimation(id);
+        reorderAnim.stopAnimation();
+        reorderAnim.setValue(Math.min(rowDistance * delta, scaleHeight(160)));
+        Animated.timing(reorderAnim, {
+          toValue: 0,
+          duration: 340,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+
+    previousIds.forEach((id) => {
+      if (!currentIds.includes(id)) {
+        delete remainingReorderAnimationsRef.current[id];
+      }
+    });
+
+    prevIncompleteIdsRef.current = currentIds;
+  }, [incompleteRoutineIds, scaleHeight]);
+
+  useEffect(() => {
+    const previousIds = prevCompletedPreviewIdsRef.current;
+    const currentIds = completedPreviewIds;
+    const slotDistance = completedPreviewItemWidth + completedPreviewGap;
+
+    // Keep a lookup of currently visible preview routines so exit animations can render
+    // even after an item is pushed out of the 4-slot preview.
+    completedPreviewDisplayed.forEach((routine) => {
+      previewRoutineByIdRef.current[routine.id] = routine;
+    });
+
+    const removedIds = previousIds.filter((id) => !currentIds.includes(id));
+    removedIds.forEach((id) => {
+      const previousIndex = previousIds.indexOf(id);
+      const routine = previewRoutineByIdRef.current[id];
+      if (previousIndex === -1 || !routine) {
+        return;
+      }
+
+      setExitingCompletedPreview((prev) => {
+        if (prev.some((item) => item.id === id)) {
+          return prev;
+        }
+        return [...prev, { id, routine, slotIndex: previousIndex }];
+      });
+
+      const exitAnim = ensureCompletedExitAnimation(id);
+      exitAnim.translateX.setValue(0);
+      exitAnim.translateY.setValue(0);
+      exitAnim.scale.setValue(1);
+      exitAnim.opacity.setValue(1);
+
+      Animated.parallel([
+        Animated.timing(exitAnim.translateX, {
+          toValue: scaleWidth(44),
+          duration: 360,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(exitAnim.translateY, {
+          toValue: -scaleHeight(26),
+          duration: 360,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(exitAnim.scale, {
+          toValue: 0.34,
+          duration: 360,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(exitAnim.opacity, {
+          toValue: 0,
+          duration: 320,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setExitingCompletedPreview((prev) => prev.filter((item) => item.id !== id));
+        delete completedExitAnimationsRef.current[id];
+        delete previewRoutineByIdRef.current[id];
+      });
+    });
+
+    currentIds.forEach((id, newIndex) => {
+      const anim = ensureCompletedStripAnimation(id);
+      const previousIndex = previousIds.indexOf(id);
+
+      if (previousIndex === -1) {
+        // New item entering at the left pops in smoothly.
+        anim.translateX.setValue(0);
+        anim.scale.setValue(0.9);
+        anim.opacity.setValue(0.2);
+        Animated.parallel([
+          Animated.timing(anim.opacity, {
+            toValue: 1,
+            duration: 150,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim.scale, {
+            toValue: 1,
+            duration: 180,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start();
+        return;
+      }
+
+      const slotDelta = previousIndex - newIndex;
+      if (slotDelta !== 0) {
+        // Existing items shift with a clean one-way move (no bounce/overshoot).
+        anim.translateX.setValue(slotDelta * slotDistance);
+        Animated.timing(anim.translateX, {
+          toValue: 0,
+          duration: 210,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }
+
+      anim.scale.setValue(1);
+      anim.opacity.setValue(1);
+    });
+
+    previousIds.forEach((id) => {
+      if (!currentIds.includes(id)) {
+        delete completedStripAnimationsRef.current[id];
+      }
+    });
+
+    prevCompletedPreviewIdsRef.current = currentIds;
+  }, [completedPreviewIds, completedPreviewDisplayed, completedPreviewItemWidth, completedPreviewGap, scaleHeight, scaleWidth]);
+
   return (
     <View style={{ flex: 1 }}>
       {/* Loading overlay to prevent flash when checking minigame completion */}
@@ -1532,26 +1846,33 @@ export default function Home() {
       )}
 
       {/* Completed Task strip (up to 4 newest, newest at left) */}
-      {!showAllDone && completedRoutinesOrdered.length > 0 && (() => {
-        const displayed = completedRoutinesOrdered.slice(-4).reverse(); // newest first (left to right)
-        const olderCount = completedRoutinesOrdered.length - displayed.length;
-        return (
-          <View style={styles.completedSection}>
-            <View style={styles.completedHeaderRow}>
-              <Text style={styles.completedTitle}>Completed Task</Text>
-              {olderCount > 0 && (
-                <TouchableOpacity onPress={() => setCompletedModalVisible(true)}>
-                  <Text style={styles.seeAllLink}>See all</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View style={styles.completedRow}>
-              {displayed.map(routine => {
-                const preset = resolveRoutinePreset(routine);
-                return (
+      {!showAllDone && completedRoutinesOrdered.length > 0 && (
+        <View style={styles.completedSection}>
+          <View style={styles.completedHeaderRow}>
+            <Text style={styles.completedTitle}>Completed Task</Text>
+            {completedPreviewOlderCount > 0 && (
+              <TouchableOpacity onPress={() => setCompletedModalVisible(true)}>
+                <Text style={styles.seeAllLink}>See all</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={[styles.completedRow, { paddingHorizontal: completedPreviewInnerInset }] }>
+            {completedPreviewDisplayed.map((routine) => {
+              const preset = resolveRoutinePreset(routine);
+              const stripAnim = ensureCompletedStripAnimation(routine.id);
+              return (
+                <Animated.View
+                  key={routine.id}
+                  style={{
+                    transform: [
+                      { translateX: stripAnim.translateX },
+                      { scale: stripAnim.scale },
+                    ],
+                    opacity: stripAnim.opacity,
+                  }}
+                >
                   <TouchableOpacity
-                    key={routine.id}
-                    style={styles.completedItem}
+                    style={[styles.completedItem, { width: completedPreviewItemWidth }]}
                     activeOpacity={0.85}
                     onPress={() => openCompletedTaskPlaybook(routine.id)}
                   >
@@ -1566,12 +1887,48 @@ export default function Home() {
                       <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
                     )}
                   </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+            <View pointerEvents="none" style={styles.completedRowExitLayer}>
+              {exitingCompletedPreview.map((item) => {
+                const preset = resolveRoutinePreset(item.routine);
+                const exitAnim = ensureCompletedExitAnimation(item.id);
+                return (
+                  <Animated.View
+                    key={`exit-${item.id}`}
+                    style={[
+                      styles.completedExitItem,
+                      {
+                        left: item.slotIndex * (completedPreviewItemWidth + completedPreviewGap),
+                        transform: [
+                          { translateX: exitAnim.translateX },
+                          { translateY: exitAnim.translateY },
+                          { scale: exitAnim.scale },
+                        ],
+                        opacity: exitAnim.opacity,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.completedItem, { width: completedPreviewItemWidth }]}> 
+                      <View style={styles.completedStripStars}>
+                        <Text style={styles.completedStripStar}>⭐</Text>
+                        <Text style={styles.completedStripStar}>⭐</Text>
+                        <Text style={styles.completedStripStar}>⭐</Text>
+                      </View>
+                      {preset ? (
+                        <Image source={preset.image} style={styles.completedImage} />
+                      ) : (
+                        <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
+                      )}
+                    </View>
+                  </Animated.View>
                 );
               })}
             </View>
           </View>
-        );
-      })()}
+        </View>
+      )}
 
       {/* Remaining Task Label (fixed) */}
       {!showAllDone && incompleteRoutines.length > 0 && (
@@ -1582,36 +1939,42 @@ export default function Home() {
 
       {/* Scrollable Routines List */}
       {!showAllDone && (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 110 }}
+          onLayout={(event) => setHomeViewportHeight(event.nativeEvent.layout.height)}
+          onScroll={(event) => setHomeScrollY(event.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={32}
+        >
           {incompleteRoutines.map((routine, idx) => {
           const routineTimeInMinutes = parseTime(routine.time);
           const isTimeReached = routineTimeInMinutes <= currentTimeInMinutes;
           const isEnabled = isTimeReached; // Enable any task that has reached its scheduled time
           const preset = resolveRoutinePreset(routine);
-         
-          // Initialize animation value if not exists
-          if (!routineAnimations[routine.id]) {
-            routineAnimations[routine.id] = new Animated.Value(1);
-          }
+          const layout = homeItemLayouts[routine.id];
+          const inViewport = isCardVisible(layout, homeScrollY, homeViewportHeight) || (!layout && idx < 3);
+          const shouldAnimate = isEnabled && inViewport;
+          const cardSource = preset ? getRoutineImageSource(routine, shouldAnimate) : null;
+          const routineAnim = ensureRoutineAnimation(routine.id);
+          const reorderAnim = ensureRemainingReorderAnimation(routine.id);
          
           return (
             <Animated.View
               key={routine.id}
+              onLayout={(event) => {
+                const { y, height } = event.nativeEvent.layout;
+                setHomeItemLayouts((prev) => {
+                  const current = prev[routine.id];
+                  if (current && current.y === y && current.height === height) return prev;
+                  return { ...prev, [routine.id]: { y, height } };
+                });
+              }}
               style={{
-                opacity: routineAnimations[routine.id],
+                opacity: routineAnim.opacity,
                 transform: [
-                  {
-                    translateY: routineAnimations[routine.id].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-200, 0],
-                    }),
-                  },
-                  {
-                    scale: routineAnimations[routine.id].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.8, 1],
-                    }),
-                  },
+                  { translateX: routineAnim.translateX },
+                  { translateY: routineAnim.translateY },
+                  { translateY: reorderAnim },
+                  { scale: routineAnim.scale },
                 ],
               }}
             >
@@ -1665,11 +2028,11 @@ export default function Home() {
                 <View style={styles.taskCardContent}>
                   {preset ? (
                     <ExpoImage
-                      key={`${routine.id}-${isEnabled ? 'enabled' : 'disabled'}`}
-                      source={preset.image}
+                      key={`${routine.id}-${shouldAnimate ? 'gif' : 'jpg'}-${isEnabled ? 'enabled' : 'disabled'}`}
+                      source={cardSource}
                       style={[styles.presetImageLarge, !isEnabled && styles.presetImageDim]}
                       contentFit="contain"
-                      autoplay={isEnabled}
+                      autoplay={shouldAnimate}
                     />
                   ) : (
                     <View style={[styles.iconPlaceholderLarge, !isEnabled && styles.iconDim]}>
@@ -1895,12 +2258,13 @@ export default function Home() {
           setIsReplayMode(false);
         }}
       >
-        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={{ flex: 1 }}>
           <Image
             source={require("../../assets/background.png")}
             style={styles.backgroundImage}
             resizeMode="stretch"
           />
+          <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
           <View style={styles.completedModalHeader}>
             <TouchableOpacity onPress={() => {
               setCompletedModalVisible(false);
@@ -1910,12 +2274,28 @@ export default function Home() {
             </TouchableOpacity>
           </View>
           <Text style={styles.completedModalTitle}>Completed Task</Text>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-            {completedRoutinesReversed.map((routine) => {
+          <ScrollView
+            contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
+            onLayout={(event) => setCompletedViewportHeight(event.nativeEvent.layout.height)}
+            onScroll={(event) => setCompletedScrollY(event.nativeEvent.contentOffset.y)}
+            scrollEventThrottle={32}
+          >
+            {completedRoutinesReversed.map((routine, idx) => {
               const preset = resolveRoutinePreset(routine);
+              const layout = completedItemLayouts[routine.id];
+              const inViewport = isCardVisible(layout, completedScrollY, completedViewportHeight) || (!layout && idx < 4);
+              const cardSource = preset ? getRoutineImageSource(routine, inViewport) : null;
               return (
                 <TouchableOpacity
                   key={routine.id}
+                  onLayout={(event) => {
+                    const { y, height } = event.nativeEvent.layout;
+                    setCompletedItemLayouts((prev) => {
+                      const current = prev[routine.id];
+                      if (current && current.y === y && current.height === height) return prev;
+                      return { ...prev, [routine.id]: { y, height } };
+                    });
+                  }}
                   style={styles.completedModalCard}
                   activeOpacity={0.85}
                   onPress={() => {
@@ -1929,7 +2309,13 @@ export default function Home() {
                     <Text style={styles.completedStar}>⭐</Text>
                   </View>
                   {preset ? (
-                    <Image source={preset.image} style={styles.presetImageLarge} />
+                    <ExpoImage
+                      key={`${routine.id}-${inViewport ? 'gif' : 'jpg'}`}
+                      source={cardSource}
+                      style={styles.presetImageLarge}
+                      contentFit="contain"
+                      autoplay={inViewport}
+                    />
                   ) : (
                     <View style={styles.iconPlaceholderLarge}><Text style={styles.iconLarge}>📋</Text></View>
                   )}
@@ -1939,7 +2325,8 @@ export default function Home() {
               );
             })}
           </ScrollView>
-        </SafeAreaView>
+          </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Playbook Modal - Full Screen */}
@@ -2021,8 +2408,8 @@ export default function Home() {
             </View>
           </View>
 
-          <ScrollView contentContainerStyle={styles.playbookContent}>
-            {/* Video/Image Card */}
+          <ScrollView contentContainerStyle={styles.playbookContent} scrollEnabled={false}>
+            {/* Video/Image Card - stays at top */}
             <View style={styles.videoCard}>
               <View style={styles.videoInner}>
                 {(() => {
@@ -2035,14 +2422,28 @@ export default function Home() {
               </View>
             </View>
 
-            {/* Step Label */}
-            <Text style={styles.stepLabel}>Step {currentStep}</Text>
-            <Text style={styles.instructionText}>
-              {(() => {
-                const stepIndex = Math.max(0, Math.min(3, currentStep - 1));
-                return playbook?.steps[stepIndex]?.label ?? '';
-              })()}
-            </Text>
+            {/* Flexible spacer above description - smaller */}
+            <View style={styles.spacerFlexTop} />
+
+            {/* Step Label + Description grouped as one centered block */}
+            <View style={styles.descriptionCenter}>
+              <Text style={styles.stepLabel}>Step {currentStep}</Text>
+              <Text
+                style={styles.instructionText}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                allowFontScaling={false}
+              >
+                {(() => {
+                  const stepIndex = Math.max(0, Math.min(3, currentStep - 1));
+                  return playbook?.steps[stepIndex]?.label ?? '';
+                })()}
+              </Text>
+            </View>
+
+            {/* Flexible spacer below description */}
+            <View style={styles.spacerFlex} />
           </ScrollView>
 
           {/* Footer with Next Button */}
@@ -2433,6 +2834,20 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   completedRow: {
     flexDirection: 'row',
     gap: scale.scaleSpacing(12),
+    position: 'relative',
+    overflow: 'visible',
+  },
+  completedRowExitLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+  },
+  completedExitItem: {
+    position: 'absolute',
+    top: 0,
   },
   completedItem: {
     width: scale.scaleWidth(80),
@@ -2453,11 +2868,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginTop: scale.scaleSpacing(15),
   },
   completedPlaceholder: {
-    width: '85%',
-    height: '85%',
+    width: '88%',
+    height: '88%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E8FFFA',
+    backgroundColor: 'transparent',
   },
   completedStripStars: {
     position: 'absolute',
@@ -2510,10 +2925,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     justifyContent: "center",
   },
   iconPlaceholderLarge: {
-    width: scale.scaleWidth(160),
-    height: scale.scaleHeight(160),
+    width: scale.scaleWidth(200),
+    height: scale.scaleHeight(180),
     borderRadius: scale.scaleBorderRadius(18),
-    backgroundColor: "#E8FFFA",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: scale.scaleSpacing(12),
@@ -2537,8 +2952,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   presetImageDim: {
     opacity: 0.7,
   },
-  icon: { fontSize: scale.scaleFont(28) },
-  iconLarge: { fontSize: scale.scaleFont(70) },
+  icon: { fontSize: scale.scaleFont(44), textAlign: 'center' },
+  iconLarge: { fontSize: scale.scaleFont(112), textAlign: 'center' },
   taskTitle: {
     fontWeight: "700",
     color: "#244D4A",
@@ -2952,7 +3367,9 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
   playbookContent: {
     paddingHorizontal: scale.scaleSpacing(20),
-    paddingBottom: scale.scaleSpacing(24),
+    flexGrow: 1,
+    flexDirection: "column",
+    justifyContent: "flex-start",
     alignItems: "center",
   },
   videoCard: {
@@ -2963,7 +3380,8 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderColor: "#2F7C72",
     borderRadius: scale.scaleBorderRadius(16),
     overflow: "hidden",
-    marginBottom: scale.scaleSpacing(80),
+    marginBottom: 0,
+    marginTop: 0,
     position: "relative",
   },
   videoInner: {
@@ -2982,17 +3400,38 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(26),
     fontWeight: "700",
     color: "#244D4A",
-    marginBottom: scale.scaleSpacing(10),
+    marginBottom: scale.scaleSpacing(6),
+    marginTop: 0,
     fontFamily: "Fredoka_700Bold",
   },
   instructionText: {
-    fontSize: scale.scaleFont(22),
+    fontSize: scale.scaleFont(19),
     fontWeight: "700",
     color: "#244D4A",
     textAlign: "center",
-    lineHeight: scale.scaleHeight(28),
+    lineHeight: scale.scaleHeight(26),
     fontFamily: "Fredoka_700Bold",
-    marginBottom: scale.scaleSpacing(24),
+    marginBottom: 0,
+    marginTop: 0,
+    minHeight: scale.scaleHeight(52),
+  },
+  playbookContentCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  spacerFlex: {
+    flex: 1,
+  },
+  spacerFlexTop: {
+    flex: 0.5,
+  },
+  descriptionCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    gap: 0,
+    paddingTop: scale.scaleSpacing(16),
   },
   playbookFooter: {
     position: "absolute",

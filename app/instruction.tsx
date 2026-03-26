@@ -4,18 +4,18 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -82,20 +82,27 @@ export default function InstructionPage() {
   const isTablet = windowWidth >= 768;
   const isLargeTablet = windowWidth >= 1024;
   const isCompactHeight = windowHeight < 780;
-  const contentMaxWidth = isLargeTablet ? 840 : isTablet ? 700 : 520;
+  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+  const contentMaxWidth = isLargeTablet
+    ? Math.min(windowWidth * 0.82, 900)
+    : isTablet
+      ? Math.min(windowWidth * 0.86, 760)
+      : Math.min(windowWidth * 0.92, 560);
   const imageSectionHeight = isTablet
-    ? Math.min(Math.max(windowHeight * 0.34, 260), 420)
-    : Math.min(Math.max(windowHeight * (isCompactHeight ? 0.27 : 0.32), 200), 340);
+    ? clamp(windowHeight * 0.34, 260, 430)
+    : clamp(windowHeight * (isCompactHeight ? 0.27 : 0.32), 200, 340);
   const pageHorizontalPadding = isTablet ? (isLargeTablet ? 72 : 56) : windowWidth < 380 ? 24 : 36;
-  const pageTopPadding = insets.top + (isTablet ? 92 : (isCompactHeight ? 88 : 104));
-  const pageBottomPadding = insets.bottom + (isTablet ? 128 : (isCompactHeight ? 96 : 112));
-  const titleFontSize = isLargeTablet ? 44 : isTablet ? 40 : (isCompactHeight ? 30 : 34);
+  const topReserved = insets.top + (isTablet ? 64 : 58);
+  const bottomReserved = insets.bottom + (isTablet ? 68 : 62);
+  const pageTopPadding = topReserved + (isCompactHeight ? 18 : 24);
+  const pageBottomPadding = bottomReserved + (isCompactHeight ? 20 : 28);
+  const titleFontSize = isLargeTablet ? 44 : isTablet ? 40 : clamp(windowWidth * 0.088, 30, 36);
   const titleMarginBottom = isTablet ? 16 : (isCompactHeight ? 10 : 12);
-  const descriptionFontSize = isLargeTablet ? 24 : isTablet ? 21 : (isCompactHeight ? 17 : 18);
-  const descriptionLineHeight = isLargeTablet ? 34 : isTablet ? 31 : (isCompactHeight ? 25 : 28);
+  const descriptionFontSize = isLargeTablet ? 24 : isTablet ? 21 : clamp(windowWidth * 0.046, 16, 19);
+  const descriptionLineHeight = isLargeTablet ? 34 : isTablet ? 31 : clamp(descriptionFontSize * 1.5, 24, 29);
   const headerButtonFontSize = isTablet ? 26 : 22;
   const headerButtonMaxWidth = isTablet ? 120 : 80;
-  const buttonFontSize = isTablet ? 18 : 16;
+  const buttonFontSize = isTablet ? 18 : clamp(windowWidth * 0.043, 15, 17);
   const playIconSize = isTablet ? 22 : 20;
   const [currentPage, setCurrentPage] = useState(0);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
@@ -315,7 +322,15 @@ export default function InstructionPage() {
       >
         <View style={styles.container}>
         {/* Header with Back and Next */}
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 10,
+              paddingHorizontal: pageHorizontalPadding,
+            },
+          ]}
+        >
           {currentPage > 0 && (
             <TouchableOpacity style={[styles.headerButton, { maxWidth: headerButtonMaxWidth }]} onPress={handleBack}>
               <Text 
@@ -467,8 +482,10 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   pageContent: {
+    flex: 1,
     width: "100%",
     alignItems: "center",
+    justifyContent: "center",
   },
   imageContainer: {
     justifyContent: "center",
