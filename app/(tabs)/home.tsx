@@ -576,11 +576,13 @@ export default function Home() {
       setIsCheckingCompletion(true);
      
       // Immediately check if we returned from a finished minigame so we can show Success first
-      AsyncStorage.multiGet(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode']).then(async (entries) => {
+      AsyncStorage.multiGet(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']).then(async (entries) => {
         const completed = entries[0]?.[1];
         const routineIdRaw = entries[1]?.[1];
         const replayModeRaw = entries[2]?.[1];
+        const returnToTaskRaw = entries[3]?.[1];
         const wasReplayMode = replayModeRaw === 'true';
+        const shouldReturnToTask = returnToTaskRaw === 'true';
         const routineIdFromStorage = routineIdRaw ? Number(routineIdRaw) : null;
         const resolvedRoutineId = activeRoutineId ?? (routineIdFromStorage && !Number.isNaN(routineIdFromStorage) ? routineIdFromStorage : null);
 
@@ -613,17 +615,28 @@ export default function Home() {
           }
 
           // Clear return flags for next time
-          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode']);
+          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']);
 
           // This flow came from finishing a minigame, so keep replay mode off.
         } else {
           // User clicked back early - just reset the flag
           minigameStartedRef.current = false;
-          setIsReplayMode(false);
-          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode']);
+          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']);
 
-          // No success flow is active, so we can refresh routines immediately.
-          loadRoutines({ useCache: false });
+          if (shouldReturnToTask && resolvedRoutineId) {
+            setActiveRoutineId(resolvedRoutineId);
+            setIsReplayMode(wasReplayMode);
+            setSuccessModalVisible(false);
+            setPlaybookModalVisible(false);
+            setTaskModalVisible(true);
+          } else {
+            setIsReplayMode(false);
+            // Only refresh routines if no minigame is currently active and no task modal is visible
+            // to avoid disrupting minigame launch when activeRoutineId just got set
+            if (!minigameStartedRef.current && !taskModalVisible) {
+              loadRoutines({ useCache: false });
+            }
+          }
         }
        
         // Clear loading state after check completes
@@ -633,15 +646,17 @@ export default function Home() {
         minigameStartedRef.current = false;
         setIsCheckingCompletion(false);
 
-        // Recovery path: keep routine list in sync even if completion flag lookup failed.
-        loadRoutines({ useCache: false });
+        // Recovery path: keep routine list in sync only if no minigame is active
+        if (!minigameStartedRef.current && !taskModalVisible) {
+          loadRoutines({ useCache: false });
+        }
       });
 
       // Initial focus refresh is handled after minigame flag check to avoid racing Success modal state.
 
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
-    }, [activeRoutineId, parentalLockEnabled, ensureRoutineCompleted])
+    }, [activeRoutineId, parentalLockEnabled, ensureRoutineCompleted, taskModalVisible])
   );
 
   const toggleComplete = async (id: number) => {
@@ -2126,14 +2141,26 @@ export default function Home() {
                         }
 
                         minigameStartedRef.current = true;
+                        
+                        // Get the routine ID - use activeRoutineId first, then fall back to storage
+                        let routineIdForLaunch = activeRoutineId;
+                        if (!routineIdForLaunch) {
+                          try {
+                            const storedId = await AsyncStorage.getItem('@minigameRoutineId');
+                            routineIdForLaunch = storedId ? Number(storedId) : null;
+                          } catch {
+                            // Ignore storage errors
+                          }
+                        }
+                        
                         await AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
                         await AsyncStorage.setItem('@minigameReplayMode', isReplayMode ? 'true' : 'false');
-                        if (activeRoutineId) {
-                          await AsyncStorage.setItem('@minigameRoutineId', String(activeRoutineId));
+                        if (routineIdForLaunch) {
+                          await AsyncStorage.setItem('@minigameRoutineId', String(routineIdForLaunch));
                         }
                         const launchNonce = Date.now();
-                        const targetPath = activeRoutineId
-                          ? `${path}?routineId=${activeRoutineId}&launchNonce=${launchNonce}`
+                        const targetPath = routineIdForLaunch
+                          ? `${path}?routineId=${routineIdForLaunch}&launchNonce=${launchNonce}`
                           : `${path}?launchNonce=${launchNonce}`;
                         setTaskModalVisible(false);
                         router.push(targetPath as any);

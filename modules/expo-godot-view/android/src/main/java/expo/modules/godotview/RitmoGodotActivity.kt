@@ -31,6 +31,7 @@ class RitmoGodotActivity : GodotActivity() {
         private const val TAG = "RitmoGodotActivity"
         private const val EAT_ROUTING_ASSETS_VERSION = "eat_routing_assets_v1"
         private const val MIRROR_READY_FILE = ".mirror_ready"
+        @Volatile private var lastLaunchModeMarkerWritten: String? = null
         private val USERDATA_PROJECT_NAMES = listOf(
             "Ritmo",
             "ritmo",
@@ -96,6 +97,7 @@ class RitmoGodotActivity : GodotActivity() {
             val resultIntent = android.content.Intent().apply {
                 putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
                 putExtra("ritmo_result_code", resultCode)
+                putExtra("ritmo_back_exit", resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit)
             }
             setResult(resultCode, resultIntent)
         }
@@ -195,17 +197,16 @@ class RitmoGodotActivity : GodotActivity() {
         val resultIntent = Intent().apply {
             putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
             putExtra("ritmo_result_code", resultCode)
+            putExtra("ritmo_back_exit", resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit)
         }
         setResult(resultCode, resultIntent)
         finish()
         overridePendingTransition(0, 0)
 
-        if (resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit) {
-            scheduleProcessTerminationForBackExit()
-        }
+        scheduleProcessTerminationAfterExit()
     }
 
-    private fun scheduleProcessTerminationForBackExit() {
+    private fun scheduleProcessTerminationAfterExit() {
         val launchToken = RitmoPlugin.launchCounter
         Handler(Looper.getMainLooper()).postDelayed({
             if (RitmoPlugin.launchCounter == launchToken) {
@@ -267,39 +268,55 @@ class RitmoGodotActivity : GodotActivity() {
     }
 
     private fun writeLaunchModeMarker(mode: String) {
-        try {
-            val markerName = "ritmo_launch_mode.txt"
-            val markerPaths = linkedSetOf<File>()
-            markerPaths.add(File(filesDir, markerName))
-            for (projectName in USERDATA_PROJECT_NAMES) {
-                markerPaths.add(File(File(filesDir, "app_userdata/$projectName"), markerName))
-            }
-            for (dir in listKnownUserDataDirs()) {
-                markerPaths.add(File(dir, markerName))
-            }
+        if (lastLaunchModeMarkerWritten == mode) return
+        lastLaunchModeMarkerWritten = mode
 
-            for (markerFile in markerPaths) {
-                markerFile.parentFile?.mkdirs()
-                markerFile.writeText(mode, Charset.forName("UTF-8"))
+        Thread {
+            try {
+                val markerName = "ritmo_launch_mode.txt"
+                val markerText = mode
+                val markerPaths = linkedSetOf<File>()
+                markerPaths.add(File(filesDir, markerName))
+                for (projectName in USERDATA_PROJECT_NAMES) {
+                    markerPaths.add(File(File(filesDir, "app_userdata/$projectName"), markerName))
+                }
+                for (dir in listKnownUserDataDirs()) {
+                    markerPaths.add(File(dir, markerName))
+                }
+
+                for (markerFile in markerPaths) {
+                    markerFile.parentFile?.mkdirs()
+                    markerFile.writeText(markerText, Charset.forName("UTF-8"))
+                }
+            } catch (_: Exception) {
+                // Best-effort marker for GDScript boot routing.
             }
-        } catch (_: Exception) {
-            // Best-effort marker for GDScript boot routing.
-        }
+        }.start()
     }
 
     private fun mirrorEatAssetsToUserDataDirs(sourceDir: File) {
-        val targetRoots = linkedSetOf<File>()
-        for (projectName in USERDATA_PROJECT_NAMES) {
-            targetRoots.add(File(filesDir, "app_userdata/$projectName"))
-        }
-        for (dir in listKnownUserDataDirs()) {
-            targetRoots.add(dir)
+        val knownRoots = listKnownUserDataDirs()
+        val preferredRoot =
+            knownRoots.firstOrNull { it.name == packageName }
+                ?: knownRoots.firstOrNull { it.name.equals("com.anonymous.ritmo", ignoreCase = true) }
+                ?: knownRoots.firstOrNull()
+                ?: File(filesDir, "app_userdata/$packageName")
+
+        // Keep only one mirrored payload root to avoid multi-GB duplication.
+        for (root in knownRoots) {
+            if (root.absolutePath == preferredRoot.absolutePath) continue
+            try {
+                val duplicateMirror = File(root, "godot-eat")
+                if (duplicateMirror.exists()) {
+                    duplicateMirror.deleteRecursively()
+                }
+            } catch (_: Exception) {
+                // Best-effort cleanup only.
+            }
         }
 
-        for (root in targetRoots) {
-            val targetDir = File(root, "godot-eat")
-            mirrorPayloadIfNeeded(sourceDir, targetDir)
-        }
+        val targetDir = File(preferredRoot, "godot-eat")
+        mirrorPayloadIfNeeded(sourceDir, targetDir)
     }
 
     private fun mirrorPayloadIfNeeded(sourceDir: File, targetDir: File) {
@@ -334,9 +351,11 @@ class RitmoGodotActivity : GodotActivity() {
             return
         }
 
+
         target.parentFile?.mkdirs()
         source.inputStream().use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         }
     }
 }
+

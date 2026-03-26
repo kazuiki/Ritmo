@@ -649,19 +649,36 @@ export default function Settings() {
 
   const handleTimeLimitHoursChange = (text: string) => {
     const digitsOnly = text.replace(/\D/g, '').slice(0, 2);
-    setTimeLimitHours(digitsOnly.length > 0 ? digitsOnly : '00');
+    if (!digitsOnly) {
+      setTimeLimitHours('00');
+      return;
+    }
+
+    const numericHour = parseInt(digitsOnly, 10);
+    if (Number.isNaN(numericHour)) {
+      setTimeLimitHours('00');
+      return;
+    }
+
+    // Keep 2-digit duration input bounded to 00-99.
+    if (numericHour > 99) {
+      setTimeLimitHours('99');
+      return;
+    }
+
+    setTimeLimitHours(digitsOnly);
   };
 
   const handleTimeLimitMinutesChange = (text: string) => {
-    const digitsOnly = text.replace(/\D/g, '');
+    const digitsOnly = text.replace(/\D/g, '').slice(0, 2);
     if (!digitsOnly) {
-      setTimeLimitMinutes('');
+      setTimeLimitMinutes('00');
       return;
     }
 
     const parsed = parseInt(digitsOnly, 10);
     if (Number.isNaN(parsed)) {
-      setTimeLimitMinutes('');
+      setTimeLimitMinutes('00');
       return;
     }
 
@@ -670,6 +687,26 @@ export default function Settings() {
     } else {
       setTimeLimitMinutes(digitsOnly);
     }
+  };
+
+  const normalizeTimeLimitHoursInput = () => {
+    if (!timeLimitHours) {
+      setTimeLimitHours('00');
+      return;
+    }
+    const parsed = parseInt(timeLimitHours, 10);
+    const normalized = Number.isNaN(parsed) ? 0 : Math.min(99, Math.max(0, parsed));
+    setTimeLimitHours(normalized.toString().padStart(2, '0'));
+  };
+
+  const normalizeTimeLimitMinutesInput = () => {
+    if (!timeLimitMinutes) {
+      setTimeLimitMinutes('00');
+      return;
+    }
+    const parsed = parseInt(timeLimitMinutes, 10);
+    const normalized = Number.isNaN(parsed) ? 0 : Math.min(59, Math.max(0, parsed));
+    setTimeLimitMinutes(normalized.toString().padStart(2, '0'));
   };
 
   const handleSaveTimeLimit = async () => {
@@ -1965,35 +2002,45 @@ export default function Settings() {
                 {/* Title */}
                 <Text style={styles.changePasswordLabel}>Set Media Time Limit</Text>
 
-                {/* Hours Input */}
-                <View style={styles.timeLimitInputRow}>
-                  <View style={styles.timeLimitInputWrapper}>
-                    <Text style={styles.timeLimitInputLabel}>Hours</Text>
-                    <TextInput
-                      style={styles.timeLimitInput}
-                      value={timeLimitHours}
-                      onChangeText={handleTimeLimitHoursChange}
-                      placeholder="0"
-                      keyboardType="number-pad"
-                      maxLength={2}
-                      selectTextOnFocus
-                    />
-                  </View>
+                <View style={styles.timeLimitPickerCard}>
+                  <Text style={styles.timeLimitPickerTitle}>ENTER TIME</Text>
 
-                  <Text style={styles.timeLimitSeparator}>:</Text>
+                  <View style={styles.timeLimitManualRow}>
+                    <View style={styles.timeLimitManualFieldGroup}>
+                      <TextInput
+                        style={styles.timeLimitManualInput}
+                        value={timeLimitHours}
+                        onChangeText={handleTimeLimitHoursChange}
+                        onBlur={normalizeTimeLimitHoursInput}
+                        placeholder="HH"
+                        placeholderTextColor="#9AA7A6"
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        textAlign="center"
+                        textAlignVertical="center"
+                        selectTextOnFocus
+                      />
+                      <Text style={styles.timeLimitManualLabel}>Hour</Text>
+                    </View>
 
-                  {/* Minutes Input */}
-                  <View style={styles.timeLimitInputWrapper}>
-                    <Text style={styles.timeLimitInputLabel}>Minutes</Text>
-                    <TextInput
-                      style={styles.timeLimitInput}
-                      value={timeLimitMinutes}
-                      onChangeText={handleTimeLimitMinutesChange}
-                      placeholder="0"
-                      keyboardType="number-pad"
-                      maxLength={2}
-                      selectTextOnFocus
-                    />
+                    <Text style={styles.timeLimitManualColon}>:</Text>
+
+                    <View style={styles.timeLimitManualFieldGroup}>
+                      <TextInput
+                        style={styles.timeLimitManualInput}
+                        value={timeLimitMinutes}
+                        onChangeText={handleTimeLimitMinutesChange}
+                        onBlur={normalizeTimeLimitMinutesInput}
+                        placeholder="MM"
+                        placeholderTextColor="#9AA7A6"
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        textAlign="center"
+                        textAlignVertical="center"
+                        selectTextOnFocus
+                      />
+                      <Text style={styles.timeLimitManualLabel}>Minute</Text>
+                    </View>
                   </View>
                 </View>
 
@@ -3386,41 +3433,66 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
   },
 
   // Time Limit Styles
-  timeLimitInputRow: {
+  timeLimitPickerCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(16),
+    padding: scale.scaleSpacing(20),
+    paddingVertical: scale.scaleSpacing(16),
+    marginVertical: scale.scaleSpacing(16),
+    borderWidth: 2,
+    borderColor: "#B8E6D9",
+  },
+  timeLimitPickerTitle: {
+    fontSize: scale.scaleFont(13),
+    fontWeight: "700",
+    color: "#244D4A",
+    letterSpacing: 2,
+    marginBottom: scale.scaleSpacing(14),
+    textAlign: "center",
+    fontFamily: "Fredoka_700Bold",
+  },
+  timeLimitManualRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginVertical: scale.scaleSpacing(20),
-    gap: scale.scaleSpacing(20),
+    justifyContent: "space-between",
+    gap: scale.scaleSpacing(10),
   },
-  timeLimitInputWrapper: {
+  timeLimitManualFieldGroup: {
+    flex: 1,
     alignItems: "center",
   },
-  timeLimitInputLabel: {
-    fontSize: scale.scaleFont(16),
-    fontWeight: "600",
-    color: "#2A3B4D",
-    marginBottom: scale.scaleSpacing(8),
-    fontFamily: "Fredoka_600SemiBold",
-  },
-  timeLimitInput: {
-    width: scale.scaleWidth(80),
-    height: scale.scaleHeight(60),
+  timeLimitManualInput: {
+    width: "100%",
+    minWidth: scale.scaleWidth(86),
+    height: scale.scaleHeight(92),
+    borderRadius: scale.scaleBorderRadius(12),
     borderWidth: 2,
-    borderColor: "#00A980",
-    borderRadius: 12,
+    borderColor: "#B8E6D9",
+    backgroundColor: "#FFFFFF",
     fontSize: scale.scaleFont(24),
     fontWeight: "700",
     color: "#6B7280",
     textAlign: "center",
-    backgroundColor: "#FFFFFF",
+    textAlignVertical: "center",
+    writingDirection: "ltr",
+    paddingVertical: scale.scaleSpacing(8),
+    paddingHorizontal: 0,
+    includeFontPadding: false,
     fontFamily: "Fredoka_700Bold",
   },
-  timeLimitSeparator: {
-    fontSize: scale.scaleFont(32),
-    fontWeight: "700",
-    color: "#2A3B4D",
-    marginTop: scale.scaleSpacing(20),
+  timeLimitManualLabel: {
+    marginTop: scale.scaleSpacing(10),
+    fontSize: scale.scaleFont(13),
+    fontWeight: "500",
+    color: "#6B7280",
+    fontFamily: "Fredoka_500Medium",
+  },
+  timeLimitManualColon: {
+    fontSize: scale.scaleFont(48),
+    fontWeight: "400",
+    color: "#111827",
+    marginHorizontal: scale.scaleSpacing(2),
+    marginBottom: scale.scaleSpacing(28),
     fontFamily: "Fredoka_700Bold",
   },
   timeLimitInfoText: {

@@ -24,21 +24,18 @@ export default function SchoolGame() {
           await AsyncStorage.removeItem('@minigameCompleted');
           await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
-          // Resolve child name from cache first; keep auth lookup on short timeout.
+          // Resolve child name from cache first and avoid blocking launch.
           let childName = (await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY))?.trim() || 'Kid';
           if (childName === 'Kid') {
-            try {
-              const userPromise = supabase.auth.getUser();
-              const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 150));
-              const response = await Promise.race([userPromise, timeoutPromise]);
+            // Fire-and-forget refresh to keep launch path fast.
+            supabase.auth.getUser().then(async (response) => {
               const resolvedName = (response as any)?.data?.user?.user_metadata?.child_name;
               if (typeof resolvedName === 'string' && resolvedName.trim().length > 0) {
-                childName = resolvedName.trim();
-                await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, childName);
+                await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, resolvedName.trim());
               }
-            } catch {
-              // Keep cached/default value to avoid delaying launch.
-            }
+            }).catch(() => {
+              // Keep cached/default value.
+            });
           }
 
           const launchWith = async (className: string) => {
@@ -53,17 +50,21 @@ export default function SchoolGame() {
           };
 
           const launchStrategies = [
-            'expo.modules.godotview.RitmoGodotActivityLauncher',
-            // Fallback: bypass trampoline if some devices mishandle activity-for-result hops.
+            // Direct host first for fastest startup.
             'expo.modules.godotview.RitmoGodotActivity',
+            // Fallback trampoline for devices that prefer activity-for-result hop.
+            'expo.modules.godotview.RitmoGodotActivityLauncher',
           ];
 
           let result: any = null;
           let launchSucceeded = false;
+          let successfulSessionElapsedMs = 0;
           const startupFailureWindowMs = 2500;
 
           for (const className of launchStrategies) {
+            const attemptStartedAt = Date.now();
             result = await launchWith(className);
+            const attemptSessionElapsedMs = Date.now() - attemptStartedAt;
 
             const attemptAny = (result ?? {}) as any;
             const attemptCode = attemptAny?.resultCode;
@@ -75,12 +76,17 @@ export default function SchoolGame() {
               attemptExtra?.ritmo_startup_failed === true ||
               attemptExtra?.ritmo_startup_failed === 'true';
             const attemptElapsedMs = Number(attemptExtra?.ritmo_startup_elapsed_ms ?? 0);
+            const effectiveAttemptElapsedMs =
+              !Number.isNaN(attemptElapsedMs) && attemptElapsedMs > 0
+                ? attemptElapsedMs
+                : attemptSessionElapsedMs;
             const abnormalCanceled =
               attemptCode === IntentLauncher.ResultCode.Canceled &&
               !hasKnownResult &&
-              (Number.isNaN(attemptElapsedMs) || attemptElapsedMs <= startupFailureWindowMs);
+              (Number.isNaN(effectiveAttemptElapsedMs) || effectiveAttemptElapsedMs <= startupFailureWindowMs);
 
             if (!startupFailed && !abnormalCanceled) {
+              successfulSessionElapsedMs = attemptSessionElapsedMs;
               launchSucceeded = true;
               break;
             }
@@ -103,10 +109,14 @@ export default function SchoolGame() {
             finalExtra?.ritmo_startup_failed === true ||
             finalExtra?.ritmo_startup_failed === 'true';
           const finalElapsedMs = Number(finalExtra?.ritmo_startup_elapsed_ms ?? 0);
+          const effectiveFinalElapsedMs =
+            !Number.isNaN(finalElapsedMs) && finalElapsedMs > 0
+              ? finalElapsedMs
+              : successfulSessionElapsedMs;
           const abnormalCanceled =
             (finalCode === IntentLauncher.ResultCode.Canceled || finalCodeNum === 0) &&
             !hasKnownFinalResult &&
-            (Number.isNaN(finalElapsedMs) || finalElapsedMs <= startupFailureWindowMs);
+            (Number.isNaN(effectiveFinalElapsedMs) || effectiveFinalElapsedMs <= startupFailureWindowMs);
 
           if (finalStartupFailed || abnormalCanceled) {
             console.error('Godot startup failed twice', finalExtra);
@@ -118,14 +128,18 @@ export default function SchoolGame() {
             finalExtra?.ritmo_game_completed === true ||
             finalExtra?.ritmo_game_completed === 'true' ||
             Number(finalExtra?.ritmo_result_code) === -1;
+          const exitedViaBack =
+            finalExtra?.ritmo_back_exit === true ||
+            finalExtra?.ritmo_back_exit === 'true';
           const completedFromNativeFlag =
             (await ExpoGodotViewModule?.checkGameCompleted?.().catch(() => false)) === true;
           const completedFromDurationFallback =
             !finalStartupFailed &&
+            !exitedViaBack &&
             !completedFromHost &&
             !completedFromNativeFlag &&
             (finalCodeNum === 0 || finalCode === IntentLauncher.ResultCode.Canceled) &&
-            finalElapsedMs >= 15000;
+            effectiveFinalElapsedMs >= 15000;
           const isCompleted =
             completedFromHost ||
             completedFromNativeFlag ||
@@ -137,6 +151,7 @@ export default function SchoolGame() {
             console.warn('School completion fallback applied from long session duration', {
               finalCode,
               finalElapsedMs,
+              effectiveFinalElapsedMs,
               finalExtra,
             });
           }
@@ -147,16 +162,25 @@ export default function SchoolGame() {
             if (routineIdToPersist) {
               await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToPersist));
             }
+            await AsyncStorage.removeItem('@minigameReturnToTask');
             await AsyncStorage.setItem('@minigameCompleted', 'true');
             console.log('✓ Game completed - success modal will show', {
               finalCode,
               finalExtra,
+              exitedViaBack,
               completedFromHost,
             });
           } else {
+            const routineIdToReturn =
+              routineId ?? (await AsyncStorage.getItem('@minigameRoutineId')) ?? undefined;
+            if (routineIdToReturn) {
+              await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToReturn));
+            }
+            await AsyncStorage.setItem('@minigameReturnToTask', 'true');
             console.log('Game exited via back button - no success modal', {
               finalCode,
               finalExtra,
+              exitedViaBack,
               completedFromHost,
             });
           }

@@ -23,21 +23,18 @@ export default function BrushTeethGame() {
         await AsyncStorage.removeItem('@minigameCompleted');
         await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
-        // Resolve child name from cache first, 150 ms Supabase fallback.
+        // Resolve child name from cache first and avoid blocking launch.
         let childName = (await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY))?.trim() || 'Kid';
         if (childName === 'Kid') {
-          try {
-            const userPromise = supabase.auth.getUser();
-            const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 150));
-            const response = await Promise.race([userPromise, timeoutPromise]);
+          // Fire-and-forget refresh to keep launch path fast.
+          supabase.auth.getUser().then(async (response) => {
             const resolvedName = (response as any)?.data?.user?.user_metadata?.child_name;
             if (typeof resolvedName === 'string' && resolvedName.trim().length > 0) {
-              childName = resolvedName.trim();
-              await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, childName);
+              await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, resolvedName.trim());
             }
-          } catch {
-            // Keep cached/default value to avoid delaying launch.
-          }
+          }).catch(() => {
+            // Keep cached/default value.
+          });
         }
 
         const launchWith = async (className: string, extra?: Record<string, any>) => {
@@ -196,6 +193,7 @@ export default function BrushTeethGame() {
           if (routineIdToPersist) {
             await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToPersist));
           }
+          await AsyncStorage.removeItem('@minigameReturnToTask');
           await AsyncStorage.setItem('@minigameCompleted', 'true');
           console.log('Brush completed - success modal will show', {
             finalCode,
@@ -204,6 +202,12 @@ export default function BrushTeethGame() {
             completedFromHost,
           });
         } else {
+          const routineIdToReturn =
+            routineId ?? (await AsyncStorage.getItem('@minigameRoutineId')) ?? undefined;
+          if (routineIdToReturn) {
+            await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToReturn));
+          }
+          await AsyncStorage.setItem('@minigameReturnToTask', 'true');
           console.log('Brush exited via back button - no success modal', {
             finalCode,
             finalExtra,
