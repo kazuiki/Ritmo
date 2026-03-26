@@ -1,9 +1,9 @@
 import {
-    Fredoka_400Regular,
-    Fredoka_500Medium,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
-    useFonts
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,20 +13,20 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
@@ -653,19 +653,23 @@ export default function Settings() {
   };
 
   const handleTimeLimitMinutesChange = (text: string) => {
-    const digitsOnly = text.replace(/\D/g, '').slice(0, 2);
+    const digitsOnly = text.replace(/\D/g, '');
     if (!digitsOnly) {
-      setTimeLimitMinutes('00');
+      setTimeLimitMinutes('');
       return;
     }
 
     const parsed = parseInt(digitsOnly, 10);
     if (Number.isNaN(parsed)) {
-      setTimeLimitMinutes('00');
+      setTimeLimitMinutes('');
       return;
     }
 
-    setTimeLimitMinutes(Math.min(59, parsed).toString().padStart(2, '0'));
+    if (parsed > 59) {
+      setTimeLimitMinutes('59');
+    } else {
+      setTimeLimitMinutes(digitsOnly);
+    }
   };
 
   const handleSaveTimeLimit = async () => {
