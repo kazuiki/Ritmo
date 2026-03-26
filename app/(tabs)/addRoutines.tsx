@@ -162,22 +162,45 @@ export default function addRoutines() {
         skipRoutinePresetOnboarding
     } = useOnboarding();
     const [modalVisible, setModalVisible] = useState(false);
-    const [routineName, setRoutineName] = useState("");
-    const [hour, setHour] = useState("00");
-    const [minute, setMinute] = useState("00");
-    const [period, setPeriod] = useState("AM");
     const [routines, setRoutines] = useState<Routine[]>([]);
     const [editingRoutineId, setEditingRoutineId] = useState<number | null>(null);
     const [presetModalVisible, setPresetModalVisible] = useState(false);
-    const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
-    const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
-    const [selectedRingtone, setSelectedRingtone] = useState<string | undefined>(undefined);
     const [customRingtones, setCustomRingtones] = useState<CustomRingtone[]>([]);
     const [previewingRingtone, setPreviewingRingtone] = useState<string | null>(null); // currently playing preview
+    const [ringtoneModalVisible, setRingtoneModalVisible] = useState(false);
     const ringtoneOptions = [
         ...BUILT_IN_RINGTONES,
         ...customRingtones.map((ringtone) => ({ id: ringtone.uri, name: ringtone.name })),
     ];
+
+    // Draft state for Add Routine modal
+    const [addRoutineDraft, setAddRoutineDraft] = useState(() => ({
+        routineName: "",
+        hour: "00",
+        minute: "00",
+        period: "AM",
+        selectedPresetId: null,
+        selectedDays: [],
+        selectedRingtone: undefined,
+    }));
+
+    // Field state bound to draft
+    const routineName = addRoutineDraft.routineName;
+    const hour = addRoutineDraft.hour;
+    const minute = addRoutineDraft.minute;
+    const period = addRoutineDraft.period;
+    const selectedPresetId = addRoutineDraft.selectedPresetId;
+    const selectedDays = addRoutineDraft.selectedDays;
+    const selectedRingtone = addRoutineDraft.selectedRingtone;
+
+    // Field updaters for draft state
+    const setRoutineName = (val: string) => setAddRoutineDraft(draft => ({ ...draft, routineName: val }));
+    const setHour = (val: string) => setAddRoutineDraft(draft => ({ ...draft, hour: val }));
+    const setMinute = (val: string) => setAddRoutineDraft(draft => ({ ...draft, minute: val }));
+    const setPeriod = (val: string) => setAddRoutineDraft(draft => ({ ...draft, period: val }));
+    const setSelectedPresetId = (val: number | null) => setAddRoutineDraft(draft => ({ ...draft, selectedPresetId: val }));
+    const setSelectedDays = (val: number[]) => setAddRoutineDraft(draft => ({ ...draft, selectedDays: val }));
+    const setSelectedRingtone = (val: string | undefined) => setAddRoutineDraft(draft => ({ ...draft, selectedRingtone: val }));
     const isSubmittingRef = useRef(false); // guard against double-tap on Add/Save
 
     // Refs for TextInput components
@@ -209,7 +232,7 @@ export default function addRoutines() {
     }>({});
     
     const ALL_DAYS = [0,1,2,3,4,5,6];
-    const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    // removed duplicate selectedDays state
     const [keyboardInset, setKeyboardInset] = useState(0);
     const [routineNameFieldY, setRoutineNameFieldY] = useState(0);
     const [isRoutineNameFocused, setIsRoutineNameFocused] = useState(false);
@@ -639,21 +662,15 @@ export default function addRoutines() {
     const openModal = () => {
         setModalVisible(true);
         setEditingRoutineId(null);
-        setHour("00");
-        setMinute("00");
-        setPeriod("AM");
-        setRoutineName("");
-        setSelectedPresetId(null);
-        setSelectedRingtone(undefined);
-        setSelectedDays([]);
         setTimeout(() => {
-            // Start at middle repetition (01:00 AM)
+            // Start at middle repetition (01:00 AM) if draft is default, else scroll to draft value
+            const hIndex = parseInt(addRoutineDraft.hour, 10) - 1;
+            const mIndex = parseInt(addRoutineDraft.minute, 10);
             isScrollingProgrammatically.current = true;
-            hourRef.current?.scrollTo({ y: 12 * itemHeight, animated: false }); // Middle rep, index 0 (hour 1)
-            minuteRef.current?.scrollTo({ y: 60 * itemHeight, animated: false }); // Middle rep, index 0 (minute 0)
-            periodRef.current?.scrollTo({ y: 0, animated: false });
+            hourRef.current?.scrollTo({ y: (12 + (isNaN(hIndex) ? 0 : hIndex)) * itemHeight, animated: false });
+            minuteRef.current?.scrollTo({ y: (60 + (isNaN(mIndex) ? 0 : mIndex)) * itemHeight, animated: false });
+            periodRef.current?.scrollTo({ y: (addRoutineDraft.period === "AM" ? 0 : 1) * itemHeight, animated: false });
             setTimeout(() => { isScrollingProgrammatically.current = false; }, 100);
-            
             // Trigger modal onboarding after layout is ready
             setTimeout(() => {
                 measureModalLayouts();
@@ -741,6 +758,7 @@ export default function addRoutines() {
     const closeModal = () => {
         setModalVisible(false);
         setEditingRoutineId(null);
+        // Do NOT clear draft here; only clear after save
     };
 
     const handleDone = () => {
@@ -825,6 +843,16 @@ export default function addRoutines() {
                     await loadRoutinesFromDb();
                     closeModal();
                     setAddSuccessVisible(true);
+                    // Clear draft after successful save
+                    setAddRoutineDraft({
+                        routineName: "",
+                        hour: "00",
+                        minute: "00",
+                        period: "AM",
+                        selectedPresetId: null,
+                        selectedDays: [],
+                        selectedRingtone: undefined,
+                    });
                 })
                 .catch(err => logIfUnexpected('Supabase createRoutine error:', err))
                 .finally(() => { isSubmittingRef.current = false; });
@@ -879,8 +907,11 @@ export default function addRoutines() {
     const closePresetModal = () => setPresetModalVisible(false);
 
     const selectPreset = (preset: Preset) => {
-        setRoutineName(preset.name);
-        setSelectedPresetId(preset.id);
+        setAddRoutineDraft(draft => ({
+            ...draft,
+            routineName: preset.name,
+            selectedPresetId: preset.id
+        }));
         closePresetModal();
     };
 
@@ -1335,11 +1366,10 @@ export default function addRoutines() {
                                                 key={d.idx}
                                                 style={[styles.dayChip, selected && styles.dayChipSelected]}
                                                 onPress={() => {
-                                                    setSelectedDays(prev => {
-                                                        const has = prev.includes(d.idx);
-                                                        if (has) return prev.filter(x => x !== d.idx);
-                                                        return [...prev, d.idx].sort((a,b)=>a-b);
-                                                    });
+                                                    setSelectedDays(selectedDays.includes(d.idx)
+                                                        ? selectedDays.filter(x => x !== d.idx)
+                                                        : [...selectedDays, d.idx].sort((a, b) => a - b)
+                                                    );
                                                 }}
                                             >
                                                 <Text style={[styles.dayChipText, selected && styles.dayChipTextSelected]}>{d.label}</Text>
@@ -1363,11 +1393,11 @@ export default function addRoutines() {
                                 <View
                                     ref={routineNameRef}
                                     collapsable={false}
-                                    style={{ marginBottom: 16 }}
+                                    style={{ marginBottom: 16, position: 'relative' }}
                                     onLayout={(event) => setRoutineNameFieldY(event.nativeEvent.layout.y)}
                                 >
                                     <TextInput
-                                        style={[styles.input, selectedPresetId && styles.inputDisabled]}
+                                        style={[styles.input, selectedPresetId && styles.inputDisabled, { paddingRight: selectedPresetId ? 38 : 16 }]}
                                         placeholder="Routine name"
                                         placeholderTextColor="#000000ff"
                                         value={routineName}
@@ -1376,6 +1406,18 @@ export default function addRoutines() {
                                         onBlur={() => setIsRoutineNameFocused(false)}
                                         editable={!selectedPresetId}
                                     />
+                                    {selectedPresetId && (
+                                        <TouchableOpacity
+                                            style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', height: '100%' }}
+                                            onPress={() => {
+                                                setSelectedPresetId(null);
+                                            }}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            accessibilityLabel="Clear preset"
+                                        >
+                                            <FontAwesome name="times" size={15} color="#bbb" />
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
 
                                 {/* Ringtone Selector */}
@@ -1384,9 +1426,19 @@ export default function addRoutines() {
                                         style={styles.ringtoneSelector} 
                                         onPress={openRingtoneModal}
                                     >
-                                        <Text style={styles.ringtoneText}>
-                                            Ringtone: {selectedRingtone ? getRingtoneName(selectedRingtone) : ''}
-                                        </Text>
+                                        <View style={[styles.ringtoneTextContainer, { flexDirection: 'row', alignItems: 'center' }]}> 
+                                            <Text style={styles.ringtoneText}>Ringtone:</Text>
+                                            {selectedRingtone ? (
+                                                <Text style={styles.ringtoneTextSelected}>
+                                                    {' '}{getRingtoneName(selectedRingtone)}
+                                                </Text>
+                                            ) : (
+                                                <View style={{ flexDirection: 'column', marginLeft: 4 }}>
+                                                    <Text style={styles.ringtoneTextDefault}> Default ringtone</Text>
+                                                    <Text style={styles.ringtoneTextSubtitle}>(Morning Bell)</Text>
+                                                </View>
+                                            )}
+                                        </View>
                                         <Text style={styles.chevron}>›</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -2211,7 +2263,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     ringtoneSelector: {
         backgroundColor: "#FFFFFF",
         borderRadius: scale.scaleBorderRadius(12),
-        paddingVertical: scale.scaleSpacing(14),
+        paddingVertical: scale.scaleSpacing(10),
         paddingHorizontal: scale.scaleSpacing(16),
         flexDirection: "row",
         justifyContent: "space-between",
@@ -2223,6 +2275,25 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
         fontSize: scale.scaleFont(16),
         color: "#244D4A",
         fontWeight: "600",
+        lineHeight: scale.scaleFont(20),
+    },
+    ringtoneTextDefault: {
+        fontSize: scale.scaleFont(15),
+        color: '#888',
+        fontWeight: '500',
+        marginTop: 2,
+    },
+    ringtoneTextSubtitle: {
+        fontSize: scale.scaleFont(14),
+        color: '#888',
+        marginTop: -2,
+        marginBottom: 2,
+    },
+    ringtoneTextSelected: {
+        fontSize: scale.scaleFont(15),
+        color: '#244D4A',
+        fontWeight: '500',
+        marginTop: 2,
     },
     daysRow: {
         flexDirection: 'row',

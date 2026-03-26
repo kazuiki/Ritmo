@@ -22,6 +22,7 @@ import {
 	refreshChildNicknameFromCloud,
 } from "../../src/childNicknameService";
 import { ProgressOnboarding } from "../../src/components";
+import HorizontalAutoScrollText from "../../src/components/HorizontalAutoScrollText";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { readProgressCache, readRoutinesCache } from "../../src/offline/offlineData";
@@ -676,22 +677,16 @@ export default function Progress() {
 					{tasks.map((task, idx) => (
 						<View key={task.routineId} style={styles.gridRow}>
 							<View style={styles.gridCellTask}>
-								<Text
-									style={styles.taskNameText}
-									numberOfLines={1}
-									ellipsizeMode="tail"
-									adjustsFontSizeToFit
-									minimumFontScale={0.8}
-									allowFontScaling={false}
-								>
-									{task.name}
-								</Text>
+								<HorizontalAutoScrollText
+									text={task.name}
+									textStyle={styles.taskNameText}
+									containerStyle={styles.taskNameScroll}
+									contentContainerStyle={styles.taskNameScrollContent}
+								/>
 								<Text
 									style={styles.taskTimestampText}
 									numberOfLines={1}
 									ellipsizeMode="tail"
-									adjustsFontSizeToFit
-									minimumFontScale={0.78}
 									allowFontScaling={false}
 								>
 									{task.timestamp}
@@ -993,17 +988,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		fontSize: scale.scaleFont(14.5),
 	},
 	gridCellTask: {
-		// Slightly reduced width & padding to lessen gap before Monday column
-		flex: 3.6,
+		flex: scale.deviceCategory === 'tablet' ? 4.6 : scale.deviceCategory === 'small' ? 4.2 : 3.8,
 		minWidth: 0,
 		paddingRight: scale.scaleSpacing(1),
+	},
+	taskNameScroll: {
+		width: '100%',
+	},
+	taskNameScrollContent: {
+		minWidth: '100%',
 	},
 	taskNameText: {
 		color: '#2A3B4D',
 		fontFamily: 'Fredoka_500Medium',
-		fontSize: scale.scaleFont(15.5),
-		lineHeight: scale.scaleHeight(17),
+		fontSize: scale.scaleFont(14),
+		lineHeight: scale.scaleHeight(14),
 		flexShrink: 1,
+		paddingRight: scale.scaleSpacing(2),
 	},
 	taskTimestampText: {
 		color: '#6B8E7E',
@@ -1012,9 +1013,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		lineHeight: scale.scaleHeight(12),
 		marginTop: scale.scaleSpacing(1),
 		flexShrink: 1,
+		width: '100%',
 	},
 	gridCellDay: {
-		flex: 0.31,
+		flex: scale.deviceCategory === 'tablet' ? 0.35 : scale.deviceCategory === 'small' ? 0.28 : 0.31,
 		minWidth: scale.scaleWidth(15),
 		paddingHorizontal: 0,
 		textAlign: 'center',
@@ -1026,7 +1028,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		letterSpacing: 0.2,
 	},
 	gridCellDone: {
-		flex: 0.65,
+		flex: scale.deviceCategory === 'tablet' ? 0.75 : 0.65,
 		minWidth: scale.scaleWidth(28),
 		paddingLeft: 0,
 		textAlign: 'center',

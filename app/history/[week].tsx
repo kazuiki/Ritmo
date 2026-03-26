@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
+import HorizontalAutoScrollText from '../../src/components/HorizontalAutoScrollText';
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from '../../src/routinesService';
 import { supabase } from '../../src/supabaseClient';
 import { saveWeeklyPerformanceReportPdf } from '../../src/utils/pdf';
@@ -438,22 +439,16 @@ export default function WeeklyHistoryDetail() {
             {tasks.map((t,i) => (
               <View key={t.routineId} style={styles.gridRow}>
                 <View style={styles.gridCellTask}>
-                  <Text
-                    style={styles.taskNameText}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                    allowFontScaling={false}
-                  >
-                    {t.name}
-                  </Text>
+                  <HorizontalAutoScrollText
+                    text={t.name}
+                    textStyle={styles.taskNameText}
+                    containerStyle={styles.taskNameScroll}
+                    contentContainerStyle={styles.taskNameScrollContent}
+                  />
                   <Text
                     style={styles.taskTimestampText}
                     numberOfLines={1}
                     ellipsizeMode="tail"
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.78}
                     allowFontScaling={false}
                   >
                     {t.timestamp}
@@ -709,16 +704,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(14.5),
   },
   gridCellTask: {
-    flex: 3.6,
+    flex: scale.deviceCategory === 'tablet' ? 4.6 : scale.deviceCategory === 'small' ? 4.2 : 3.8,
     minWidth: 0,
     paddingRight: scale.scaleSpacing(1),
+  },
+  taskNameScroll: {
+    width: '100%',
+  },
+  taskNameScrollContent: {
+    minWidth: '100%',
   },
   taskNameText: {
     color: '#2A3B4D',
     fontFamily: 'Fredoka_500Medium',
-    fontSize: scale.scaleFont(15.5),
-    lineHeight: scale.scaleHeight(17),
+    fontSize: scale.scaleFont(14),
+    lineHeight: scale.scaleHeight(14),
     flexShrink: 1,
+    paddingRight: scale.scaleSpacing(2),
   },
   taskTimestampText: {
     color: '#6B8E7E',
@@ -727,9 +729,10 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     lineHeight: scale.scaleHeight(12),
     marginTop: scale.scaleSpacing(1),
     flexShrink: 1,
+    width: '100%',
   },
   gridCellDay: {
-    flex: 0.31,
+    flex: scale.deviceCategory === 'tablet' ? 0.35 : scale.deviceCategory === 'small' ? 0.28 : 0.31,
     minWidth: scale.scaleWidth(15),
     paddingHorizontal: 0,
     textAlign: 'center',
@@ -741,7 +744,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     letterSpacing: 0.2,
   },
   gridCellDone: {
-    flex: 0.65,
+    flex: scale.deviceCategory === 'tablet' ? 0.75 : 0.65,
     minWidth: scale.scaleWidth(28),
     paddingLeft: 0,
     textAlign: 'center',
