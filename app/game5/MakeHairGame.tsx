@@ -10,7 +10,7 @@ const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
 
 export default function MakeHairGame() {
   const router = useRouter();
-  const { routineId } = useLocalSearchParams<{ routineId?: string }>();
+  const { routineId, launchNonce } = useLocalSearchParams<{ routineId?: string; launchNonce?: string }>();
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -20,6 +20,7 @@ export default function MakeHairGame() {
         try {
           setLaunchError(null);
           await AsyncStorage.removeItem('@minigameCompleted');
+          await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
           let childName = (await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY))?.trim() || 'Kid';
           if (childName === 'Kid') {
@@ -208,7 +209,7 @@ export default function MakeHairGame() {
     };
 
     launchGame();
-  }, [router, routineId, retryNonce]);
+  }, [router, routineId, launchNonce, retryNonce]);
 
   if (Platform.OS !== 'android') {
     return (

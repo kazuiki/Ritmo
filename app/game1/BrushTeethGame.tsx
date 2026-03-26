@@ -10,7 +10,7 @@ const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
 
 export default function BrushTeethGame() {
   const router = useRouter();
-  const { routineId } = useLocalSearchParams<{ routineId?: string }>();
+  const { routineId, launchNonce } = useLocalSearchParams<{ routineId?: string; launchNonce?: string }>();
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -21,6 +21,7 @@ export default function BrushTeethGame() {
       try {
         setLaunchError(null);
         await AsyncStorage.removeItem('@minigameCompleted');
+        await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
         // Resolve child name from cache first, 150 ms Supabase fallback.
         let childName = (await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY))?.trim() || 'Kid';
@@ -161,10 +162,14 @@ export default function BrushTeethGame() {
           finalExtra?.ritmo_game_completed === true ||
           finalExtra?.ritmo_game_completed === 'true' ||
           Number(finalExtra?.ritmo_result_code) === -1;
+        const exitedViaBack =
+          finalExtra?.ritmo_back_exit === true ||
+          finalExtra?.ritmo_back_exit === 'true';
         const completedFromNativeFlag =
           (await ExpoGodotViewModule?.checkGameCompleted?.().catch(() => false)) === true;
         const completedFromDurationFallback =
           !finalStartupFailed &&
+          !exitedViaBack &&
           !completedFromHost &&
           !completedFromNativeFlag &&
           (finalCodeNum === 0 || finalCode === IntentLauncher.ResultCode.Canceled) &&
@@ -180,7 +185,7 @@ export default function BrushTeethGame() {
           console.warn('Brush completion fallback applied from long session duration', {
             finalCode,
             finalElapsedMs,
-              effectiveFinalElapsedMs,
+            effectiveFinalElapsedMs,
             finalExtra,
           });
         }
@@ -192,6 +197,19 @@ export default function BrushTeethGame() {
             await AsyncStorage.setItem('@minigameRoutineId', String(routineIdToPersist));
           }
           await AsyncStorage.setItem('@minigameCompleted', 'true');
+          console.log('Brush completed - success modal will show', {
+            finalCode,
+            finalExtra,
+            exitedViaBack,
+            completedFromHost,
+          });
+        } else {
+          console.log('Brush exited via back button - no success modal', {
+            finalCode,
+            finalExtra,
+            exitedViaBack,
+            completedFromHost,
+          });
         }
 
         router.back();
@@ -201,7 +219,7 @@ export default function BrushTeethGame() {
     };
 
     launchGame();
-  }, [router, routineId, retryNonce]);
+  }, [router, routineId, launchNonce, retryNonce]);
 
   if (Platform.OS !== 'android') {
     return (

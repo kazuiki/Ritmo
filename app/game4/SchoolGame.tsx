@@ -7,9 +7,11 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
 import { supabase } from '../../src/supabaseClient';
 
+const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
+
 export default function SchoolGame() {
   const router = useRouter();
-  const { routineId } = useLocalSearchParams<{ routineId?: string }>();
+  const { routineId, launchNonce } = useLocalSearchParams<{ routineId?: string; launchNonce?: string }>();
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -20,14 +22,23 @@ export default function SchoolGame() {
           setLaunchError(null);
           // Clear only completion flag; keep routine id set by Home screen.
           await AsyncStorage.removeItem('@minigameCompleted');
+          await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
-          // Get the child's nickname from Supabase user metadata
-          let childName = 'Kid';
-          try {
-            const { data } = await supabase.auth.getUser();
-            childName = (data?.user?.user_metadata as any)?.child_name || 'Kid';
-          } catch {
-            // Fallback to 'Kid' if offline or error
+          // Resolve child name from cache first; keep auth lookup on short timeout.
+          let childName = (await AsyncStorage.getItem(LOCAL_CHILD_NAME_KEY))?.trim() || 'Kid';
+          if (childName === 'Kid') {
+            try {
+              const userPromise = supabase.auth.getUser();
+              const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 150));
+              const response = await Promise.race([userPromise, timeoutPromise]);
+              const resolvedName = (response as any)?.data?.user?.user_metadata?.child_name;
+              if (typeof resolvedName === 'string' && resolvedName.trim().length > 0) {
+                childName = resolvedName.trim();
+                await AsyncStorage.setItem(LOCAL_CHILD_NAME_KEY, childName);
+              }
+            } catch {
+              // Keep cached/default value to avoid delaying launch.
+            }
           }
 
           const launchWith = async (className: string) => {
@@ -160,7 +171,7 @@ export default function SchoolGame() {
     };
 
     launchGame();
-  }, [router, routineId, retryNonce]);
+  }, [router, routineId, launchNonce, retryNonce]);
 
   // If not Android, show message
   if (Platform.OS !== 'android') {

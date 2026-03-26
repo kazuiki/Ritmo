@@ -1,17 +1,19 @@
 ﻿import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
 import { supabase } from '../../src/supabaseClient';
 
 const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
 
 export default function EatingGame() {
   const router = useRouter();
-  const { routineId } = useLocalSearchParams<{ routineId?: string }>();
+  const { routineId, launchNonce } = useLocalSearchParams<{ routineId?: string; launchNonce?: string }>();
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const backgroundResumeRetriesRef = useRef(0);
 
   useEffect(() => {
     const launchGame = async () => {
@@ -151,11 +153,31 @@ export default function EatingGame() {
           return;
         }
 
+        // Bare canceled result with no ritmo payload usually means Android interrupted the host
+        // (alt-tab/app switch). Relaunch once to resume instead of exiting to Home.
+        const finalCodeNum = Number(finalCode);
+        const canceledWithoutResult =
+          (finalCode === IntentLauncher.ResultCode.Canceled || finalCodeNum === 0) &&
+          !hasKnownFinalResult;
+        if (canceledWithoutResult && backgroundResumeRetriesRef.current < 1) {
+          backgroundResumeRetriesRef.current += 1;
+          setRetryNonce((v) => v + 1);
+          return;
+        }
+
         const completedFromHost =
           finalExtra?.ritmo_game_completed === true ||
           finalExtra?.ritmo_game_completed === 'true' ||
           Number(finalExtra?.ritmo_result_code) === -1;
-        const isCompleted = completedFromHost || finalCode === IntentLauncher.ResultCode.Success;
+        const completedFromNativeFlag =
+          (await ExpoGodotViewModule?.checkGameCompleted?.().catch(() => false)) === true;
+        const isCompleted =
+          completedFromHost ||
+          completedFromNativeFlag ||
+          finalCode === IntentLauncher.ResultCode.Success ||
+          finalCodeNum === -1;
+
+        backgroundResumeRetriesRef.current = 0;
 
         if (isCompleted) {
           const routineIdToPersist =
@@ -173,7 +195,7 @@ export default function EatingGame() {
     };
 
     launchGame();
-  }, [router, routineId, retryNonce]);
+  }, [router, routineId, launchNonce, retryNonce]);
 
   if (Platform.OS !== 'android') {
     return (

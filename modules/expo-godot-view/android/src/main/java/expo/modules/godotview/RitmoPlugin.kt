@@ -62,6 +62,22 @@ class RitmoPlugin(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun goBack() {
         Log.i(TAG, "goBack() requested from Godot")
+        val currentActivity = activity
+        if (currentActivity is RitmoGodotActivity) {
+            currentActivity.markBackExitRequested()
+        }
+        if (currentActivity is EatGodotActivity) {
+            currentActivity.markBackExitRequested()
+        }
+        if (currentActivity is BrushGodotActivity) {
+            currentActivity.markBackExitRequested()
+        }
+        if (currentActivity is BathGodotActivity) {
+            currentActivity.markBackExitRequested()
+        }
+        if (currentActivity is MakeHairGodotActivity) {
+            currentActivity.markBackExitRequested()
+        }
         activity?.runOnUiThread {
             finishWithResult(Activity.RESULT_CANCELED)
         }

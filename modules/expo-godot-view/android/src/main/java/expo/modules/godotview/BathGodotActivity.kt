@@ -22,7 +22,7 @@ class BathGodotActivity : GodotActivity() {
     companion object {
         private const val TAG = "BathGodotActivity"
         private const val BATH_ASSETS_MARKER_VERSION = "bath_assets_v1_force_clean_fullpack"
-        private const val PROCESS_RESET_DELAY_MS = 350L
+        private const val MIRROR_READY_FILE = ".mirror_ready"
         private val USERDATA_PROJECT_NAMES = listOf(
             "Ritmo",
             "ritmo",
@@ -36,9 +36,9 @@ class BathGodotActivity : GodotActivity() {
 
     private var exitResultCode = Activity.RESULT_CANCELED
     private var exitRequested = false
-    private var processResetScheduled = false
     private var bathPayloadReady = false
     private var startupFailureReason: String? = null
+    private var shouldKillProcessOnBackExit = false
     @Volatile private var completionPreCommitted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,12 +47,17 @@ class BathGodotActivity : GodotActivity() {
         RitmoPlugin.launchCounter++
         writeLaunchModeMarker("eat")
 
-        prepareBathProjectPath()
+        val packagedReady = hasPackagedBathAssets()
+        if (packagedReady) {
+            // Avoid blocking first-launch UI with file copy work.
+            warmPrepareBathProjectPathAsync()
+        } else {
+            prepareBathProjectPath()
+        }
         val outDir = File(filesDir, "godot-eat")
         val packFile = resolvePreferredBathPack(outDir)
         val projectBinaryFile = File(outDir, "project.binary")
         val extractedReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
-        val packagedReady = hasPackagedBathAssets()
         bathPayloadReady = extractedReady || packagedReady
 
         if (!bathPayloadReady && startupFailureReason.isNullOrBlank()) {
@@ -103,6 +108,7 @@ class BathGodotActivity : GodotActivity() {
             val resultIntent = Intent().apply {
                 putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
                 putExtra("ritmo_result_code", resultCode)
+                putExtra("ritmo_back_exit", resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit)
             }
             setResult(resultCode, resultIntent)
         }
@@ -111,8 +117,13 @@ class BathGodotActivity : GodotActivity() {
 
     override fun onBackPressed() {
         if (!completionPreCommitted) {
+            shouldKillProcessOnBackExit = true
             exitGame(Activity.RESULT_CANCELED)
         }
+    }
+
+    fun markBackExitRequested() {
+        shouldKillProcessOnBackExit = true
     }
 
     override fun getHostPlugins(godot: Godot): MutableSet<GodotPlugin> {
@@ -160,6 +171,7 @@ class BathGodotActivity : GodotActivity() {
         val resultIntent = Intent().apply {
             putExtra("ritmo_game_completed", resultCode == Activity.RESULT_OK)
             putExtra("ritmo_result_code", resultCode)
+            putExtra("ritmo_back_exit", resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit)
             if (!startupFailureReason.isNullOrBlank()) {
                 putExtra("ritmo_startup_failed", true)
                 putExtra("ritmo_startup_error", startupFailureReason)
@@ -169,10 +181,18 @@ class BathGodotActivity : GodotActivity() {
         finish()
         overridePendingTransition(0, 0)
 
-        if (resultCode != Activity.RESULT_OK) {
-            val capturedCount = RitmoPlugin.launchCounter
-            scheduleGodotProcessReset(PROCESS_RESET_DELAY_MS, capturedCount)
+        if (resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit) {
+            scheduleProcessTerminationForBackExit()
         }
+    }
+
+    private fun scheduleProcessTerminationForBackExit() {
+        val launchToken = RitmoPlugin.launchCounter
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (RitmoPlugin.launchCounter == launchToken) {
+                Process.killProcess(Process.myPid())
+            }
+        }, 300)
     }
 
     private fun persistCompletionFlag(completed: Boolean) {
@@ -183,17 +203,6 @@ class BathGodotActivity : GodotActivity() {
             .commit()
     }
 
-    private fun scheduleGodotProcessReset(delayMs: Long, capturedCount: Int) {
-        if (processResetScheduled) return
-        processResetScheduled = true
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (RitmoPlugin.launchCounter == capturedCount) {
-                Process.killProcess(Process.myPid())
-            }
-        }, delayMs)
-    }
-
     private fun updateChildName(intent: Intent?) {
         val childName = intent?.getStringExtra("child_name") ?: "Kid"
         RitmoPlugin.childName = childName
@@ -202,6 +211,16 @@ class BathGodotActivity : GodotActivity() {
     fun preCommitCompletion() {
         Log.i(TAG, "preCommitCompletion()")
         completionPreCommitted = true
+    }
+
+    private fun warmPrepareBathProjectPathAsync() {
+        Thread {
+            try {
+                prepareBathProjectPath()
+            } catch (_: Exception) {
+                // Best effort warm-up only.
+            }
+        }.start()
     }
 
     private fun prepareBathProjectPath() {
@@ -327,8 +346,24 @@ class BathGodotActivity : GodotActivity() {
 
         for (root in targetRoots) {
             val targetDir = File(root, "godot-eat")
-            copyDirectory(sourceDir, targetDir)
+            mirrorPayloadIfNeeded(sourceDir, targetDir)
         }
+    }
+
+    private fun mirrorPayloadIfNeeded(sourceDir: File, targetDir: File) {
+        val readyMarker = File(targetDir, MIRROR_READY_FILE)
+        val markerMatches = readyMarker.exists() && readyMarker.readText() == BATH_ASSETS_MARKER_VERSION
+        val hasProjectBinary = File(targetDir, "project.binary").exists()
+        val hasPack =
+            File(targetDir, "full_main.pck").exists() ||
+            File(targetDir, "bath_full.pck").exists() ||
+            File(targetDir, "assets.sparsepck").exists()
+
+        if (markerMatches && hasProjectBinary && hasPack) return
+
+        copyDirectory(sourceDir, targetDir)
+        readyMarker.parentFile?.mkdirs()
+        readyMarker.writeText(BATH_ASSETS_MARKER_VERSION)
     }
 
     private fun listKnownUserDataDirs(): List<File> {

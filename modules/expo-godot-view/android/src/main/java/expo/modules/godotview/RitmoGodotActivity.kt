@@ -29,6 +29,8 @@ import java.nio.charset.Charset
 class RitmoGodotActivity : GodotActivity() {
     companion object {
         private const val TAG = "RitmoGodotActivity"
+        private const val EAT_ROUTING_ASSETS_VERSION = "eat_routing_assets_v1"
+        private const val MIRROR_READY_FILE = ".mirror_ready"
         private val USERDATA_PROJECT_NAMES = listOf(
             "Ritmo",
             "ritmo",
@@ -42,8 +44,8 @@ class RitmoGodotActivity : GodotActivity() {
 
     private var exitResultCode = Activity.RESULT_CANCELED
     private var exitRequested = false
-    private var processResetScheduled = false
     private var launchMode: String = "school"
+    private var shouldKillProcessOnBackExit = false
     @Volatile private var completionPreCommitted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,8 +104,13 @@ class RitmoGodotActivity : GodotActivity() {
 
     override fun onBackPressed() {
         if (!completionPreCommitted) {
+            shouldKillProcessOnBackExit = true
             exitGame(Activity.RESULT_CANCELED)
         }
+    }
+
+    fun markBackExitRequested() {
+        shouldKillProcessOnBackExit = true
     }
 
     override fun getHostPlugins(godot: Godot): MutableSet<GodotPlugin> {
@@ -193,13 +200,18 @@ class RitmoGodotActivity : GodotActivity() {
         finish()
         overridePendingTransition(0, 0)
 
-        // Do not kill process on successful completion; JS needs to handle RESULT_OK
-        // and persist completion before returning to Home.
-        if (resultCode != Activity.RESULT_OK) {
-            // The captured counter prevents this kill from hitting a concurrently starting game.
-            val capturedCount = RitmoPlugin.launchCounter
-            scheduleGodotProcessReset(2500L, capturedCount)
+        if (resultCode == Activity.RESULT_CANCELED && shouldKillProcessOnBackExit) {
+            scheduleProcessTerminationForBackExit()
         }
+    }
+
+    private fun scheduleProcessTerminationForBackExit() {
+        val launchToken = RitmoPlugin.launchCounter
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (RitmoPlugin.launchCounter == launchToken) {
+                Process.killProcess(Process.myPid())
+            }
+        }, 300)
     }
 
     private fun persistCompletionFlag(completed: Boolean) {
@@ -208,18 +220,6 @@ class RitmoGodotActivity : GodotActivity() {
             .putBoolean("godot_game_completed", completed)
             .putLong("godot_game_completed_at", System.currentTimeMillis())
             .commit()
-    }
-
-    private fun scheduleGodotProcessReset(delayMs: Long, capturedCount: Int) {
-        if (processResetScheduled) return
-        processResetScheduled = true
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            // Only kill if no new game has started since we scheduled this kill.
-            if (RitmoPlugin.launchCounter == capturedCount) {
-                Process.killProcess(Process.myPid())
-            }
-        }, delayMs)
     }
 
     private fun prepareEatAssetsForRouting() {
@@ -298,8 +298,24 @@ class RitmoGodotActivity : GodotActivity() {
 
         for (root in targetRoots) {
             val targetDir = File(root, "godot-eat")
-            copyDirectory(sourceDir, targetDir)
+            mirrorPayloadIfNeeded(sourceDir, targetDir)
         }
+    }
+
+    private fun mirrorPayloadIfNeeded(sourceDir: File, targetDir: File) {
+        val readyMarker = File(targetDir, MIRROR_READY_FILE)
+        val markerMatches = readyMarker.exists() && readyMarker.readText() == EAT_ROUTING_ASSETS_VERSION
+        val hasProjectBinary = File(targetDir, "project.binary").exists()
+        val hasPack =
+            File(targetDir, "full_main.pck").exists() ||
+            File(targetDir, "eat_full.pck").exists() ||
+            File(targetDir, "assets.sparsepck").exists()
+
+        if (markerMatches && hasProjectBinary && hasPack) return
+
+        copyDirectory(sourceDir, targetDir)
+        readyMarker.parentFile?.mkdirs()
+        readyMarker.writeText(EAT_ROUTING_ASSETS_VERSION)
     }
 
     private fun listKnownUserDataDirs(): List<File> {

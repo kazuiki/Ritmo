@@ -138,70 +138,8 @@ export const preloadGameAssets = async () => {
       console.log('🚀 Starting ONE-TIME asset preload...');
       const startTime = Date.now();
     
-    // Define all game assets to preload
+    // Define non-game assets to preload
     const gameAssets = [
-      // Brush Game assets
-      require('../../app/game1/BrushGame/Brush1.png'),
-      require('../../app/game1/BrushGame/Brush2.png'),
-      require('../../app/game1/BrushGame/Brush3.png'),
-      require('../../app/game1/BrushGame/Brush4.png'),
-      require('../../app/game1/BrushGame/Brush5.png'),
-      require('../../app/game1/BrushGame/Brush6.gif'),
-      require('../../app/game1/BrushGame/Brush7.gif'),
-      require('../../app/game1/BrushGame/Brush8.gif'),
-      require('../../app/game1/BrushGame/Brush9.gif'),
-      require('../../app/game1/BrushGame/BrushBG.png'),
-      require('../../app/game1/BrushGame/Cup.png'),
-      require('../../app/game1/BrushGame/Paste.png'),
-      require('../../app/game1/BrushGame/Tartar1.png'),
-      require('../../app/game1/BrushGame/Tartar2.png'),
-      require('../../app/game1/BrushGame/Tartar3.png'),
-      require('../../app/game1/BrushGame/Tartar4.png'),
-      require('../../app/game1/BrushGame/Tartar5.png'),
-      require('../../app/game1/BrushGame/Tartar6.png'),
-      require('../../app/game1/BrushGame/Tartar7.png'),
-      require('../../app/game1/BrushGame/Tartar8.png'),
-      require('../../app/game1/BrushGame/Tartar9.png'),
-      require('../../app/game1/BrushGame/Tartar10.png'),
-      require('../../app/game1/BrushGame/Tartar11.png'),
-      require('../../app/game1/BrushGame/Tartar12.png'),
-
-      // Eating Game assets
-      require('../../app/game2/EatGame/EatBG.png'),
-      require('../../app/game2/EatGame/Eat1.png'),
-      require('../../app/game2/EatGame/Eat2.png'),
-      require('../../app/game2/EatGame/Eat3.gif'),
-      require('../../app/game2/EatGame/Eat4.gif'),
-      require('../../app/game2/EatGame/Higop.gif'),
-      require('../../app/game2/EatGame/Plate.png'),
-      require('../../app/game2/EatGame/Rice.png'),
-      require('../../app/game2/EatGame/Chicken.png'),
-      require('../../app/game2/EatGame/Vegi.png'),
-      require('../../app/game2/EatGame/Water.png'),
-      require('../../app/game2/EatGame/Water1.png'),
-
-      // Bath Game assets
-      require('../../app/game3/BathGame/Bath1.png'),
-      require('../../app/game3/BathGame/Bath2_anim.gif'),
-      require('../../app/game3/BathGame/Bath2.png'),
-      require('../../app/game3/BathGame/Bath3.png'),
-      require('../../app/game3/BathGame/Bath4.png'),
-      require('../../app/game3/BathGame/Bath5_anim.gif'),
-      require('../../app/game3/BathGame/Bath5.png'),
-      require('../../app/game3/BathGame/Soap.png'),
-      require('../../app/game3/BathGame/Towel.png'),
-
-      // School Game assets
-      require('../../app/game4/SchoolGame/SchoolBG.png'),
-      require('../../app/game4/SchoolGame/School1.png'),
-      require('../../app/game4/SchoolGame/School2.png'),
-      require('../../app/game4/SchoolGame/School3.png'),
-      require('../../app/game4/SchoolGame/School4.png'),
-      require('../../app/game4/SchoolGame/School5.png'),
-      require('../../app/game4/SchoolGame/School6.gif'),
-      require('../../app/game4/SchoolGame/School7.gif'),
-      require('../../app/game4/SchoolGame/Bag.png'),
-
       // New routine preset GIFs
       require('../../assets/gifs/fix_the_bed.gif'),
       require('../../assets/gifs/hair_care_time.gif'),

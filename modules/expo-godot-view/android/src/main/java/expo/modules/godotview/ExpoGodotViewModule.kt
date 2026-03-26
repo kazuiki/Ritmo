@@ -28,5 +28,12 @@ class ExpoGodotViewModule : Module() {
       
       completed
     }
+
+    AsyncFunction("resetGameCompletedFlag") { ->
+      val context = appContext.reactContext ?: return@AsyncFunction false
+      val prefs = context.getSharedPreferences("ritmo_game", Context.MODE_PRIVATE)
+      prefs.edit().putBoolean("godot_game_completed", false).apply()
+      true
+    }
   }
 }
