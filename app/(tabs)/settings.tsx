@@ -138,37 +138,37 @@ export default function Settings() {
     noSpaces: false,
   });
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
-  
+ 
   // Password error modals
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [errorType, setErrorType] = useState<"error" | "pencil">("error");
-  
+ 
   // Password success modal
   const [passwordSuccessVisible, setPasswordSuccessVisible] = useState(false);
   const [nicknameSuccessVisible, setNicknameSuccessVisible] = useState(false);
-  
+ 
   // Terms & Conditions modal
   const [termsModalVisible, setTermsModalVisible] = useState(false);
-  
+ 
   // Privacy Policy modal
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
   const [expandedSections, setExpandedSections] = useState<number[]>([]);
-  
+ 
   // Instruction modal with slide behavior
   const [instructionModalVisible, setInstructionModalVisible] = useState(false);
   const [instructionCurrentPage, setInstructionCurrentPage] = useState(0);
   const instructionScrollViewRef = useRef<ScrollView>(null);
   const instructionDotAnimations = useRef(INSTRUCTION_PAGES.map(() => new Animated.Value(10))).current;
-  
+ 
   // Video modal
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [currentVideoSource, setCurrentVideoSource] = useState<any>(null);
   const videoRef = useRef<Video>(null);
-  
+ 
   // Parental Lock Tip
   const [showParentalLockTip, setShowParentalLockTip] = useState(false);
-  
+ 
   // Media Time Limit
   const [showTimeLimitModal, setShowTimeLimitModal] = useState(false);
   const [timeLimitHours, setTimeLimitHours] = useState('00');
@@ -180,6 +180,8 @@ export default function Settings() {
   const [remainingTime, setRemainingTime] = useState(0);
   const [isTimeLimitLocked, setIsTimeLimitLocked] = useState(false);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeLimitHourInputRef = useRef<TextInput>(null);
+  const timeLimitMinuteInputRef = useRef<TextInput>(null);
   const [onlineOnlyModalVisible, setOnlineOnlyModalVisible] = useState(false);
   const [onlineOnlyFeatureName, setOnlineOnlyFeatureName] = useState("");
 
@@ -333,7 +335,7 @@ export default function Settings() {
       const { error } = await supabase.auth.updateUser({
         data: { child_name: trimmedNickname }
       });
-      
+     
       if (error) {
         if (isExpectedOfflineError(error)) {
           await AsyncStorage.setItem(
@@ -663,10 +665,21 @@ export default function Settings() {
     // Keep 2-digit duration input bounded to 00-99.
     if (numericHour > 99) {
       setTimeLimitHours('99');
+      // Move focus to minute once hour input is complete.
+      requestAnimationFrame(() => {
+        timeLimitMinuteInputRef.current?.focus();
+      });
       return;
     }
 
     setTimeLimitHours(digitsOnly);
+
+    // Auto-switch to minute field when hour already has 2 digits.
+    if (digitsOnly.length === 2) {
+      requestAnimationFrame(() => {
+        timeLimitMinuteInputRef.current?.focus();
+      });
+    }
   };
 
   const handleTimeLimitMinutesChange = (text: string) => {
@@ -855,9 +868,9 @@ export default function Settings() {
   };
 
   const toggleSection = (sectionNumber: number) => {
-    setExpandedSections(prev => 
-      prev.includes(sectionNumber) 
-        ? [] 
+    setExpandedSections(prev =>
+      prev.includes(sectionNumber)
+        ? []
         : [sectionNumber]
     );
   };
@@ -897,8 +910,8 @@ export default function Settings() {
 
         {/* Video Button */}
         <View style={styles.instructionVideoButtonWrapper}>
-          <TouchableOpacity 
-            style={styles.instructionVideoButton} 
+          <TouchableOpacity
+            style={styles.instructionVideoButton}
             onPress={() => handleVideoButton(page.videoNumber)}
           >
             <Image
@@ -921,9 +934,9 @@ export default function Settings() {
         style={styles.backgroundImage}
         resizeMode="stretch"
       />
-      
+     
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.push('/(tabs)/home')}
           disabled={mode === 'parent'}
           activeOpacity={mode === 'parent' ? 1 : 0.7}
@@ -949,7 +962,7 @@ export default function Settings() {
         )}
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.contentView,
@@ -980,7 +993,7 @@ export default function Settings() {
                 </>
               ) : (
                 <>
-                  <Text 
+                  <Text
                     style={styles.valueText}
                     numberOfLines={1}
                     ellipsizeMode="tail"
@@ -1001,7 +1014,7 @@ export default function Settings() {
           <View style={styles.row}>
             <Text style={styles.labelInline}>Email:</Text>
             <View style={styles.valueContainer}>
-              <Text 
+              <Text
                 style={styles.valueText}
                 numberOfLines={1}
                 ellipsizeMode="tail"
@@ -1017,7 +1030,7 @@ export default function Settings() {
           <View style={styles.row}>
             <Text style={styles.labelInline}>Password:</Text>
             <View style={styles.valueContainer}>
-              <Text 
+              <Text
                 style={styles.valueText}
                 numberOfLines={1}
                 ellipsizeMode="tail"
@@ -1119,7 +1132,7 @@ export default function Settings() {
             <View style={styles.changePasswordContainer}>
               <View style={styles.changePasswordContent}>
                 {/* Back Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.backButton, { marginTop: scaleSpacing(10) + insets.top }]}
                   onPress={handleCancelPasswordChange}
                 >
@@ -1149,14 +1162,14 @@ export default function Settings() {
                     maxLength={50}
                     autoCapitalize="none"
                   />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.changePasswordEyeButton}
                     onPress={() => setShowNewPassword(!showNewPassword)}
                   >
-                    <Ionicons 
-                      name={showNewPassword ? "eye-off" : "eye"} 
-                      size={20} 
-                      color="#666" 
+                    <Ionicons
+                      name={showNewPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color="#666"
                     />
                   </TouchableOpacity>
                 </View>
@@ -1189,14 +1202,14 @@ export default function Settings() {
                     maxLength={50}
                     autoCapitalize="none"
                   />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.changePasswordEyeButton}
                     onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                   >
-                    <Ionicons 
-                      name={showConfirmPassword ? "eye-off" : "eye"} 
-                      size={20} 
-                      color="#666" 
+                    <Ionicons
+                      name={showConfirmPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color="#666"
                     />
                   </TouchableOpacity>
                 </View>
@@ -1221,7 +1234,7 @@ export default function Settings() {
                 </Text>
 
                 {/* Save Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.savePasswordButton, sendingPasswordOtp && styles.savePasswordButtonDisabled]}
                   onPress={handleSavePassword}
                   disabled={sendingPasswordOtp}
@@ -1305,12 +1318,12 @@ export default function Settings() {
                 style={styles.logoutIcon}
               />
             </View>
-            
+           
             <Text style={styles.logoutModalTitle}>Logout?</Text>
             <Text style={styles.logoutModalMessage}>
               Are you sure you want to logout?
             </Text>
-            
+           
             <View style={styles.logoutModalButtons}>
               <TouchableOpacity
                 style={styles.logoutCancelButton}
@@ -1318,7 +1331,7 @@ export default function Settings() {
               >
                 <Text style={styles.logoutCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+             
               <TouchableOpacity
                 style={styles.logoutConfirmButton}
                 onPress={confirmLogout}
@@ -1380,10 +1393,10 @@ export default function Settings() {
                 style={styles.errorIcon}
               />
             </View>
-            
+           
             <Text style={styles.errorModalTitle}>Error{errorType === "pencil" ? "!" : ""}</Text>
             <Text style={styles.errorModalMessage}>{errorMessage || "Please check your input and try again."}</Text>
-            
+           
             <TouchableOpacity
               style={styles.errorOkButton}
               onPress={() => setErrorModalVisible(false)}
@@ -1409,12 +1422,12 @@ export default function Settings() {
                 style={styles.successPasswordIcon}
               />
             </View>
-            
+           
             <Text style={styles.successPasswordModalTitle}>Success!</Text>
             <Text style={styles.successPasswordModalMessage}>
               You have successfully changed your password.
             </Text>
-            
+           
             <TouchableOpacity
               style={styles.successPasswordOkButton}
               onPress={() => setPasswordSuccessVisible(false)}
@@ -1470,7 +1483,7 @@ export default function Settings() {
             { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
           ]}>
             {/* Back Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.termsBackButton}
               onPress={() => setTermsModalVisible(false)}
             >
@@ -1478,7 +1491,7 @@ export default function Settings() {
             </TouchableOpacity>
 
             {/* Scrollable Content */}
-            <ScrollView 
+            <ScrollView
               style={styles.termsScrollView}
               contentContainerStyle={[
                 styles.termsScrollContent,
@@ -1492,7 +1505,7 @@ export default function Settings() {
               <Text style={styles.termsText}>
                 Welcome to Ritmo. These Terms and Conditions ("Terms") govern your access to and use of the Ritmo mobile application ("App"), operated for the purpose of supporting children with Autism Spectrum Disorder (ASD) in completing daily routines with independence, structure, and consistency.
               </Text>
-              
+             
               <Text style={styles.termsText}>
                 By downloading, installing, or using Ritmo, you agree to be bound by these Terms. If you do not agree, please stop using the App immediately.
               </Text>
@@ -1522,7 +1535,7 @@ export default function Settings() {
 
               <Text style={styles.termsSectionTitle}>4. App Features and Use</Text>
               <Text style={styles.termsText}>By using the App, you acknowledge and agree to the following features:</Text>
-              
+             
               <Text style={styles.termsSubsectionTitle}>4.1 Routine Creation & Management</Text>
               <Text style={styles.termsBullet}>• Parents/Guardian can create personalized routines, tasks, and schedules based on the child's needs.</Text>
               <Text style={styles.termsBullet}>• You are fully responsible for ensuring tasks are safe, age-appropriate, and supportive.</Text>
@@ -1556,7 +1569,7 @@ export default function Settings() {
 
               <Text style={styles.termsSectionTitle}>6. Data Privacy and Security</Text>
               <Text style={styles.termsText}>Ritmo values privacy, especially since it supports children. By using the App, you agree to the following:</Text>
-              
+             
               <Text style={styles.termsSubsectionTitle}>6.1 Information We Collect</Text>
               <Text style={styles.termsText}>Ritmo may collect:</Text>
               <Text style={styles.termsBullet}>• Parents/Guardian account information (name, email)</Text>
@@ -1635,7 +1648,7 @@ export default function Settings() {
             { paddingTop: insets.top + scaleSpacing(8), paddingBottom: 0 }
           ]}>
             {/* Back Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.termsBackButton}
               onPress={() => setPrivacyModalVisible(false)}
             >
@@ -1643,7 +1656,7 @@ export default function Settings() {
             </TouchableOpacity>
 
             {/* Scrollable Content */}
-            <ScrollView 
+            <ScrollView
               style={styles.termsScrollView}
               contentContainerStyle={[
                 styles.termsScrollContent,
@@ -1659,15 +1672,15 @@ export default function Settings() {
               </Text>
 
               {/* Section 1 - Information We Collect */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(1)}
               >
                 <Text style={styles.privacyAccordionTitle}>1. Information We Collect</Text>
-                <Ionicons 
-                  name={expandedSections.includes(1) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(1) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(1) && (
@@ -1704,15 +1717,15 @@ export default function Settings() {
               )}
 
               {/* Section 2 - How We Use Your Information */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(2)}
               >
                 <Text style={styles.privacyAccordionTitle}>2. How We Use Your Information</Text>
-                <Ionicons 
-                  name={expandedSections.includes(2) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(2) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(2) && (
@@ -1727,15 +1740,15 @@ export default function Settings() {
               )}
 
               {/* Section 3 - Data Storage and Security */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(3)}
               >
                 <Text style={styles.privacyAccordionTitle}>3. Data Storage and Security</Text>
-                <Ionicons 
-                  name={expandedSections.includes(3) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(3) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(3) && (
@@ -1747,15 +1760,15 @@ export default function Settings() {
               )}
 
               {/* Section 4 - Data Sharing */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(4)}
               >
                 <Text style={styles.privacyAccordionTitle}>4. Data Sharing</Text>
-                <Ionicons 
-                  name={expandedSections.includes(4) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(4) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(4) && (
@@ -1768,15 +1781,15 @@ export default function Settings() {
               )}
 
               {/* Section 5 - Children's Privacy */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(5)}
               >
                 <Text style={styles.privacyAccordionTitle}>5. Children's Privacy</Text>
-                <Ionicons 
-                  name={expandedSections.includes(5) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(5) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(5) && (
@@ -1793,15 +1806,15 @@ export default function Settings() {
               )}
 
               {/* Section 6 - Your Rights and Choices */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(6)}
               >
                 <Text style={styles.privacyAccordionTitle}>6. Your Rights and Choices</Text>
-                <Ionicons 
-                  name={expandedSections.includes(6) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(6) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(6) && (
@@ -1817,15 +1830,15 @@ export default function Settings() {
               )}
 
               {/* Section 7 - Changes to This Privacy Policy */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(7)}
               >
                 <Text style={styles.privacyAccordionTitle}>7. Changes to This Privacy Policy</Text>
-                <Ionicons 
-                  name={expandedSections.includes(7) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(7) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(7) && (
@@ -1837,15 +1850,15 @@ export default function Settings() {
               )}
 
               {/* Section 8 - Contact Us */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.privacyAccordionHeader}
                 onPress={() => toggleSection(8)}
               >
                 <Text style={styles.privacyAccordionTitle}>8. Contact Us</Text>
-                <Ionicons 
-                  name={expandedSections.includes(8) ? "remove" : "add"} 
-                  size={24} 
-                  color="#FFFFFF" 
+                <Ionicons
+                  name={expandedSections.includes(8) ? "remove" : "add"}
+                  size={24}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
               {expandedSections.includes(8) && (
@@ -2008,6 +2021,7 @@ export default function Settings() {
                   <View style={styles.timeLimitManualRow}>
                     <View style={styles.timeLimitManualFieldGroup}>
                       <TextInput
+                        ref={timeLimitHourInputRef}
                         style={styles.timeLimitManualInput}
                         value={timeLimitHours}
                         onChangeText={handleTimeLimitHoursChange}
@@ -2027,6 +2041,7 @@ export default function Settings() {
 
                     <View style={styles.timeLimitManualFieldGroup}>
                       <TextInput
+                        ref={timeLimitMinuteInputRef}
                         style={styles.timeLimitManualInput}
                         value={timeLimitMinutes}
                         onChangeText={handleTimeLimitMinutesChange}
@@ -2825,7 +2840,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(16),
     fontFamily: "Fredoka_600SemiBold",
   },
-  
+ 
   // Logout Confirmation Modal Styles
   logoutModalOverlay: {
     flex: 1,
@@ -2926,7 +2941,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Fredoka_600SemiBold",
   },
-  
+ 
   // Password Error Modal Styles
   errorModalOverlay: {
     flex: 1,
@@ -2995,7 +3010,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Fredoka_600SemiBold",
   },
-  
+ 
   // Password Success Modal Styles
   successPasswordModalOverlay: {
     flex: 1,
@@ -3381,7 +3396,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#2A3B4D",
   },
-  
+ 
   // Video Modal Styles
   videoModalOverlay: {
     flex: 1,

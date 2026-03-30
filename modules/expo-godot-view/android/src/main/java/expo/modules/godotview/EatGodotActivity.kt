@@ -183,9 +183,29 @@ class EatGodotActivity : GodotActivity() {
         val launchToken = RitmoPlugin.launchCounter
         Handler(Looper.getMainLooper()).postDelayed({
             if (RitmoPlugin.launchCounter == launchToken) {
+                clearEatRuntimePayload()
                 Process.killProcess(Process.myPid())
             }
-        }, 300)
+        }, 800)
+    }
+
+    private fun clearEatRuntimePayload() {
+        try {
+            // Remove local extracted payload cache.
+            File(filesDir, "godot-eat").deleteRecursively()
+
+            // Remove mirrored payload cache from known user:// roots.
+            val knownRoots = listKnownUserDataDirs()
+            for (root in knownRoots) {
+                File(root, "godot-eat").deleteRecursively()
+            }
+
+            // Defensive fallback roots for older installs.
+            File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+        } catch (_: Exception) {
+            // Best-effort cleanup only.
+        }
     }
 
     private fun updateChildName(intent: Intent?) {
@@ -371,6 +391,10 @@ class EatGodotActivity : GodotActivity() {
 
         if (markerMatches && hasProjectBinary && hasPack) return
 
+        if (targetDir.exists()) {
+            targetDir.deleteRecursively()
+        }
+        targetDir.mkdirs()
         copyDirectory(sourceDir, targetDir)
         readyMarker.parentFile?.mkdirs()
         readyMarker.writeText(EAT_ASSETS_MARKER_VERSION)

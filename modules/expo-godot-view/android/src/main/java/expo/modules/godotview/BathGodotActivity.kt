@@ -189,9 +189,26 @@ class BathGodotActivity : GodotActivity() {
         val launchToken = RitmoPlugin.launchCounter
         Handler(Looper.getMainLooper()).postDelayed({
             if (RitmoPlugin.launchCounter == launchToken) {
+                clearBathRuntimePayload()
                 Process.killProcess(Process.myPid())
             }
-        }, 300)
+        }, 800)
+    }
+
+    private fun clearBathRuntimePayload() {
+        try {
+            File(filesDir, "godot-eat").deleteRecursively()
+
+            val knownRoots = listKnownUserDataDirs()
+            for (root in knownRoots) {
+                File(root, "godot-eat").deleteRecursively()
+            }
+
+            File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+        } catch (_: Exception) {
+            // Best-effort cleanup only.
+        }
     }
 
     private fun persistCompletionFlag(completed: Boolean) {
@@ -375,6 +392,10 @@ class BathGodotActivity : GodotActivity() {
 
         if (markerMatches && hasProjectBinary && hasPack) return
 
+        if (targetDir.exists()) {
+            targetDir.deleteRecursively()
+        }
+        targetDir.mkdirs()
         copyDirectory(sourceDir, targetDir)
         readyMarker.parentFile?.mkdirs()
         readyMarker.writeText(BATH_ASSETS_MARKER_VERSION)
