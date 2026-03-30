@@ -10,7 +10,16 @@
       "android"
     ],
     "assetBundlePatterns": [
-      "**/*"
+      "assets/images/**",
+      "assets/gifs/**",
+      "assets/ringtone/**",
+      "assets/voiceover/**",
+      "assets/Tutorials/**",
+      "assets/background.png",
+      "assets/ritmo-logo.png",
+      "assets/ritmo-header.png",
+      "assets/evening.png",
+      "assets/Success.png"
     ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -77,8 +86,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "9c3999d4-56c8-4806-828e-7b0c666ac5e2"
+        "projectId": "c86fb750-ff00-4af5-b983-1daa39fffbbb"
       }
-    }
+    },
+    "owner": "brentspeed69"
   }
 }

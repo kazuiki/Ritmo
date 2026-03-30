@@ -287,7 +287,18 @@ class BrushGodotActivity : GodotActivity() {
     }
 
     private fun copyBrushAssets(outputDir: File) {
-        copyAssetTree("brushgame", outputDir)
+        if (hasPackagedBrushAssets()) {
+            copyAssetTree("brushgame", outputDir)
+            return
+        }
+
+        val downloadedDir = File(filesDir, "godot-payloads/brush")
+        if (downloadedDir.exists()) {
+            copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        startupFailureReason = "brush_source_missing:packaged_and_downloaded_absent"
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {

@@ -1,9 +1,9 @@
 import {
-  Fredoka_400Regular,
-  Fredoka_500Medium,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-  useFonts
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+    useFonts
 } from "@expo-google-fonts/fredoka";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,24 +13,29 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "../../src/contexts/ModeContext";
 import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
+import {
+    ensureGodotPayloadDownloaded,
+    type GodotGameKey,
+    isGodotPayloadReady,
+} from "../../src/offline/godotPayloadService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { LogoutService, supabase } from "../../src/supabaseClient";
@@ -43,6 +48,14 @@ const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
 const PENDING_CHILD_NAME_KEY = "@ritmo_pending_child_name";
 const SETTINGS_PROFILE_CACHE_PREFIX = "@ritmo_settings_profile_";
 const PENCIL_ICON = require("../../assets/images/Pencil.png");
+const DOWNLOADABLE_GAMES: GodotGameKey[] = ["brush", "eat", "bath", "school", "makehair"];
+const GAME_LABELS: Record<GodotGameKey, string> = {
+  brush: "Brush",
+  eat: "Eat",
+  bath: "Bath",
+  school: "School",
+  makehair: "Hair",
+};
 
 const isExpectedOfflineError = (error: unknown): boolean => {
   const message = String((error as any)?.message ?? error ?? "").toLowerCase();
@@ -179,6 +192,29 @@ export default function Settings() {
   const [hasActiveTimeLimit, setHasActiveTimeLimit] = useState(false);
   const [remainingTime, setRemainingTime] = useState(0);
   const [isTimeLimitLocked, setIsTimeLimitLocked] = useState(false);
+  const [payloadStatusByGame, setPayloadStatusByGame] = useState<Record<GodotGameKey, boolean>>({
+    brush: false,
+    eat: false,
+    bath: false,
+    school: false,
+    makehair: false,
+  });
+  const [payloadProgressByGame, setPayloadProgressByGame] = useState<Record<GodotGameKey, number>>({
+    brush: 0,
+    eat: 0,
+    bath: 0,
+    school: 0,
+    makehair: 0,
+  });
+  const [payloadCurrentFileByGame, setPayloadCurrentFileByGame] = useState<Record<GodotGameKey, string>>({
+    brush: "",
+    eat: "",
+    bath: "",
+    school: "",
+    makehair: "",
+  });
+  const [payloadDownloadBusy, setPayloadDownloadBusy] = useState(false);
+  const [payloadStatusLoading, setPayloadStatusLoading] = useState(false);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeLimitHourInputRef = useRef<TextInput>(null);
   const timeLimitMinuteInputRef = useRef<TextInput>(null);
@@ -218,6 +254,7 @@ export default function Settings() {
     fetchUserData();
     checkParentalLockStatus();
     checkActiveTimeLimit();
+    refreshGodotPayloadStatus();
   }, []);
 
   useFocusEffect(
@@ -225,7 +262,88 @@ export default function Settings() {
       fetchUserData();
       checkParentalLockStatus();
       checkActiveTimeLimit();
+      refreshGodotPayloadStatus();
     }, [])
+  );
+
+  const refreshGodotPayloadStatus = async () => {
+    setPayloadStatusLoading(true);
+    try {
+      const entries = await Promise.all(
+        DOWNLOADABLE_GAMES.map(async (game) => {
+          try {
+            const ready = await isGodotPayloadReady(game);
+            return [game, ready] as const;
+          } catch {
+            return [game, false] as const;
+          }
+        })
+      );
+
+      const nextStatus = entries.reduce((acc, [game, ready]) => {
+        acc[game] = ready;
+        return acc;
+      }, {
+        brush: false,
+        eat: false,
+        bath: false,
+        school: false,
+        makehair: false,
+      } as Record<GodotGameKey, boolean>);
+
+      setPayloadStatusByGame(nextStatus);
+      setPayloadProgressByGame((prev) => ({
+        ...prev,
+        brush: nextStatus.brush ? 100 : prev.brush,
+        eat: nextStatus.eat ? 100 : prev.eat,
+        bath: nextStatus.bath ? 100 : prev.bath,
+        school: nextStatus.school ? 100 : prev.school,
+        makehair: nextStatus.makehair ? 100 : prev.makehair,
+      }));
+    } finally {
+      setPayloadStatusLoading(false);
+    }
+  };
+
+  const handleDownloadGamePayloads = async () => {
+    const canContinue = await ensureOnlineForFeature("Download Game Assets");
+    if (!canContinue) return;
+
+    setPayloadDownloadBusy(true);
+    try {
+      for (const game of DOWNLOADABLE_GAMES) {
+        setPayloadProgressByGame((prev) => ({ ...prev, [game]: 0 }));
+        setPayloadCurrentFileByGame((prev) => ({ ...prev, [game]: "" }));
+
+        await ensureGodotPayloadDownloaded(game, (progress) => {
+          setPayloadProgressByGame((prev) => ({
+            ...prev,
+            [game]: Math.max(prev[game], progress.percent),
+          }));
+          setPayloadCurrentFileByGame((prev) => ({
+            ...prev,
+            [game]: progress.fileName,
+          }));
+        });
+
+        setPayloadProgressByGame((prev) => ({ ...prev, [game]: 100 }));
+        setPayloadCurrentFileByGame((prev) => ({ ...prev, [game]: "Completed" }));
+      }
+
+      await refreshGodotPayloadStatus();
+      Alert.alert("Success", "Game assets downloaded and ready on this device.");
+    } catch (error) {
+      const message = String((error as any)?.message ?? "Failed to download game assets.");
+      Alert.alert("Download Error", message);
+    } finally {
+      setPayloadDownloadBusy(false);
+    }
+  };
+
+  const readyCount = DOWNLOADABLE_GAMES.filter((game) => payloadStatusByGame[game]).length;
+  const overallProgress = Math.round(
+    DOWNLOADABLE_GAMES.reduce((acc, game) => acc + (payloadStatusByGame[game] ? 100 : payloadProgressByGame[game]), 0) /
+      DOWNLOADABLE_GAMES.length
   );
 
   useEffect(() => {
@@ -1082,6 +1200,51 @@ export default function Settings() {
           </Text>
           <Ionicons name="chevron-forward" size={24} color="#333" />
         </TouchableOpacity>
+
+        <View style={styles.downloadCard}>
+          <View style={styles.downloadHeaderRow}>
+            <Text style={styles.downloadTitle}>Game Asset Download</Text>
+            <Text style={styles.downloadSummary}>{readyCount}/{DOWNLOADABLE_GAMES.length} Ready</Text>
+          </View>
+
+          <Text style={styles.downloadSubtext}>
+            Download heavy game files on this device to reduce packaged app size.
+          </Text>
+
+          <View style={styles.downloadProgressTrack}>
+            <View style={[styles.downloadProgressFill, { width: `${overallProgress}%` }]} />
+          </View>
+          <Text style={styles.downloadProgressText}>Overall: {overallProgress}%</Text>
+
+          {DOWNLOADABLE_GAMES.map((game) => (
+            <View key={game} style={styles.downloadGameRow}>
+              <Text style={styles.downloadGameName}>{GAME_LABELS[game]}</Text>
+              <Text style={styles.downloadGameStatus}>
+                {payloadStatusByGame[game]
+                  ? "Ready"
+                  : payloadDownloadBusy
+                    ? `${payloadProgressByGame[game]}% ${payloadCurrentFileByGame[game] || ""}`
+                    : "Not downloaded"}
+              </Text>
+            </View>
+          ))}
+
+          <TouchableOpacity
+            style={[styles.downloadButton, (payloadDownloadBusy || payloadStatusLoading) && styles.downloadButtonDisabled]}
+            onPress={() => {
+              void handleDownloadGamePayloads();
+            }}
+            disabled={payloadDownloadBusy || payloadStatusLoading}
+          >
+            <Text style={styles.downloadButtonText}>
+              {payloadStatusLoading
+                ? "Checking status..."
+                : payloadDownloadBusy
+                  ? "Downloading..."
+                  : "Download / Update Game Assets"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Instruction */}
         <TouchableOpacity
@@ -2405,6 +2568,98 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     fontSize: scale.scaleFont(16),
     fontWeight: "600",
     color: "#333",
+  },
+  downloadCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: scale.scaleBorderRadius(16),
+    padding: scale.scaleSpacing(12),
+    marginBottom: scale.scaleSpacing(8),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: scale.scaleHeight(2) },
+    shadowOpacity: 0.1,
+    shadowRadius: scale.scaleSpacing(4),
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: "#CFF6EB",
+  },
+  downloadHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: scale.scaleSpacing(4),
+  },
+  downloadTitle: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#244D4A",
+    fontFamily: "Fredoka_700Bold",
+  },
+  downloadSummary: {
+    fontSize: scale.scaleFont(13),
+    fontWeight: "600",
+    color: "#2F7C72",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  downloadSubtext: {
+    fontSize: scale.scaleFont(13),
+    color: "#4A4A4A",
+    marginBottom: scale.scaleSpacing(10),
+    fontFamily: "Fredoka_400Regular",
+  },
+  downloadProgressTrack: {
+    width: "100%",
+    height: scale.scaleHeight(8),
+    borderRadius: scale.scaleBorderRadius(8),
+    backgroundColor: "#EAF7F3",
+    overflow: "hidden",
+  },
+  downloadProgressFill: {
+    height: "100%",
+    backgroundColor: "#41B79D",
+  },
+  downloadProgressText: {
+    marginTop: scale.scaleSpacing(6),
+    marginBottom: scale.scaleSpacing(10),
+    fontSize: scale.scaleFont(12),
+    color: "#2F7C72",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  downloadGameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: scale.scaleSpacing(4),
+    borderBottomWidth: 1,
+    borderBottomColor: "#EAF7F3",
+  },
+  downloadGameName: {
+    fontSize: scale.scaleFont(14),
+    color: "#244D4A",
+    fontFamily: "Fredoka_600SemiBold",
+  },
+  downloadGameStatus: {
+    fontSize: scale.scaleFont(12),
+    color: "#3F5A57",
+    maxWidth: "62%",
+    textAlign: "right",
+    fontFamily: "Fredoka_400Regular",
+  },
+  downloadButton: {
+    marginTop: scale.scaleSpacing(10),
+    backgroundColor: "#41B79D",
+    borderRadius: scale.scaleBorderRadius(14),
+    paddingVertical: scale.scaleSpacing(10),
+    paddingHorizontal: scale.scaleSpacing(12),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  downloadButtonDisabled: {
+    opacity: 0.65,
+  },
+  downloadButtonText: {
+    fontSize: scale.scaleFont(14),
+    color: "#FFFFFF",
+    fontFamily: "Fredoka_700Bold",
   },
   logoutButton: {
     backgroundColor: "#FF6B6B",

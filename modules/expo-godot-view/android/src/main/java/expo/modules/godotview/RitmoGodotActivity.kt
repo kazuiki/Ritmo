@@ -244,7 +244,22 @@ class RitmoGodotActivity : GodotActivity() {
         try {
             val outDir = File(filesDir, "godot-eat")
             if (!outDir.exists()) outDir.mkdirs()
-            copyAssetTree("eatgame", outDir)
+
+            val packagedReady = try {
+                assets.open("eatgame/project.binary").use { true }
+            } catch (_: Exception) {
+                false
+            }
+
+            if (packagedReady) {
+                copyAssetTree("eatgame", outDir)
+            } else {
+                val downloadedDir = File(filesDir, "godot-payloads/eat")
+                if (downloadedDir.exists()) {
+                    copyDirectory(downloadedDir, outDir)
+                }
+            }
+
             val outFullMainPack = File(outDir, "full_main.pck")
             val outEatFullPack = File(outDir, "eat_full.pck")
             if ((!outFullMainPack.exists() || outFullMainPack.length() <= 0L) &&

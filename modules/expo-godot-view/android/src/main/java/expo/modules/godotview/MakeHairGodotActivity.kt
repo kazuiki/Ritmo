@@ -296,7 +296,18 @@ class MakeHairGodotActivity : GodotActivity() {
     }
 
     private fun copyMakeHairAssets(outputDir: File) {
-        copyAssetTree("makehair", outputDir)
+        if (hasPackagedMakeHairAssets()) {
+            copyAssetTree("makehair", outputDir)
+            return
+        }
+
+        val downloadedDir = File(filesDir, "godot-payloads/makehair")
+        if (downloadedDir.exists()) {
+            copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        startupFailureReason = "makehair_source_missing:packaged_and_downloaded_absent"
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {

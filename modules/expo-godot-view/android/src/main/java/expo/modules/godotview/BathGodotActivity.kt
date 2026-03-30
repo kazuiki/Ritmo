@@ -295,7 +295,18 @@ class BathGodotActivity : GodotActivity() {
     }
 
     private fun copyBathAssets(outputDir: File) {
-        copyAssetTree("bathgame", outputDir)
+        if (hasPackagedBathAssets()) {
+            copyAssetTree("bathgame", outputDir)
+            return
+        }
+
+        val downloadedDir = File(filesDir, "godot-payloads/bath")
+        if (downloadedDir.exists()) {
+            copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        startupFailureReason = "bath_source_missing:packaged_and_downloaded_absent"
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {

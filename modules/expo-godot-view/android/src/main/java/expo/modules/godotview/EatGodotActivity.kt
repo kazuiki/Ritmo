@@ -291,7 +291,18 @@ class EatGodotActivity : GodotActivity() {
     }
 
     private fun copyEatAssets(outputDir: File) {
-        copyAssetTree("eatgame", outputDir)
+        if (hasPackagedEatAssets()) {
+            copyAssetTree("eatgame", outputDir)
+            return
+        }
+
+        val downloadedDir = File(filesDir, "godot-payloads/eat")
+        if (downloadedDir.exists()) {
+            copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        startupFailureReason = "eat_source_missing:packaged_and_downloaded_absent"
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {
