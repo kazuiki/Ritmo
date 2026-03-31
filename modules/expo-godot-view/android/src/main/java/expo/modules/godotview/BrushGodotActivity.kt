@@ -133,9 +133,24 @@ class BrushGodotActivity : GodotActivity() {
 
     override fun getCommandLine(): MutableList<String> {
         val args = mutableListOf<String>()
+        val outDir = File(filesDir, "godot-eat")
+        val projectBinaryFile = File(outDir, "project.binary")
+        val preferredPack = resolvePreferredBrushPack(outDir)
+
         args.add("--rendering-driver")
         args.add("opengl3")
-        Log.i(TAG, "Brush boot with sparse pack discovery from userdata/assets")
+
+        if (projectBinaryFile.exists() && projectBinaryFile.length() > 0L) {
+            args.add("--path")
+            args.add(outDir.absolutePath)
+        }
+
+        if (preferredPack != null) {
+            args.add("--main-pack")
+            args.add(preferredPack.absolutePath)
+        }
+
+        Log.i(TAG, "Brush boot args: path=${outDir.absolutePath}, pack=${preferredPack?.absolutePath}")
         return args
     }
 
@@ -292,13 +307,41 @@ class BrushGodotActivity : GodotActivity() {
             return
         }
 
-        val downloadedDir = File(filesDir, "godot-payloads/brush")
-        if (downloadedDir.exists()) {
+        val downloadedDir = resolveDownloadedPayloadDir("brush")
+        if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
             return
         }
 
         startupFailureReason = "brush_source_missing:packaged_and_downloaded_absent"
+    }
+
+    private fun resolveDownloadedPayloadDir(gameKey: String): File? {
+        val directDir = File(filesDir, "godot-payloads/$gameKey")
+        if (hasValidDownloadedPayload(directDir)) {
+            return directDir
+        }
+
+        return filesDir.walkTopDown()
+            .maxDepth(8)
+            .firstOrNull { candidate ->
+                candidate.isDirectory &&
+                    candidate.name.equals(gameKey, ignoreCase = true) &&
+                    candidate.parentFile?.name == "godot-payloads" &&
+                    hasValidDownloadedPayload(candidate)
+            }
+    }
+
+    private fun hasValidDownloadedPayload(dir: File): Boolean {
+        if (!dir.exists() || !dir.isDirectory) return false
+
+        val projectBinary = File(dir, "project.binary")
+        val fullPack = File(dir, "full_main.pck")
+        val sparsePack = File(dir, "assets.sparsepck")
+
+        return projectBinary.exists() && projectBinary.length() > 0L &&
+            ((fullPack.exists() && fullPack.length() > 0L) ||
+                (sparsePack.exists() && sparsePack.length() > 0L))
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {

@@ -9,11 +9,7 @@ def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
-        // Prefer a deterministic Expo Router entry when available to avoid path resolution issues on Windows/junction paths.
-        def expoRouterEntry = new File(projectRoot, "node_modules/expo-router/entry.js")
-        entryFile = expoRouterEntry.exists()
-            ? expoRouterEntry
-            : file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
+    entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
     hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
@@ -84,6 +80,10 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def ritmoAbiFilters = (findProperty('ritmo.abiFilters') ?: 'arm64-v8a')
+    .split(',')
+    .collect { it.trim() }
+    .findAll { it }
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -96,8 +96,12 @@ android {
         applicationId 'com.anonymous.ritmo'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 1
+        versionName "1.0.0"
+
+        ndk {
+            abiFilters(*((String[]) ritmoAbiFilters))
+        }
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -130,18 +134,8 @@ android {
             def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
             useLegacyPackaging enableLegacyPackaging.toBoolean()
         }
-        pickFirst 'lib/arm64-v8a/libworklets.so'
-        pickFirst 'lib/armeabi-v7a/libworklets.so'
-        pickFirst 'lib/x86/libworklets.so'
-        pickFirst 'lib/x86_64/libworklets.so'
-        pickFirst 'lib/arm64-v8a/libgodot_android.so'
-        pickFirst 'lib/armeabi-v7a/libgodot_android.so'
-        pickFirst 'lib/x86/libgodot_android.so'
-        pickFirst 'lib/x86_64/libgodot_android.so'
     }
     androidResources {
-        // Godot expects pack/project payload files to be uncompressed when read from /android_asset.
-        noCompress += ["pck", "sparsepck", "binary", "_cl_"]
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
 }

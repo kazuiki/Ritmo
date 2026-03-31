@@ -55,6 +55,8 @@ modules/expo-godot-view/android/build/
 *.class
 *.aar
 !modules/expo-godot-view/android/libs/godot-lib.4.6.stable.template_debug.aar
+!modules/expo-godot-view/android/libs/godot-lib.4.6.stable.template_release.aar
+!modules/expo-godot-view/android/libs/godot-lib.template_release.aar
 
 # Godot APK exports
 Ritmo.apk
@@ -63,3 +65,4 @@ Ritmo.apk
 # Local large artifacts not for git push
 ChatHistory
 eatgame.apk
+expo-godot-view-*.tgz

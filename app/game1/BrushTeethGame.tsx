@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
+import { ensureGodotPayloadDownloaded } from '../../src/offline/godotPayloadService';
 import { supabase } from '../../src/supabaseClient';
 
 const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
@@ -20,6 +21,7 @@ export default function BrushTeethGame() {
 
       try {
         setLaunchError(null);
+        await ensureGodotPayloadDownloaded('brush');
         await AsyncStorage.removeItem('@minigameCompleted');
         await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
@@ -218,6 +220,11 @@ export default function BrushTeethGame() {
 
         router.back();
       } catch (error) {
+        const message = String((error as any)?.message ?? '').toLowerCase();
+        if (message.includes('download') || message.includes('payload')) {
+          setLaunchError('Failed to download Brush game files. Check internet and tap Retry.');
+          return;
+        }
         setLaunchError('Failed to start Brush game. Tap Retry to try again.');
       }
     };

@@ -129,10 +129,25 @@ class EatGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        // Some shipped Godot binaries reject both --path and --main-pack when
-        // path overrides are disabled at compile time. Boot with default args.
-        val args = super.getCommandLine()
-        Log.i(TAG, "Eat boot uses default Godot command line (no pack/path overrides)")
+        val args = mutableListOf<String>()
+        val outDir = File(filesDir, "godot-eat")
+        val projectBinaryFile = File(outDir, "project.binary")
+        val preferredPack = resolvePreferredEatPack(outDir)
+
+        args.add("--rendering-driver")
+        args.add("opengl3")
+
+        if (projectBinaryFile.exists() && projectBinaryFile.length() > 0L) {
+            args.add("--path")
+            args.add(outDir.absolutePath)
+        }
+
+        if (preferredPack != null) {
+            args.add("--main-pack")
+            args.add(preferredPack.absolutePath)
+        }
+
+        Log.i(TAG, "Eat boot args: path=${outDir.absolutePath}, pack=${preferredPack?.absolutePath}")
         return args
     }
 
@@ -296,13 +311,43 @@ class EatGodotActivity : GodotActivity() {
             return
         }
 
-        val downloadedDir = File(filesDir, "godot-payloads/eat")
-        if (downloadedDir.exists()) {
+        val downloadedDir = resolveDownloadedPayloadDir("eat")
+        if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
             return
         }
 
         startupFailureReason = "eat_source_missing:packaged_and_downloaded_absent"
+    }
+
+    private fun resolveDownloadedPayloadDir(gameKey: String): File? {
+        val directDir = File(filesDir, "godot-payloads/$gameKey")
+        if (hasValidDownloadedPayload(directDir)) {
+            return directDir
+        }
+
+        return filesDir.walkTopDown()
+            .maxDepth(8)
+            .firstOrNull { candidate ->
+                candidate.isDirectory &&
+                    candidate.name.equals(gameKey, ignoreCase = true) &&
+                    candidate.parentFile?.name == "godot-payloads" &&
+                    hasValidDownloadedPayload(candidate)
+            }
+    }
+
+    private fun hasValidDownloadedPayload(dir: File): Boolean {
+        if (!dir.exists() || !dir.isDirectory) return false
+
+        val projectBinary = File(dir, "project.binary")
+        val fullPack = File(dir, "full_main.pck")
+        val sparsePack = File(dir, "assets.sparsepck")
+        val altFullPack = File(dir, "eat_full.pck")
+
+        return projectBinary.exists() && projectBinary.length() > 0L &&
+            ((fullPack.exists() && fullPack.length() > 0L) ||
+                (sparsePack.exists() && sparsePack.length() > 0L) ||
+                (altFullPack.exists() && altFullPack.length() > 0L))
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {

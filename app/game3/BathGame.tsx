@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
+import { ensureGodotPayloadDownloaded } from '../../src/offline/godotPayloadService';
 import { supabase } from '../../src/supabaseClient';
 
 const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
@@ -19,6 +20,7 @@ export default function BathGame() {
       if (Platform.OS === 'android') {
         try {
           setLaunchError(null);
+          await ensureGodotPayloadDownloaded('bath');
           await AsyncStorage.removeItem('@minigameCompleted');
           await ExpoGodotViewModule?.resetGameCompletedFlag?.().catch(() => false);
 
@@ -213,6 +215,11 @@ export default function BathGame() {
           router.back();
         } catch (error) {
           console.error('Failed to launch Bath game:', error);
+          const message = String((error as any)?.message ?? '').toLowerCase();
+          if (message.includes('download') || message.includes('payload')) {
+            setLaunchError('Failed to download Bath game files. Check internet and tap Retry.');
+            return;
+          }
           setLaunchError('Failed to start the game. Tap Retry to try again.');
         }
       }

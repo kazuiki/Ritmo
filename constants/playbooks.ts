@@ -1,3 +1,4 @@
+﻿import { getGifSource } from "./gifSources";
 export interface PlaybookStep {
   label: string;
   gif: any; // React Native static require
@@ -94,22 +95,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Get your toothbrush and toothpaste', 
-        gif: require('../assets/gifs/brushStep1.gif'), 
+        gif: getGifSource('brushStep1.gif'), 
         audio: getAudioIfExists('brushStep1.mp3')
       },
       { 
         label: 'Put some toothpaste onto the toothbrush', 
-        gif: require('../assets/gifs/brushStep2.gif'), 
+        gif: getGifSource('brushStep2.gif'), 
         audio: getAudioIfExists('brushStep2.mp3')
       },
       { 
         label: 'Brush your teeth', 
-        gif: require('../assets/gifs/brushStep3.gif'), 
+        gif: getGifSource('brushStep3.gif'), 
         audio: getAudioIfExists('brushStep3.mp3')
       },
       { 
         label: 'Wash your mouth', 
-        gif: require('../assets/gifs/brushStep4.gif'), 
+        gif: getGifSource('brushStep4.gif'), 
         audio: getAudioIfExists('brushStep4.mp3')
       },
     ],
@@ -124,22 +125,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Food has been prepared', 
-        gif: require('../assets/gifs/eatStep1.gif'),
+        gif: getGifSource('eatStep1.gif'),
         audio: getAudioIfExists('eatStep1.mp3')
       },
       { 
         label: 'Scoop, Chew, Yum!', 
-        gif: require('../assets/gifs/eatStep2.gif'),
+        gif: getGifSource('eatStep2.gif'),
         audio: getAudioIfExists('eatStep2.mp3')
       },
       { 
         label: 'Sip, Slurp, Ahh!', 
-        gif: require('../assets/gifs/eatStep3.gif'),
+        gif: getGifSource('eatStep3.gif'),
         audio: getAudioIfExists('eatStep3.mp3')
       },
       { 
         label: 'Bowl cleared', 
-        gif: require('../assets/gifs/eatStep4.gif'),
+        gif: getGifSource('eatStep4.gif'),
         audio: getAudioIfExists('eatStep4.mp3')
       },
     ],
@@ -154,22 +155,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Prepare for bath', 
-        gif: require('../assets/gifs/bathStep1.gif'),
+        gif: getGifSource('bathStep1.gif'),
         audio: getAudioIfExists('bathStep1.mp3')
       },
       { 
         label: 'Call a parent', 
-        gif: require('../assets/gifs/bathStep2.gif'),
+        gif: getGifSource('bathStep2.gif'),
         audio: getAudioIfExists('bathStep2.mp3')
       },
       { 
         label: 'Take a bath', 
-        gif: require('../assets/gifs/bathStep3.gif'),
+        gif: getGifSource('bathStep3.gif'),
         audio: getAudioIfExists('bathStep3.mp3')
       },
       { 
         label: 'Put Clothes', 
-        gif: require('../assets/gifs/bathStep4.gif'),
+        gif: getGifSource('bathStep4.gif'),
         audio: getAudioIfExists('bathStep4.mp3')
       },
     ],
@@ -184,22 +185,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Put on clean underwear and undershirt', 
-        gif: require('../assets/gifs/clothesStep1.gif'), 
+        gif: getGifSource('clothesStep1.gif'), 
         audio: getAudioIfExists('clotheStep1.mp3')
       },
       { 
         label: 'Put the shirt over your head and arms', 
-        gif: require('../assets/gifs/clothesStep2.gif'), 
+        gif: getGifSource('clothesStep2.gif'), 
         audio: getAudioIfExists('clotheStep2.mp3')
       },
       { 
         label: 'Step into pants, pull them up, and fasten', 
-        gif: require('../assets/gifs/clothesStep3.gif'), 
+        gif: getGifSource('clothesStep3.gif'), 
         audio: getAudioIfExists('clotheStep3.mp3')
       },
       { 
         label: 'Put on socks and shoes then tie laces', 
-        gif: require('../assets/gifs/clothesStep4.gif'), 
+        gif: getGifSource('clothesStep4.gif'), 
         audio: getAudioIfExists('clotheStep4.mp3')
       },
     ],
@@ -214,22 +215,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Get dressed and freshen up', 
-        gif: require('../assets/gifs/schoolStep1.gif'),
+        gif: getGifSource('schoolStep1.gif'),
         audio: getAudioIfExists('schoolStep1.mp3')
       },
       { 
         label: 'Check your bag', 
-        gif: require('../assets/gifs/schoolStep2.gif'),
+        gif: getGifSource('schoolStep2.gif'),
         audio: getAudioIfExists('schoolStep2.mp3')
       },
       { 
         label: 'Pack your food and water', 
-        gif: require('../assets/gifs/schoolStep3.gif'),
+        gif: getGifSource('schoolStep3.gif'),
         audio: getAudioIfExists('schoolStep3.mp3')
       },
       { 
         label: 'Ready to go', 
-        gif: require('../assets/gifs/schoolStep4.gif'),
+        gif: getGifSource('schoolStep4.gif'),
         audio: getAudioIfExists('schoolStep4.mp3')
       },
     ],
@@ -244,22 +245,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Prepare to change into pajamas', 
-        gif: require('../assets/gifs/pajamaStep1.gif'), 
+        gif: getGifSource('pajamaStep1.gif'), 
         audio: getAudioIfExists('pajamaStep1.mp3')
       },
       { 
         label: 'Pick up the pajama shirt and put it on', 
-        gif: require('../assets/gifs/pajamaStep2.gif'), 
+        gif: getGifSource('pajamaStep2.gif'), 
         audio: getAudioIfExists('pajamaStep2.mp3')
       },
       { 
         label: 'Grab pajama pants and pull them on', 
-        gif: require('../assets/gifs/pajamaStep3.gif'), 
+        gif: getGifSource('pajamaStep3.gif'), 
         audio: getAudioIfExists('pajamaStep3.mp3')
       },
       { 
         label: 'You are now fully dressed and ready for bedtime', 
-        gif: require('../assets/gifs/pajamaStep4.gif'), 
+        gif: getGifSource('pajamaStep4.gif'), 
         audio: getAudioIfExists('pajamaStep4.mp3')
       },
     ],
@@ -274,22 +275,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       { 
         label: 'Get comfy in bed with a fun book', 
-        gif: require('../assets/gifs/sleepStep1.gif'), 
+        gif: getGifSource('sleepStep1.gif'), 
         audio: getAudioIfExists('sleepStep1.mp3')
       },
       { 
         label: 'Sip some warm milk like a cozy bear', 
-        gif: require('../assets/gifs/sleepStep2.gif'), 
+        gif: getGifSource('sleepStep2.gif'), 
         audio: getAudioIfExists('sleepStep2.mp3')
       },
       { 
         label: 'Turn off the light and say goodnight to the stars', 
-        gif: require('../assets/gifs/sleepStep3.gif'), 
+        gif: getGifSource('sleepStep3.gif'), 
         audio: getAudioIfExists('sleepStep3.mp3')
       },
       { 
         label: 'Close your eyes and drift into dreamland', 
-        gif: require('../assets/gifs/sleepStep4.gif'), 
+        gif: getGifSource('sleepStep4.gif'), 
         audio: getAudioIfExists('sleepStep4.mp3')
       },
     ],
@@ -304,22 +305,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       {
         label: 'Clear off all your toys and pillows',
-        gif: require('../assets/gifs/bedStep1.gif'),
+        gif: getGifSource('bedStep1.gif'),
         audio: getAudioIfExists('bedStep1.mp3'),
       },
       {
         label: 'Pull your sheets and blankets up to the top',
-        gif: require('../assets/gifs/bedStep2.gif'),
+        gif: getGifSource('bedStep2.gif'),
         audio: getAudioIfExists('bedStep2.mp3'),
       },
       {
         label: 'Tuck the blankets under the bottom of the bed',
-        gif: require('../assets/gifs/bedStep3.gif'),
+        gif: getGifSource('bedStep3.gif'),
         audio: getAudioIfExists('bedStep3.mp3'),
       },
       {
         label: 'Put your pillows and favorite toys back and smile',
-        gif: require('../assets/gifs/bedStep4.gif'),
+        gif: getGifSource('bedStep4.gif'),
         audio: getAudioIfExists('bedStep4.mp3'),
       },
     ],
@@ -334,22 +335,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       {
         label: 'Sit properly and get the comb',
-        gif: require('../assets/gifs/hairStep1.gif'),
+        gif: getGifSource('hairStep1.gif'),
         audio: getAudioIfExists('hairStep1.mp3'),
       },
       {
         label: 'Comb your hair from top to bottom',
-        gif: require('../assets/gifs/hairStep2.gif'),
+        gif: getGifSource('hairStep2.gif'),
         audio: getAudioIfExists('hairStep2.mp3'),
       },
       {
         label: 'Use your hands to smooth and fix your hair',
-        gif: require('../assets/gifs/hairStep3.gif'),
+        gif: getGifSource('hairStep3.gif'),
         audio: getAudioIfExists('hairStep3.mp3'),
       },
       {
         label: 'Look in the mirror and smile',
-        gif: require('../assets/gifs/hairStep4.gif'),
+        gif: getGifSource('hairStep4.gif'),
         audio: getAudioIfExists('hairStep4.mp3'),
       },
     ],
@@ -364,22 +365,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       {
         label: 'Approach the elder respectfully and gently hold their hand',
-        gif: require('../assets/gifs/manoStep1.gif'),
+        gif: getGifSource('manoStep1.gif'),
         audio: getAudioIfExists('manoStep1.mp3'),
       },
       {
         label: "Bring the elder's hand to your forehead",
-        gif: require('../assets/gifs/manoStep2.gif'),
+        gif: getGifSource('manoStep2.gif'),
         audio: getAudioIfExists('manoStep2.mp3'),
       },
       {
-        label: 'Say “Mano po.”',
-        gif: require('../assets/gifs/manoStep3.gif'),
+        label: 'Say â€œMano po.â€',
+        gif: getGifSource('manoStep3.gif'),
         audio: getAudioIfExists('manoStep3.mp3'),
       },
       {
         label: 'Smile after showing respect',
-        gif: require('../assets/gifs/manoStep4.gif'),
+        gif: getGifSource('manoStep4.gif'),
         audio: getAudioIfExists('manoStep4.mp3'),
       },
     ],
@@ -394,22 +395,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       {
         label: 'Say hello to your friend with a smile',
-        gif: require('../assets/gifs/playStep1.gif'),
+        gif: getGifSource('playStep1.gif'),
         audio: getAudioIfExists('playStep1.mp3'),
       },
       {
         label: 'Invite your friend to play by showing a toy or waving',
-        gif: require('../assets/gifs/playStep2.gif'),
+        gif: getGifSource('playStep2.gif'),
         audio: getAudioIfExists('playStep2.mp3'),
       },
       {
         label: 'Play with your friend using a simple toy like a ball or blocks',
-        gif: require('../assets/gifs/playStep3.gif'),
+        gif: getGifSource('playStep3.gif'),
         audio: getAudioIfExists('playStep3.mp3'),
       },
       {
         label: 'Say thank you to your friend after playing',
-        gif: require('../assets/gifs/playStep4.gif'),
+        gif: getGifSource('playStep4.gif'),
         audio: getAudioIfExists('playStep4.mp3'),
       },
     ],
@@ -424,22 +425,22 @@ export const PLAYBOOKS: Record<number, Playbook> = {
     steps: [
       {
         label: 'Get the broom and dustpan',
-        gif: require('../assets/gifs/sweepStep1.gif'),
+        gif: getGifSource('sweepStep1.gif'),
         audio: getAudioIfExists('sweepStep1.mp3'),
       },
       {
         label: 'Look around and find the dust, dirt, and small pieces on the floor',
-        gif: require('../assets/gifs/sweepStep2.gif'),
+        gif: getGifSource('sweepStep2.gif'),
         audio: getAudioIfExists('sweepStep2.mp3'),
       },
       {
         label: 'Sweep the dirt using the broom and dustpan',
-        gif: require('../assets/gifs/sweepStep3.gif'),
+        gif: getGifSource('sweepStep3.gif'),
         audio: getAudioIfExists('sweepStep3.mp3'),
       },
       {
         label: 'Then put the swept dirt in the trashcan',
-        gif: require('../assets/gifs/sweepStep4.gif'),
+        gif: getGifSource('sweepStep4.gif'),
         audio: getAudioIfExists('sweepStep4.mp3'),
       },
     ],

@@ -1,14 +1,44 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Asset } from 'expo-asset';
-import { Image, Platform } from 'react-native';
+import { Image } from 'react-native';
+import { getGifUrl } from '../../constants/gifSources';
 
 // Global flag to prevent duplicate preloading
 let isPreloading = false;
 let isPreloaded = false;
 let preloadPromise: Promise<void> | null = null;
 
-// Cache for preloaded assets
-const assetCache = new Set<number>();
+const REMOTE_GIF_FILES = [
+  'fix_the_bed.gif',
+  'hair_care_time.gif',
+  'hand_blessing.gif',
+  'play_with_friends.gif',
+  'sweep_the_floor.gif',
+  'bedStep1.gif',
+  'bedStep2.gif',
+  'bedStep3.gif',
+  'bedStep4.gif',
+  'hairStep1.gif',
+  'hairStep2.gif',
+  'hairStep3.gif',
+  'hairStep4.gif',
+  'manoStep1.gif',
+  'manoStep2.gif',
+  'manoStep3.gif',
+  'manoStep4.gif',
+  'playStep1.gif',
+  'playStep2.gif',
+  'playStep3.gif',
+  'playStep4.gif',
+  'sweepStep1.gif',
+  'sweepStep2.gif',
+  'sweepStep3.gif',
+  'sweepStep4.gif',
+];
+
+const REMOTE_GIF_URLS = REMOTE_GIF_FILES.map(getGifUrl);
+
+// Cache for preloaded remote asset URLs
+const assetCache = new Set<string>();
 const ASSET_PROGRESS_STORAGE_KEY = '@ritmo_asset_preload_progress_v1';
 
 export type AssetPreloadProgress = {
@@ -100,8 +130,8 @@ export const subscribeAssetPreloadProgress = (
 };
 
 /**
- * Comprehensive asset preloader for all game images and GIFs
- * Uses both expo-asset and React Native Image.prefetch for faster loading
+ * Comprehensive asset preloader for remote GIF content.
+ * Uses React Native Image.prefetch for faster first render.
  * Runs only ONCE per app session for maximum performance
  */
 export const preloadGameAssets = async () => {
@@ -138,51 +168,7 @@ export const preloadGameAssets = async () => {
       console.log('🚀 Starting ONE-TIME asset preload...');
       const startTime = Date.now();
     
-    // Define non-game assets to preload
-    const gameAssets = [
-      // New routine preset GIFs
-      require('../../assets/gifs/fix_the_bed.gif'),
-      require('../../assets/gifs/hair_care_time.gif'),
-      require('../../assets/gifs/hand_blessing.gif'),
-      require('../../assets/gifs/play_with_friends.gif'),
-      require('../../assets/gifs/sweep_the_floor.gif'),
-
-      // New routine guide step GIFs - Fix the Bed
-      require('../../assets/gifs/bedStep1.gif'),
-      require('../../assets/gifs/bedStep2.gif'),
-      require('../../assets/gifs/bedStep3.gif'),
-      require('../../assets/gifs/bedStep4.gif'),
-
-      // New routine guide step GIFs - Hair Care Time
-      require('../../assets/gifs/hairStep1.gif'),
-      require('../../assets/gifs/hairStep2.gif'),
-      require('../../assets/gifs/hairStep3.gif'),
-      require('../../assets/gifs/hairStep4.gif'),
-
-      // New routine guide step GIFs - Hand Blessing
-      require('../../assets/gifs/manoStep1.gif'),
-      require('../../assets/gifs/manoStep2.gif'),
-      require('../../assets/gifs/manoStep3.gif'),
-      require('../../assets/gifs/manoStep4.gif'),
-
-      // New routine guide step GIFs - Play with Friends
-      require('../../assets/gifs/playStep1.gif'),
-      require('../../assets/gifs/playStep2.gif'),
-      require('../../assets/gifs/playStep3.gif'),
-      require('../../assets/gifs/playStep4.gif'),
-
-      // New routine guide step GIFs - Sweep the Floor
-      require('../../assets/gifs/sweepStep1.gif'),
-      require('../../assets/gifs/sweepStep2.gif'),
-      require('../../assets/gifs/sweepStep3.gif'),
-      require('../../assets/gifs/sweepStep4.gif'),
-    ];
-    
-    // Filter out already cached assets
-    const assetsToLoad = gameAssets.filter((asset) => {
-      const assetId = typeof asset === 'number' ? asset : asset.default;
-      return !assetCache.has(assetId);
-    });
+    const assetsToLoad = REMOTE_GIF_URLS.filter((assetUrl) => !assetCache.has(assetUrl));
     
     if (assetsToLoad.length === 0) {
       console.log('✅ All assets already cached');
@@ -212,32 +198,16 @@ export const preloadGameAssets = async () => {
       percent: 0,
     });
     
-    // Use expo-asset for aggressive caching
-    await Asset.loadAsync(assetsToLoad);
-    
-    // Also use Image.prefetch for immediate availability
-    const prefetchPromises = assetsToLoad.map(async (asset) => {
+    const prefetchPromises = assetsToLoad.map(async (assetUrl) => {
       try {
-        const assetInfo = Asset.fromModule(asset);
-        await assetInfo.downloadAsync();
+        if (shouldImagePrefetch(assetUrl)) {
+          const prefetched = await Image.prefetch(assetUrl);
+          if (!prefetched) {
+            throw new Error('Image.prefetch returned false');
+          }
+        }
 
-        // Strict verification: on native, localUri must exist to count as ready offline.
-        const isVerifiedLocal = Platform.OS === 'web'
-          ? Boolean(assetInfo.localUri || assetInfo.uri)
-          : Boolean(assetInfo.localUri);
-        if (!isVerifiedLocal) {
-          throw new Error('Asset verification failed: local file not available');
-        }
-        
-        // Prefetch only image URIs for instant rendering; skip audio/video URIs.
-        const resolvedUri = assetInfo.localUri || assetInfo.uri;
-        if (resolvedUri && shouldImagePrefetch(resolvedUri)) {
-          await Image.prefetch(resolvedUri);
-        }
-        
-        // Mark as cached
-        const assetId = typeof asset === 'number' ? asset : asset.default;
-        assetCache.add(assetId);
+        assetCache.add(assetUrl);
         verifiedCount += 1;
       } catch (error) {
         failedCount += 1;
@@ -288,8 +258,10 @@ export const preloadGameAssets = async () => {
  * Check if an asset is already cached
  */
 export const isAssetCached = (asset: any): boolean => {
-  const assetId = typeof asset === 'number' ? asset : asset.default;
-  return assetCache.has(assetId);
+  if (typeof asset === 'string') return assetCache.has(asset);
+  const uri = asset?.uri;
+  if (typeof uri === 'string') return assetCache.has(uri);
+  return false;
 };
 
 /**
@@ -297,22 +269,21 @@ export const isAssetCached = (asset: any): boolean => {
  */
 export const preloadSingleAsset = async (asset: any) => {
   try {
-    const assetId = typeof asset === 'number' ? asset : asset.default;
-    
-    if (assetCache.has(assetId)) {
-      return; // Already cached
+    const uri = typeof asset === 'string' ? asset : asset?.uri;
+    if (!uri || typeof uri !== 'string') return;
+
+    if (assetCache.has(uri)) {
+      return;
     }
-    
-    await Asset.loadAsync([asset]);
-    const assetInfo = Asset.fromModule(asset);
-    await assetInfo.downloadAsync();
-    
-    const resolvedUri = assetInfo.localUri || assetInfo.uri;
-    if (resolvedUri && shouldImagePrefetch(resolvedUri)) {
-      await Image.prefetch(resolvedUri);
+
+    if (shouldImagePrefetch(uri)) {
+      const prefetched = await Image.prefetch(uri);
+      if (!prefetched) {
+        throw new Error('Image.prefetch returned false');
+      }
     }
-    
-    assetCache.add(assetId);
+
+    assetCache.add(uri);
   } catch (error) {
     console.log('⚠️ Failed to preload single asset:', error);
   }

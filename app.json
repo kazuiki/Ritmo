@@ -11,7 +11,6 @@
     ],
     "assetBundlePatterns": [
       "assets/images/**",
-      "assets/gifs/**",
       "assets/ringtone/**",
       "assets/voiceover/**",
       "assets/Tutorials/**",
@@ -42,7 +41,7 @@
         "ACCESS_NETWORK_STATE",
         "INTERNET"
       ],
-      "package": "com.anonymous.ritmo"
+      "package": "RitmoV1"
     },
     "plugins": [
       "expo-router",

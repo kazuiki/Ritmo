@@ -8,6 +8,23 @@ android {
   namespace "expo.modules.godotview"
   compileSdkVersion 34
 
+  def isReleaseTask = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+  def shouldPackageEmbeddedJniLibs = project
+    .findProperty('RITMO_PACKAGE_EMBEDDED_JNILIBS')
+    ?.toString()
+    ?.toBoolean()
+  if (shouldPackageEmbeddedJniLibs == null) {
+    shouldPackageEmbeddedJniLibs = false
+  }
+
+  def shouldBundleGodotAssets = project
+    .findProperty('RITMO_BUNDLE_GODOT_ASSETS')
+    ?.toString()
+    ?.toBoolean()
+  if (shouldBundleGodotAssets == null) {
+    shouldBundleGodotAssets = !isReleaseTask
+  }
+
   defaultConfig {
     minSdkVersion 24
     targetSdkVersion 34
@@ -33,13 +50,28 @@ android {
     // Do not ignore any assets so .godot is packaged.
     ignoreAssetsPattern ''
   }
+
+  if (!shouldBundleGodotAssets) {
+    logger.lifecycle('[expo-godot-view] Skipping bundled Godot assets; payload will be downloaded at runtime.')
+    sourceSets {
+      main {
+        assets.srcDirs = []
+      }
+    }
+  }
+
+  if (!shouldPackageEmbeddedJniLibs) {
+    logger.lifecycle('[expo-godot-view] Skipping embedded JNI libs from src/main/jniLibs; relying on selected Godot AAR native libs.')
+    sourceSets {
+      main {
+        jniLibs.srcDirs = []
+      }
+    }
+  }
 }
 
 repositories {
   mavenCentral()
-  flatDir {
-    dirs 'libs'
-  }
 }
 
 dependencies {
@@ -48,6 +80,35 @@ dependencies {
   implementation "androidx.fragment:fragment-ktx:1.8.2"
   
   // Godot library
-  def ritmoGodotAar = project.findProperty('RITMO_GODOT_AAR') ?: 'godot-lib.4.6.stable.template_debug'
-  implementation(name: ritmoGodotAar, ext: 'aar')
+  def requestedGodotAar = project.findProperty('RITMO_GODOT_AAR')
+  def isReleaseBuild = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+  def defaultGodotAar = isReleaseBuild ? 'godot-lib.4.6.stable.template_release' : 'godot-lib.4.6.stable.template_debug'
+
+  def candidates = []
+  if (requestedGodotAar) {
+    candidates << requestedGodotAar
+  }
+  candidates << defaultGodotAar
+  candidates << 'godot-lib.4.6.stable.template_release'
+  candidates << 'godot-lib.4.6.stable.template_debug'
+  candidates << 'godot-lib.template_release'
+
+  def selectedGodotAar = null
+  def selectedGodotAarFile = null
+
+  for (candidate in candidates.unique()) {
+    def candidateFile = file("libs/${candidate}.aar")
+    if (candidateFile.exists()) {
+      selectedGodotAar = candidate
+      selectedGodotAarFile = candidateFile
+      break
+    }
+  }
+
+  if (selectedGodotAarFile == null) {
+    throw new GradleException("[expo-godot-view] Missing Godot AAR in android/libs. Tried: ${candidates.unique().collect { it + '.aar' }}")
+  }
+
+  logger.lifecycle("[expo-godot-view] Using ${selectedGodotAar}.aar")
+  implementation(files(selectedGodotAarFile))
 }

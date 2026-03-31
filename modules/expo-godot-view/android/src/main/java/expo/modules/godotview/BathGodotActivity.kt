@@ -133,10 +133,24 @@ class BathGodotActivity : GodotActivity() {
 
     override fun getCommandLine(): MutableList<String> {
         val args = mutableListOf<String>()
-        // Keep startup args minimal; forcing --main-pack can fail on some shipped Godot binaries.
+        val outDir = File(filesDir, "godot-eat")
+        val projectBinaryFile = File(outDir, "project.binary")
+        val preferredPack = resolvePreferredBathPack(outDir)
+
         args.add("--rendering-driver")
         args.add("opengl3")
-        Log.i(TAG, "Bath boot uses default Godot command line with runtime payload discovery")
+
+        if (projectBinaryFile.exists() && projectBinaryFile.length() > 0L) {
+            args.add("--path")
+            args.add(outDir.absolutePath)
+        }
+
+        if (preferredPack != null) {
+            args.add("--main-pack")
+            args.add(preferredPack.absolutePath)
+        }
+
+        Log.i(TAG, "Bath boot args: path=${outDir.absolutePath}, pack=${preferredPack?.absolutePath}")
         return args
     }
 
@@ -300,13 +314,43 @@ class BathGodotActivity : GodotActivity() {
             return
         }
 
-        val downloadedDir = File(filesDir, "godot-payloads/bath")
-        if (downloadedDir.exists()) {
+        val downloadedDir = resolveDownloadedPayloadDir("bath")
+        if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
             return
         }
 
         startupFailureReason = "bath_source_missing:packaged_and_downloaded_absent"
+    }
+
+    private fun resolveDownloadedPayloadDir(gameKey: String): File? {
+        val directDir = File(filesDir, "godot-payloads/$gameKey")
+        if (hasValidDownloadedPayload(directDir)) {
+            return directDir
+        }
+
+        return filesDir.walkTopDown()
+            .maxDepth(8)
+            .firstOrNull { candidate ->
+                candidate.isDirectory &&
+                    candidate.name.equals(gameKey, ignoreCase = true) &&
+                    candidate.parentFile?.name == "godot-payloads" &&
+                    hasValidDownloadedPayload(candidate)
+            }
+    }
+
+    private fun hasValidDownloadedPayload(dir: File): Boolean {
+        if (!dir.exists() || !dir.isDirectory) return false
+
+        val projectBinary = File(dir, "project.binary")
+        val fullPack = File(dir, "full_main.pck")
+        val sparsePack = File(dir, "assets.sparsepck")
+        val altFullPack = File(dir, "bath_full.pck")
+
+        return projectBinary.exists() && projectBinary.length() > 0L &&
+            ((fullPack.exists() && fullPack.length() > 0L) ||
+                (sparsePack.exists() && sparsePack.length() > 0L) ||
+                (altFullPack.exists() && altFullPack.length() > 0L))
     }
 
     private fun copyAssetTree(assetPath: String, outputDir: File) {

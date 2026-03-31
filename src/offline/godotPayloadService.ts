@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
@@ -94,6 +95,46 @@ function getFilePath(game: GodotGameKey, fileName: string): string {
 	return `${getGameDir(game)}/${fileName}`;
 }
 
+function getEffectiveMinBytes(file: GodotPayloadFile): number {
+	const strictMinByName: Record<string, number> = {
+		"full_main.pck": 64 * 1024,
+		"assets.sparsepck": 16 * 1024,
+		"project.binary": 1024,
+	};
+
+	const strictMin = strictMinByName[file.name] ?? 0;
+	return Math.max(file.minBytes, strictMin);
+}
+
+function looksLikeServerErrorBody(prefix: string): boolean {
+	const normalized = prefix.trim().toLowerCase();
+	return (
+		normalized.startsWith("<!doctype html") ||
+		normalized.startsWith("<html") ||
+		normalized.includes("<title>error") ||
+		normalized.includes("nosuchkey") ||
+		normalized.includes("<error>") ||
+		normalized.includes("\"statuscode\":") ||
+		normalized.includes("\"error\":")
+	);
+}
+
+async function ensureFileDoesNotLookLikeErrorPayload(filePath: string, fileName: string): Promise<void> {
+	const rawBase64 = await FileSystem.readAsStringAsync(filePath, {
+		encoding: FileSystem.EncodingType.Base64,
+	});
+
+	const bytes = Buffer.from(rawBase64, "base64");
+	if (!bytes.length) {
+		throw new Error(`Downloaded file is empty: ${fileName}`);
+	}
+
+	const prefix = bytes.subarray(0, Math.min(bytes.length, 512)).toString("utf8");
+	if (looksLikeServerErrorBody(prefix)) {
+		throw new Error(`Downloaded payload looks like an error response: ${fileName}`);
+	}
+}
+
 async function ensureDir(path: string): Promise<void> {
 	const info = await FileSystem.getInfoAsync(path);
 	if (!info.exists) {
@@ -119,7 +160,16 @@ async function readVersionMarker(game: GodotGameKey): Promise<string | null> {
 async function hasValidFile(game: GodotGameKey, file: GodotPayloadFile): Promise<boolean> {
 	const filePath = getFilePath(game, file.name);
 	const info = await FileSystem.getInfoAsync(filePath);
-	return info.exists && typeof info.size === "number" && info.size >= file.minBytes;
+	if (!(info.exists && typeof info.size === "number" && info.size >= getEffectiveMinBytes(file))) {
+		return false;
+	}
+
+	try {
+		await ensureFileDoesNotLookLikeErrorPayload(filePath, file.name);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -135,20 +185,11 @@ async function decompressGzipFile(filePath: string): Promise<void> {
 		const compressedData = await FileSystem.readAsStringAsync(filePath, {
 			encoding: FileSystem.EncodingType.Base64,
 		});
-		
-		// Convert base64 to Uint8Array
-		const binaryString = Buffer.from(compressedData, "base64").toString("binary");
-		const uint8Array = new Uint8Array(binaryString.length);
-		for (let i = 0; i < binaryString.length; i++) {
-			uint8Array[i] = binaryString.charCodeAt(i);
-		}
-		
-		// Decompress
-		const decompressed = pako.ungzip(uint8Array);
-		
-		// Convert decompressed Uint8Array back to base64 and write
-		const decompressedBinary = String.fromCharCode.apply(null, Array.from(decompressed));
-		const decompressedBase64 = Buffer.from(decompressedBinary, "binary").toString("base64");
+
+		// Convert base64 to bytes, decompress, then write back as base64.
+		const compressedBytes = Buffer.from(compressedData, "base64");
+		const decompressed = pako.ungzip(compressedBytes);
+		const decompressedBase64 = Buffer.from(decompressed).toString("base64");
 		
 		await FileSystem.writeAsStringAsync(filePath, decompressedBase64, {
 			encoding: FileSystem.EncodingType.Base64,
@@ -221,6 +262,12 @@ export async function ensureGodotPayloadDownloaded(
 			throw new Error(`Download failed for ${game}/${file.name}`);
 		}
 
+		const statusCode = Number((result as any)?.status ?? 0);
+		if (!Number.isNaN(statusCode) && statusCode > 0 && statusCode >= 400) {
+			await FileSystem.deleteAsync(destination, { idempotent: true });
+			throw new Error(`Download returned HTTP ${statusCode} for ${game}/${file.name}`);
+		}
+
 		// Decompress if file is gzip-compressed
 		if (file.compressed) {
 			try {
@@ -247,8 +294,11 @@ export async function ensureGodotPayloadDownloaded(
 			}
 		}
 
+		await ensureFileDoesNotLookLikeErrorPayload(destination, file.name);
+
 		const downloadedOk = await hasValidFile(game, file);
 		if (!downloadedOk) {
+			await FileSystem.deleteAsync(destination, { idempotent: true });
 			throw new Error(`Downloaded file is invalid for ${game}/${file.name}`);
 		}
 	}

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
+import { ensureGodotPayloadDownloaded } from '../../src/offline/godotPayloadService';
 import { supabase } from '../../src/supabaseClient';
 
 const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
@@ -21,6 +22,7 @@ export default function EatingGame() {
 
       try {
         setLaunchError(null);
+        await ensureGodotPayloadDownloaded('eat');
         // Clear only completion flag; keep routine id set by Home screen.
         await AsyncStorage.removeItem('@minigameCompleted');
 
@@ -195,6 +197,11 @@ export default function EatingGame() {
 
         router.back();
       } catch (error) {
+        const message = String((error as any)?.message ?? '').toLowerCase();
+        if (message.includes('download') || message.includes('payload')) {
+          setLaunchError('Failed to download Eat game files. Check internet and tap Retry.');
+          return;
+        }
         setLaunchError('Failed to start Eat game. Tap Retry to try again.');
       }
     };

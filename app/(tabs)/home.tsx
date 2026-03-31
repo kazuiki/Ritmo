@@ -11,6 +11,7 @@ import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { getGifSource } from "../../constants/gifSources";
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
 import {
@@ -2120,7 +2121,7 @@ export default function Home() {
                       }}
                     >
                       <Image
-                        source={require("../../assets/gifs/media-unscreen.gif")}
+                        source={getGifSource("media-unscreen.gif")}
                         style={styles.taskImage}
                         resizeMode="contain"
                       />
@@ -2167,7 +2168,7 @@ export default function Home() {
                       }}
                     >
                       <Image
-                        source={require("../../assets/gifs/media-1--unscreen.gif")}
+                        source={getGifSource("media-1--unscreen.gif")}
                         style={styles.taskImage}
                         resizeMode="contain"
                       />
@@ -2556,7 +2557,7 @@ export default function Home() {
 
           {/* Falling Stars GIF Overlay */}
           <Image
-            source={require("../../assets/gifs/fallingstars.gif")}
+            source={getGifSource("fallingstars.gif")}
             style={styles.fallingStarsGif}
             resizeMode="contain"
           />
