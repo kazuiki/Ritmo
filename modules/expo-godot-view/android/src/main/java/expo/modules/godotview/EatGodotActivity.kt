@@ -31,8 +31,8 @@ class EatGodotActivity : GodotActivity() {
             "eat game",
             "eat_game",
             "anonymous",
-            "com.anonymous.ritmo",
-            "com.anonymous.ritmo.eat",
+            "com.ritmov1.ritmo",
+            "com.ritmov1.ritmo.eat",
         )
     }
 
@@ -213,7 +213,7 @@ class EatGodotActivity : GodotActivity() {
 
             // Defensive fallback roots for older installs.
             File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/com.ritmov1.ritmo/godot-eat").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -411,7 +411,7 @@ class EatGodotActivity : GodotActivity() {
         val knownRoots = listKnownUserDataDirs()
         val preferredRoot =
             knownRoots.firstOrNull { it.name == packageName }
-                ?: knownRoots.firstOrNull { it.name.equals("com.anonymous.ritmo", ignoreCase = true) }
+                ?: knownRoots.firstOrNull { it.name.equals("com.ritmov1.ritmo", ignoreCase = true) }
                 ?: knownRoots.firstOrNull()
                 ?: File(filesDir, "app_userdata/$packageName")
 
@@ -474,3 +474,4 @@ class EatGodotActivity : GodotActivity() {
         }
     }
 }
+

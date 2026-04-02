@@ -1,4 +1,4 @@
-package com.anonymous.ritmo
+package com.ritmov1.ritmo
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
@@ -63,3 +63,4 @@ class MainActivity : ReactActivity() {
       super.invokeDefaultOnBackPressed()
   }
 }
+

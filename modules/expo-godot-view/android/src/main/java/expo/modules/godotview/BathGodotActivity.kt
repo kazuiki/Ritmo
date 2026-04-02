@@ -30,8 +30,8 @@ class BathGodotActivity : GodotActivity() {
             "bath game",
             "bath_game",
             "anonymous",
-            "com.anonymous.ritmo",
-            "com.anonymous.ritmo.bath",
+            "com.ritmov1.ritmo",
+            "com.ritmov1.ritmo.bath",
         )
     }
 
@@ -215,7 +215,7 @@ class BathGodotActivity : GodotActivity() {
             }
 
             File(filesDir, "app_userdata/$packageName/godot-bath").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-bath").deleteRecursively()
+            File(filesDir, "app_userdata/com.ritmov1.ritmo/godot-bath").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -411,7 +411,7 @@ class BathGodotActivity : GodotActivity() {
         val knownRoots = listKnownUserDataDirs()
         val preferredRoot =
             knownRoots.firstOrNull { it.name == packageName }
-                ?: knownRoots.firstOrNull { it.name.equals("com.anonymous.ritmo", ignoreCase = true) }
+                ?: knownRoots.firstOrNull { it.name.equals("com.ritmov1.ritmo", ignoreCase = true) }
                 ?: knownRoots.firstOrNull()
                 ?: File(filesDir, "app_userdata/$packageName")
 
@@ -474,3 +474,4 @@ class BathGodotActivity : GodotActivity() {
         }
     }
 }
+

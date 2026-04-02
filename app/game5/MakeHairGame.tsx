@@ -54,7 +54,7 @@ export default function MakeHairGame() {
           const launchWith = async (className: string, extra?: Record<string, any>) => {
             return IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
               className,
-              packageName: 'com.anonymous.ritmo',
+              packageName: 'com.ritmov1.ritmo',
               extra: {
                 child_name: childName,
                 ...(extra ?? {}),
@@ -331,3 +331,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

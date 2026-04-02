@@ -38,8 +38,8 @@ class RitmoGodotActivity : GodotActivity() {
             "eat game",
             "eat_game",
             "anonymous",
-            "com.anonymous.ritmo",
-            "com.anonymous.ritmo.eat",
+            "com.ritmov1.ritmo",
+            "com.ritmov1.ritmo.eat",
         )
     }
 
@@ -246,7 +246,7 @@ class RitmoGodotActivity : GodotActivity() {
             }
 
             File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/com.ritmov1.ritmo/godot-eat").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -380,7 +380,7 @@ class RitmoGodotActivity : GodotActivity() {
         val knownRoots = listKnownUserDataDirs()
         val preferredRoot =
             knownRoots.firstOrNull { it.name == packageName }
-                ?: knownRoots.firstOrNull { it.name.equals("com.anonymous.ritmo", ignoreCase = true) }
+                ?: knownRoots.firstOrNull { it.name.equals("com.ritmov1.ritmo", ignoreCase = true) }
                 ?: knownRoots.firstOrNull()
                 ?: File(filesDir, "app_userdata/$packageName")
 
@@ -444,4 +444,5 @@ class RitmoGodotActivity : GodotActivity() {
         }
     }
 }
+
 

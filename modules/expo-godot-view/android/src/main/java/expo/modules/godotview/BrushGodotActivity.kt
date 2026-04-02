@@ -30,8 +30,8 @@ class BrushGodotActivity : GodotActivity() {
             "brush game",
             "brush_game",
             "anonymous",
-            "com.anonymous.ritmo",
-            "com.anonymous.ritmo.brush",
+            "com.ritmov1.ritmo",
+            "com.ritmov1.ritmo.brush",
         )
     }
 
@@ -215,7 +215,7 @@ class BrushGodotActivity : GodotActivity() {
             }
 
             File(filesDir, "app_userdata/$packageName/godot-brush").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-brush").deleteRecursively()
+            File(filesDir, "app_userdata/com.ritmov1.ritmo/godot-brush").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -402,7 +402,7 @@ class BrushGodotActivity : GodotActivity() {
         val knownRoots = listKnownUserDataDirs()
         val preferredRoot =
             knownRoots.firstOrNull { it.name == packageName }
-                ?: knownRoots.firstOrNull { it.name.equals("com.anonymous.ritmo", ignoreCase = true) }
+                ?: knownRoots.firstOrNull { it.name.equals("com.ritmov1.ritmo", ignoreCase = true) }
                 ?: knownRoots.firstOrNull()
                 ?: File(filesDir, "app_userdata/$packageName")
 
@@ -461,3 +461,4 @@ class BrushGodotActivity : GodotActivity() {
         }
     }
 }
+

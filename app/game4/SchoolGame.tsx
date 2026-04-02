@@ -1,4 +1,4 @@
-﻿// app/game4/SchoolGame.tsx
+// app/game4/SchoolGame.tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -57,7 +57,7 @@ export default function SchoolGame() {
           const launchWith = async (className: string) => {
             return IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
               className,
-              packageName: 'com.anonymous.ritmo',
+              packageName: 'com.ritmov1.ritmo',
               extra: {
                 child_name: childName,
                 ritmo_launch_mode: 'school',
@@ -180,7 +180,7 @@ export default function SchoolGame() {
             }
             await AsyncStorage.removeItem('@minigameReturnToTask');
             await AsyncStorage.setItem('@minigameCompleted', 'true');
-            console.log('✓ Game completed - success modal will show', {
+            console.log('âœ“ Game completed - success modal will show', {
               finalCode,
               finalExtra,
               exitedViaBack,

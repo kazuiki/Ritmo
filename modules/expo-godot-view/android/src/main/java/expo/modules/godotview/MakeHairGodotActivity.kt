@@ -31,8 +31,8 @@ class MakeHairGodotActivity : GodotActivity() {
             "make_hair",
             "hair",
             "anonymous",
-            "com.anonymous.ritmo",
-            "com.anonymous.ritmo.hair",
+            "com.ritmov1.ritmo",
+            "com.ritmov1.ritmo.hair",
         )
     }
 
@@ -216,7 +216,7 @@ class MakeHairGodotActivity : GodotActivity() {
             }
 
             File(filesDir, "app_userdata/$packageName/godot-makehair").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-makehair").deleteRecursively()
+            File(filesDir, "app_userdata/com.ritmov1.ritmo/godot-makehair").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -412,7 +412,7 @@ class MakeHairGodotActivity : GodotActivity() {
         val knownRoots = listKnownUserDataDirs()
         val preferredRoot =
             knownRoots.firstOrNull { it.name == packageName }
-                ?: knownRoots.firstOrNull { it.name.equals("com.anonymous.ritmo", ignoreCase = true) }
+                ?: knownRoots.firstOrNull { it.name.equals("com.ritmov1.ritmo", ignoreCase = true) }
                 ?: knownRoots.firstOrNull()
                 ?: File(filesDir, "app_userdata/$packageName")
 
@@ -475,3 +475,4 @@ class MakeHairGodotActivity : GodotActivity() {
         }
     }
 }
+

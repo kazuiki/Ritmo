@@ -1,4 +1,4 @@
-﻿import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -54,7 +54,7 @@ export default function BathGame() {
           const launchWith = async (className: string, extra?: Record<string, any>) => {
             return IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
               className,
-              packageName: 'com.anonymous.ritmo',
+              packageName: 'com.ritmov1.ritmo',
               extra: {
                 child_name: childName,
                 ...(extra ?? {}),
@@ -337,3 +337,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

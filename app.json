@@ -4,7 +4,7 @@
     "slug": "ritmo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/ritmo-logo.png",
+    "icon": "./assets/icon.png",
     "scheme": "ritmo",
     "platforms": [
       "android"
@@ -25,7 +25,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/ritmo-logo.png"
+        "foregroundImage": "./assets/icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -34,14 +34,9 @@
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
         "ACCESS_NETWORK_STATE",
-        "INTERNET",
-        "NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM",
-        "ACCESS_NETWORK_STATE",
         "INTERNET"
       ],
-      "package": "Ritmo"
+      "package": "com.ritmov1.ritmo"
     },
     "plugins": [
       "expo-router",
