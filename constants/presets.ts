@@ -4,25 +4,31 @@ export interface Preset {
   id: number;
   name: string;
   image: any; // React Native static require result
+  gifFileName: string;
   imageUrl: string; // Path identifier for database storage
   hasBookGuide: boolean;
   hasMiniGame: boolean;
 }
 
 export const PRESETS: Preset[] = [
-  { id: 1, name: "Brush My Teeth", image: getGifSource("brushing.gif"), imageUrl: "preset_1_brushing", hasBookGuide: true, hasMiniGame: true },
-  { id: 2, name: "Let's Eat", image: getGifSource("eating.gif"), imageUrl: "preset_2_eating", hasBookGuide: true, hasMiniGame: true },
-  { id: 3, name: "Bath Time", image: getGifSource("washing.gif"), imageUrl: "preset_3_washing", hasBookGuide: true, hasMiniGame: true },
-  { id: 4, name: "Dress Up Time", image: getGifSource("putting_clothes.gif"), imageUrl: "preset_4_putting_clothes", hasBookGuide: true, hasMiniGame: false },
-  { id: 5, name: "Go to School", image: getGifSource("going_to_school.gif"), imageUrl: "preset_5_going_to_school", hasBookGuide: true, hasMiniGame: true },
-  { id: 6, name: "Wear Pajamas", image: getGifSource("putting_pajama.gif"), imageUrl: "preset_7_putting_pajama", hasBookGuide: true, hasMiniGame: false },
-  { id: 7, name: "Go to Sleep", image: getGifSource("going_to_sleep.gif"), imageUrl: "preset_8_going_to_sleep", hasBookGuide: true, hasMiniGame: false },
-  { id: 8, name: "Fix the Bed", image: getGifSource("fix_the_bed.gif"), imageUrl: "preset_9_fix_the_bed", hasBookGuide: true, hasMiniGame: false },
-  { id: 9, name: "Hair Care Time", image: getGifSource("hair_care_time.gif"), imageUrl: "preset_10_hair_care_time", hasBookGuide: true, hasMiniGame: true },
-  { id: 10, name: "Hand Blessing", image: getGifSource("hand_blessing.gif"), imageUrl: "preset_11_hand_blessing", hasBookGuide: true, hasMiniGame: false },
-  { id: 11, name: "Play with Friends", image: getGifSource("play_with_friends.gif"), imageUrl: "preset_12_play_with_friends", hasBookGuide: true, hasMiniGame: false },
-  { id: 12, name: "Sweep the Floor", image: getGifSource("sweep_the_floor.gif"), imageUrl: "preset_13_sweep_the_floor", hasBookGuide: true, hasMiniGame: false },
+  { id: 1, name: "Brush My Teeth", image: getGifSource("brushing.gif"), gifFileName: "brushing.gif", imageUrl: "preset_1_brushing", hasBookGuide: true, hasMiniGame: true },
+  { id: 2, name: "Let's Eat", image: getGifSource("eating.gif"), gifFileName: "eating.gif", imageUrl: "preset_2_eating", hasBookGuide: true, hasMiniGame: true },
+  { id: 3, name: "Bath Time", image: getGifSource("washing.gif"), gifFileName: "washing.gif", imageUrl: "preset_3_washing", hasBookGuide: true, hasMiniGame: true },
+  { id: 4, name: "Dress Up Time", image: getGifSource("putting_clothes.gif"), gifFileName: "putting_clothes.gif", imageUrl: "preset_4_putting_clothes", hasBookGuide: true, hasMiniGame: false },
+  { id: 5, name: "Go to School", image: getGifSource("going_to_school.gif"), gifFileName: "going_to_school.gif", imageUrl: "preset_5_going_to_school", hasBookGuide: true, hasMiniGame: true },
+  { id: 6, name: "Wear Pajamas", image: getGifSource("putting_pajama.gif"), gifFileName: "putting_pajama.gif", imageUrl: "preset_7_putting_pajama", hasBookGuide: true, hasMiniGame: false },
+  { id: 7, name: "Go to Sleep", image: getGifSource("going_to_sleep.gif"), gifFileName: "going_to_sleep.gif", imageUrl: "preset_8_going_to_sleep", hasBookGuide: true, hasMiniGame: false },
+  { id: 8, name: "Fix the Bed", image: getGifSource("fix_the_bed.gif"), gifFileName: "fix_the_bed.gif", imageUrl: "preset_9_fix_the_bed", hasBookGuide: true, hasMiniGame: false },
+  { id: 9, name: "Hair Care Time", image: getGifSource("hair_care_time.gif"), gifFileName: "hair_care_time.gif", imageUrl: "preset_10_hair_care_time", hasBookGuide: true, hasMiniGame: true },
+  { id: 10, name: "Hand Blessing", image: getGifSource("hand_blessing.gif"), gifFileName: "hand_blessing.gif", imageUrl: "preset_11_hand_blessing", hasBookGuide: true, hasMiniGame: false },
+  { id: 11, name: "Play with Friends", image: getGifSource("play_with_friends.gif"), gifFileName: "play_with_friends.gif", imageUrl: "preset_12_play_with_friends", hasBookGuide: true, hasMiniGame: false },
+  { id: 12, name: "Sweep the Floor", image: getGifSource("sweep_the_floor.gif"), gifFileName: "sweep_the_floor.gif", imageUrl: "preset_13_sweep_the_floor", hasBookGuide: true, hasMiniGame: false },
 ];
+
+export const getPresetGifSource = (preset?: Preset | null) => {
+  if (!preset) return null;
+  return getGifSource(preset.gifFileName);
+};
 
 const PRESET_ALIAS_KEYS: Record<number, string[]> = {
   1: ["brush", "brushing", "brushmyteeth", "tooth"],

@@ -1,6 +1,6 @@
-import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
+import { isNetworkConnected } from "../utils/networkUtils";
 
 export type GodotGameKey = "brush" | "eat" | "bath" | "school" | "makehair";
 
@@ -35,47 +35,149 @@ function buildGameUrl(game: GodotGameKey, fileName: string): string {
 // Smaller metadata files (project.binary, assets.sparsepck) compress well with gzip (~60% reduction).
 export const GODOT_PAYLOAD_MANIFESTS: Record<GodotGameKey, GodotPayloadManifest> = {
 	brush: {
-		version: "v2-compressed", // bumped version to force re-download on migration
+		version: "v4-hotfix-no-read", // force clean re-download after removing readAsStringAsync validation
 		files: [
 			{ name: "full_main.pck", url: buildGameUrl("brush", "full_main.pck"), minBytes: 1024, compressed: false },
-			{ name: "project.binary", url: buildGameUrl("brush", "project.binary.gz"), minBytes: 512, compressed: true },
-			{ name: "assets.sparsepck", url: buildGameUrl("brush", "assets.sparsepck.gz"), minBytes: 512, compressed: true },
+			{ name: "project.binary", url: buildGameUrl("brush", "project.binary"), minBytes: 512, compressed: false },
+			{ name: "assets.sparsepck", url: buildGameUrl("brush", "assets.sparsepck"), minBytes: 512, compressed: false },
 		],
 	},
 	eat: {
-		version: "v2-compressed",
+		version: "v4-hotfix-no-read",
 		files: [
 			{ name: "full_main.pck", url: buildGameUrl("eat", "full_main.pck"), minBytes: 1024, compressed: false },
-			{ name: "project.binary", url: buildGameUrl("eat", "project.binary.gz"), minBytes: 512, compressed: true },
-			{ name: "assets.sparsepck", url: buildGameUrl("eat", "assets.sparsepck.gz"), minBytes: 512, compressed: true },
+			{ name: "project.binary", url: buildGameUrl("eat", "project.binary"), minBytes: 512, compressed: false },
+			{ name: "assets.sparsepck", url: buildGameUrl("eat", "assets.sparsepck"), minBytes: 512, compressed: false },
 		],
 	},
 	bath: {
-		version: "v2-compressed",
+		version: "v4-hotfix-no-read",
 		files: [
 			{ name: "full_main.pck", url: buildGameUrl("bath", "full_main.pck"), minBytes: 1024, compressed: false },
-			{ name: "project.binary", url: buildGameUrl("bath", "project.binary.gz"), minBytes: 512, compressed: true },
-			{ name: "assets.sparsepck", url: buildGameUrl("bath", "assets.sparsepck.gz"), minBytes: 512, compressed: true },
+			{ name: "project.binary", url: buildGameUrl("bath", "project.binary"), minBytes: 512, compressed: false },
+			{ name: "assets.sparsepck", url: buildGameUrl("bath", "assets.sparsepck"), minBytes: 512, compressed: false },
 		],
 	},
 	school: {
-		version: "v2-compressed", // School game: default/root payload (no full_main.pck)
+		version: "v4-hotfix-no-read",
 		files: [
-			{ name: "project.binary", url: buildGameUrl("school", "project.binary.gz"), minBytes: 512, compressed: true },
-			{ name: "assets.sparsepck", url: buildGameUrl("school", "assets.sparsepck.gz"), minBytes: 512, compressed: true },
+			{ name: "project.binary", url: buildGameUrl("school", "project.binary"), minBytes: 512, compressed: false },
+			{ name: "assets.sparsepck", url: buildGameUrl("school", "assets.sparsepck"), minBytes: 512, compressed: false },
 		],
 	},
 	makehair: {
-		version: "v2-compressed",
+		version: "v4-hotfix-no-read",
 		files: [
 			{ name: "full_main.pck", url: buildGameUrl("makehair", "full_main.pck"), minBytes: 1024, compressed: false },
-			{ name: "project.binary", url: buildGameUrl("makehair", "project.binary.gz"), minBytes: 512, compressed: true },
-			{ name: "assets.sparsepck", url: buildGameUrl("makehair", "assets.sparsepck.gz"), minBytes: 512, compressed: true },
+			{ name: "project.binary", url: buildGameUrl("makehair", "project.binary"), minBytes: 512, compressed: false },
+			{ name: "assets.sparsepck", url: buildGameUrl("makehair", "assets.sparsepck"), minBytes: 512, compressed: false },
 		],
 	},
 };
 
 const ROOT = `${FileSystem.documentDirectory ?? ""}godot-payloads`;
+const DOWNLOAD_RETRY_ATTEMPTS = 3;
+const RETRY_BACKOFF_MS = 1500;
+const PAYLOAD_PIPELINE_VERSION = "payload-v4.1-no-read";
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+function isRetryableDownloadError(error: unknown): boolean {
+	const message = String((error as any)?.message ?? error ?? "").toLowerCase();
+	
+	// Do NOT retry OutOfMemoryError - it's a device resource issue, not network
+	if (message.includes("outofmemoryerror") || message.includes("out of memory") || message.includes("oom")) {
+		return false;
+	}
+	
+	return (
+		message.includes("network request failed") ||
+		message.includes("unable to resolve host") ||
+		message.includes("timed out") ||
+		message.includes("timeout") ||
+		message.includes("connection reset") ||
+		message.includes("econnreset") ||
+		message.includes("etimedout") ||
+		message.includes("socket") ||
+		message.includes("interrupted") ||
+		message.includes("cancelled") ||
+		message.includes("canceled")
+	);
+}
+
+async function ensureNetworkAvailableOrThrow(context: string): Promise<void> {
+	const connected = await isNetworkConnected();
+	if (!connected) {
+		throw new Error(`No internet connection while downloading ${context}`);
+	}
+}
+
+async function downloadFileWithRetries(
+	game: GodotGameKey,
+	file: GodotPayloadFile,
+	destination: string,
+	onProgress?: (progress: PayloadDownloadProgress) => void
+): Promise<void> {
+	let lastError: unknown = null;
+
+	for (let attempt = 1; attempt <= DOWNLOAD_RETRY_ATTEMPTS; attempt += 1) {
+		try {
+			await ensureNetworkAvailableOrThrow(`${game}/${file.name}`);
+
+			if (attempt > 1) {
+				await FileSystem.deleteAsync(destination, { idempotent: true });
+			}
+
+			const downloadTask = FileSystem.createDownloadResumable(
+				file.url,
+				destination,
+				{},
+				(update) => {
+					const totalBytes = update.totalBytesExpectedToWrite ?? 0;
+					const completedBytes = update.totalBytesWritten ?? 0;
+					const percent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0;
+					onProgress?.({
+						game,
+						fileName: file.name,
+						completedBytes,
+						totalBytes,
+						percent,
+					});
+				}
+			);
+
+			const result = await downloadTask.downloadAsync();
+			if (!result?.uri) {
+				throw new Error(`Download returned no file URI for ${game}/${file.name}`);
+			}
+
+			const statusCode = Number((result as any)?.status ?? 0);
+			if (!Number.isNaN(statusCode) && statusCode > 0 && statusCode >= 400) {
+				throw new Error(`Download returned HTTP ${statusCode} for ${game}/${file.name}`);
+			}
+
+			return;
+		} catch (error) {
+			lastError = error;
+			const canRetry = attempt < DOWNLOAD_RETRY_ATTEMPTS && isRetryableDownloadError(error);
+			if (!canRetry) {
+				break;
+			}
+
+			await sleep(RETRY_BACKOFF_MS * attempt);
+		}
+	}
+
+	throw new Error(
+		`[${PAYLOAD_PIPELINE_VERSION}] Download failed for ${game}/${file.name} after ${DOWNLOAD_RETRY_ATTEMPTS} attempts: ${String(
+			(lastError as any)?.message ?? lastError ?? "Unknown error"
+		)}`
+	);
+}
 
 function ensureNativeRuntime(): void {
 	if (Platform.OS === "web" || !FileSystem.documentDirectory) {
@@ -98,41 +200,20 @@ function getFilePath(game: GodotGameKey, fileName: string): string {
 function getEffectiveMinBytes(file: GodotPayloadFile): number {
 	const strictMinByName: Record<string, number> = {
 		"full_main.pck": 64 * 1024,
-		"assets.sparsepck": 16 * 1024,
-		"project.binary": 1024,
+		// Some games have intentionally small metadata payloads.
+		"assets.sparsepck": 4 * 1024,
+		"project.binary": 512,
 	};
 
 	const strictMin = strictMinByName[file.name] ?? 0;
 	return Math.max(file.minBytes, strictMin);
 }
 
-function looksLikeServerErrorBody(prefix: string): boolean {
-	const normalized = prefix.trim().toLowerCase();
-	return (
-		normalized.startsWith("<!doctype html") ||
-		normalized.startsWith("<html") ||
-		normalized.includes("<title>error") ||
-		normalized.includes("nosuchkey") ||
-		normalized.includes("<error>") ||
-		normalized.includes("\"statuscode\":") ||
-		normalized.includes("\"error\":")
-	);
-}
-
 async function ensureFileDoesNotLookLikeErrorPayload(filePath: string, fileName: string): Promise<void> {
-	const rawBase64 = await FileSystem.readAsStringAsync(filePath, {
-		encoding: FileSystem.EncodingType.Base64,
-	});
-
-	const bytes = Buffer.from(rawBase64, "base64");
-	if (!bytes.length) {
-		throw new Error(`Downloaded file is empty: ${fileName}`);
-	}
-
-	const prefix = bytes.subarray(0, Math.min(bytes.length, 512)).toString("utf8");
-	if (looksLikeServerErrorBody(prefix)) {
-		throw new Error(`Downloaded payload looks like an error response: ${fileName}`);
-	}
+	// Content sniffing via readAsStringAsync caused OOM/runtime failures on low-RAM devices.
+	// Download status code + size validation are used instead.
+	void filePath;
+	void fileName;
 }
 
 async function ensureDir(path: string): Promise<void> {
@@ -173,30 +254,15 @@ async function hasValidFile(game: GodotGameKey, file: GodotPayloadFile): Promise
 }
 
 /**
- * Decompresses a gzip file in-place.
- * Reads compressed file, decompresses using pako, and writes back.
+ * Decompresses a gzip file in-place WITHOUT causing OOM.
+ * Updated: Skip decompression entirely to avoid memory spikes.
+ * Files should be stored uncompressed on CDN to prevent OOM on low-RAM devices.
  */
 async function decompressGzipFile(filePath: string): Promise<void> {
-	try {
-		// Import pako dynamically to avoid issues if not available
-		const pako = require("pako");
-		
-		// Read compressed file as base64
-		const compressedData = await FileSystem.readAsStringAsync(filePath, {
-			encoding: FileSystem.EncodingType.Base64,
-		});
-
-		// Convert base64 to bytes, decompress, then write back as base64.
-		const compressedBytes = Buffer.from(compressedData, "base64");
-		const decompressed = pako.ungzip(compressedBytes);
-		const decompressedBase64 = Buffer.from(decompressed).toString("base64");
-		
-		await FileSystem.writeAsStringAsync(filePath, decompressedBase64, {
-			encoding: FileSystem.EncodingType.Base64,
-		});
-	} catch (error) {
-		throw new Error(`Failed to decompress ${filePath}: ${error}`);
-	}
+	// For now, skip decompression to avoid OOM on low-RAM devices.
+	// Files on CDN should already be stored in final format.
+	// If files ARE compressed, they will need manual decompression offline.
+	return;
 }
 
 export async function isGodotPayloadReady(game: GodotGameKey): Promise<boolean> {
@@ -239,34 +305,7 @@ export async function ensureGodotPayloadDownloaded(
 
 		await FileSystem.deleteAsync(destination, { idempotent: true });
 
-		const downloadTask = FileSystem.createDownloadResumable(
-			file.url,
-			destination,
-			{},
-			(update) => {
-				const totalBytes = update.totalBytesExpectedToWrite ?? 0;
-				const completedBytes = update.totalBytesWritten ?? 0;
-				const percent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0;
-				onProgress?.({
-					game,
-					fileName: file.name,
-					completedBytes,
-					totalBytes,
-					percent,
-				});
-			}
-		);
-
-		const result = await downloadTask.downloadAsync();
-		if (!result?.uri) {
-			throw new Error(`Download failed for ${game}/${file.name}`);
-		}
-
-		const statusCode = Number((result as any)?.status ?? 0);
-		if (!Number.isNaN(statusCode) && statusCode > 0 && statusCode >= 400) {
-			await FileSystem.deleteAsync(destination, { idempotent: true });
-			throw new Error(`Download returned HTTP ${statusCode} for ${game}/${file.name}`);
-		}
+		await downloadFileWithRetries(game, file, destination, onProgress);
 
 		// Decompress if file is gzip-compressed
 		if (file.compressed) {
@@ -299,7 +338,7 @@ export async function ensureGodotPayloadDownloaded(
 		const downloadedOk = await hasValidFile(game, file);
 		if (!downloadedOk) {
 			await FileSystem.deleteAsync(destination, { idempotent: true });
-			throw new Error(`Downloaded file is invalid for ${game}/${file.name}`);
+			throw new Error(`[${PAYLOAD_PIPELINE_VERSION}] Downloaded file is invalid for ${game}/${file.name}`);
 		}
 	}
 

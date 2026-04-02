@@ -41,7 +41,7 @@
         "ACCESS_NETWORK_STATE",
         "INTERNET"
       ],
-      "package": "RitmoV1"
+      "package": "Ritmo"
     },
     "plugins": [
       "expo-router",
@@ -88,6 +88,10 @@
         "projectId": "c86fb750-ff00-4af5-b983-1daa39fffbbb"
       }
     },
-    "owner": "brentspeed69"
+    "owner": "brentspeed69",
+    "updates": {
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

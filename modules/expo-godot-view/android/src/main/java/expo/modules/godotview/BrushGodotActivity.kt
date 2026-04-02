@@ -49,17 +49,14 @@ class BrushGodotActivity : GodotActivity() {
         writeLaunchModeMarker("eat")
 
         val packagedReady = hasPackagedBrushAssets()
-        if (packagedReady) {
-            // Avoid blocking first-launch UI with file copy work.
-            warmPrepareBrushProjectPathAsync()
-        } else {
-            prepareBrushProjectPath()
-        }
-        val outDir = File(filesDir, "godot-eat")
+        // Prepare synchronously so engine starts only after payload is ready.
+        prepareBrushProjectPath()
+        val outDir = File(filesDir, "godot-brush")
         val packFile = resolvePreferredBrushPack(outDir)
         val projectBinaryFile = File(outDir, "project.binary")
         val extractedReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
-        brushPayloadReady = extractedReady || packagedReady
+        // Launch depends on extracted runtime payload in outDir, not just packaged source availability.
+        brushPayloadReady = extractedReady
 
         if (!brushPayloadReady && startupFailureReason.isNullOrBlank()) {
             startupFailureReason = buildString {
@@ -132,25 +129,24 @@ class BrushGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        val args = mutableListOf<String>()
-        val outDir = File(filesDir, "godot-eat")
-        val projectBinaryFile = File(outDir, "project.binary")
+        val outDir = File(filesDir, "godot-brush")
         val preferredPack = resolvePreferredBrushPack(outDir)
+        val projectBinaryFile = File(outDir, "project.binary")
 
+        if (preferredPack == null || !projectBinaryFile.exists() || projectBinaryFile.length() <= 0L) {
+            startupFailureReason = "brush_cmdline:missing_runtime_files"
+            return super.getCommandLine()
+        }
+
+        val args = mutableListOf<String>()
         args.add("--rendering-driver")
         args.add("opengl3")
+        args.add("--path")
+        args.add(outDir.absolutePath)
+        args.add("--main-pack")
+        args.add(preferredPack.absolutePath)
 
-        if (projectBinaryFile.exists() && projectBinaryFile.length() > 0L) {
-            args.add("--path")
-            args.add(outDir.absolutePath)
-        }
-
-        if (preferredPack != null) {
-            args.add("--main-pack")
-            args.add(preferredPack.absolutePath)
-        }
-
-        Log.i(TAG, "Brush boot args: path=${outDir.absolutePath}, pack=${preferredPack?.absolutePath}")
+        Log.i(TAG, "Brush boot args: path=${outDir.absolutePath}, pack=${preferredPack.absolutePath}")
         return args
     }
 
@@ -211,15 +207,15 @@ class BrushGodotActivity : GodotActivity() {
 
     private fun clearBrushRuntimePayload() {
         try {
-            File(filesDir, "godot-eat").deleteRecursively()
+            File(filesDir, "godot-brush").deleteRecursively()
 
             val knownRoots = listKnownUserDataDirs()
             for (root in knownRoots) {
-                File(root, "godot-eat").deleteRecursively()
+                File(root, "godot-brush").deleteRecursively()
             }
 
-            File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/$packageName/godot-brush").deleteRecursively()
+            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-brush").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -255,7 +251,7 @@ class BrushGodotActivity : GodotActivity() {
 
     private fun prepareBrushProjectPath() {
         try {
-            val outDir = File(filesDir, "godot-eat")
+            val outDir = File(filesDir, "godot-brush")
             if (!outDir.exists()) outDir.mkdirs()
 
             val outSparsePack = File(outDir, "assets.sparsepck")
@@ -302,14 +298,14 @@ class BrushGodotActivity : GodotActivity() {
     }
 
     private fun copyBrushAssets(outputDir: File) {
-        if (hasPackagedBrushAssets()) {
-            copyAssetTree("brushgame", outputDir)
-            return
-        }
-
         val downloadedDir = resolveDownloadedPayloadDir("brush")
         if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        if (hasPackagedBrushAssets()) {
+            copyAssetTree("brushgame", outputDir)
             return
         }
 

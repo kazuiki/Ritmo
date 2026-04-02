@@ -50,18 +50,14 @@ class EatGodotActivity : GodotActivity() {
         RitmoPlugin.launchCounter++
         writeLaunchModeMarker("eat")
         val packagedReady = hasPackagedEatAssets()
-        if (packagedReady) {
-            // Keep first-launch startup responsive; warm extraction in background.
-            warmPrepareEatProjectPathAsync()
-        } else {
-            // Fallback when packaged payload is missing.
-            prepareEatProjectPath()
-        }
+        // Prepare synchronously so engine starts only after payload is ready.
+        prepareEatProjectPath()
         val outDir = File(filesDir, "godot-eat")
         val packFile = resolvePreferredEatPack(outDir)
         val projectBinaryFile = File(outDir, "project.binary")
         val extractedReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
-        eatPayloadReady = extractedReady || packagedReady
+        // Launch depends on extracted runtime payload in outDir, not just packaged source availability.
+        eatPayloadReady = extractedReady
         if (!eatPayloadReady && startupFailureReason.isNullOrBlank()) {
             startupFailureReason = buildString {
                 append("eat_payload_not_ready;outDir="); append(outDir.absolutePath)
@@ -306,14 +302,14 @@ class EatGodotActivity : GodotActivity() {
     }
 
     private fun copyEatAssets(outputDir: File) {
-        if (hasPackagedEatAssets()) {
-            copyAssetTree("eatgame", outputDir)
-            return
-        }
-
         val downloadedDir = resolveDownloadedPayloadDir("eat")
         if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        if (hasPackagedEatAssets()) {
+            copyAssetTree("eatgame", outputDir)
             return
         }
 

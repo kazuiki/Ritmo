@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'react-native';
-import { getGifUrl } from '../../constants/gifSources';
+import { getGifUrl, setLocalGifUri } from '../../constants/gifSources';
 
 // Global flag to prevent duplicate preloading
 let isPreloading = false;
@@ -34,8 +35,7 @@ const REMOTE_GIF_FILES = [
   'sweepStep3.gif',
   'sweepStep4.gif',
 ];
-
-const REMOTE_GIF_URLS = REMOTE_GIF_FILES.map(getGifUrl);
+const LOCAL_GIF_CACHE_DIR = `${FileSystem.documentDirectory ?? ''}gif-cache`;
 
 // Cache for preloaded remote asset URLs
 const assetCache = new Set<string>();
@@ -167,8 +167,17 @@ export const preloadGameAssets = async () => {
     try {
       console.log('🚀 Starting ONE-TIME asset preload...');
       const startTime = Date.now();
+
+      if (FileSystem.documentDirectory) {
+        await FileSystem.makeDirectoryAsync(LOCAL_GIF_CACHE_DIR, { intermediates: true });
+      }
     
-    const assetsToLoad = REMOTE_GIF_URLS.filter((assetUrl) => !assetCache.has(assetUrl));
+    const assetsToLoad = REMOTE_GIF_FILES
+      .map((fileName) => ({
+        fileName,
+        assetUrl: getGifUrl(fileName),
+      }))
+      .filter(({ assetUrl }) => !assetCache.has(assetUrl));
     
     if (assetsToLoad.length === 0) {
       console.log('✅ All assets already cached');
@@ -198,17 +207,39 @@ export const preloadGameAssets = async () => {
       percent: 0,
     });
     
-    const prefetchPromises = assetsToLoad.map(async (assetUrl) => {
+    const prefetchPromises = assetsToLoad.map(async ({ assetUrl, fileName: gifFileName }) => {
+      const localPath = gifFileName ? `${LOCAL_GIF_CACHE_DIR}/${gifFileName}` : '';
+
       try {
+        if (localPath && FileSystem.documentDirectory) {
+          const localInfo = await FileSystem.getInfoAsync(localPath);
+          if (localInfo.exists && (localInfo.size ?? 0) > 0) {
+            setLocalGifUri(gifFileName, localPath);
+            assetCache.add(assetUrl);
+            verifiedCount += 1;
+            return;
+          }
+
+          const downloadTask = FileSystem.createDownloadResumable(assetUrl, localPath, {}, undefined);
+          const result = await downloadTask.downloadAsync();
+          if (!result || result.status < 200 || result.status >= 300) {
+            throw new Error(`GIF download failed with status ${result?.status ?? 'unknown'}`);
+          }
+          setLocalGifUri(gifFileName, localPath);
+          assetCache.add(assetUrl);
+          verifiedCount += 1;
+          return;
+        }
+
         if (shouldImagePrefetch(assetUrl)) {
           const prefetched = await Image.prefetch(assetUrl);
           if (!prefetched) {
             throw new Error('Image.prefetch returned false');
           }
+          assetCache.add(assetUrl);
+          verifiedCount += 1;
+          return;
         }
-
-        assetCache.add(assetUrl);
-        verifiedCount += 1;
       } catch (error) {
         failedCount += 1;
         console.log('⚠️ Failed to prefetch asset:', error);

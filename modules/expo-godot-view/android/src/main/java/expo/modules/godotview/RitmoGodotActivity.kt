@@ -120,17 +120,37 @@ class RitmoGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        if (launchMode == "school") {
-            return super.getCommandLine()
-        }
-
         val projectPath = intent?.getStringExtra("ritmo_project_path")
-        val normalizedProjectPath = projectPath?.trim()
-        val hasProjectPath = !normalizedProjectPath.isNullOrBlank()
+        var normalizedProjectPath = projectPath?.trim()
+        var hasProjectPath = !normalizedProjectPath.isNullOrBlank()
         val mainPackExtra = intent?.getStringExtra("ritmo_main_pack")
-        val resolvedMainPack = when {
+        var resolvedMainPack: String? = when {
             !mainPackExtra.isNullOrBlank() -> mainPackExtra
             else -> null
+        }
+
+        // School mode can run from downloaded payload if packaged assets are unavailable.
+        if (launchMode == "school" && !hasProjectPath) {
+            val downloadedDir = resolveDownloadedPayloadDir("school")
+            if (downloadedDir != null) {
+                normalizedProjectPath = downloadedDir.absolutePath
+                hasProjectPath = true
+
+                if (resolvedMainPack.isNullOrBlank()) {
+                    val fullPack = File(downloadedDir, "full_main.pck")
+                    val sparsePack = File(downloadedDir, "assets.sparsepck")
+                    resolvedMainPack = when {
+                        fullPack.exists() && fullPack.length() > 0L -> fullPack.absolutePath
+                        sparsePack.exists() && sparsePack.length() > 0L -> sparsePack.absolutePath
+                        else -> null
+                    }
+                }
+            }
+        }
+
+        // Keep old behavior if no downloaded payload/intent override exists.
+        if (launchMode == "school" && !hasProjectPath && resolvedMainPack.isNullOrBlank()) {
+            return super.getCommandLine()
         }
 
         if (!resolvedMainPack.isNullOrBlank()) {

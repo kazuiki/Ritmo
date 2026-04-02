@@ -49,17 +49,14 @@ class BathGodotActivity : GodotActivity() {
         writeLaunchModeMarker("eat")
 
         val packagedReady = hasPackagedBathAssets()
-        if (packagedReady) {
-            // Avoid blocking first-launch UI with file copy work.
-            warmPrepareBathProjectPathAsync()
-        } else {
-            prepareBathProjectPath()
-        }
-        val outDir = File(filesDir, "godot-eat")
+        // Prepare synchronously so engine starts only after payload is ready.
+        prepareBathProjectPath()
+        val outDir = File(filesDir, "godot-bath")
         val packFile = resolvePreferredBathPack(outDir)
         val projectBinaryFile = File(outDir, "project.binary")
         val extractedReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
-        bathPayloadReady = extractedReady || packagedReady
+        // Launch depends on extracted runtime payload in outDir, not just packaged source availability.
+        bathPayloadReady = extractedReady
 
         if (!bathPayloadReady && startupFailureReason.isNullOrBlank()) {
             startupFailureReason = buildString {
@@ -132,25 +129,24 @@ class BathGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        val args = mutableListOf<String>()
-        val outDir = File(filesDir, "godot-eat")
-        val projectBinaryFile = File(outDir, "project.binary")
+        val outDir = File(filesDir, "godot-bath")
         val preferredPack = resolvePreferredBathPack(outDir)
+        val projectBinaryFile = File(outDir, "project.binary")
 
+        if (preferredPack == null || !projectBinaryFile.exists() || projectBinaryFile.length() <= 0L) {
+            startupFailureReason = "bath_cmdline:missing_runtime_files"
+            return super.getCommandLine()
+        }
+
+        val args = mutableListOf<String>()
         args.add("--rendering-driver")
         args.add("opengl3")
+        args.add("--path")
+        args.add(outDir.absolutePath)
+        args.add("--main-pack")
+        args.add(preferredPack.absolutePath)
 
-        if (projectBinaryFile.exists() && projectBinaryFile.length() > 0L) {
-            args.add("--path")
-            args.add(outDir.absolutePath)
-        }
-
-        if (preferredPack != null) {
-            args.add("--main-pack")
-            args.add(preferredPack.absolutePath)
-        }
-
-        Log.i(TAG, "Bath boot args: path=${outDir.absolutePath}, pack=${preferredPack?.absolutePath}")
+        Log.i(TAG, "Bath boot args: path=${outDir.absolutePath}, pack=${preferredPack.absolutePath}")
         return args
     }
 
@@ -211,15 +207,15 @@ class BathGodotActivity : GodotActivity() {
 
     private fun clearBathRuntimePayload() {
         try {
-            File(filesDir, "godot-eat").deleteRecursively()
+            File(filesDir, "godot-bath").deleteRecursively()
 
             val knownRoots = listKnownUserDataDirs()
             for (root in knownRoots) {
-                File(root, "godot-eat").deleteRecursively()
+                File(root, "godot-bath").deleteRecursively()
             }
 
-            File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/$packageName/godot-bath").deleteRecursively()
+            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-bath").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -255,7 +251,7 @@ class BathGodotActivity : GodotActivity() {
 
     private fun prepareBathProjectPath() {
         try {
-            val outDir = File(filesDir, "godot-eat")
+            val outDir = File(filesDir, "godot-bath")
             if (!outDir.exists()) outDir.mkdirs()
 
             val outSparsePack = File(outDir, "assets.sparsepck")
@@ -309,14 +305,14 @@ class BathGodotActivity : GodotActivity() {
     }
 
     private fun copyBathAssets(outputDir: File) {
-        if (hasPackagedBathAssets()) {
-            copyAssetTree("bathgame", outputDir)
-            return
-        }
-
         val downloadedDir = resolveDownloadedPayloadDir("bath")
         if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        if (hasPackagedBathAssets()) {
+            copyAssetTree("bathgame", outputDir)
             return
         }
 

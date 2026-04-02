@@ -50,17 +50,14 @@ class MakeHairGodotActivity : GodotActivity() {
         writeLaunchModeMarker("eat")
 
         val packagedReady = hasPackagedMakeHairAssets()
-        if (packagedReady) {
-            // Avoid blocking first-launch UI with file copy work.
-            warmPrepareMakeHairProjectPathAsync()
-        } else {
-            prepareMakeHairProjectPath()
-        }
-        val outDir = File(filesDir, "godot-eat")
+        // Prepare synchronously so engine starts only after payload is ready.
+        prepareMakeHairProjectPath()
+        val outDir = File(filesDir, "godot-makehair")
         val packFile = resolvePreferredMakeHairPack(outDir)
         val projectBinaryFile = File(outDir, "project.binary")
         val extractedReady = packFile != null && projectBinaryFile.exists() && projectBinaryFile.length() > 0L
-        makeHairPayloadReady = extractedReady || packagedReady
+        // Launch depends on extracted runtime payload in outDir, not just packaged source availability.
+        makeHairPayloadReady = extractedReady
 
         if (!makeHairPayloadReady && startupFailureReason.isNullOrBlank()) {
             startupFailureReason = buildString {
@@ -133,25 +130,24 @@ class MakeHairGodotActivity : GodotActivity() {
     }
 
     override fun getCommandLine(): MutableList<String> {
-        val args = mutableListOf<String>()
-        val outDir = File(filesDir, "godot-eat")
-        val projectBinaryFile = File(outDir, "project.binary")
+        val outDir = File(filesDir, "godot-makehair")
         val preferredPack = resolvePreferredMakeHairPack(outDir)
+        val projectBinaryFile = File(outDir, "project.binary")
 
+        if (preferredPack == null || !projectBinaryFile.exists() || projectBinaryFile.length() <= 0L) {
+            startupFailureReason = "makehair_cmdline:missing_runtime_files"
+            return super.getCommandLine()
+        }
+
+        val args = mutableListOf<String>()
         args.add("--rendering-driver")
         args.add("opengl3")
+        args.add("--path")
+        args.add(outDir.absolutePath)
+        args.add("--main-pack")
+        args.add(preferredPack.absolutePath)
 
-        if (projectBinaryFile.exists() && projectBinaryFile.length() > 0L) {
-            args.add("--path")
-            args.add(outDir.absolutePath)
-        }
-
-        if (preferredPack != null) {
-            args.add("--main-pack")
-            args.add(preferredPack.absolutePath)
-        }
-
-        Log.i(TAG, "Make Hair boot args: path=${outDir.absolutePath}, pack=${preferredPack?.absolutePath}")
+        Log.i(TAG, "Make Hair boot args: path=${outDir.absolutePath}, pack=${preferredPack.absolutePath}")
         return args
     }
 
@@ -212,15 +208,15 @@ class MakeHairGodotActivity : GodotActivity() {
 
     private fun clearMakeHairRuntimePayload() {
         try {
-            File(filesDir, "godot-eat").deleteRecursively()
+            File(filesDir, "godot-makehair").deleteRecursively()
 
             val knownRoots = listKnownUserDataDirs()
             for (root in knownRoots) {
-                File(root, "godot-eat").deleteRecursively()
+                File(root, "godot-makehair").deleteRecursively()
             }
 
-            File(filesDir, "app_userdata/$packageName/godot-eat").deleteRecursively()
-            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-eat").deleteRecursively()
+            File(filesDir, "app_userdata/$packageName/godot-makehair").deleteRecursively()
+            File(filesDir, "app_userdata/com.anonymous.ritmo/godot-makehair").deleteRecursively()
         } catch (_: Exception) {
             // Best-effort cleanup only.
         }
@@ -256,7 +252,7 @@ class MakeHairGodotActivity : GodotActivity() {
 
     private fun prepareMakeHairProjectPath() {
         try {
-            val outDir = File(filesDir, "godot-eat")
+            val outDir = File(filesDir, "godot-makehair")
             if (!outDir.exists()) outDir.mkdirs()
 
             val outSparsePack = File(outDir, "assets.sparsepck")
@@ -310,14 +306,14 @@ class MakeHairGodotActivity : GodotActivity() {
     }
 
     private fun copyMakeHairAssets(outputDir: File) {
-        if (hasPackagedMakeHairAssets()) {
-            copyAssetTree("makehair", outputDir)
-            return
-        }
-
         val downloadedDir = resolveDownloadedPayloadDir("makehair")
         if (downloadedDir != null) {
             copyDirectory(downloadedDir, outputDir)
+            return
+        }
+
+        if (hasPackagedMakeHairAssets()) {
+            copyAssetTree("makehair", outputDir)
             return
         }
 

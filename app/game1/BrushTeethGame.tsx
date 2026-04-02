@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ExpoGodotViewModule } from '../../modules/expo-godot-view';
-import { ensureGodotPayloadDownloaded } from '../../src/offline/godotPayloadService';
+import { clearGodotPayload, ensureGodotPayloadDownloaded } from '../../src/offline/godotPayloadService';
 import { supabase } from '../../src/supabaseClient';
 
 const LOCAL_CHILD_NAME_KEY = '@ritmo_local_child_name';
@@ -14,6 +14,20 @@ export default function BrushTeethGame() {
   const { routineId, launchNonce } = useLocalSearchParams<{ routineId?: string; launchNonce?: string }>();
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearAndRetry = async () => {
+    setIsClearing(true);
+    try {
+      await clearGodotPayload('brush');
+      setLaunchError(null);
+      setRetryNonce((v) => v + 1); // Trigger re-launch
+    } catch (error) {
+      Alert.alert('Error', 'Failed to clear game cache. Please try again.');
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   useEffect(() => {
     const launchGame = async () => {
@@ -250,8 +264,19 @@ export default function BrushTeethGame() {
       <View style={styles.container}>
         <View style={styles.messageContainer}>
           <Text style={styles.messageText}>{launchError}</Text>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setRetryNonce(v => v + 1)}>
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={() => setRetryNonce(v => v + 1)}
+            disabled={isClearing}
+          >
             <Text style={styles.actionText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.warningButton]} 
+            onPress={handleClearAndRetry}
+            disabled={isClearing}
+          >
+            <Text style={styles.actionText}>{isClearing ? 'Clearing...' : 'Clear Cache & Retry'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => router.back()}>
             <Text style={styles.actionText}>Back to Home</Text>
@@ -306,6 +331,9 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     backgroundColor: '#4f7b77',
+  },
+  warningButton: {
+    backgroundColor: '#cd6b2c',
   },
   actionText: {
     color: '#FFFFFF',

@@ -13,7 +13,7 @@ import { Animated, Easing, Image, Modal, ScrollView, StyleSheet, Text, TextInput
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getGifSource } from "../../constants/gifSources";
 import { getPlaybookForPreset } from "../../constants/playbooks";
-import { resolveRoutinePreset } from "../../constants/presets";
+import { getPresetGifSource, resolveRoutinePreset } from "../../constants/presets";
 import {
   getChildNickname,
   refreshChildNicknameFromCloud,
@@ -215,6 +215,7 @@ export default function Home() {
   }, []);
   const activeMiniGamePath = useMemo(() => resolveMiniGamePath(activeRoutine), [activeRoutine, resolveMiniGamePath]);
   const canShowTaskChoices = !!activePreset || !!activeMiniGamePath;
+  const isReplayContext = isReplayMode || !!activeRoutine?.completed;
   const playbook = useMemo(() => {
     if (!activePreset) return undefined;
     return getPlaybookForPreset(activePreset.id);
@@ -1568,8 +1569,9 @@ export default function Home() {
   const getRoutineImageSource = (routine: Routine, shouldAnimate: boolean) => {
     const preset = resolveRoutinePreset(routine);
     if (!preset) return null;
-    if (shouldAnimate) return preset.image;
-    return PRESET_STATIC_IMAGES[preset.id] ?? preset.image;
+    const gifSource = getPresetGifSource(preset);
+    if (shouldAnimate) return gifSource;
+    return PRESET_STATIC_IMAGES[preset.id] ?? gifSource;
   };
 
   const ensureRoutineAnimation = (id: number) => {
@@ -1898,7 +1900,7 @@ export default function Home() {
                       <Text style={styles.completedStripStar}>⭐</Text>
                     </View>
                     {preset ? (
-                      <Image source={preset.image} style={styles.completedImage} />
+                      <Image source={getPresetGifSource(preset)} style={styles.completedImage} />
                     ) : (
                       <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
                     )}
@@ -1933,7 +1935,7 @@ export default function Home() {
                         <Text style={styles.completedStripStar}>⭐</Text>
                       </View>
                       {preset ? (
-                        <Image source={preset.image} style={styles.completedImage} />
+                        <Image source={getPresetGifSource(preset)} style={styles.completedImage} />
                       ) : (
                         <View style={styles.completedPlaceholder}><Text style={styles.icon}>📋</Text></View>
                       )}
@@ -2155,7 +2157,7 @@ export default function Home() {
                         }
                         
                         await AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId']);
-                        await AsyncStorage.setItem('@minigameReplayMode', isReplayMode ? 'true' : 'false');
+                        await AsyncStorage.setItem('@minigameReplayMode', isReplayContext ? 'true' : 'false');
                         if (routineIdForLaunch) {
                           await AsyncStorage.setItem('@minigameRoutineId', String(routineIdForLaunch));
                         }
@@ -2182,7 +2184,7 @@ export default function Home() {
                 <View style={styles.noPresetContent}>
                   <Text style={styles.noPresetTitle}>"{activeRoutine?.name ?? 'Routine'}"</Text>
                   <Text style={styles.noPresetMessage}>
-                    {isReplayMode ? 'This task is already finished' : 'Do you want to finish \nthis task?'}
+                    {isReplayContext ? 'This task is already finished' : 'Do you want to finish \nthis task?'}
                   </Text>
                 </View>
               </View>
@@ -2199,7 +2201,7 @@ export default function Home() {
                     const hasMiniGame = !!activeMiniGamePath;
                     const isNoPresetFlow = !hasPreset && !hasPlaybook && !hasMiniGame;
 
-                    if (activeRoutineId && !isReplayMode && !isNoPresetFlow) {
+                    if (activeRoutineId && !isReplayContext && !isNoPresetFlow) {
                       toggleComplete(activeRoutineId);
                     }
                     if (isNoPresetFlow) {
@@ -2214,10 +2216,10 @@ export default function Home() {
                   }}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.finishButtonText}>{isReplayMode ? 'Close' : 'Finish Task'}</Text>
+                  <Text style={styles.finishButtonText}>{isReplayContext ? 'Close' : 'Finish Task'}</Text>
                 </TouchableOpacity>
               </View>
-            ) : isReplayMode ? (
+            ) : isReplayContext ? (
               <View style={styles.taskDialogFooter}>
                 <TouchableOpacity
                   style={styles.finishButton}

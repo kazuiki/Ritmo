@@ -311,30 +311,51 @@ export default function Settings() {
 
     setPayloadDownloadBusy(true);
     try {
+      const failedGames: { game: GodotGameKey; message: string }[] = [];
+
       for (const game of DOWNLOADABLE_GAMES) {
         setPayloadProgressByGame((prev) => ({ ...prev, [game]: 0 }));
         setPayloadCurrentFileByGame((prev) => ({ ...prev, [game]: "" }));
 
-        await ensureGodotPayloadDownloaded(game, (progress) => {
-          setPayloadProgressByGame((prev) => ({
-            ...prev,
-            [game]: Math.max(prev[game], progress.percent),
-          }));
+        try {
+          await ensureGodotPayloadDownloaded(game, (progress) => {
+            setPayloadProgressByGame((prev) => ({
+              ...prev,
+              [game]: Math.max(prev[game], progress.percent),
+            }));
+            setPayloadCurrentFileByGame((prev) => ({
+              ...prev,
+              [game]: progress.fileName,
+            }));
+          });
+
+          setPayloadProgressByGame((prev) => ({ ...prev, [game]: 100 }));
+          setPayloadCurrentFileByGame((prev) => ({ ...prev, [game]: "Completed" }));
+        } catch (error) {
+          const message = String((error as any)?.message ?? "Failed to download game assets.");
+          failedGames.push({ game, message });
           setPayloadCurrentFileByGame((prev) => ({
             ...prev,
-            [game]: progress.fileName,
+            [game]: "Failed - tap Download / Update to retry",
           }));
-        });
-
-        setPayloadProgressByGame((prev) => ({ ...prev, [game]: 100 }));
-        setPayloadCurrentFileByGame((prev) => ({ ...prev, [game]: "Completed" }));
+        }
       }
 
       await refreshGodotPayloadStatus();
-      Alert.alert("Success", "Game assets downloaded and ready on this device.");
-    } catch (error) {
-      const message = String((error as any)?.message ?? "Failed to download game assets.");
-      Alert.alert("Download Error", message);
+
+      if (failedGames.length === 0) {
+        Alert.alert("Success", "Game assets downloaded and ready on this device.");
+        return;
+      }
+
+      const failedLabels = failedGames.map(({ game }) => GAME_LABELS[game]).join(", ");
+      const firstFailure = failedGames[0]?.message ?? "Download interrupted.";
+      Alert.alert(
+        "Download Partially Completed",
+        `Completed with issues for: ${failedLabels}.\n\nFirst error: ${firstFailure}`
+      );
+    } catch {
+      Alert.alert("Download Error", "Unexpected error while downloading game assets.");
     } finally {
       setPayloadDownloadBusy(false);
     }
