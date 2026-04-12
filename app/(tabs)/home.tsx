@@ -92,6 +92,10 @@ export default function Home() {
   const [playbookModalVisible, setPlaybookModalVisible] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [activeRoutineId, setActiveRoutineId] = useState<number | null>(null);
+  const [successTaskName, setSuccessTaskName] = useState<string>("");
+  const [playbookFinishConfirmVisible, setPlaybookFinishConfirmVisible] = useState(false);
+  const [confirmTaskModalVisible, setConfirmTaskModalVisible] = useState(false);
+  const [shouldAskAfterSuccess, setShouldAskAfterSuccess] = useState(true);
   const [timerSeconds, setTimerSeconds] = useState(60);
   const [currentStep, setCurrentStep] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -227,7 +231,7 @@ export default function Home() {
     completedOrderRef.current = completedOrder;
   }, [completedOrder]);
 
-  // Autoplay step audio and gate Next for 1 minute, then auto-advance after 10 seconds
+  // Autoplay step audio and gate Next briefly, then auto-advance
   const currentStepIndex = Math.max(0, Math.min(3, currentStep - 1));
   const currentAudioModule = playbook?.steps?.[currentStepIndex]?.audio;
  
@@ -247,16 +251,14 @@ export default function Home() {
         setIsPlaying(false);
         setAudioControlIndex(0);
       } else {
-        setPlaybookModalVisible(false);
-        setTaskModalVisible(false);
-        setSuccessModalVisible(true);
-        setShowRainingStars(true);
-        setCurrentStep(1);
+        const playbookName = playbook?.title || activePreset?.name || (activeRoutine as any)?.name || 'this task';
+        setSuccessTaskName(String(playbookName));
+        setPlaybookFinishConfirmVisible(true);
         setIsPlaying(false);
         setAudioControlIndex(0);
       }
     }
-  }, [currentStep, isReplayMode]);
+  }, [currentStep, isReplayMode, activePreset?.name, activeRoutine, playbook?.title]);
  
 
  
@@ -574,8 +576,8 @@ export default function Home() {
      
       // Set loading state immediately to hide content while checking
       setIsCheckingCompletion(true);
-     
-      // Immediately check if we returned from a finished minigame so we can show Success first
+
+      // Check if we returned from a minigame.
       AsyncStorage.multiGet(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']).then(async (entries) => {
         const completed = entries[0]?.[1];
         const routineIdRaw = entries[1]?.[1];
@@ -592,36 +594,25 @@ export default function Home() {
 
           if (resolvedRoutineId) {
             setActiveRoutineId(resolvedRoutineId);
+            const routineName =
+              routinesRef.current?.find((r: any) => r?.id === resolvedRoutineId)?.name ||
+              (activeRoutineId === resolvedRoutineId ? (activeRoutine as any)?.name : undefined) ||
+              activePreset?.name ||
+              'this task';
+            setSuccessTaskName(String(routineName));
           }
 
-          // Surface the success modal immediately.
+          // Clear return flags for next time
+          await AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']);
+
           setTaskModalVisible(false);
           setPlaybookModalVisible(false);
           setSuccessModalVisible(true);
           setShowRainingStars(true);
-
-          if (resolvedRoutineId) {
-            // Persist completion silently so we do not trigger All Done while Success is still visible.
-            setRoutineCompleted({
-              routineId: resolvedRoutineId,
-              completed: true,
-              dayDate: new Date(),
-            }).catch((error) => {
-              console.error('Failed to persist completed routine:', error);
-            });
-
-            setRoutines(prev => prev.map(r => (r.id === resolvedRoutineId ? { ...r, completed: true } : r)));
-            setCompletedOrder(prev => (prev.includes(resolvedRoutineId) ? prev : [...prev, resolvedRoutineId]));
-          }
-
-          // Clear return flags for next time
-          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']);
-
-          // This flow came from finishing a minigame, so keep replay mode off.
         } else {
           // User clicked back early - just reset the flag
           minigameStartedRef.current = false;
-          AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']);
+          await AsyncStorage.multiRemove(['@minigameCompleted', '@minigameRoutineId', '@minigameReplayMode', '@minigameReturnToTask']);
 
           if (shouldReturnToTask && resolvedRoutineId) {
             setActiveRoutineId(resolvedRoutineId);
@@ -2367,6 +2358,7 @@ export default function Home() {
             duration: 300,
             useNativeDriver: true,
           }).start(() => {
+            setPlaybookFinishConfirmVisible(false);
             setPlaybookModalVisible(false);
             setCurrentStep(1);
             setIsPlaying(false);
@@ -2391,6 +2383,7 @@ export default function Home() {
                   duration: 300,
                   useNativeDriver: true,
                 }).start(() => {
+                  setPlaybookFinishConfirmVisible(false);
                   setPlaybookModalVisible(false);
                   setCurrentStep(1);
                   setIsPlaying(false);
@@ -2514,12 +2507,10 @@ export default function Home() {
                     setIsPlaying(false);
                     setAudioControlIndex(0);
                   } else {
-                    // Normal mode: show success celebration, progress handled on Success modal Next
-                    setPlaybookModalVisible(false);
-                    setTaskModalVisible(false);
-                    setSuccessModalVisible(true);
-                    setShowRainingStars(true);
-                    setCurrentStep(1);
+                    // Normal mode: ask after the last step; Yes -> Good Job, No -> back to Step 1
+                    const playbookName = playbook?.title || activePreset?.name || (activeRoutine as any)?.name || 'this task';
+                    setSuccessTaskName(String(playbookName));
+                    setPlaybookFinishConfirmVisible(true);
                     setIsPlaying(false);
                     setAudioControlIndex(0);
                   }
@@ -2535,6 +2526,87 @@ export default function Home() {
         </Animated.View>
       </Modal>
 
+      {/* Playbook Finish Confirmation Modal (after last playbook step) */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={playbookFinishConfirmVisible}
+        onRequestClose={() => setPlaybookFinishConfirmVisible(false)}
+      >
+        <View style={styles.alertModalOverlay}>
+          <View style={[styles.alertModalContainer, styles.confirmModalContainer]}>
+            <View style={styles.confirmHeaderStack}>
+              <TouchableOpacity
+                style={styles.confirmCloseButtonAbsolute}
+                onPress={() => setPlaybookFinishConfirmVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Text style={styles.confirmCloseText}>×</Text>
+              </TouchableOpacity>
+
+              <Image source={require("../../assets/images/BoyQ.png")} style={styles.confirmHeaderIconCentered} />
+
+              <Text
+                style={styles.confirmTitleCentered}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {(() => {
+                  const taskName = (successTaskName || playbook?.title || activePreset?.name || (activeRoutine as any)?.name || '').trim();
+                  const cleaned = taskName.length > 0 ? taskName : 'this task';
+                  return `Done ${cleaned}?`;
+                })()}
+              </Text>
+              <Text
+                style={styles.confirmSubtitleCentered}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.9}
+              >
+                Did you finish this step?
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.confirmPrimaryButton}
+              onPress={() => {
+                const routineId = activeRoutineId;
+
+                setPlaybookFinishConfirmVisible(false);
+                setShouldAskAfterSuccess(false);
+                setPlaybookModalVisible(false);
+                setTaskModalVisible(false);
+                setSuccessModalVisible(true);
+                setShowRainingStars(true);
+                setCurrentStep(1);
+                setIsPlaying(false);
+                setAudioControlIndex(0);
+
+                if (routineId) {
+                  void ensureRoutineCompleted(routineId);
+                }
+              }}
+            >
+              <Text style={styles.confirmPrimaryButtonText}>Yes, I'm done!</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.confirmSecondaryButton}
+              onPress={() => {
+                setPlaybookFinishConfirmVisible(false);
+                setCurrentStep(1);
+                setIsPlaying(false);
+                setAudioControlIndex(0);
+              }}
+            >
+              <Text style={styles.confirmSecondaryButtonText}>Not yet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Success Modal */}
       <Modal
         visible={successModalVisible}
@@ -2544,6 +2616,7 @@ export default function Home() {
           setSuccessModalVisible(false);
           setShowRainingStars(false);
           setIsReplayMode(false);
+          setShouldAskAfterSuccess(true);
         }}
       >
         <Animated.View style={[styles.successScreen, { opacity: successModalFadeAnim }]}>
@@ -2596,19 +2669,20 @@ export default function Home() {
             {/* Next Button */}
             <TouchableOpacity
               style={styles.successNextButton}
-              onPress={async () => {
-                const routineIdToComplete = activeRoutineId;
-                const shouldCompleteRoutine = routineIdToComplete && !isReplayMode;
-               
-                // Close modal first
+              onPress={() => {
+                const routineIdToConfirm = activeRoutineId;
+                const shouldAsk = !!routineIdToConfirm && !isReplayMode && shouldAskAfterSuccess;
+
                 setSuccessModalVisible(false);
                 setShowRainingStars(false);
-                setActiveRoutineId(null);
-                setIsReplayMode(false);
-               
-                // Then trigger All Done celebration after modal is closed
-                if (shouldCompleteRoutine) {
-                  await ensureRoutineCompleted(routineIdToComplete);
+
+                if (shouldAsk) {
+                  setConfirmTaskModalVisible(true);
+                } else {
+                  setActiveRoutineId(null);
+                  setIsReplayMode(false);
+                  setSuccessTaskName('');
+                  setShouldAskAfterSuccess(true);
                 }
               }}
             >
@@ -2616,6 +2690,95 @@ export default function Home() {
             </TouchableOpacity>
           </View>
         </Animated.View>
+      </Modal>
+
+      {/* Task Confirmation Modal (after Good Job) */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={confirmTaskModalVisible}
+        onRequestClose={() => setConfirmTaskModalVisible(false)}
+      >
+        <View style={styles.alertModalOverlay}>
+          <View style={[styles.alertModalContainer, styles.confirmModalContainer]}>
+            <View style={styles.confirmHeaderStack}>
+              <TouchableOpacity
+                style={styles.confirmCloseButtonAbsolute}
+                onPress={() => setConfirmTaskModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Text style={styles.confirmCloseText}>×</Text>
+              </TouchableOpacity>
+
+              <Image source={require("../../assets/images/BoyQ.png")} style={styles.confirmHeaderIconCentered} />
+
+              <Text
+                style={styles.confirmTitleCentered}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {(() => {
+                  const taskName = (successTaskName || (activeRoutine as any)?.name || activePreset?.name || '').trim();
+                  const cleaned = taskName.length > 0 ? taskName : 'this task';
+                  return `Done ${cleaned}?`;
+                })()}
+              </Text>
+              <Text
+                style={styles.confirmSubtitleCentered}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.9}
+              >
+                Did you finish this step?
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.confirmPrimaryButton}
+              onPress={async () => {
+                const routineId = activeRoutineId;
+
+                setConfirmTaskModalVisible(false);
+                setIsReplayMode(false);
+                setSuccessTaskName('');
+                setShouldAskAfterSuccess(true);
+
+                if (routineId) {
+                  setActiveRoutineId(null);
+                  await ensureRoutineCompleted(routineId);
+                } else {
+                  setActiveRoutineId(null);
+                }
+              }}
+            >
+              <Text style={styles.confirmPrimaryButtonText}>Yes, I'm done!</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.confirmSecondaryButton}
+              onPress={() => {
+                const routineId = activeRoutineId;
+
+                setConfirmTaskModalVisible(false);
+                setIsReplayMode(false);
+                setSuccessTaskName('');
+                setShouldAskAfterSuccess(true);
+
+                if (routineId) {
+                  setActiveRoutineId(routineId);
+                  setPlaybookModalVisible(false);
+                  setTaskModalVisible(true);
+                } else {
+                  setActiveRoutineId(null);
+                }
+              }}
+            >
+              <Text style={styles.confirmSecondaryButtonText}>Not yet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Alert Modal - No Minigame */}
@@ -3305,6 +3468,110 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     paddingHorizontal: scale.scaleSpacing(8),
     flexWrap: "wrap",
   },
+  confirmModalContainer: {
+    width: "92%",
+    maxWidth: scale.scaleWidth(400),
+    borderColor: "#C8E6E2",
+    paddingTop: scale.scaleSpacing(16),
+  },
+  confirmHeaderStack: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: scale.scaleSpacing(8),
+    paddingBottom: scale.scaleSpacing(6),
+  },
+  confirmHeaderIconCentered: {
+    width: scale.scaleWidth(92),
+    height: scale.scaleHeight(92),
+    resizeMode: "contain",
+    marginBottom: scale.scaleSpacing(8),
+  },
+  confirmCloseButton: {
+    width: scale.scaleWidth(34),
+    height: scale.scaleHeight(34),
+    borderRadius: scale.scaleWidth(17),
+    backgroundColor: "#C8E6E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmCloseButtonAbsolute: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: scale.scaleWidth(34),
+    height: scale.scaleHeight(34),
+    borderRadius: scale.scaleWidth(17),
+    backgroundColor: "#C8E6E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmCloseText: {
+    fontSize: scale.scaleFont(22),
+    lineHeight: scale.scaleFont(22),
+    color: "#2F7C72",
+    fontWeight: "700",
+  },
+  confirmTitle: {
+    fontSize: scale.scaleFont(22),
+    fontWeight: "800",
+    color: "#000000",
+    fontFamily: "Fredoka_700Bold",
+    textAlign: "left",
+    marginTop: 0,
+    marginBottom: scale.scaleSpacing(4),
+  },
+  confirmSubtitle: {
+    fontSize: scale.scaleFont(14),
+    color: "#4A4A4A",
+    textAlign: "left",
+    marginBottom: 0,
+  },
+  confirmTitleCentered: {
+    fontSize: scale.scaleFont(24),
+    fontWeight: "800",
+    color: "#000000",
+    fontFamily: "Fredoka_700Bold",
+    textAlign: "center",
+    marginBottom: scale.scaleSpacing(6),
+    width: "100%",
+  },
+  confirmSubtitleCentered: {
+    fontSize: scale.scaleFont(14),
+    color: "#4A4A4A",
+    textAlign: "center",
+    width: "100%",
+  },
+  confirmPrimaryButton: {
+    width: "100%",
+    backgroundColor: "#2F7C72",
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(40),
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: scale.scaleSpacing(14),
+    marginBottom: scale.scaleSpacing(10),
+  },
+  confirmPrimaryButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  confirmSecondaryButton: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#C8E6E2",
+    paddingVertical: scale.scaleSpacing(12),
+    borderRadius: scale.scaleBorderRadius(40),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmSecondaryButtonText: {
+    fontSize: scale.scaleFont(16),
+    fontWeight: "700",
+    color: "#2F7C72",
+  },
   alertOkButton: {
     backgroundColor: "#FF6B7A",
     paddingVertical: scale.scaleSpacing(10),
@@ -3313,6 +3580,23 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minWidth: scale.scaleWidth(110),
+  },
+  alertButtonRow: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "space-between",
+    marginTop: scale.scaleSpacing(4),
+  },
+  alertOkButtonHalf: {
+    flex: 1,
+    minWidth: undefined,
+    paddingHorizontal: scale.scaleSpacing(12),
+  },
+  alertOkButtonHalfRight: {
+    marginLeft: scale.scaleSpacing(10),
+  },
+  alertOkButtonSecondary: {
+    opacity: 0.85,
   },
   alertOkButtonText: {
     fontSize: scale.scaleFont(15),

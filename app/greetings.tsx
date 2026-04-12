@@ -1,26 +1,26 @@
 // app/greeting.tsx
 import {
-    Fredoka_400Regular,
-    Fredoka_600SemiBold,
-    useFonts,
+  Fredoka_400Regular,
+  Fredoka_600SemiBold,
+  useFonts,
 } from "@expo-google-fonts/fredoka";
 import { Audio } from 'expo-av';
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageBackground,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
 } from "react-native";
 import {
-    getChildNickname,
-    refreshChildNicknameFromCloud,
+  getChildNickname,
+  refreshChildNicknameFromCloud,
 } from "../src/childNicknameService";
 
 export default function Greeting() {
@@ -353,8 +353,8 @@ export default function Greeting() {
 
   // Removed: old 15-second auto-exit timer (now controlled by audio duration)
 
-  const handleExit = () => {
-    if (isExiting) return; 
+  const animateExitToHome = () => {
+    if (isExiting) return;
     setIsExiting(true);
 
     Animated.parallel([
@@ -379,6 +379,10 @@ export default function Greeting() {
     ]).start(() => {
       router.replace("/(tabs)/home");
     });
+  };
+
+  const handleExit = () => {
+    animateExitToHome();
   };
 
 

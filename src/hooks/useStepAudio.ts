@@ -43,8 +43,8 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
   const minClickGapMs = 500;
   const autoAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  const STEP_GATE_MS = 60000; // 1 minute lock on Next button
-  const AUTO_ADVANCE_MS = 70000; // Auto-advance after 1 minute 10 seconds (if not clicked)
+  const STEP_GATE_MS = 5000; // 5 second lock on Next button
+  const AUTO_ADVANCE_MS = 15000; // Auto-advance after 5 seconds + 10 seconds (if not clicked)
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
