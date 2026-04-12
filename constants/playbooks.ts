@@ -87,7 +87,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   1: {
     title: 'Brush My Teeth',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -117,7 +117,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   2: {
     title: "Let's Eat",
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -147,7 +147,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   3: {
     title: 'Bath Time',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -177,7 +177,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   4: {
     title: 'Dress Up Time',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -207,7 +207,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   5: {
     title: 'Go to School',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -237,7 +237,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   6: {
     title: 'Wear Pajamas',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -267,7 +267,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   7: {
     title: 'Go to Sleep',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -297,7 +297,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   8: {
     title: 'Fix the Bed',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -327,7 +327,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   9: {
     title: 'Hair Care Time',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -357,7 +357,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   10: {
     title: 'Hand Blessing',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -387,7 +387,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   11: {
     title: 'Play with Friends',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },
@@ -417,7 +417,7 @@ export const PLAYBOOKS: Record<number, Playbook> = {
   12: {
     title: 'Sweep the Floor',
     timer: {
-      duration: 60,
+      duration: 5,
       visible: true,
       position: 'top-right',
     },

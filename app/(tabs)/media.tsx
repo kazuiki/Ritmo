@@ -1103,10 +1103,13 @@ export default function Media() {
           <View style={styles.lockedOverlay}>
             <View style={styles.callMommyContainer}>
               <View style={styles.callMommyIconCircle}>
-                <Ionicons name="call" size={64} color="#4A9B8E" />
+                <Image
+                  source={require("../../assets/images/Parents.png")}
+                  style={styles.callMommyParentIcon}
+                />
               </View>
 
-              <Text style={styles.callMommyTitle}>Call Mommy for Help!</Text>
+              <Text style={styles.callMommyTitle}>Call Parent for Help!</Text>
 
               <TouchableOpacity
                 style={styles.lockedBackButton}
@@ -1790,6 +1793,12 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginBottom: scale.scaleSpacing(24),
     borderWidth: 3,
     borderColor: '#4A9B8E',
+  },
+  callMommyParentIcon: {
+    width: scale.scaleWidth(64),
+    height: scale.scaleHeight(64),
+    resizeMode: 'contain',
+    tintColor: '#4A9B8E',
   },
   callMommyTitle: {
     fontSize: scale.scaleFont(28),
