@@ -2536,15 +2536,6 @@ export default function Home() {
         <View style={styles.alertModalOverlay}>
           <View style={[styles.alertModalContainer, styles.confirmModalContainer]}>
             <View style={styles.confirmHeaderStack}>
-              <TouchableOpacity
-                style={styles.confirmCloseButtonAbsolute}
-                onPress={() => setPlaybookFinishConfirmVisible(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-              >
-                <Text style={styles.confirmCloseText}>×</Text>
-              </TouchableOpacity>
-
               <Image source={require("../../assets/images/BoyQ.png")} style={styles.confirmHeaderIconCentered} />
 
               <Text
@@ -2702,15 +2693,6 @@ export default function Home() {
         <View style={styles.alertModalOverlay}>
           <View style={[styles.alertModalContainer, styles.confirmModalContainer]}>
             <View style={styles.confirmHeaderStack}>
-              <TouchableOpacity
-                style={styles.confirmCloseButtonAbsolute}
-                onPress={() => setConfirmTaskModalVisible(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-              >
-                <Text style={styles.confirmCloseText}>×</Text>
-              </TouchableOpacity>
-
               <Image source={require("../../assets/images/BoyQ.png")} style={styles.confirmHeaderIconCentered} />
 
               <Text
