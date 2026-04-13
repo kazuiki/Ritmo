@@ -36,7 +36,7 @@ export default function ConfirmEmailCheck() {
         if (childName) {
           navigateToGreetingsWithNetworkCheck(router);
         } else {
-          router.replace("/auth/child-nickname");
+          router.replace("/auth/parent-role");
         }
       }
     } catch (error: any) {

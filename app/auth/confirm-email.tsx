@@ -45,7 +45,7 @@ export default function ConfirmEmail() {
           if (childName) {
             navigateToGreetingsWithNetworkCheck(router);
           } else {
-            router.push("/auth/child-nickname");
+            router.push("/auth/parent-role");
           }
           return;
         }
@@ -55,7 +55,7 @@ export default function ConfirmEmail() {
       if (childName) {
         navigateToGreetingsWithNetworkCheck(router);
       } else {
-        router.push("/auth/child-nickname");
+        router.push("/auth/parent-role");
       }
         Alert.alert("✅ Email confirmed!", "Proceed to the next step.");
       } catch (error) {
