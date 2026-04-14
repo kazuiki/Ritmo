@@ -4,18 +4,18 @@ import { ResizeMode, Video } from "expo-av";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  ImageBackground,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    ImageBackground,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -159,7 +159,7 @@ export default function InstructionPage() {
       scrollViewRef.current?.scrollTo({ x: nextPage * windowWidth, animated: true });
     } else if (currentPage === PAGES.length - 1) {
       // Last page (Therapist), navigate to child-nickname
-      router.push("/auth/child-nickname");
+      router.push("/auth/parent-role");
     }
   };
 

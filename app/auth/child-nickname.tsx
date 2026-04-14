@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, ImageBackground, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getParentHelpName } from "../../src/parentRoleService";
 import { supabase } from "../../src/supabaseClient";
 
 const LOCAL_CHILD_NAME_KEY = "@ritmo_local_child_name";
@@ -48,6 +49,32 @@ export default function ChildNickname() {
   const [loading, setLoading] = useState(false);
   const [alertModalVisible, setAlertModalVisible] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
+      if (!user || cancelled) return;
+
+      const childName = String((user.user_metadata as any)?.child_name ?? "").trim();
+      if (childName) return;
+
+      const parentHelpName = (user.user_metadata as any)?.parent_help_name;
+      if (typeof parentHelpName === "string" && parentHelpName.trim()) return;
+
+      const localOrCloudHelpName = await getParentHelpName();
+      if (cancelled) return;
+
+      if (!localOrCloudHelpName) {
+        router.replace("/auth/parent-role");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleSaveChild = async () => {
     const trimmedChild = child.trim();

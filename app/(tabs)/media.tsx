@@ -4,18 +4,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Vibration,
-  View
+    ActivityIndicator,
+    Animated,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Vibration,
+    View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
@@ -23,6 +23,7 @@ import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWords
 import { useMode } from "../../src/contexts/ModeContext";
 import { addMediaSearchHistory } from "../../src/mediaSearchHistoryService";
 import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
+import { formatCallParentForHelpTitle, getParentHelpName } from "../../src/parentRoleService";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { clearNetworkCache, setupNetworkListener } from "../../src/utils/networkUtils";
@@ -76,10 +77,24 @@ export default function Media() {
   const [showCallMommyModal, setShowCallMommyModal] = useState(false);
   const [isMediaPageFocused, setIsMediaPageFocused] = useState(false);
   const [hasTimeLimitSet, setHasTimeLimitSet] = useState(false);
+  const [parentHelpName, setParentHelpName] = useState<string | null>(null);
   const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const CACHE_KEY = 'mediaCache:main';
   const [failedAttempts, setFailedAttempts] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const helpName = await getParentHelpName();
+      if (cancelled) return;
+      setParentHelpName(helpName);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // Safe channel IDs
   const SAFE_CHANNELS = [
@@ -1109,7 +1124,7 @@ export default function Media() {
                 />
               </View>
 
-              <Text style={styles.callMommyTitle}>Call Parent for Help!</Text>
+              <Text style={styles.callMommyTitle}>{formatCallParentForHelpTitle(parentHelpName)}</Text>
 
               <TouchableOpacity
                 style={styles.lockedBackButton}
