@@ -9,13 +9,20 @@ LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
 
 // Configure notification handler
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false, // Disabled: custom alarm handler plays sound instead
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = (notification?.request?.content?.data ?? {}) as any;
+    const notificationType = (data?.notificationType as RoutineNotificationType | undefined) ?? 'alarm';
+
+    return {
+      shouldShowAlert: true,
+      // Keep alarms silent in foreground (we handle alarm audio ourselves),
+      // but allow the 5-minute reminder to play its notification sound.
+      shouldPlaySound: notificationType === 'reminder',
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 export interface RoutineNotification {
@@ -25,6 +32,8 @@ export interface RoutineNotification {
   ringtone: string; // bundled ringtone key (alarm1...) or custom file URI
   days?: number[]; // 0=Sun ... 6=Sat
 }
+
+type RoutineNotificationType = 'alarm' | 'reminder';
 
 const LAST_USER_ID_KEY = '@ritmo_last_user_id';
 
@@ -58,6 +67,37 @@ class NotificationService {
     alarm16: require('../assets/ringtone/alarm16.mp3'),
     alarm17: require('../assets/ringtone/alarm17.mp3'),
   };
+
+  private getAndroidReminderChannelIdForSound(soundKey: string): string {
+    const safe = soundKey.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    return `reminder-channel-${safe || 'default'}`;
+  }
+
+  private async ensureAndroidReminderChannel(soundKey: string): Promise<string> {
+    const channelId = this.getAndroidReminderChannelIdForSound(soundKey);
+
+    if (Platform.OS === 'android') {
+      if (!this.recreatedChannels.has(channelId)) {
+        try {
+          await Notifications.deleteNotificationChannelAsync(channelId);
+        } catch {
+          // Ignore if channel didn't exist yet.
+        }
+        this.recreatedChannels.add(channelId);
+      }
+
+      await Notifications.setNotificationChannelAsync(channelId, {
+        name: 'Routine Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: `${soundKey}.mp3`,
+        bypassDnd: false,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    }
+
+    return channelId;
+  }
 
   private async ensureAudioModeConfigured() {
     if (this.audioModeConfigured) return;
@@ -271,8 +311,17 @@ class NotificationService {
 
     // This listener handles sound ONLY when the app is OPEN (Foreground)
     this.notificationListener = Notifications.addNotificationReceivedListener(async (notification: any) => {
-      const ringtone = notification.request.content.data?.ringtone as string || 'alarm1';
-      const routineId = notification.request.content.data?.routineId as number;
+      const content = notification?.request?.content;
+      const data = (content?.data ?? {}) as any;
+
+      const notificationType = (data?.notificationType as RoutineNotificationType | undefined) ?? 'alarm';
+      if (notificationType !== 'alarm') return;
+
+      // Extra guard: never treat Reminder notifications as alarms even if legacy data is missing.
+      if (content?.title === '⏰ Reminder' && !data?.ringtone) return;
+
+      const ringtone = (data?.ringtone as string) || 'alarm1';
+      const routineId = data?.routineId as number;
 
       if (typeof routineId === 'number' && this.isRoutineTemporarilySuppressed(routineId)) {
         console.log(`⏸️ Skipping immediate alarm for recently scheduled routine ${routineId}`);
@@ -409,6 +458,8 @@ class NotificationService {
       const ringtone = routine.ringtone || 'alarm1';
       const notificationSoundKey = this.getNotificationSoundKey(ringtone);
       const channelId = await this.ensureAndroidChannelForRingtone(notificationSoundKey);
+      const reminderSoundKey = 'dragon_studio_new_notification';
+      const reminderChannelId = await this.ensureAndroidReminderChannel(reminderSoundKey);
 
       // Parse time (format: "08:00 am" or "08:00 pm")
       const timeParts = routine.time.split(' ');
@@ -454,6 +505,34 @@ class NotificationService {
           const secondsUntilTrigger = Math.max(1, Math.floor((triggerDate.getTime() - now.getTime()) / 1000));
           const body = await this.buildRoutineNotificationBody(routine.routineName);
 
+          // 5-minute reminder notification (silent)
+          const reminderDate = new Date(triggerDate.getTime() - 5 * 60 * 1000);
+          const reminderSecondsUntilTrigger = Math.floor((reminderDate.getTime() - now.getTime()) / 1000);
+          if (reminderSecondsUntilTrigger >= 1) {
+            const reminderBody = `Get ready — ${routine.routineName?.trim() || 'your routine'} in 5 minutes.`;
+            const reminderId = await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '⏰ Reminder',
+                body: reminderBody,
+                data: {
+                  routineId: routine.routineId,
+                  routineName: routine.routineName,
+                  notificationType: 'reminder' satisfies RoutineNotificationType,
+                },
+                color: '#1A73E8',
+                sound: `${reminderSoundKey}.mp3`,
+                priority: Notifications.AndroidNotificationPriority.MAX,
+              },
+              trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds: reminderSecondsUntilTrigger,
+                repeats: false,
+                channelId: reminderChannelId,
+              },
+            });
+            notificationIds.push(reminderId);
+          }
+
           const notificationId = await Notifications.scheduleNotificationAsync({
             content: {
               title: '⏰ Routine Time!',
@@ -462,6 +541,7 @@ class NotificationService {
                 routineId: routine.routineId,
                 routineName: routine.routineName,
                 ringtone,
+                notificationType: 'alarm' satisfies RoutineNotificationType,
               },
 
 
@@ -507,12 +587,39 @@ class NotificationService {
       if (routines.length === 0) return;
       console.log(`🔄 Checking ${routines.length} routines for notification refresh...`);
 
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      const routineIdsWithReminderScheduled = new Set<number>();
+
+      for (const n of scheduled as any[]) {
+        const routineId = n?.content?.data?.routineId;
+        const notificationType = n?.content?.data?.notificationType;
+        if (typeof routineId === 'number' && notificationType === 'reminder') {
+          routineIdsWithReminderScheduled.add(routineId);
+        }
+      }
+
       for (const routine of routines) {
         // Check if this routine has notifications scheduled
         const ids = await this.getNotificationIds(routine.id);
+
+        // If this routine doesn't have the 5-min reminder scheduled yet, migrate it.
+        if (!routineIdsWithReminderScheduled.has(routine.id)) {
+          console.log(`🆕 Migrating routine "${routine.name}" to include 5-min reminders...`);
+          await this.scheduleRoutineNotification({
+            routineId: routine.id,
+            routineName: routine.name,
+            time: routine.time,
+            ringtone: routine.ringtone || 'alarm1',
+            days: routine.days,
+          });
+          continue;
+        }
+
+        // New format schedules reminder+alarm per day (2 notifications). Keep at least 2 upcoming days.
+        const minIdsToKeep = 4;
         
         // If less than 2 days of notifications left, reschedule
-        if (ids.length < 2) {
+        if (ids.length < minIdsToKeep) {
           console.log(`⚠️ Routine "${routine.name}" has only ${ids.length} notifications left. Refreshing...`);
           await this.scheduleRoutineNotification({
             routineId: routine.id,
