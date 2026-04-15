@@ -17,6 +17,20 @@ import {
   getChildNickname,
   refreshChildNicknameFromCloud,
 } from "../../src/childNicknameService";
+
+const PLAYBOOK_START_KEY_PREFIX = "@playbook_start_";
+
+function getTodayDayDate() {
+  const today = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
+async function recordPlaybookStart(routineId: number) {
+  const dayDate = getTodayDayDate();
+  const key = `${PLAYBOOK_START_KEY_PREFIX}${dayDate}_${routineId}`;
+  await AsyncStorage.setItem(key, new Date().toISOString());
+}
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
@@ -27,7 +41,7 @@ import {
   getRoutineOverridesLocal,
   refreshRoutineOverridesFromCloud as refreshRoutinePresentationFromCloud,
 } from "../../src/routineOverridesService";
-import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
+import { getRoutinesForCurrentUser, getUserProgressForRange, ensureProgressRow, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
 import { supabase } from "../../src/supabaseClient";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
@@ -1525,7 +1539,15 @@ export default function Home() {
     setIsReplayMode(true);
 
     if (hasPlaybook && !hasMiniGame) {
-      // Only book guide exists -> go directly to playbook
+      // Only book guide exists -> track playbook start and go directly to playbook
+      void (async () => {
+        try {
+          await ensureProgressRow({ routineId, completed: false, dayDate: new Date() });
+          await recordPlaybookStart(routineId);
+        } catch (error) {
+          console.warn('Failed to ensure progress row before opening playbook:', error);
+        }
+      })();
       setCurrentStep(1);
       setPlaybookModalVisible(true);
       playbookSlideX.setValue(400);
@@ -2100,6 +2122,16 @@ export default function Home() {
                     <TouchableOpacity
                       style={styles.taskItem}
                       onPress={() => {
+                        if (activeRoutineId) {
+                          void (async () => {
+                            try {
+                              await ensureProgressRow({ routineId: activeRoutineId, completed: false, dayDate: new Date() });
+                              await recordPlaybookStart(activeRoutineId);
+                            } catch (error) {
+                              console.warn('Failed to ensure progress row before opening playbook:', error);
+                            }
+                          })();
+                        }
                         // Keep task modal open, just show playbook on top
                         playbookSlideX.setValue(400);
                         setPlaybookModalVisible(true);

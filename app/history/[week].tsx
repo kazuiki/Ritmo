@@ -120,6 +120,40 @@ export default function WeeklyHistoryDetail() {
       const yyyy = d.getFullYear();
       return `${mm}-${dd}-${yyyy}`;
     };
+
+    const formatDateTime = (d: Date) => {
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const period = hours >= 12 ? 'pm' : 'am';
+      if (hours === 0) hours = 12;
+      if (hours > 12) hours -= 12;
+      return `${mm}-${dd}-${yyyy} ${String(hours).padStart(2, '0')}:${minutes} ${period}`;
+    };
+
+    const parseCompletedAt = (value: string) => {
+      if (!value) return new Date(NaN);
+      const normalized = value.trim().replace(' ', 'T');
+      const hasTimezone = /[Zz]$|[+\-]\d{2}:?\d{2}$/.test(normalized);
+      if (hasTimezone) {
+        return new Date(normalized);
+      }
+      const [datePart, timePartRaw] = normalized.split('T');
+      if (!datePart || !timePartRaw) return new Date(value);
+      const timePart = timePartRaw.split('.')[0];
+      const [hour = 0, minute = 0, second = 0] = timePart.split(':').map(Number);
+      const [year, month, day] = datePart.split('-').map(Number);
+      return new Date(year, month - 1, day, hour, minute, second || 0);
+    };
+
+    const getLatestCompletedAt = (routineId: number) => {
+      const completedRows = progressData
+        .filter((p) => p.routine_id === routineId && p.completed && p.completed_at)
+        .sort((a, b) => parseCompletedAt(b.completed_at!).getTime() - parseCompletedAt(a.completed_at!).getTime());
+      return completedRows[0]?.completed_at ?? null;
+    };
     
     // Helper to convert routine time (e.g., "01:00 am") to minutes since midnight for sorting
     const timeToMinutes = (timeStr?: string): number => {
@@ -245,7 +279,10 @@ export default function WeeklyHistoryDetail() {
         return '';
       })();
       const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
-      const timestamp = `${addedDate}/${timeStr}`;
+      const latestCompletedAt = getLatestCompletedAt(routine.id);
+      const timestamp = latestCompletedAt
+        ? `Done: ${latestCompletedAt}`
+        : `Added: ${addedDate}/${timeStr}`;
 
       const nameWithDeletedFlag = (() => {
         const base = routine.name || '';
@@ -255,6 +292,7 @@ export default function WeeklyHistoryDetail() {
       return {
         name: nameWithDeletedFlag,
         timestamp,
+        rawCompletedAt: latestCompletedAt ?? undefined,
         statuses,
         routineId: routine.id,
         days: routine.days || [0,1,2,3,4,5,6]
@@ -447,12 +485,22 @@ export default function WeeklyHistoryDetail() {
                   />
                   <Text
                     style={styles.taskTimestampText}
-                    numberOfLines={1}
+                    numberOfLines={2}
                     ellipsizeMode="tail"
                     allowFontScaling={false}
                   >
                     {t.timestamp}
                   </Text>
+                  {t.rawCompletedAt ? (
+                    <Text
+                      style={styles.taskTimestampText}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      allowFontScaling={false}
+                    >
+                      raw: {t.rawCompletedAt}
+                    </Text>
+                  ) : null}
                 </View>
                 {t.statuses.map((s, idx) => (
                   <View key={idx} style={[styles.gridCellDay, styles.indicatorCell]}>

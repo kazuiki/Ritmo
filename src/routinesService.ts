@@ -1,12 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isOnline } from "./offline/networkService";
 import {
-    readProgressCache,
-    readRoutinesCache,
-    upsertProgressInCache,
-    upsertRoutineInCache,
-    writeProgressCache,
-    writeRoutinesCache,
+  readProgressCache,
+  readRoutinesCache,
+  upsertProgressInCache,
+  upsertRoutineInCache,
+  writeProgressCache,
+  writeRoutinesCache,
 } from "./offline/offlineData";
 import { createPendingOperation, enqueueOperation } from "./offline/offlineQueue";
 import { supabase } from "./supabaseClient";
@@ -150,6 +150,21 @@ function toDateOnly(input?: Date | string): string {
   return `${year}-${month}-${day}`;
 }
 
+function formatLocalDateTimeWithOffset(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const second = String(date.getSeconds()).padStart(2, '0');
+  const offsetMinutes = date.getTimezoneOffset();
+  const offsetSign = offsetMinutes <= 0 ? '+' : '-';
+  const absOffsetMinutes = Math.abs(offsetMinutes);
+  const offsetHour = String(Math.floor(absOffsetMinutes / 60)).padStart(2, '0');
+  const offsetMinute = String(absOffsetMinutes % 60).padStart(2, '0');
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetSign}${offsetHour}:${offsetMinute}`;
+}
+
 async function createRoutineRemote(values: RoutineInsert): Promise<Routine> {
   const payload = toRemoteRoutinePayload(values);
   const { data, error } = await supabase
@@ -175,7 +190,7 @@ export async function createRoutineForCurrentUser(values: RoutineInsert): Promis
     }
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = formatLocalDateTimeWithOffset(new Date());
   const offlineRoutine: Routine = {
     id: makeOfflineRoutineId(),
     name: values.name,
@@ -214,16 +229,27 @@ export async function ensureProgressRow(params: {
   dayDate?: string | Date;
   completed?: boolean;
 }): Promise<RoutineProgress> {
+  const formatLocalDateTimeForDb = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    const second = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  };
+
   const userId = await getCurrentUserId();
   const day = toDateOnly(params.dayDate);
   const completed = !!params.completed;
+  const completedAt = completed ? formatLocalDateTimeForDb(new Date()) : null;
   const localRow: RoutineProgress = {
     id: Date.now(),
     user_id: userId,
     routine_id: params.routineId,
     day_date: day,
     completed,
-    completed_at: completed ? new Date().toISOString() : null,
+    completed_at: completedAt,
   };
 
   await upsertProgressInCache(userId, localRow);
@@ -247,7 +273,7 @@ export async function ensureProgressRow(params: {
           .from("user_routine_progress")
           .update({
             completed,
-            completed_at: completed ? new Date().toISOString() : null,
+            completed_at: completedAt,
           })
           .eq("id", existing.id)
           .select("*")
@@ -264,7 +290,7 @@ export async function ensureProgressRow(params: {
           routine_id: params.routineId,
           day_date: day,
           completed,
-          completed_at: completed ? new Date().toISOString() : null,
+          completed_at: completedAt,
         })
         .select("*")
         .single();
@@ -286,7 +312,7 @@ export async function ensureProgressRow(params: {
         day_date: day,
         completed,
       },
-      clientUpdatedAt: new Date().toISOString(),
+      clientUpdatedAt: completedAt ?? formatLocalDateTimeForDb(new Date()),
     })
   );
 
