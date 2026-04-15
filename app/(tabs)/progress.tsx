@@ -9,10 +9,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
 	Alert,
 	Image,
+	Modal,
 	Pressable,
 	ScrollView,
 	StyleSheet,
 	Text,
+	TextInput,
 	TouchableOpacity,
 	View
 } from "react-native";
@@ -38,6 +40,7 @@ import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils
 
 const RITMO_HEADER = require("../../assets/ritmo-header.png");
 const LAST_USER_ID_KEY = "@ritmo_last_user_id";
+const PLAYBOOK_START_KEY_PREFIX = "@playbook_start_";
 
 const syncChildNickname = async (setChildName: (value: string) => void) => {
 	const initialName = await getChildNickname();
@@ -51,6 +54,43 @@ const syncChildNickname = async (setChildName: (value: string) => void) => {
 
 interface RoutineWithDays extends Routine {
 	days?: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+}
+
+function computeDefaultWeekRange() {
+	const today = new Date();
+	const day = today.getDay();
+	const diffToMonday = day === 0 ? -6 : 1 - day;
+	const monday = new Date(today);
+	monday.setHours(0, 0, 0, 0);
+	monday.setDate(today.getDate() + diffToMonday);
+	const sunday = new Date(monday);
+	sunday.setDate(monday.getDate() + 6);
+	return { start: monday, end: sunday };
+}
+
+function formatDateInput(date: Date) {
+	const pad = (value: number) => String(value).padStart(2, '0');
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function parseDateInput(value: string): Date | null {
+	const parts = value.split('-').map(Number);
+	if (parts.length !== 3) return null;
+	const [year, month, day] = parts;
+	if (!year || !month || !day) return null;
+	const date = new Date(year, month - 1, day);
+	if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+		return null;
+	}
+	date.setHours(0, 0, 0, 0);
+	return date;
+}
+
+function formatRangeHeaderLabel(dateStr: string) {
+	const [year, month, day] = dateStr.split('-').map(Number);
+	const date = new Date(year, month - 1, day);
+	const dayNames = ['S', 'M', 'T', 'W', 'Th', 'F', 'St'];
+	return dayNames[date.getDay()];
 }
 
 export default function Progress() {
@@ -76,41 +116,58 @@ export default function Progress() {
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
 	const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
+  const [playbookStartTimes, setPlaybookStartTimes] = useState<Record<string, string>>({});
+  const defaultWeekRange = computeDefaultWeekRange();
+  const [rangeStart, setRangeStart] = useState<Date>(defaultWeekRange.start);
+  const [rangeEnd, setRangeEnd] = useState<Date>(defaultWeekRange.end);
+  const [rangeModalVisible, setRangeModalVisible] = useState(false);
+  const [rangeFromInput, setRangeFromInput] = useState<string>(formatDateInput(defaultWeekRange.start));
+  const [rangeToInput, setRangeToInput] = useState<string>(formatDateInput(defaultWeekRange.end));
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-	// Week range (Monday to Sunday)
-	const weekInfo = useMemo(() => {
-		const today = new Date();
-		const day = today.getDay(); // 0-6 (Sun-Sat)
-		const diffToMonday = (day === 0 ? -6 : 1 - day); // if Sunday (0), go back 6 days
-		const monday = new Date(today);
-		monday.setDate(today.getDate() + diffToMonday);
-		const sunday = new Date(monday);
-		sunday.setDate(monday.getDate() + 6);
+	useEffect(() => {
+		const loadPlaybookStartTimes = async () => {
+			try {
+				const keys = await AsyncStorage.getAllKeys();
+				const startKeys = keys.filter((key) => key.startsWith(PLAYBOOK_START_KEY_PREFIX));
+				const entries = await AsyncStorage.multiGet(startKeys);
+				const next: Record<string, string> = {};
+				entries.forEach(([key, value]) => {
+					if (value) next[key] = value;
+				});
+				setPlaybookStartTimes(next);
+			} catch (error) {
+				console.warn('Failed to load playbook start times:', error);
+			}
+		};
+		loadPlaybookStartTimes();
+	}, [progressData, rangeStart, rangeEnd]);
 
+	const rangeInfo = useMemo(() => {
 		const months = [
 			'January','February','March','April','May','June',
 			'July','August','September','October','November','December'
 		];
 		const fmt = (d: Date) => `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
-		const rangeText = `${fmt(monday)} - ${fmt(sunday)}`;
+		const rangeText = `${fmt(rangeStart)} - ${fmt(rangeEnd)}`;
 
-		// Generate array of dates for the week (Mon-Sun)
-		const weekDates: string[] = [];
-		const weekDays: number[] = []; // Day of week indices (0=Sun, 1=Mon, etc.)
-		for (let i = 0; i < 7; i++) {
-			const date = new Date(monday);
-			date.setDate(monday.getDate() + i);
-			// Use local timezone instead of UTC
-			const year = date.getFullYear();
-			const month = String(date.getMonth() + 1).padStart(2, '0');
-			const day = String(date.getDate()).padStart(2, '0');
-			weekDates.push(`${year}-${month}-${day}`); // YYYY-MM-DD in local timezone
-			weekDays.push(date.getDay()); // 0-6 (Sun-Sat)
+		const dates: string[] = [];
+		const weekDays: number[] = [];
+		const current = new Date(rangeStart);
+		current.setHours(0, 0, 0, 0);
+		const end = new Date(rangeEnd);
+		end.setHours(0, 0, 0, 0);
+		while (current <= end) {
+			const year = current.getFullYear();
+			const month = String(current.getMonth() + 1).padStart(2, '0');
+			const day = String(current.getDate()).padStart(2, '0');
+			dates.push(`${year}-${month}-${day}`);
+			weekDays.push(current.getDay());
+			current.setDate(current.getDate() + 1);
 		}
 
-		return { monday, sunday, rangeText, weekDates, weekDays };
-	}, []);
+		return { rangeText, dates, weekDays };
+	}, [rangeStart, rangeEnd]);
 
 	// Build tasks data structure from routines and progress
 	const tasks = useMemo(() => {
@@ -204,15 +261,98 @@ export default function Progress() {
 			return `${mm}-${dd}-${yyyy}`;
 		};
 
+		// Helper to format a Date and time as MM-DD-YYYY hh:mm am/pm
+		const formatDateTime = (d: Date) => {
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const dd = String(d.getDate()).padStart(2, '0');
+			const yyyy = d.getFullYear();
+			let hours = d.getHours();
+			const minutes = String(d.getMinutes()).padStart(2, '0');
+			const period = hours >= 12 ? 'pm' : 'am';
+			if (hours === 0) hours = 12;
+			if (hours > 12) hours -= 12;
+			return `${mm}-${dd}-${yyyy} ${String(hours).padStart(2, '0')}:${minutes} ${period}`;
+		};
+
+		const parseCompletedAt = (value: string) => {
+			if (!value) return new Date(NaN);
+			const normalized = value.trim().replace(' ', 'T');
+			const hasTimezone = /[Zz]$|[+\-]\d{2}:?\d{2}$/.test(normalized);
+			if (hasTimezone) {
+				return new Date(normalized);
+			}
+			const [datePart, timePartRaw] = normalized.split('T');
+			if (!datePart || !timePartRaw) return new Date(value);
+			const timePart = timePartRaw.split('.')[0];
+			const [hour = 0, minute = 0, second = 0] = timePart.split(':').map(Number);
+			const [year, month, day] = datePart.split('-').map(Number);
+			return new Date(year, month - 1, day, hour, minute, second || 0);
+		};
+
+		const formatCompletedAtTime = (value: string) => {
+			const date = parseCompletedAt(value);
+			if (isNaN(date.getTime())) return value;
+			let hours = date.getHours();
+			const minutes = String(date.getMinutes()).padStart(2, '0');
+			const period = hours >= 12 ? 'PM' : 'AM';
+			if (hours === 0) {
+				hours = 12;
+			} else if (hours > 12) {
+				hours -= 12;
+			}
+			return `${String(hours).padStart(2, '0')}:${minutes}${period}`;
+		};
+
+		const formatDuration = (milliseconds: number) => {
+			const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+			const hours = Math.floor(totalSeconds / 3600);
+			const minutes = Math.floor((totalSeconds % 3600) / 60);
+			const seconds = totalSeconds % 60;
+			if (hours > 0) {
+				return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+			}
+			if (minutes > 0) {
+				return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+			}
+			return `${seconds}s`;
+		};
+
+		const getPlaybookStartedAt = (row: RoutineProgress): Date | undefined => {
+			const key = `${PLAYBOOK_START_KEY_PREFIX}${row.day_date}_${row.routine_id}`;
+			const value = playbookStartTimes[key];
+			if (!value) return undefined;
+			const parsed = new Date(value);
+			return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+		};
+
+		const formatRoutineProgressTimestamp = (row: RoutineProgress) => {
+			if (!row.completed_at) return '';
+			const completedAt = parseCompletedAt(row.completed_at);
+			const startedAt = getPlaybookStartedAt(row) ?? (row.created_at ? parseCompletedAt(row.created_at) : undefined);
+			if (startedAt && !Number.isNaN(startedAt.getTime()) && !Number.isNaN(completedAt.getTime())) {
+				const durationMs = completedAt.getTime() - startedAt.getTime();
+				if (durationMs > 1000) {
+					return `Done: ${formatDuration(durationMs)}`;
+				}
+			}
+			return `Done: ${formatCompletedAtTime(row.completed_at)}`;
+		};
+
+		const getLatestCompletedRow = (routineId: number) => {
+			const completedRows = progressData
+				.filter((p) => p.routine_id === routineId && p.completed && p.completed_at)
+				.sort((a, b) => parseCompletedAt(b.completed_at!).getTime() - parseCompletedAt(a.completed_at!).getTime());
+			return completedRows[0] ?? null;
+		};
+
 		const sortedRoutines = [...routines].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
 
-		return sortedRoutines.map(routine => {
-			// For each day of the week, determine the status
-			const statuses = weekInfo.weekDates.map((dateStr, index) => {
-				const dayOfWeek = weekInfo.weekDays[index];
+		return sortedRoutines.map((routine) => {
+			const statuses = rangeInfo.dates.map((dateStr, index) => {
+				const dayOfWeek = rangeInfo.weekDays[index];
 				return getTaskStatus(routine, dateStr, dayOfWeek);
 			});
-			
+
 			// Format timestamp as "date added / routine time"
 			const addedDate = (() => {
 				const firstActive = firstActiveDateByRoutine.get(routine.id);
@@ -224,17 +364,19 @@ export default function Progress() {
 				return ''; // Avoid showing today's date incorrectly
 			})();
 			const timeStr = routine.time ? routine.time.toLowerCase().replace(/\s+/g, '') : '12:00am';
-			const timestamp = `${addedDate}/${timeStr}`;
+			const latestCompletedRow = getLatestCompletedRow(routine.id);
+			const timestamp = latestCompletedRow ? formatRoutineProgressTimestamp(latestCompletedRow) : '';
 			
 			return {
 				name: routine.name || '',
 				timestamp,
+				rawCompletedAt: latestCompletedRow?.completed_at ?? undefined,
 				statuses,
 				routineId: routine.id,
 				days: routine.days || [0,1,2,3,4,5,6]
 			};
 		});
-	}, [routines, progressData, weekInfo.weekDates, weekInfo.weekDays, currentTime, earliestProgressByRoutine]);
+	}, [routines, progressData, rangeInfo.dates, rangeInfo.weekDays, currentTime, earliestProgressByRoutine]);
 
 	// Metrics
 	const totals = useMemo(() => {
@@ -268,8 +410,8 @@ export default function Progress() {
 
 			await saveWeeklyPerformanceReportPdf({
 				childName: childName,
-				weekStart: weekInfo.monday,
-				weekEnd: weekInfo.sunday,
+				weekStart: rangeStart,
+				weekEnd: rangeEnd,
 				totalTasks: totals.totalTasks,
 				completedTasks: totals.completed,
 				completionRate: totals.rate,
@@ -288,6 +430,34 @@ export default function Progress() {
 		} finally {
 			setIsGeneratingPdf(false);
 		}
+	};
+
+	const handleOpenRangeModal = () => {
+		setRangeFromInput(formatDateInput(rangeStart));
+		setRangeToInput(formatDateInput(rangeEnd));
+		setRangeModalVisible(true);
+	};
+
+	const handleApplyRange = () => {
+		const start = parseDateInput(rangeFromInput);
+		let end = parseDateInput(rangeToInput);
+		if (!start || !end) {
+			Alert.alert('Invalid date', 'Enter a valid start and end date in YYYY-MM-DD format.');
+			return;
+		}
+		if (start > end) {
+			Alert.alert('Invalid range', 'Start date must be on or before the end date.');
+			return;
+		}
+
+		const maxEnd = new Date(start);
+		maxEnd.setDate(start.getDate() + 6);
+		end = maxEnd;
+		setRangeToInput(formatDateInput(end));
+
+		setRangeStart(start);
+		setRangeEnd(end);
+		setRangeModalVisible(false);
 	};
 
 	useFocusEffect(
@@ -326,13 +496,12 @@ export default function Progress() {
 						}
 
 						if (cachedProgress.length > 0) {
-							const from = weekInfo.weekDates[0];
-							const to = weekInfo.weekDates[6];
+							const startDate = rangeInfo.dates[0];
+							const endDate = rangeInfo.dates[rangeInfo.dates.length - 1];
 							const weekly = cachedProgress
-								.filter((row) => row.day_date >= from && row.day_date <= to)
+								.filter((p) => p.day_date >= startDate && p.day_date <= endDate)
 								.sort((a, b) => a.day_date.localeCompare(b.day_date));
 							setProgressData(weekly);
-
 							const earliestMap: Record<number, string> = {};
 							for (const row of [...cachedProgress].sort((a, b) => a.day_date.localeCompare(b.day_date))) {
 								if (!earliestMap[row.routine_id]) {
@@ -350,13 +519,13 @@ export default function Progress() {
 				const [routinesData, progressForWeek, firstDatesMap] = await Promise.all([
 					getRoutinesForCurrentUser(),
 					getUserProgressForRange({
-						from: weekInfo.monday,
-						to: weekInfo.sunday,
-					}),
-					getUserFirstProgressDatesByRoutine(),
-				]);
-				
-				// Load days info from AsyncStorage (user-specific)
+                                                from: rangeStart,
+                                                to: rangeEnd,
+                                        }),
+                                        getUserFirstProgressDatesByRoutine(),
+                                ]);
+
+                                // Load days info from AsyncStorage (user-specific)
 				const storageKey = `@routines_${resolvedUserId}`;
 				const stored = await AsyncStorage.getItem(storageKey);
 				const storedRoutines: Array<{id: number, days?: number[]}> = stored ? JSON.parse(stored) : [];
@@ -401,7 +570,7 @@ export default function Progress() {
 			}, 100);
 
 			return () => clearTimeout(measureTimer);
-		}, [weekInfo.monday, weekInfo.sunday])
+		}, [rangeStart, rangeEnd])
 	);
 
 	// Update current time every minute to refresh status
@@ -456,8 +625,8 @@ export default function Progress() {
 				// Fetch progress for the current week and earliest progress per routine
 				const [progressForWeek, firstDatesMap] = await Promise.all([
 					getUserProgressForRange({
-					from: weekInfo.monday,
-					to: weekInfo.sunday,
+					from: rangeStart,
+					to: rangeEnd,
 					}),
 					getUserFirstProgressDatesByRoutine(),
 				]);
@@ -501,8 +670,8 @@ export default function Progress() {
 							// Also refetch to ensure data consistency
 							try {
 								const updatedProgress = await getUserProgressForRange({
-									from: weekInfo.monday,
-									to: weekInfo.sunday,
+									from: rangeStart,
+									to: rangeEnd,
 								});
 								setProgressData(updatedProgress);
 							} catch (error) {
@@ -573,7 +742,7 @@ export default function Progress() {
 				supabase.removeChannel(routinesSubscription);
 			}
 		};
-	}, [weekInfo.monday, weekInfo.sunday]);
+	}, [rangeStart, rangeEnd]);
 
 	return (
 		<View style={styles.container}>
@@ -627,17 +796,17 @@ export default function Progress() {
 
 					{/* Week of (pressable text + inline icon) */}
 					<View style={styles.weekRow}>
-						<Text style={[styles.subtleText, styles.weekLabel]} numberOfLines={1}>Week of: </Text>
+						<Text style={[styles.subtleText, styles.weekLabel]} numberOfLines={1}>7-day range: </Text>
 						<View ref={weekButtonRef} collapsable={false} style={styles.weekButtonWrap}>
 							<Pressable 
 								style={({ pressed }) => [
 									styles.weekDateButton,
 									pressed && styles.weekDateButtonPressed
 								]}
-								onPress={() => router.push("/history")}
+								onPress={handleOpenRangeModal}
 							>
 								<Text style={styles.weekRangeText} numberOfLines={1} ellipsizeMode="tail">
-									{weekInfo.rangeText}
+									{rangeInfo.rangeText}
 								</Text>
 								<Image source={require("../../assets/images/history.png")} style={styles.weekInlineIcon} />
 							</Pressable>
@@ -667,13 +836,20 @@ export default function Progress() {
 						{/* Grid Header */}
 						<View style={[styles.gridRow, styles.gridHeader]}> 
 							<Text style={[styles.gridCellTask, styles.gridHeaderText]} numberOfLines={1} allowFontScaling={false}>Task</Text>
-							{['M','T','W','Th','F','St','S'].map((d) => (
-								<Text key={d} style={[styles.gridCellDay, styles.gridHeaderText, styles.gridDayHeaderLabel]} allowFontScaling={false}>{d}</Text>
-							))}
-							<Text style={[styles.gridCellDone, styles.gridHeaderText]} allowFontScaling={false}>Done</Text>
-						</View>
+					{rangeInfo.dates.map((dateStr) => (
+						<Text
+							key={dateStr}
+							style={[styles.gridCellDay, styles.gridHeaderText, styles.gridDayHeaderLabel]}
+							numberOfLines={2}
+							allowFontScaling={false}
+						>
+							{formatRangeHeaderLabel(dateStr)}
+						</Text>
+					))}
+					<Text style={[styles.gridCellDone, styles.gridHeaderText]} allowFontScaling={false}>Done</Text>
+				</View>
 
-					{/* Rows */}
+				{/* Rows */}
 					{tasks.map((task, idx) => (
 						<View key={task.routineId} style={styles.gridRow}>
 							<View style={styles.gridCellTask}>
@@ -685,7 +861,7 @@ export default function Progress() {
 								/>
 								<Text
 									style={styles.taskTimestampText}
-									numberOfLines={1}
+									numberOfLines={2}
 									ellipsizeMode="tail"
 									allowFontScaling={false}
 								>
@@ -762,6 +938,41 @@ export default function Progress() {
 						</View>
 					</View>
 				</View>
+
+				<Modal
+					visible={rangeModalVisible}
+					transparent
+					animationType="slide"
+					onRequestClose={() => setRangeModalVisible(false)}
+				>
+					<View style={styles.modalOverlay}>
+						<View style={styles.modalContent}>
+							<Text style={styles.modalTitle}>Select date range</Text>
+							<TextInput
+								style={styles.modalInput}
+								value={rangeFromInput}
+								onChangeText={setRangeFromInput}
+								placeholder="YYYY-MM-DD"
+								keyboardType="numbers-and-punctuation"
+							/>
+							<TextInput
+								style={styles.modalInput}
+								value={rangeToInput}
+								onChangeText={setRangeToInput}
+								placeholder="YYYY-MM-DD"
+								keyboardType="numbers-and-punctuation"
+							/>
+							<View style={styles.modalButtons}>
+								<TouchableOpacity style={styles.modalButton} onPress={() => setRangeModalVisible(false)}>
+									<Text style={styles.modalButtonText}>Cancel</Text>
+								</TouchableOpacity>
+								<TouchableOpacity style={styles.modalButton} onPress={handleApplyRange}>
+									<Text style={styles.modalButtonText}>Apply</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					</View>
+				</Modal>
 
 				{/* Save as PDF Button */}
 				<View ref={savePdfButtonRef} collapsable={false}>
@@ -935,6 +1146,53 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		resizeMode: 'contain',
 		opacity: 0.8,
 		flexShrink: 0,
+	},
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: 'rgba(0,0,0,0.35)',
+		justifyContent: 'center',
+		alignItems: 'center',
+		padding: scale.scaleSpacing(16),
+	},
+	modalContent: {
+		backgroundColor: '#FFFFFF',
+		borderRadius: scale.scaleBorderRadius(18),
+		padding: scale.scaleSpacing(20),
+		width: '100%',
+		maxWidth: 420,
+	},
+	modalTitle: {
+		fontSize: scale.scaleFont(18),
+		fontWeight: '700',
+		fontFamily: 'Fredoka_700Bold',
+		marginBottom: scale.scaleSpacing(16),
+	},
+	modalInput: {
+		borderColor: '#D1EAE4',
+		borderWidth: 1,
+		borderRadius: scale.scaleBorderRadius(12),
+		padding: scale.scaleSpacing(12),
+		marginBottom: scale.scaleSpacing(12),
+		fontSize: scale.scaleFont(16),
+		fontFamily: 'Fredoka_400Regular',
+	},
+	modalButtons: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		marginTop: scale.scaleSpacing(10),
+	},
+	modalButton: {
+		flex: 1,
+		backgroundColor: '#2F7C72',
+		padding: scale.scaleSpacing(12),
+		borderRadius: scale.scaleBorderRadius(12),
+		alignItems: 'center',
+		marginHorizontal: scale.scaleSpacing(4),
+	},
+	modalButtonText: {
+		color: '#FFFFFF',
+		fontSize: scale.scaleFont(16),
+		fontFamily: 'Fredoka_600SemiBold',
 	},
 	smallIcon: {
 		width: scale.scaleWidth(18),
