@@ -68,7 +68,8 @@
             "./assets/ringtone/alarm17.mp3"
           ]
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
