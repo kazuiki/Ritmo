@@ -14,8 +14,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
 import {
-  getChildNickname,
-  refreshChildNicknameFromCloud,
+    getChildNickname,
+    refreshChildNicknameFromCloud,
 } from "../../src/childNicknameService";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
@@ -23,9 +23,9 @@ import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import {
-  applyRoutineOverrides,
-  getRoutineOverridesLocal,
-  refreshRoutineOverridesFromCloud as refreshRoutinePresentationFromCloud,
+    applyRoutineOverrides,
+    getRoutineOverridesLocal,
+    refreshRoutineOverridesFromCloud as refreshRoutinePresentationFromCloud,
 } from "../../src/routineOverridesService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
@@ -142,7 +142,10 @@ export default function Home() {
   const [starAnimations, setStarAnimations] = useState([false, false, false]);
   const [showRainingStars, setShowRainingStars] = useState(false);
   const [successSound, setSuccessSound] = useState<any>(null);
-  const [allDoneSound, setAllDoneSound] = useState<any>(null);
+  const [bgAudioReady, setBgAudioReady] = useState(false);
+  const allDoneCompletedSoundRef = useRef<any>(null);
+  const allDoneCongratsSoundRef = useRef<any>(null);
+  const successAudioStartedRef = useRef(false);
   const successAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const goodJobSoundRef = useRef<any>(null); // Track GoodJob.mp3 separately for cleanup
   // Background audio refs for specific playbook presets
@@ -845,7 +848,31 @@ export default function Home() {
   useEffect(() => {
     const playSuccessAudio = async () => {
       if (successModalVisible) {
+        // Guard against effect re-runs while the modal remains visible (e.g., state updates).
+        if (successAudioStartedRef.current) return;
+        successAudioStartedRef.current = true;
+
         try {
+          // Stop "All Done" sounds so GoodJob is not masked.
+          if (allDoneTimeoutRef.current) {
+            clearTimeout(allDoneTimeoutRef.current);
+            allDoneTimeoutRef.current = null;
+          }
+
+          if (allDoneCompletedSoundRef.current) {
+            try {
+              await allDoneCompletedSoundRef.current.unloadAsync();
+            } catch {}
+            allDoneCompletedSoundRef.current = null;
+          }
+
+          if (allDoneCongratsSoundRef.current) {
+            try {
+              await allDoneCongratsSoundRef.current.unloadAsync();
+            } catch {}
+            allDoneCongratsSoundRef.current = null;
+          }
+
           console.log('🎵 Playing Stars.mp3 audio...');
          
           // Set audio mode for better playback
@@ -879,7 +906,9 @@ export default function Home() {
                       require("../../assets/ringtone/GoodJob.mp3"),
                       { shouldPlay: true, volume: 1.0 }
                     );
-                    await sound.unloadAsync();
+                    try {
+                      await sound.unloadAsync();
+                    } catch {}
                     goodJobSoundRef.current = goodJobSound;
                     setSuccessSound(goodJobSound);
                     console.log('🎵 GoodJob.mp3 started playing immediately');
@@ -898,10 +927,11 @@ export default function Home() {
           // Audio won't play but Success modal still appears - app doesn't crash
         }
       } else {
+        successAudioStartedRef.current = false;
         // Stop and unload sound when modal closes
         if (successSound) {
           try {
-            await successSound.stopAsync();
+            // Avoid stopAsync on an unloaded/uninitialized player.
             await successSound.unloadAsync();
           } catch (error) {
             console.warn("Failed to stop success audio:", error);
@@ -911,7 +941,7 @@ export default function Home() {
         // Also stop GoodJob.mp3 if still playing
         if (goodJobSoundRef.current) {
           try {
-            await goodJobSoundRef.current.stopAsync();
+            // Avoid stopAsync on an unloaded/uninitialized player.
             await goodJobSoundRef.current.unloadAsync();
           } catch (error) {
             console.warn("Failed to stop GoodJob audio:", error);
@@ -922,13 +952,46 @@ export default function Home() {
     };
 
     playSuccessAudio();
-  }, [successModalVisible]);
+  }, [successModalVisible, successSound]);
 
   // Play all done audio when message appears
   useEffect(() => {
     const playAllDoneAudio = async () => {
+      // If success modal audio is active, never start (or keep) the All Done celebration sounds.
+      if (successModalVisible) {
+        if (allDoneCompletedSoundRef.current) {
+          try {
+            await allDoneCompletedSoundRef.current.unloadAsync();
+          } catch {}
+          allDoneCompletedSoundRef.current = null;
+        }
+
+        if (allDoneCongratsSoundRef.current) {
+          try {
+            await allDoneCongratsSoundRef.current.unloadAsync();
+          } catch {}
+          allDoneCongratsSoundRef.current = null;
+        }
+        return;
+      }
+
       if (showAllDone) {
         try {
+          // Ensure no leftover sounds can layer.
+          if (allDoneCompletedSoundRef.current) {
+            try {
+              await allDoneCompletedSoundRef.current.unloadAsync();
+            } catch {}
+            allDoneCompletedSoundRef.current = null;
+          }
+
+          if (allDoneCongratsSoundRef.current) {
+            try {
+              await allDoneCongratsSoundRef.current.unloadAsync();
+            } catch {}
+            allDoneCongratsSoundRef.current = null;
+          }
+
           // Play both Completed.mp3 and Congratulations.mp3 simultaneously
           const { sound: completedSound } = await Audio.Sound.createAsync(
             require("../../assets/ringtone/Completed.mp3"),
@@ -939,69 +1002,96 @@ export default function Home() {
             require("../../assets/ringtone/Congratulations.mp3"),
             { shouldPlay: true }
           );
-         
-          setAllDoneSound(completedSound);
-         
-          // Get longest audio duration for timeout
-          const completedStatus = await completedSound.getStatusAsync();
-          const congratsStatus = await congratsSound.getStatusAsync();
-         
-          let maxDuration = 0;
-          if (completedStatus.isLoaded && completedStatus.durationMillis) {
-            maxDuration = Math.max(maxDuration, completedStatus.durationMillis);
-          }
-          if (congratsStatus.isLoaded && congratsStatus.durationMillis) {
-            maxDuration = Math.max(maxDuration, congratsStatus.durationMillis);
-          }
-         
-          if (maxDuration > 0) {
-            // Clear previous timeout if exists
-            if (allDoneTimeoutRef.current) {
-              clearTimeout(allDoneTimeoutRef.current);
+
+          allDoneCompletedSoundRef.current = completedSound;
+          allDoneCongratsSoundRef.current = congratsSound;
+
+          // Auto-cleanup each sound when it naturally finishes playing.
+          completedSound.setOnPlaybackStatusUpdate((status) => {
+            if (!status.isLoaded) return;
+            if (status.didJustFinish) {
+              completedSound.unloadAsync().catch(() => {});
+              if (allDoneCompletedSoundRef.current === completedSound) {
+                allDoneCompletedSoundRef.current = null;
+              }
             }
-           
-            // Set timeout to hide after longest audio duration
-            allDoneTimeoutRef.current = setTimeout(() => {
-              // Smooth fade out animation
-              Animated.parallel([
-                Animated.timing(fadeAnim, {
-                  toValue: 0,
-                  duration: 600,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(scaleAnim, {
-                  toValue: 0.8,
-                  duration: 600,
-                  useNativeDriver: true,
-                }),
-              ]).start(() => {
-                setShowAllDone(false);
-                // Reset animations for next time
-                fadeAnim.setValue(0);
-                scaleAnim.setValue(0.5);
-                bounceAnim.setValue(0);
-              });
-            }, maxDuration);
-          }
+          });
+
+          congratsSound.setOnPlaybackStatusUpdate((status) => {
+            if (!status.isLoaded) return;
+            if (status.didJustFinish) {
+              congratsSound.unloadAsync().catch(() => {});
+              if (allDoneCongratsSoundRef.current === congratsSound) {
+                allDoneCongratsSoundRef.current = null;
+              }
+            }
+          });
         } catch (error) {
-          console.error("Failed to play all done audio:", error);
-        }
-      } else {
-        // Stop and unload sound when message hides
-        if (allDoneSound) {
-          try {
-            await allDoneSound.stopAsync();
-            await allDoneSound.unloadAsync();
-          } catch (error) {
-            console.error("Failed to stop all done audio:", error);
-          }
-          setAllDoneSound(null);
+          console.warn("Failed to play all done audio (non-critical):", error);
         }
       }
     };
 
     playAllDoneAudio();
-  }, [showAllDone]);
+  }, [showAllDone, successModalVisible]);
+
+  // Duck background music while voiceover is playing so step VO is immediately audible.
+  useEffect(() => {
+    const duckBackgroundAudio = async () => {
+      if (!playbookModalVisible || !activePreset) return;
+
+      const getActiveBgSound = () => {
+        switch (activePreset.id) {
+          case 7:
+            return sleepBGSoundRef.current;
+          case 4:
+            return dressBGSoundRef.current;
+          case 3:
+            return bathBGSoundRef.current;
+          case 1:
+            return brushBGSoundRef.current;
+          case 2:
+            return eatBGSoundRef.current;
+          case 6:
+            return pajamaBGSoundRef.current;
+          case 5:
+            return schoolBGSoundRef.current;
+          case 8:
+            return bedBGSoundRef.current;
+          case 9:
+            return hairBGSoundRef.current;
+          case 10:
+            return manoBGSoundRef.current;
+          case 11:
+            return playBGSoundRef.current;
+          case 12:
+            return sweepBGSoundRef.current;
+          default:
+            return null;
+        }
+      };
+
+      const bgSound = getActiveBgSound();
+      if (!bgSound) return;
+
+      const targetVolume = isAudioPlaying ? 0.15 : 0.6;
+      try {
+        const status = await bgSound.getStatusAsync();
+        if (!status.isLoaded) return;
+
+        const currentVolume = typeof (status as any).volume === 'number' ? (status as any).volume : undefined;
+        if (typeof currentVolume === 'number' && Math.abs(currentVolume - targetVolume) < 0.01) {
+          return;
+        }
+
+        await bgSound.setVolumeAsync(targetVolume);
+      } catch {
+        // Ignore volume adjustment errors
+      }
+    };
+
+    duckBackgroundAudio();
+  }, [isAudioPlaying, playbookModalVisible, activePreset?.id]);
 
   // Trigger falling stars when success modal opens
   useEffect(() => {
@@ -1024,6 +1114,8 @@ export default function Home() {
   useEffect(() => {
     const preloadBackgroundAudio = async () => {
       try {
+        setBgAudioReady(false);
+
         // Set audio mode
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
@@ -1031,93 +1123,146 @@ export default function Home() {
           staysActiveInBackground: false,
         });
 
+        const safePreload = async (
+          label: string,
+          module: any,
+          options: any,
+          assign: (sound: any) => void
+        ) => {
+          try {
+            const { sound } = await Audio.Sound.createAsync(module, options);
+            assign(sound);
+          } catch (error) {
+            console.warn(`Failed to preload ${label} (non-critical):`, error);
+          }
+        };
+
         // Preload SleepBG.mp3 for "Go to Sleep" (preset 7)
-        const { sound: sleepBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'SleepBG.mp3',
           require("../../assets/ringtone/SleepBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            sleepBGSoundRef.current = sound;
+          }
         );
-        sleepBGSoundRef.current = sleepBGSound;
 
         // Preload DressBG.mp3 for "Dress Up Time" (preset 4)
-        const { sound: dressBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'DressBG.mp3',
           require("../../assets/ringtone/DressBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            dressBGSoundRef.current = sound;
+          }
         );
-        dressBGSoundRef.current = dressBGSound;
 
         // Preload BathBG.mp3 for "Bath Time" (preset 3)
-        const { sound: bathBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'BathBG.mp3',
           require("../../assets/ringtone/BathBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            bathBGSoundRef.current = sound;
+          }
         );
-        bathBGSoundRef.current = bathBGSound;
 
         // Preload BrushBG.mp3 for "Brush My Teeth" (preset 1)
-        const { sound: brushBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'BrushBG.mp3',
           require("../../assets/ringtone/BrushBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            brushBGSoundRef.current = sound;
+          }
         );
-        brushBGSoundRef.current = brushBGSound;
 
         // Preload EatBG.mp3 for "Let's Eat" (preset 2)
-        const { sound: eatBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'EatBG.mp3',
           require("../../assets/ringtone/EatBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            eatBGSoundRef.current = sound;
+          }
         );
-        eatBGSoundRef.current = eatBGSound;
 
         // Preload PajamaBG.mp3 for "Wear Pajamas" (preset 6)
-        const { sound: pajamaBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'PajamaBG.mp3',
           require("../../assets/ringtone/PajamaBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            pajamaBGSoundRef.current = sound;
+          }
         );
-        pajamaBGSoundRef.current = pajamaBGSound;
 
         // Preload SchoolBG.mp3 for "Go to School" (preset 5)
-        const { sound: schoolBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'SchoolBG.mp3',
           require("../../assets/ringtone/SchoolBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            schoolBGSoundRef.current = sound;
+          }
         );
-        schoolBGSoundRef.current = schoolBGSound;
 
         // Preload BedBG.mp3 for "Fix the Bed" (preset 8)
-        const { sound: bedBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'BedBG.mp3',
           require("../../assets/ringtone/BedBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            bedBGSoundRef.current = sound;
+          }
         );
-        bedBGSoundRef.current = bedBGSound;
 
         // Preload HairBG.mp3 for "Hair Care Time" (preset 9)
-        const { sound: hairBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'HairBG.mp3',
           require("../../assets/ringtone/HairBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            hairBGSoundRef.current = sound;
+          }
         );
-        hairBGSoundRef.current = hairBGSound;
 
         // Preload ManoBG.mp3 for "Hand Blessing" (preset 10)
-        const { sound: manoBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'ManoBG.mp3',
           require("../../assets/ringtone/ManoBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            manoBGSoundRef.current = sound;
+          }
         );
-        manoBGSoundRef.current = manoBGSound;
 
         // Preload PlayBG.mp3 for "Play with Friends" (preset 11)
-        const { sound: playBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'PlayBG.mp3',
           require("../../assets/ringtone/PlayBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            playBGSoundRef.current = sound;
+          }
         );
-        playBGSoundRef.current = playBGSound;
 
         // Preload SweepBG.mp3 for "Sweep the Floor" (preset 12)
-        const { sound: sweepBGSound } = await Audio.Sound.createAsync(
+        await safePreload(
+          'SweepBG.mp3',
           require("../../assets/ringtone/SweepBG.mp3"),
-          { shouldPlay: false, volume: 0.6, isLooping: true }
+          { shouldPlay: false, volume: 0.6, isLooping: true },
+          (sound) => {
+            sweepBGSoundRef.current = sound;
+          }
         );
-        sweepBGSoundRef.current = sweepBGSound;
 
         console.log('Background audio preloaded successfully');
       } catch (error) {
         console.error('Failed to preload background audio:', error);
+      } finally {
+        // Trigger background audio play effect once preloading has completed.
+        setBgAudioReady(true);
       }
     };
 
@@ -1167,7 +1312,7 @@ export default function Home() {
   // Play/stop background audio when playbook modal opens/closes
   useEffect(() => {
     const handleBackgroundAudio = async () => {
-      if (playbookModalVisible && activePreset) {
+      if (playbookModalVisible && activePreset && bgAudioReady) {
         try {
           // Check if this preset has background audio
           if (activePreset.id === 7 && sleepBGSoundRef.current) {
@@ -1352,7 +1497,7 @@ export default function Home() {
     };
 
     handleBackgroundAudio();
-  }, [playbookModalVisible, activePreset]);
+  }, [playbookModalVisible, activePreset, bgAudioReady]);
 
   // Helper function to parse time strings (e.g., "8:00 AM", "3:00 PM")
   const parseTime = (timeStr: string) => {
