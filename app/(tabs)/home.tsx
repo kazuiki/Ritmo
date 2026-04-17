@@ -22,6 +22,7 @@ import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { ensureMaxVolume, useStepAudio } from "../../src/hooks/useStepAudio";
 import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
+import { completeRoutineExecution, startRoutineExecution } from "../../src/routineExecutionService";
 import {
   applyRoutineOverrides,
   getRoutineOverridesLocal,
@@ -462,6 +463,24 @@ export default function Home() {
     fetchChildName();
   }, []);
 
+  const getRoutineTimingContext = useCallback((routineId: number) => {
+    const routine = routinesRef.current.find((item) => item.id === routineId);
+    return {
+      name: routine?.name || "Routine",
+      time: routine?.time || "12:00 am",
+    };
+  }, []);
+
+  const startRoutineTiming = useCallback(async (routineId: number, source: "book_guide" | "mini_game" | "manual" | "direct") => {
+    const timing = getRoutineTimingContext(routineId);
+    await startRoutineExecution({
+      routineId,
+      routineName: timing.name,
+      routineTime: timing.time,
+      source,
+    });
+  }, [getRoutineTimingContext]);
+
   // Real-time clock update every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -472,11 +491,17 @@ export default function Home() {
   }, []);
 
   const ensureRoutineCompleted = useCallback(async (id: number) => {
+    const timing = getRoutineTimingContext(id);
     try {
       await setRoutineCompleted({
         routineId: id,
         completed: true,
         dayDate: new Date(),
+      });
+      await completeRoutineExecution({
+        routineId: id,
+        routineName: timing.name,
+        routineTime: timing.time,
       });
     } catch (error) {
       console.error('Failed to persist completed routine:', error);
@@ -564,7 +589,7 @@ export default function Home() {
         }, 3000);
       }, 500);  // Wait for modal fade animation (~300-400ms) + buffer
     }
-  }, [bounceAnim, fadeAnim, scaleAnim]);
+  }, [bounceAnim, fadeAnim, scaleAnim, getRoutineTimingContext]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -621,7 +646,11 @@ export default function Home() {
             setPlaybookModalVisible(false);
             setTaskModalVisible(true);
           } else {
-            setIsReplayMode(false);
+            // Keep replay mode while task/playbook/success/confirm modals are active.
+            // This prevents completed-task replays from downgrading to "Finish Task" state.
+            if (!taskModalVisible && !playbookModalVisible && !successModalVisible && !confirmTaskModalVisible) {
+              setIsReplayMode(false);
+            }
             // Only refresh routines if no minigame is currently active and no task modal is visible
             // to avoid disrupting minigame launch when activeRoutineId just got set
             if (!minigameStartedRef.current && !taskModalVisible) {
@@ -647,7 +676,7 @@ export default function Home() {
 
       // Clear all parental lock authentication when navigating to HOME
       ParentalLockAuthService.onNavigateToPublicTab();
-    }, [activeRoutineId, parentalLockEnabled, ensureRoutineCompleted, taskModalVisible])
+    }, [activeRoutineId, parentalLockEnabled, ensureRoutineCompleted, taskModalVisible, playbookModalVisible, successModalVisible, confirmTaskModalVisible])
   );
 
   const toggleComplete = async (id: number) => {
@@ -1989,7 +2018,10 @@ export default function Home() {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (isEnabled) {
+                    setIsReplayMode(false);
                     const hasPlaybookOnly = !!(preset && getPlaybookForPreset(preset.id) && !miniGames[preset.id]);
+
+                      void startRoutineTiming(routine.id, hasPlaybookOnly ? "book_guide" : "direct");
 
                     setActiveRoutineId(routine.id);
 
@@ -2100,6 +2132,10 @@ export default function Home() {
                     <TouchableOpacity
                       style={styles.taskItem}
                       onPress={() => {
+                        if (activeRoutineId && !isReplayMode) {
+                          void startRoutineTiming(activeRoutineId, "book_guide");
+                        }
+
                         // Keep task modal open, just show playbook on top
                         playbookSlideX.setValue(400);
                         setPlaybookModalVisible(true);
@@ -2129,6 +2165,10 @@ export default function Home() {
                           setAlertMessage("No minigame is available for this task");
                           setAlertModalVisible(true);
                           return;
+                        }
+
+                        if (activeRoutineId && !isReplayMode) {
+                          void startRoutineTiming(activeRoutineId, "mini_game");
                         }
 
                         minigameStartedRef.current = true;
@@ -2317,7 +2357,6 @@ export default function Home() {
                   style={styles.completedModalCard}
                   activeOpacity={0.85}
                   onPress={() => {
-                    setCompletedModalVisible(false);
                     openCompletedTaskPlaybook(routine.id);
                   }}
                 >
