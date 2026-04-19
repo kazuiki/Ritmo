@@ -1,13 +1,13 @@
 import { Tabs, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Image,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
@@ -15,6 +15,7 @@ import { ResponsiveTheme } from "../../constants/theme";
 import OnboardingTour from "../../src/components/OnboardingTour";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
+import { MediaTimeLimitService } from "../../src/mediaTimeLimitService";
 import { useResponsiveDimensions } from "../../src/utils/responsive";
 
 export default function TabsLayout() {
@@ -24,6 +25,8 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   const { showOnboarding, currentOnboardingStep, nextOnboardingStep, skipOnboarding } = useOnboarding();
+
+  const [isMediaNavLocked, setIsMediaNavLocked] = useState(false);
 
   const responsive = useResponsiveDimensions();
   const { width: screenWidth, height: screenHeight, scaleWidth, scaleHeight, scaleFont, scaleSpacing } = responsive;
@@ -112,6 +115,40 @@ export default function TabsLayout() {
   const isChildMode = parentalLockEnabled && mode === 'child'; // Scenario A - Child
   const isParentMode = parentalLockEnabled && mode === 'parent'; // Scenario A - Parent
   const useCompactLandscapeNav = showFloatingButton && isTablet && isLandscape;
+
+  const shouldEnforceMediaNavLock = isChildMode && pathname.includes('/media');
+
+  useEffect(() => {
+    if (!shouldEnforceMediaNavLock) {
+      setIsMediaNavLocked(false);
+      return;
+    }
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const check = async () => {
+      try {
+        const timeLimit = await MediaTimeLimitService.getTimeLimit();
+        if (!timeLimit || !timeLimit.isActive) {
+          setIsMediaNavLocked(false);
+          return;
+        }
+        const remaining = await MediaTimeLimitService.getRemainingTime();
+        setIsMediaNavLocked(remaining > 0);
+      } catch {
+        setIsMediaNavLocked(false);
+      }
+    };
+
+    void check();
+    interval = setInterval(check, 500);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [shouldEnforceMediaNavLock]);
+
+  const blockLeavingMedia = shouldEnforceMediaNavLock && isMediaNavLocked;
 
   // Debug log to verify mode changes
   console.log('🔄 Tab Layout State:', { mode, parentalLockEnabled, isChildMode, isParentMode, showFloatingButton });
@@ -361,7 +398,11 @@ export default function TabsLayout() {
 
         {/* Home Button */}
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/home')}
+          disabled={blockLeavingMedia}
+          onPress={() => {
+            if (blockLeavingMedia) return;
+            router.push('/(tabs)/home');
+          }}
           style={{
             flex: 1,
             height: pillTabBarHeight,
@@ -460,7 +501,11 @@ export default function TabsLayout() {
 
         {/* Add Routines Button */}
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/addRoutines')}
+          disabled={blockLeavingMedia}
+          onPress={() => {
+            if (blockLeavingMedia) return;
+            router.push('/(tabs)/addRoutines');
+          }}
           style={{
             flex: 1,
             height: pillTabBarHeight,
@@ -499,7 +544,11 @@ export default function TabsLayout() {
 
         {/* Progress Button */}
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/progress')}
+          disabled={blockLeavingMedia}
+          onPress={() => {
+            if (blockLeavingMedia) return;
+            router.push('/(tabs)/progress');
+          }}
           style={{
             flex: 1,
             height: pillTabBarHeight,
@@ -538,7 +587,11 @@ export default function TabsLayout() {
 
         {/* Settings Button */}
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/settings')}
+          disabled={blockLeavingMedia}
+          onPress={() => {
+            if (blockLeavingMedia) return;
+            router.push('/(tabs)/settings');
+          }}
           style={{
             flex: 1,
             height: pillTabBarHeight,
@@ -641,7 +694,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="home"
           options={{
-            href: (isChildMode || showFloatingButton) ? '/(tabs)/home' : null,
+            href: (isChildMode || showFloatingButton) && !blockLeavingMedia ? '/(tabs)/home' : null,
             tabBarIcon: ({ focused }) => (
               showFloatingButton ? (
                 <View
@@ -700,6 +753,13 @@ export default function TabsLayout() {
               ) : null
             ),
             tabBarLabel: () => null,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              if (blockLeavingMedia) {
+                e.preventDefault();
+              }
+            },
           }}
         />
 
@@ -774,7 +834,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="addRoutines"
           options={{
-            href: isParentMode || showFloatingButton ? '/(tabs)/addRoutines' : null,
+            href: (isParentMode || showFloatingButton) && !blockLeavingMedia ? '/(tabs)/addRoutines' : null,
             tabBarIcon: ({ focused }) => (
               showFloatingButton ? (
                 // SIMPLIFIED FIX: Direct positioning without complex calculations
@@ -877,13 +937,20 @@ export default function TabsLayout() {
             ),
             tabBarLabel: () => null,
           }}
+          listeners={{
+            tabPress: (e) => {
+              if (blockLeavingMedia) {
+                e.preventDefault();
+              }
+            },
+          }}
         />
 
         {/* Progress - Only in Parent Mode or Unlocked */}
         <Tabs.Screen
           name="progress"
           options={{
-            href: (isParentMode || showFloatingButton) ? '/(tabs)/progress' : null,
+            href: (isParentMode || showFloatingButton) && !blockLeavingMedia ? '/(tabs)/progress' : null,
             tabBarIcon: ({ focused }) => (
               showFloatingButton ? (
                 <View
@@ -946,13 +1013,20 @@ export default function TabsLayout() {
             ),
             tabBarLabel: () => null,
           }}
+          listeners={{
+            tabPress: (e) => {
+              if (blockLeavingMedia) {
+                e.preventDefault();
+              }
+            },
+          }}
         />
 
         {/* Settings - Only in Parent Mode or Unlocked */}
         <Tabs.Screen
           name="settings"
           options={{
-            href: (isParentMode || showFloatingButton) ? '/(tabs)/settings' : null,
+            href: (isParentMode || showFloatingButton) && !blockLeavingMedia ? '/(tabs)/settings' : null,
             tabBarIcon: ({ focused }) => (
               showFloatingButton ? (
                 <View
@@ -1013,6 +1087,13 @@ export default function TabsLayout() {
               ) : null
             ),
             tabBarLabel: () => null,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              if (blockLeavingMedia) {
+                e.preventDefault();
+              }
+            },
           }}
         />
       </Tabs>
