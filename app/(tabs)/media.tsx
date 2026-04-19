@@ -4,20 +4,20 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    AppState,
-    BackHandler,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View
+  ActivityIndicator,
+  Animated,
+  AppState,
+  BackHandler,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { getBlockedWords, subscribeToBlockedWords } from "../../src/blockedWordsService";
@@ -226,6 +226,8 @@ export default function Media() {
         const remaining = await MediaTimeLimitService.getRemainingTime();
         setRemainingTime(remaining);
         setShowCallMommyModal(false); // Reset modal flow when not locked
+      } else {
+        setRemainingTime(0);
       }
     } catch (err) {
       console.error('Error checking media time limit:', err);
@@ -264,6 +266,7 @@ export default function Media() {
         setIsMediaLocked(lockedNow);
 
         if (lockedNow) {
+          setRemainingTime(0);
           if (timerInterval.current) {
             clearInterval(timerInterval.current);
             timerInterval.current = null;
@@ -529,14 +532,38 @@ export default function Media() {
       .slice(0, 12);
   }, [filteredVideos, selectedVideo]);
 
+  const forceCloseVideoModal = React.useCallback(() => {
+    setShowVideoModal(false);
+    setSelectedVideo(null);
+  }, []);
+
   const openVideoModal = (video: YouTubeVideo) => {
+    if (mode === 'child' && parentalLockEnabled && isMediaLocked) {
+      // Ensure the lock flow is shown (Time's Up / Call Parent)
+      setShowCallMommyModal(true);
+      return;
+    }
     setSelectedVideo(video);
     setShowVideoModal(true);
   };
 
   const closeVideoModal = () => {
-    setShowVideoModal(false);
+    forceCloseVideoModal();
   };
+
+  // RN Modal renders globally; ensure video can't stay open on Home.
+  useEffect(() => {
+    if (!isMediaPageFocused && showVideoModal) {
+      forceCloseVideoModal();
+    }
+  }, [isMediaPageFocused, showVideoModal, forceCloseVideoModal]);
+
+  // If time expires while the player is open, stop playback + close.
+  useEffect(() => {
+    if (isMediaLocked && showVideoModal) {
+      forceCloseVideoModal();
+    }
+  }, [isMediaLocked, showVideoModal, forceCloseVideoModal]);
 
   const shouldAllowYouTubeNavigation = (request: { url?: string }) => {
     const url = request?.url || '';
@@ -985,7 +1012,7 @@ export default function Media() {
       <Modal
         animationType="slide"
         transparent={true}
-        visible={showVideoModal && !!selectedVideo}
+        visible={showVideoModal && !!selectedVideo && isMediaPageFocused}
         onRequestClose={closeVideoModal}
         statusBarTranslucent={true}
       >
@@ -1003,13 +1030,16 @@ export default function Media() {
                 <YoutubePlayer
                   height={Math.round((responsive.width - scaleSpacing(24)) * 9 / 16)}
                   width={Math.max(0, responsive.width - scaleSpacing(24))}
-                  play={showVideoModal}
+                  play={showVideoModal && isMediaPageFocused && !isMediaLocked}
                   videoId={selectedVideo.youtubeId}
                   initialPlayerParams={{
                     modestbranding: true,
                     rel: false,
                   }}
                   onChangeState={(event: PlayerState) => {
+                    if (isMediaLocked) {
+                      return;
+                    }
                     if (event === 'ended') {
                       const nextVideo = recommendedVideos[0];
                       if (nextVideo) {
@@ -1040,7 +1070,11 @@ export default function Media() {
                     <TouchableOpacity
                       key={`recommended-${video.id}`}
                       style={styles.recommendedItem}
-                      onPress={() => setSelectedVideo(video)}
+                      disabled={isMediaLocked}
+                      onPress={() => {
+                        if (isMediaLocked) return;
+                        setSelectedVideo(video);
+                      }}
                     >
                       <Image source={{ uri: video.thumbnail }} style={styles.recommendedThumb} resizeMode="cover" />
                       <View style={styles.recommendedTextWrap}>
