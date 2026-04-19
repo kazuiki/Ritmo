@@ -26,6 +26,7 @@ import HorizontalAutoScrollText from "../../src/components/HorizontalAutoScrollT
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
 import { readProgressCache, readRoutinesCache } from "../../src/offline/offlineData";
+import { formatDuration, getAverageDurationSecondsByRoutineForRange } from "../../src/routineExecutionService";
 import {
 	applyRoutineOverrides,
 	getRoutineOverridesLocal,
@@ -76,6 +77,7 @@ export default function Progress() {
 	const [progressData, setProgressData] = useState<RoutineProgress[]>([]);
 	const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [earliestProgressByRoutine, setEarliestProgressByRoutine] = useState<Record<number, string>>({});
+  const [averageDurationByRoutine, setAverageDurationByRoutine] = useState<Record<number, number>>({});
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
 	// Week range (Monday to Sunday)
@@ -461,8 +463,13 @@ export default function Progress() {
 					}),
 					getUserFirstProgressDatesByRoutine(),
 				]);
+				const averageDurations = await getAverageDurationSecondsByRoutineForRange({
+					from: weekInfo.monday,
+					to: weekInfo.sunday,
+				});
 				setProgressData(progressForWeek);
 				setEarliestProgressByRoutine(firstDatesMap || {});
+				setAverageDurationByRoutine(averageDurations);
 
 				const cloudRefresh = await refreshRoutineOverridesFromCloud();
 				if (cloudRefresh?.userId === resolvedUserId) {
@@ -505,6 +512,11 @@ export default function Progress() {
 									to: weekInfo.sunday,
 								});
 								setProgressData(updatedProgress);
+								const updatedAverageDurations = await getAverageDurationSecondsByRoutineForRange({
+									from: weekInfo.monday,
+									to: weekInfo.sunday,
+								});
+								setAverageDurationByRoutine(updatedAverageDurations);
 							} catch (error) {
 								console.error('Failed to refresh progress data:', error);
 							}
@@ -691,6 +703,11 @@ export default function Progress() {
 								>
 									{task.timestamp}
 								</Text>
+								{typeof averageDurationByRoutine[task.routineId] === 'number' && (
+									<Text style={styles.taskAverageText} numberOfLines={1} allowFontScaling={false}>
+										{`Avg: ${formatDuration(averageDurationByRoutine[task.routineId])}`}
+									</Text>
+								)}
 							</View>
 							{task.statuses.map((status, i) => (
 								<View key={i} style={[styles.gridCellDay, styles.indicatorCell]}>
@@ -1011,6 +1028,15 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
 		fontFamily: 'Fredoka_400Regular',
 		fontSize: scale.scaleFont(10.8),
 		lineHeight: scale.scaleHeight(12),
+		marginTop: scale.scaleSpacing(1),
+		flexShrink: 1,
+		width: '100%',
+	},
+	taskAverageText: {
+		color: '#6B8E7E',
+		fontFamily: 'Fredoka_400Regular',
+		fontSize: scale.scaleFont(10.2),
+		lineHeight: scale.scaleHeight(11),
 		marginTop: scale.scaleSpacing(1),
 		flexShrink: 1,
 		width: '100%',

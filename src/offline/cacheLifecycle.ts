@@ -15,6 +15,8 @@ function userScopedKeys(userId: string): string[] {
     `@ritmo:completed_order:${userId}`,
     `@ritmo_onboarding_cache_${userId}`,
     `@ritmo_settings_profile_${userId}`,
+    `@ritmo_routine_execution_logs_${userId}`,
+    `@ritmo_active_routine_execution_${userId}`,
   ];
 }
 
