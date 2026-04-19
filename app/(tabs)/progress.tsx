@@ -34,7 +34,7 @@ import {
 } from "../../src/routineOverridesService";
 import { getRoutinesForCurrentUser, getUserFirstProgressDatesByRoutine, getUserProgressForRange, type Routine, type RoutineProgress } from "../../src/routinesService";
 import { supabase } from "../../src/supabaseClient";
-import { saveWeeklyPerformanceReportPdf } from "../../src/utils/pdf";
+import { saveWeeklyProgressReportPdf } from "../../src/utils/pdf";
 import { createResponsiveStyles, useResponsiveDimensions } from "../../src/utils/responsive";
 
 const RITMO_HEADER = require("../../assets/ritmo-header.png");
@@ -268,7 +268,7 @@ export default function Progress() {
 				console.warn('Could not load logo image:', e);
 			}
 
-			await saveWeeklyPerformanceReportPdf({
+			await saveWeeklyProgressReportPdf({
 				childName: childName,
 				weekStart: weekInfo.monday,
 				weekEnd: weekInfo.sunday,
@@ -628,9 +628,9 @@ export default function Progress() {
 				showsVerticalScrollIndicator={false}
 			>
 				<View ref={printableRef} collapsable={false}>
-					{/* Card 1: Weekly Performance Summary */}
+					{/* Card 1: Weekly Progress Summary */}
 					<View style={styles.card}>
-						<Text style={styles.cardTitle}>Weekly Performance Summary</Text>
+						<Text style={styles.cardTitle}>Weekly Progress Summary</Text>
 
 						{/* For: child name (placeholder: child_name) */}
 						<View style={styles.rowBetween}>
