@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 async function createSoundWithOfflineFallback(source: any) {
   try {
     return await Audio.Sound.createAsync(source, {
-      shouldPlay: true,
+      shouldPlay: false,
       volume: 1.0,
       isLooping: false,
       isMuted: false,
@@ -22,7 +22,7 @@ async function createSoundWithOfflineFallback(source: any) {
     return Audio.Sound.createAsync(
       { uri: localUri },
       {
-        shouldPlay: true,
+        shouldPlay: false,
         volume: 1.0,
         isLooping: false,
         isMuted: false,
@@ -40,6 +40,7 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
   const isNextDisabledRef = useRef(false);
   const lastClickTimeRef = useRef<number>(0);
   const audioPlayedRef = useRef(false); // Track if audio was already played for this step
+  const onAutoAdvanceRef = useRef<(() => void) | undefined>(onAutoAdvance);
   const minClickGapMs = 500;
   const autoAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -58,6 +59,10 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
     audioPlayedRef.current = false;
     stepStartTimeRef.current = Date.now();
   }
+
+  useEffect(() => {
+    onAutoAdvanceRef.current = onAutoAdvance;
+  }, [onAutoAdvance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,9 +86,10 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
 
       // Schedule auto-advance for 1 minute + 10 seconds
       autoAdvanceTimeoutRef.current = setTimeout(() => {
-        if (!cancelled && onAutoAdvance) {
+        const callback = onAutoAdvanceRef.current;
+        if (!cancelled && callback) {
           console.log('🎬 Auto-advancing playbook step after 70 seconds');
-          onAutoAdvance();
+          callback();
         }
       }, AUTO_ADVANCE_MS);
 
@@ -99,7 +105,6 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
           // Stop any previous sound first
           if (soundRef.current) {
             try {
-              await soundRef.current.stopAsync();
               await soundRef.current.unloadAsync();
             } catch (err) {
               // Ignore cleanup errors
@@ -131,20 +136,19 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
           soundRef.current = sound;
           audioPlayedRef.current = true; // Mark as played
           setIsPlaying(true);
-          
+
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (!status.isLoaded) return;
+            if (typeof status.durationMillis === 'number') {
+              setDurationMs(status.durationMillis);
+            }
+            if (status.didJustFinish) {
+              setIsPlaying(false);
+            }
+          });
+
           // Start playback
           await sound.playAsync();
-
-          // Optional: track when it finishes (for UI feedback only, doesn't affect gate)
-          const checkStatus = setInterval(async () => {
-            if (soundRef.current) {
-              const status = await soundRef.current.getStatusAsync();
-              if (status.isLoaded && status.didJustFinish) {
-                setIsPlaying(false);
-                clearInterval(checkStatus);
-              }
-            }
-          }, 100);
 
         } catch (err) {
           console.log('Audio playback error (not critical, 1-minute gate still applied):', err);
@@ -175,7 +179,6 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
       const cleanup = async () => {
         if (soundRef.current) {
           try {
-            await soundRef.current.stopAsync();
             await soundRef.current.unloadAsync();
           } catch (err) {
             // Ignore cleanup errors
@@ -185,7 +188,7 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
       };
       cleanup();
     };
-  }, [audioModule, enabled, onAutoAdvance]);
+  }, [audioModule, enabled]);
 
   // Gate is active until 1 minute passes - simple, clean
   const isNextDisabled = disabledUntil > Date.now();
@@ -206,7 +209,6 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
       // ALWAYS stop and unload current playback completely first
       if (soundRef.current) {
         try {
-          await soundRef.current.stopAsync();
           await soundRef.current.unloadAsync();
         } catch (err) {
           console.log('Error stopping previous audio:', err);
@@ -230,6 +232,10 @@ export function useStepAudio(audioModule?: any, enabled: boolean = true, onAutoA
 
       soundRef.current = sound;
       setIsPlaying(true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) setIsPlaying(false);
+      });
       await sound.playAsync();
     } catch (err) {
       console.log('Audio replay error:', err);

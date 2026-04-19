@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Animated,
+    AppState,
+    BackHandler,
     Image,
     Modal,
     RefreshControl,
@@ -44,6 +46,7 @@ export default function Media() {
   const responsive = useResponsiveDimensions();
   const { scaleFont, scaleWidth, scaleHeight, scaleSpacing } = responsive;
   const router = useRouter();
+  const navigation = useNavigation();
   const { mode, parentalLockEnabled, enterParentMode, backToChildMode } = useMode();
   
   // Determine video player size based on card width and 16:9 ratio
@@ -82,6 +85,18 @@ export default function Media() {
   const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const CACHE_KEY = 'mediaCache:main';
   const [failedAttempts, setFailedAttempts] = useState(0);
+
+  const navLockRef = useRef(false);
+
+  const shouldLockInAppNavigation =
+    mode === 'child' &&
+    parentalLockEnabled &&
+    hasTimeLimitSet &&
+    !isMediaLocked &&
+    remainingTime > 0;
+
+  // Keep a ref updated so BackHandler / beforeRemove always read the latest lock state.
+  navLockRef.current = shouldLockInAppNavigation;
 
   useEffect(() => {
     let cancelled = false;
@@ -240,22 +255,20 @@ export default function Media() {
       return;
     }
 
-    // Check every second and decrement time (only runs when on media page in child mode)
+    // Check every second and apply elapsed time (continues counting even if app backgrounds)
     timerInterval.current = setInterval(async () => {
       try {
-        const locked = await MediaTimeLimitService.isMediaLocked();
-        setIsMediaLocked(locked);
+        await MediaTimeLimitService.applyElapsedTime();
 
-        if (locked) {
-          await MediaTimeLimitService.lockMedia();
+        const lockedNow = await MediaTimeLimitService.isMediaLocked();
+        setIsMediaLocked(lockedNow);
+
+        if (lockedNow) {
           if (timerInterval.current) {
             clearInterval(timerInterval.current);
             timerInterval.current = null;
           }
         } else {
-          // Decrement time by 1 second (this pauses when user leaves the page)
-          await MediaTimeLimitService.decrementTime();
-
           // Get updated remaining time
           const remaining = await MediaTimeLimitService.getRemainingTime();
           setRemainingTime(remaining);
@@ -304,10 +317,29 @@ export default function Media() {
     React.useCallback(() => {
       loadCustomBlockedWords();
 
+      // Start a media session so elapsed time counts even if app backgrounds
+      void MediaTimeLimitService.startSession();
+
       // Start timer when page is focused
       startTimeLimitTimer();
 
+      const appStateSub = AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active') {
+          // Catch up time after background/app switch
+          void MediaTimeLimitService.applyElapsedTime().then(async () => {
+            const remaining = await MediaTimeLimitService.getRemainingTime();
+            setRemainingTime(remaining);
+            const locked = await MediaTimeLimitService.isMediaLocked();
+            setIsMediaLocked(locked);
+          });
+        }
+      });
+
       return () => {
+        appStateSub.remove();
+
+        void MediaTimeLimitService.endSession();
+
         // Clear timer when page loses focus
         if (timerInterval.current) {
           clearInterval(timerInterval.current);
@@ -315,6 +347,34 @@ export default function Media() {
         }
       };
     }, [loadCustomBlockedWords, startTimeLimitTimer])
+  );
+
+  // Prevent Android hardware back from exiting/leaving while media time is running
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (navLockRef.current) {
+          Vibration.vibrate(30);
+          return true;
+        }
+        return false;
+      };
+
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      const beforeRemove = (e: any) => {
+        if (navLockRef.current) {
+          e?.preventDefault?.();
+        }
+      };
+
+      const unsubscribe = (navigation as any)?.addListener?.('beforeRemove', beforeRemove);
+
+      return () => {
+        sub.remove();
+        if (typeof unsubscribe === 'function') unsubscribe();
+      };
+    }, [navigation])
   );
 
   // Re-check media lock status when mode changes
@@ -1048,7 +1108,7 @@ export default function Media() {
                 </Animated.View>
 
                 <Text style={styles.forgotPinInstruction}>
-                  Forgot your PIN? Tap "Forgot PIN" to set a new one.
+                  Forgot your PIN? Tap &quot;Forgot PIN&quot; to set a new one.
                 </Text>
 
                 <TouchableOpacity 
@@ -1077,7 +1137,7 @@ export default function Media() {
         </View>
       </Modal>
 
-      {/* Time's Up Modal (First modal - only when time limit expired, not when no time limit set) */}
+      {/* Time&apos;s Up Modal (First modal - only when time limit expired, not when no time limit set) */}
       {isMediaLocked && parentalLockEnabled && mode === 'child' && isMediaPageFocused && hasTimeLimitSet && !showCallMommyModal && (
         <Modal
           animationType="fade"
@@ -1091,9 +1151,9 @@ export default function Media() {
                 <Ionicons name="time-outline" size={64} color="#FF9800" />
               </View>
 
-              <Text style={styles.lockedTitle}>Time's Up!</Text>
+              <Text style={styles.lockedTitle}>Time&apos;s Up!</Text>
               <Text style={styles.lockedMessage}>
-                You've used up your time for watching videos.
+                You&apos;ve used up your time for watching videos.
               </Text>
 
               <TouchableOpacity

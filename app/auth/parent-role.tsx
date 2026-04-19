@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 18,
   },
-  saveButton: {
+  saveButton: { 
     width: "72%",
     maxWidth: 420,
     borderRadius: 18,

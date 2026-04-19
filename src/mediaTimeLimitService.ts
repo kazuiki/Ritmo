@@ -12,6 +12,8 @@ export interface MediaTimeLimit {
   isActive: boolean;
   startTime: number | null;
   remainingSeconds: number | null;
+  sessionActive?: boolean;
+  sessionLastUpdatedAt?: number | null;
 }
 
 const isNetworkError = (error: unknown) => {
@@ -40,6 +42,8 @@ export const MediaTimeLimitService = {
         isActive: true,
         startTime,
         remainingSeconds: totalSeconds,
+        sessionActive: false,
+        sessionLastUpdatedAt: null,
       };
 
       // Save to AsyncStorage first (primary storage)
@@ -66,6 +70,74 @@ export const MediaTimeLimitService = {
     } catch (error) {
       console.error('❌ Error setting time limit:', error);
       throw error;
+    }
+  },
+
+  // Start a "media session" countdown (called when child enters media page)
+  async startSession(): Promise<void> {
+    try {
+      const timeLimit = await this.getTimeLimit();
+      if (!timeLimit || !timeLimit.isActive) return;
+
+      timeLimit.sessionActive = true;
+      timeLimit.sessionLastUpdatedAt = Date.now();
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(timeLimit));
+    } catch (error) {
+      console.error('❌ Error starting media session:', error);
+    }
+  },
+
+  // Stop a "media session" countdown
+  async endSession(): Promise<void> {
+    try {
+      const timeLimit = await this.getTimeLimit();
+      if (!timeLimit) return;
+
+      timeLimit.sessionActive = false;
+      timeLimit.sessionLastUpdatedAt = null;
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(timeLimit));
+    } catch (error) {
+      console.error('❌ Error ending media session:', error);
+    }
+  },
+
+  // Apply elapsed wall-clock time to remainingSeconds while session is active.
+  // This prevents bypass by backgrounding/switching apps.
+  async applyElapsedTime(): Promise<MediaTimeLimit | null> {
+    try {
+      const timeLimit = await this.getTimeLimit();
+      if (!timeLimit || !timeLimit.isActive) {
+        return timeLimit;
+      }
+
+      if (!timeLimit.sessionActive) {
+        // If session isn't active, just keep remaining as-is.
+        return timeLimit;
+      }
+
+      const now = Date.now();
+      const last = timeLimit.sessionLastUpdatedAt || now;
+      const elapsedSeconds = Math.floor((now - last) / 1000);
+
+      if (elapsedSeconds <= 0) {
+        return timeLimit;
+      }
+
+      const currentRemaining = timeLimit.remainingSeconds || 0;
+      const newRemaining = Math.max(0, currentRemaining - elapsedSeconds);
+      timeLimit.remainingSeconds = newRemaining;
+      timeLimit.sessionLastUpdatedAt = now;
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(timeLimit));
+
+      if (newRemaining <= 0) {
+        await this.lockMedia();
+      }
+
+      return timeLimit;
+    } catch (error) {
+      console.error('❌ Error applying elapsed media time:', error);
+      return null;
     }
   },
 
@@ -223,6 +295,8 @@ export const MediaTimeLimitService = {
       if (timeLimit) {
         timeLimit.isActive = false;
         timeLimit.remainingSeconds = 0;
+        timeLimit.sessionActive = false;
+        timeLimit.sessionLastUpdatedAt = null;
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(timeLimit));
         
         // Also save to Supabase

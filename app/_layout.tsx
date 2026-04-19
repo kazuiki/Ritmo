@@ -11,6 +11,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { AppState } from 'react-native';
 import { ModeProvider, useMode } from "../src/contexts/ModeContext";
 import { OnboardingProvider } from "../src/contexts/OnboardingContext";
+import { MediaTimeLimitService } from "../src/mediaTimeLimitService";
 import { startOfflineInfrastructure } from "../src/offline";
 import { clearUserScopedCache } from "../src/offline/cacheLifecycle";
 import { LogoutService, supabase } from "../src/supabaseClient";
@@ -133,7 +134,30 @@ function AppBackHandler({ showExitModal, setShowExitModal }: { showExitModal: bo
       // 2-TAB CHILD MODE: Home → Media
       if (isChildMode) {
         if (pathname.includes('/media')) {
-          router.push('/(tabs)/home');
+          // While a media time limit is running, do NOT allow back/gesture to leave Media.
+          // Note: BackHandler callbacks must return synchronously, so we always consume the event
+          // and decide navigation asynchronously.
+          void (async () => {
+            try {
+              const timeLimit = await MediaTimeLimitService.getTimeLimit();
+
+              // If no time limit exists (parental lock flow), keep child in Media.
+              if (!timeLimit) return;
+
+              // Catch up elapsed time (handles background / gesture spam)
+              await MediaTimeLimitService.applyElapsedTime();
+              const remaining = await MediaTimeLimitService.getRemainingTime();
+
+              // Allow leaving ONLY when time has fully run out.
+              if (remaining <= 0) {
+                router.push('/(tabs)/home');
+              }
+            } catch (err) {
+              // If something goes wrong, default to safest behavior: stay in Media.
+              console.warn('Media back lock check failed:', err);
+            }
+          })();
+
           return true;
         }
       }
