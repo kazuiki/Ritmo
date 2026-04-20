@@ -66,12 +66,16 @@ class YouTubeKidsService {
   private static lastCacheTime: number = 0;
   private static readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  // Kid-friendly channels and search terms
-  private static readonly KIDS_CHANNELS = [
-    'UCGwA4GJE-_XoKnrdyqfi6fQ', // Super Simple Songs
-    'UCKAqou7V9FWgPBC3vafy_ew', // Little Baby Bum
-    'UCbFWrz_2m_sDJ3hSHKWJUMw', // Dave and Ava
-    'UCGfBwrCoi9ZJjKiUK8MmJNw', // Pinkfong Baby Shark
+  // Only these creators are allowed to appear in Media.
+  private static readonly KIDS_CHANNELS: string[] = [];
+
+  private static readonly ALLOWED_CREATOR_KEYWORDS = [
+    'ms rachel',
+    'blippi',
+    'mother goose club',
+    'vlad and niki',
+    'adi connection',
+    'adiconnection',
   ];
 
   private static readonly EXCLUDED_CHANNEL_IDS = [
@@ -82,62 +86,12 @@ class YouTubeKidsService {
     'cocomelon',
   ];
 
-  private static readonly CARTOON_REQUIRED_KEYWORDS = [
-    'cartoon',
-    'animated',
-    'animation',
-    'nursery rhyme',
-    'kids song',
-    'abc song',
-    'alphabet song',
-    'animal song',
-    'kids music',
-    'baby shark',
-    'pinkfong',
-    'little angel',
-    'dave and ava',
-    'super simple songs',
-    'little baby bum',
-    'cocomongi',
-    'peppa pig',
-    'paw patrol',
-    'masha and the bear',
-    'daniel tiger',
-    'cartoons for kids',
-  ];
-
-  private static readonly HUMAN_CONTENT_KEYWORDS = [
-    'ms rachel',
-    'blippi',
-    'live action',
-    'real life',
-    'family vlog',
-    'vlog',
-    'reaction',
-    'podcast',
-    'interview',
-    'teacher',
-    'classroom',
-    'mommy',
-    'daddy',
-    'parents',
-    'for parents',
-    'talking to camera',
-    'human',
-    'people',
-  ];
-
   private static readonly KIDS_SEARCH_TERMS = [
-    'cartoon daily routine for kids',
-    'animated morning routine for kids',
-    'cartoon healthy habits for kids',
-    'kids routine songs animation',
-    'preschool cartoon daily routine',
-    'toddler cartoon learning songs',
-    'animated self care for kids',
-    'cartoon brush teeth wash hands song',
-    'cartoon getting ready for school kids',
-    'animated social emotional learning for kids'
+    'Ms. Rachel',
+    'Blippi',
+    'Mother Goose Club',
+    'Vlad and Niki',
+    'AdiConnection'
   ];
 
   static async searchKidsVideos(query: string = '', maxResults: number = 20, maxVideosPerCategory: number = 150): Promise<YouTubeVideo[]> {
@@ -351,36 +305,12 @@ class YouTubeKidsService {
       return true;
     }
 
-    const normalizedVideoTitle = videoTitle.toLowerCase();
-    const normalizedVideoDescription = videoDescription.toLowerCase();
-
-    const isExplicitlyExcluded = this.EXCLUDED_CHANNEL_KEYWORDS.some(keyword =>
-      normalizedVideoTitle.includes(keyword) || normalizedVideoDescription.includes(keyword)
-    );
-
-    if (isExplicitlyExcluded) {
-      return true;
-    }
-
-    return !this.isCartoonLikeContent(channelTitle, videoTitle, videoDescription);
-  }
-
-  private static isCartoonLikeContent(channelTitle: string, videoTitle: string, videoDescription: string): boolean {
     const normalizedCombined = `${channelTitle} ${videoTitle} ${videoDescription}`.toLowerCase();
-
-    const hasCartoonSignal = this.CARTOON_REQUIRED_KEYWORDS.some(keyword =>
+    const hasAllowedCreator = this.ALLOWED_CREATOR_KEYWORDS.some(keyword =>
       normalizedCombined.includes(keyword)
     );
 
-    if (!hasCartoonSignal) {
-      return false;
-    }
-
-    const hasHumanSignal = this.HUMAN_CONTENT_KEYWORDS.some(keyword =>
-      normalizedCombined.includes(keyword)
-    );
-
-    return !hasHumanSignal;
+    return !hasAllowedCreator;
   }
 
   private static formatViewCount(viewCount: string): string {
@@ -423,60 +353,7 @@ class YouTubeKidsService {
 
   // Fallback videos in case API fails
   private static getFallbackVideos(): YouTubeVideo[] {
-    return [
-      {
-        id: '1',
-        title: "Baby Shark Dance | Pinkfong Kids Songs",
-        channel: "Pinkfong Baby Shark",
-        channelId: "UCGfBwrCoi9ZJjKiUK8MmJNw",
-        views: "6.1M views",
-        publishedAt: "3 weeks ago",
-        youtubeId: "XqZsoesa55w",
-        thumbnail: "https://i.ytimg.com/vi/XqZsoesa55w/hqdefault.jpg",
-        channelIcon: "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-        description: "Animated kids song with cartoon characters",
-        duration: "2:17"
-      },
-      {
-        id: '2',
-        title: "Brush Your Teeth Song | Cartoon Kids Song",
-        channel: "Super Simple Songs",
-        channelId: "UCGwA4GJE-_XoKnrdyqfi6fQ",
-        views: "2.4M views",
-        publishedAt: "1 month ago",
-        youtubeId: "wvL6Jp3Q4fM",
-        thumbnail: "https://i.ytimg.com/vi/wvL6Jp3Q4fM/hqdefault.jpg",
-        channelIcon: "https://yt3.ggpht.com/ytc/AKedOLR3-yTrDr1lF_8aQ2Y7Y5YjYHqjN6qz7R43O1OeFw=s88-c-k-c0x00ffffff-no-rj",
-        description: "Animated daily routine song for children",
-        duration: "2:53"
-      },
-      {
-        id: '3',
-        title: "ABC Song for Children | Alphabet Song | Nursery Rhymes",
-        channel: "Super Simple Songs",
-        channelId: "UCGwA4GJE-_XoKnrdyqfi6fQ",
-        views: "1.8M views",
-        publishedAt: "3 weeks ago",
-        youtubeId: "_UR-l3QI2nE",
-        thumbnail: "https://i.ytimg.com/vi/_UR-l3QI2nE/hqdefault.jpg",
-        channelIcon: "https://yt3.ggpht.com/ytc/AKedOLSKx4VgYmQqQjl7QGIoZKKedOLSKx4VgYmQqQjl7QGIoZKK=s88-c-k-c0x00ffffff-no-rj",
-        description: "Learn the alphabet with this fun ABC song",
-        duration: "3:45"
-      },
-      {
-        id: '4',
-        title: "Morning Routine for Kids | Healthy Habits Song",
-        channel: "Super Simple Songs",
-        channelId: "UCGwA4GJE-_XoKnrdyqfi6fQ",
-        views: "1.5M views",
-        publishedAt: "2 weeks ago",
-        youtubeId: "mVhh0oATqBI",
-        thumbnail: "https://i.ytimg.com/vi/mVhh0oATqBI/hqdefault.jpg",
-        channelIcon: "https://yt3.ggpht.com/ytc/AKedOLSKx4VgYmQqQjl7QGIoZKKedOLSKx4VgYmQqQjl7QGIoZKK=s88-c-k-c0x00ffffff-no-rj",
-        description: "Daily routine and healthy habits video for kids",
-        duration: "3:58"
-      }
-    ];
+    return [];
   }
 
   // Synchronous fallback for instant UI display
