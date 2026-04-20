@@ -111,13 +111,13 @@ export default function Media() {
     };
   }, []);
   
-  // Only these creators are allowed in Media feed and search results.
-  const SAFE_CREATORS = [
-    'Ms. Rachel',
-    'Blippi',
-    'Mother Goose Club',
-    'Vlad and Niki',
-    'AdiConnection',
+  // Only these exact channel IDs are allowed in Media feed and search results.
+  const SAFE_CHANNEL_IDS = [
+    'UCG2CL6EUjG8TVT1Tpl9nJdg', // Ms Rachel
+    'UC5PYHgAzJ1wLEidB58SK6Xw', // Blippi
+    'UCJkWoS4RsldA1coEIot5yDA', // Mother Goose Club
+    'UCvlE5gTbOvjiolFlEm-c_Ow', // Vlad and Niki
+    'UCy_DlTwLI812Lh-OIKYrwrQ', // Adi Connection
   ];
 
   const DAILY_ROUTINE_TERMS = [
@@ -134,21 +134,8 @@ export default function Media() {
   const lastRoutineTermRef = useRef<string>('');
 
   const filterExcludedVideos = (videoList: YouTubeVideo[]): YouTubeVideo[] => {
-    const allowedKeywords = [
-      'ms rachel',
-      'blippi',
-      'mother goose club',
-      'vlad and niki',
-      'adi connection',
-      'adiconnection',
-    ];
-
     return videoList.filter((video) => {
-      const normalizedChannel = (video.channel || '').toLowerCase();
-      const normalizedTitle = (video.title || '').toLowerCase();
-      const normalizedDescription = (video.description || '').toLowerCase();
-      const combined = `${normalizedChannel} ${normalizedTitle} ${normalizedDescription}`;
-      return allowedKeywords.some((keyword) => combined.includes(keyword));
+      return SAFE_CHANNEL_IDS.includes(video.channelId);
     });
   };
 
@@ -465,7 +452,7 @@ export default function Media() {
 
     setSearchLoading(true);
     try {
-      const searchTerm = `${query} kids`;
+      const searchTerm = query.trim();
       console.log(`Dynamic search: "${searchTerm}" - fetching up to 20 videos`);
       
       const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 20);
@@ -618,12 +605,12 @@ export default function Media() {
 
   const fetchVideosFromChannels = async (maxResults: number = 20, maxVideosPerCategory: number = 20): Promise<YouTubeVideo[]> => {
     try {
-      console.log('[LOAD] Fetching from allowed creators...');
+      console.log('[LOAD] Fetching from allowed channel IDs...');
       
-      // Fetch each allowed creator in parallel.
+      // Fetch each allowed channel in parallel.
       const results = await Promise.all(
-        SAFE_CREATORS.map(creatorName => 
-          YouTubeKidsService.searchKidsVideos(creatorName, maxResults, maxVideosPerCategory).catch(() => [])
+        SAFE_CHANNEL_IDS.map(channelId => 
+          YouTubeKidsService.getVideosByChannel(channelId, maxResults, maxVideosPerCategory).catch(() => [])
         )
       );
 
