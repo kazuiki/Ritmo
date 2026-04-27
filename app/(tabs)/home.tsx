@@ -14,8 +14,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { getPlaybookForPreset } from "../../constants/playbooks";
 import { resolveRoutinePreset } from "../../constants/presets";
 import {
-    getChildNickname,
-    refreshChildNicknameFromCloud,
+  getChildNickname,
+  refreshChildNicknameFromCloud,
 } from "../../src/childNicknameService";
 import { useMode } from "../../src/contexts/ModeContext";
 import { useOnboarding } from "../../src/contexts/OnboardingContext";
@@ -24,9 +24,9 @@ import { ParentalLockAuthService } from "../../src/parentalLockAuthService";
 import { ParentalLockService } from "../../src/parentalLockService";
 import { completeRoutineExecution, startRoutineExecution } from "../../src/routineExecutionService";
 import {
-    applyRoutineOverrides,
-    getRoutineOverridesLocal,
-    refreshRoutineOverridesFromCloud as refreshRoutinePresentationFromCloud,
+  applyRoutineOverrides,
+  getRoutineOverridesLocal,
+  refreshRoutineOverridesFromCloud as refreshRoutinePresentationFromCloud,
 } from "../../src/routineOverridesService";
 import { getRoutinesForCurrentUser, getUserProgressForRange, setRoutineCompleted } from "../../src/routinesService";
 import { loadCachedRoutines, saveCachedRoutines } from "../../src/routinesStore";
@@ -2248,7 +2248,10 @@ export default function Home() {
           <View style={[
             styles.termsModalContainer,
             !activePreset && styles.termsModalContainerNoPreset,
-            { paddingTop: scaleSpacing(8), paddingBottom: 0 }
+           {
+              paddingTop: canShowTaskChoices ? scaleSpacing(8) : scaleSpacing(12),
+              paddingBottom: canShowTaskChoices ? 0 : scaleSpacing(6),
+            }
           ]}>
             {/* Header - Hide for no-preset */}
             {activePreset && (
@@ -3418,11 +3421,11 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     marginTop: scale.scaleSpacing(8),
   },
   taskDialogContentCompact: {
-    marginTop: -30,
+    marginTop: 0,
     gap: 0,
     paddingHorizontal: scale.scaleSpacing(16),
-    paddingVertical: scale.scaleSpacing(20),
-    paddingBottom: scale.scaleSpacing(12),
+    paddingTop: scale.scaleSpacing(8),
+    paddingBottom: scale.scaleSpacing(8),
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
@@ -3461,7 +3464,7 @@ const styles = createResponsiveStyles((scale) => StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: scale.scaleSpacing(16),
     paddingTop: scale.scaleSpacing(8),
-    paddingBottom: scale.scaleSpacing(20),
+    paddingBottom: scale.scaleSpacing(14),
     gap: scale.scaleSpacing(12),
     flex: 0,
   },

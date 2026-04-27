@@ -111,12 +111,13 @@ export default function Media() {
     };
   }, []);
   
-  // Safe channel IDs
-  const SAFE_CHANNELS = [
-    'UCGwA4GJE-_XoKnrdyqfi6fQ', // Super Simple Songs
-    'UCKAqou7V9FWgPBC3vafy_ew', // Little Baby Bum
-    'UCbFWrz_2m_sDJ3hSHKWJUMw', // Dave and Ava
-    'UCGfBwrCoi9ZJjKiUK8MmJNw', // Pinkfong Baby Shark
+  // Only these exact channel IDs are allowed in Media feed and search results.
+  const SAFE_CHANNEL_IDS = [
+    'UCG2CL6EUjG8TVT1Tpl9nJdg', // Ms Rachel
+    'UC5PYHgAzJ1wLEidB58SK6Xw', // Blippi
+    'UCJkWoS4RsldA1coEIot5yDA', // Mother Goose Club
+    'UCvlE5gTbOvjiolFlEm-c_Ow', // Vlad and Niki
+    'UCy_DlTwLI812Lh-OIKYrwrQ', // Adi Connection
   ];
 
   const DAILY_ROUTINE_TERMS = [
@@ -133,33 +134,8 @@ export default function Media() {
   const lastRoutineTermRef = useRef<string>('');
 
   const filterExcludedVideos = (videoList: YouTubeVideo[]): YouTubeVideo[] => {
-    const cartoonRequiredKeywords = [
-      'cartoon', 'animated', 'animation', 'nursery rhyme', 'kids song', 'abc song',
-      'alphabet song', 'baby shark', 'pinkfong', 'dave and ava', 'super simple songs',
-      'little baby bum', 'kids music', 'cartoons for kids'
-    ];
-
-    const humanContentKeywords = [
-      'ms rachel', 'blippi', 'live action', 'real life', 'family vlog', 'vlog',
-      'reaction', 'podcast', 'interview', 'teacher', 'classroom', 'for parents'
-    ];
-
-    return videoList.filter(video => {
-      const normalizedChannel = (video.channel || '').toLowerCase();
-      const normalizedTitle = (video.title || '').toLowerCase();
-      const normalizedDescription = (video.description || '').toLowerCase();
-      const combined = `${normalizedChannel} ${normalizedTitle} ${normalizedDescription}`;
-
-      const hasCartoonSignal = cartoonRequiredKeywords.some(keyword => combined.includes(keyword));
-      const hasHumanSignal = humanContentKeywords.some(keyword => combined.includes(keyword));
-
-      return !(
-        normalizedChannel.includes('cocomelon') ||
-        normalizedTitle.includes('cocomelon') ||
-        normalizedDescription.includes('cocomelon') ||
-        !hasCartoonSignal ||
-        hasHumanSignal
-      );
+    return videoList.filter((video) => {
+      return SAFE_CHANNEL_IDS.includes(video.channelId);
     });
   };
 
@@ -479,7 +455,7 @@ export default function Media() {
 
     setSearchLoading(true);
     try {
-      const searchTerm = `${query} kids`;
+      const searchTerm = query.trim();
       console.log(`Dynamic search: "${searchTerm}" - fetching up to 20 videos`);
       
       const dynamicResults = await YouTubeKidsService.searchKidsVideos(searchTerm, 20, 20);
@@ -656,11 +632,11 @@ export default function Media() {
 
   const fetchVideosFromChannels = async (maxResults: number = 20, maxVideosPerCategory: number = 20): Promise<YouTubeVideo[]> => {
     try {
-      console.log('[LOAD] Fetching from safe channels...');
+      console.log('[LOAD] Fetching from allowed channel IDs...');
       
-      // Fetch from both channels in parallel
+      // Fetch each allowed channel in parallel.
       const results = await Promise.all(
-        SAFE_CHANNELS.map(channelId => 
+        SAFE_CHANNEL_IDS.map(channelId => 
           YouTubeKidsService.getVideosByChannel(channelId, maxResults, maxVideosPerCategory).catch(() => [])
         )
       );

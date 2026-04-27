@@ -127,7 +127,7 @@ export function defaultPdfFilename(prefix: string) {
   return `${prefix}-${yyyy}${mm}${dd}-${hh}${mi}.pdf`;
 }
 
-export async function saveWeeklyPerformanceReportPdf(params: {
+export async function saveWeeklyProgressReportPdf(params: {
   childName: string;
   weekStart: Date;
   weekEnd: Date;
@@ -419,7 +419,7 @@ export async function saveWeeklyPerformanceReportPdf(params: {
         <div>
           ${logoBase64 ? `<img class="header-logo" src="data:image/png;base64,${logoBase64}" />` : ''}
           <hr class="divider-line" />
-          <div class="title">Weekly Performance Report</div>
+          <div class="title">Weekly Progress Report</div>
           <hr class="divider-line" />
         </div>
 
